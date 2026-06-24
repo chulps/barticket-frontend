@@ -1,24 +1,43 @@
-// import { useState } from 'react'
-import './App.css'
-import Icon from './components/Icon'
+// src/App.tsx
 
-function App() {
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+} from "react-router-dom";
 
+import Home from "./pages/Home";
+import Tickets from "./pages/Tickets";
+import TicketDetails from "./pages/TicketDetails";
+import Menu from "./pages/Menu";
+import Payments from "./pages/Payments";
+
+export default function App() {
   return (
-    <>
-        <div>
-          <h1>Initial commit</h1>
-          
-          <Icon
-            name="BeerBottle"
-            size={32}
-            color="#ffffff"
-            hoverColor="#ffcc00"
-            weight="fill"
-          />
-        </div>
-    </>
-  )
-}
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
 
-export default App
+        <Route
+          path="/tickets"
+          element={<Tickets />}
+        />
+
+        <Route
+          path="/tickets/:id"
+          element={<TicketDetails />}
+        />
+
+        <Route
+          path="/menu"
+          element={<Menu />}
+        />
+
+        <Route
+          path="/payments"
+          element={<Payments />}
+        />
+      </Routes>
+    </BrowserRouter>
+  );
+}
