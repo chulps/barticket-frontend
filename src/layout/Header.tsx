@@ -2,24 +2,33 @@
 
 import { useState } from "react";
 import styled from "styled-components";
-import Icon from "../components/Icon"
+import Icon from "../components/Icon";
+import FxxkupLogo from "../components/FxxkupLogo"
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <Navbar>
-        <Logo>Rock Bar Fxxkup</Logo>
+        <Logo>
+            <FxxkupLogo />
+        </Logo>
 
         <Hamburger onClick={() => setIsOpen(!isOpen)}>
           <Icon name="List" />
         </Hamburger>
 
         <Nav $isOpen={isOpen}>
+            <NavLink href="/home">
+                <Icon 
+                    color="var(--neutral-300)" 
+                    hoverColor="white" 
+                    name="House" />
+                Home
+            </NavLink>
           <NavLink href="#menu">Menu</NavLink>
-          <NavLink href="#whiskey">Whiskey</NavLink>
-          <NavLink href="#cocktails">Cocktails</NavLink>
-          <NavLink href="#contact">Contact</NavLink>
+          <NavLink href="#History">History</NavLink>
+          <NavLink href="#analytics">Analytics</NavLink>
         </Nav>
     </Navbar>
   );
@@ -32,9 +41,10 @@ const Navbar = styled.header`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 1rem 1rem;
+  padding: 1rem;
   border-bottom: 1px solid var(--secondary);
   z-index: 1000;
+  background: var(--neutral-950);
 
     @media (max-width: 768px) {
     flex-direction:row-reverse;
@@ -44,9 +54,6 @@ const Navbar = styled.header`
 
 const Logo = styled.h1`
   color: white;
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: 1px;
 `;
 
 const Hamburger = styled.button`
@@ -68,7 +75,7 @@ const Hamburger = styled.button`
 
 const Nav = styled.nav<{ $isOpen: boolean }>`
   display: flex;
-  gap: 2rem;
+  gap: 0;
 
   @media (max-width: 768px) {
     position: absolute;
@@ -100,12 +107,16 @@ const Nav = styled.nav<{ $isOpen: boolean }>`
 `;
 
 const NavLink = styled.a`
-  color: white;
+  color: var(--neutral-300);
   text-decoration: none;
-  font-size: 1rem;
-  transition: 0.2s;
+  display: flex;
+  flex-align: center;
+  gap: var(--space-0);
+  padding: var(--space-1);
 
   &:hover {
-    color: #ff4747;
+    color: white;
+    transform: scale(1.05);
+    transform-origin: center;
   }
 `;

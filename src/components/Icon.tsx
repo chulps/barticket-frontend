@@ -6,7 +6,7 @@ import type { CSSProperties } from "react";
 
 type IconProps = {
   name: keyof typeof PhosphorIcons;
-  size?: number;
+  size?: number | string;
   color?: string;
   hoverColor?: string;
   weight?:
@@ -21,7 +21,7 @@ type IconProps = {
 
 export default function Icon({
   name,
-  size = 24,
+  size = "var(--font-size-h4)",
   color = "#ffffff",
   hoverColor,
   weight = "regular",

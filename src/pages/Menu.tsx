@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import styled from "styled-components";
 
 type MenuItem = {
   id: number;
@@ -59,47 +60,67 @@ export default function Menu() {
       <h1>{menu.menu_name}</h1>
 
       {menu.categories.map((category) => (
-  <section key={category.id}>
-    <h2>{category.name}</h2>
+        <MenuCategory key={category.id}>
+          <h2>{category.name}</h2>
 
-    {category.items?.map((item) => (
-      <div key={item.id}>
-        <p>{item.name}</p>
+          {category.items?.map((item) => (
+            <div key={item.id}>
+              <p>{item.name}</p>
 
-        {item.price && <p>¥{item.price}</p>}
+              {item.price && <p>¥{item.price}</p>}
 
-        {item.prices && (
-          <div>
-            <p>15ml: ¥{item.prices["15ml"]}</p>
-            <p>30ml: ¥{item.prices["30ml"]}</p>
-          </div>
-        )}
-      </div>
-    ))}
+              {item.prices && (
+                <div>
+                  <p>15ml: ¥{item.prices["15ml"]}</p>
+                  <p>30ml: ¥{item.prices["30ml"]}</p>
+                </div>
+              )}
+            </div>
+          ))}
 
-    {category.subcategories?.map((subcategory) => (
-      <div key={subcategory.id}>
-        <p>{subcategory.name}</p>
+          {category.subcategories?.map((subcategory) => (
+            <MenuSubCategory key={subcategory.id}>
+              <p>{subcategory.name}</p>
 
-        {/* subcategories for japanese whiskey */}
-        {subcategory.items.map((item) => (
-          <div key={item.id}>
-            <p>{item.name}</p>
+              {/* subcategories for japanese whiskey */}
+              {subcategory.items.map((item) => (
+                <div key={item.id}>
+                  <p>{item.name}</p>
 
-            {item.price && <p>¥{item.price}</p>}
+                  {item.price && <p>¥{item.price}</p>}
 
-            {item.prices && (
-              <div>
-                <p>15ml: ¥{item.prices["15ml"]}</p>
-                <p>30ml: ¥{item.prices["30ml"]}</p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    ))}
-  </section>
-))}
+                  {item.prices && (
+                    <div>
+                      <p>15ml: ¥{item.prices["15ml"]}</p>
+                      <p>30ml: ¥{item.prices["30ml"]}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </MenuSubCategory>
+          ))}
+        </MenuCategory>
+      ))}
     </main>
   );
 }
+
+const MenuCategory = styled.section`
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    flex-direction:row-reverse;
+    padding-left: 0;
+  }
+`;
+
+const MenuSubCategory = styled.section`
+background: red;
+
+  // @media (max-width: 768px) {
+  //   flex-direction:row-reverse;
+  //   padding-left: 0;
+  // }
+`;
