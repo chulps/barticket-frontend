@@ -1,35 +1,63 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
+
+type Prices = {
+  standard?: number;
+  "15ml"?: number;
+  "30ml"?: number;
+};
 
 type MenuItem = {
   id: number;
-  name: string;
-  price?: number;
-  prices?: {
-    "15ml": number;
-    "30ml": number;
-  };
-};
+  inStock: boolean;
 
-type Subcategory = {
-  id: number;
-  name: string;
-  items: MenuItem[];
-};
+  category: string;
+  subcategory?: string;
 
-type Category = {
-  id: number;
   name: string;
-  items?: MenuItem[];
-  subcategories?: Subcategory[];
+  description?: string;
+  notes?: string;
+
+  prices: Prices;
+
+  cocktail?: boolean;
 };
 
 type MenuData = {
-  menu_name: string;
-  cover_charge: number;
-  categories: Category[];
+  coverCharge: number;
+  items: MenuItem[];
 };
 
+type GroupedMenu = Record<
+  string,
+  Record<string, MenuItem[]>
+>;
+
+function Price({ item }: { item: MenuItem }) {
+  const { standard, ["15ml"]: p15, ["30ml"]: p30 } = item.prices ?? {};
+
+  if (standard !== undefined) {
+    return <PriceText>¥{standard.toLocaleString()}</PriceText>;
+  }
+
+  return (
+    <PriceContainer>
+      {p15 !== undefined && (
+        <PriceRow>
+          <span>15ml</span>
+          <span>¥{p15.toLocaleString()}</span>
+        </PriceRow>
+      )}
+
+      {p30 !== undefined && (
+        <PriceRow>
+          <span>30ml</span>
+          <span>¥{p30.toLocaleString()}</span>
+        </PriceRow>
+      )}
+    </PriceContainer>
+  );
+}
 export default function Menu() {
   const [menu, setMenu] = useState<MenuData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,14 +66,33 @@ export default function Menu() {
     fetch("http://127.0.0.1:8000/menu")
       .then((res) => res.json())
       .then((data) => {
-        setMenu(data[0]); // because backend returns an array
-        setLoading(false);
+        // backend currently returns an array
+        setMenu(data);
       })
-      .catch((err) => {
-        console.error(err);
-        setLoading(false);
-      });
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
+
+  const groupedMenu = useMemo<GroupedMenu>(() => {
+    if (!menu) return {};
+
+    return menu.items.reduce<GroupedMenu>((acc, item) => {
+      const category = item.category;
+      const subcategory = item.subcategory ?? "General";
+
+      if (!acc[category]) {
+        acc[category] = {};
+      }
+
+      if (!acc[category][subcategory]) {
+        acc[category][subcategory] = [];
+      }
+
+      acc[category][subcategory].push(item);
+
+      return acc;
+    }, {});
+  }, [menu]);
 
   if (loading) {
     return <h1>Loading...</h1>;
@@ -55,72 +102,133 @@ export default function Menu() {
     return <h1>No menu found.</h1>;
   }
 
-  return (
-    <main>
-      <h1>{menu.menu_name}</h1>
+return (
+  <main>
+    <MenuHeader>Drink Menu</MenuHeader>
 
-      {menu.categories.map((category) => (
-        <MenuCategory key={category.id}>
-          <h2>{category.name}</h2>
+    <MenuGridContainer>
+      {Object.entries(groupedMenu).map(([categoryName, subcategories]) => (
+        <Category key={categoryName}>
+          <CategoryHeading>{categoryName}</CategoryHeading>
 
-          {category.items?.map((item) => (
-            <div key={item.id}>
-              <p>{item.name}</p>
-
-              {item.price && <p>¥{item.price}</p>}
-
-              {item.prices && (
-                <div>
-                  <p>15ml: ¥{item.prices["15ml"]}</p>
-                  <p>30ml: ¥{item.prices["30ml"]}</p>
-                </div>
+          {Object.entries(subcategories).map(([subcategoryName, items]) => (
+            <div key={subcategoryName}>
+              {subcategoryName !== "General" && (
+                <SubHeading>{subcategoryName}</SubHeading>
               )}
+
+              {items.map((item) => (
+                <MenuRow
+                  key={item.id}
+                  style={{
+                    opacity: item.inStock ? 1 : 0.35,
+                  }}
+                >
+                  <ItemInfo>
+                    <ItemName>{item.name}</ItemName>
+
+                    {item.description && (
+                      <Description>{item.description}</Description>
+                    )}
+
+                    {item.notes && (
+                      <Note>{item.notes}</Note>
+                    )}
+                  </ItemInfo>
+
+                  <Spacer />
+
+                  <Price item={item} />
+                </MenuRow>
+              ))}
             </div>
           ))}
-
-          {category.subcategories?.map((subcategory) => (
-            <MenuSubCategory key={subcategory.id}>
-              <p>{subcategory.name}</p>
-
-              {/* subcategories for japanese whiskey */}
-              {subcategory.items.map((item) => (
-                <div key={item.id}>
-                  <p>{item.name}</p>
-
-                  {item.price && <p>¥{item.price}</p>}
-
-                  {item.prices && (
-                    <div>
-                      <p>15ml: ¥{item.prices["15ml"]}</p>
-                      <p>30ml: ¥{item.prices["30ml"]}</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </MenuSubCategory>
-          ))}
-        </MenuCategory>
+        </Category>
       ))}
-    </main>
-  );
+    </MenuGridContainer>
+  </main>
+);
 }
 
-const MenuCategory = styled.section`
-  width: 100%;
-  display: flex;
-  flex-wrap: wrap;
 
-  @media (max-width: 768px) {
-    flex-direction:row-reverse;
-    padding-left: 0;
-  }
+const MenuHeader = styled.h1`
+  padding-top: var(--space-2);
+  margin-bottom: var(--space-3);
 `;
 
-const MenuSubCategory = styled.section`
-background: red;
+const MenuGridContainer = styled.section`
+  columns: 320px;
+  column-gap: var(--space-4);
+`;
 
-  // @media (max-width: 768px) {
-  //   flex-direction:row-reverse;
-  //   padding-left: 0;
-  // }
+const Category = styled.section`
+  break-inside: avoid;
+  margin-bottom: var(--space-4);
+`;
+
+const CategoryHeading = styled.h2`
+  margin-bottom: var(--space-2);
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid var(--accent);
+`;
+
+const SubHeading = styled.h3`
+  margin: var(--space-2) 0 var(--space-1);
+  color: var(--neutral-300);
+`;
+
+const MenuRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+`;
+
+const ItemInfo = styled.div`
+  flex-shrink: 0;
+  max-width: 28ch;
+`;
+
+const ItemName = styled.p`
+  font-weight: 500;
+`;
+
+const Description = styled.p`
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  line-height: 1.3;
+  color: var(--neutral-400);
+`;
+
+const Note = styled.span`
+  margin-left: 0.4rem;
+  color: var(--accent);
+  font-size: 0.8rem;
+`;
+
+const Spacer = styled.div`
+  flex: 1;
+  align-self: center;
+  border-bottom: 1px dashed var(--neutral-700);
+`;
+
+const PriceContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 90px;
+`;
+
+const PriceText = styled.p`
+  white-space: nowrap;
+  font-weight: 500;
+`;
+
+const PriceRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  white-space: nowrap;
+  font-size: 0.9rem;
 `;
