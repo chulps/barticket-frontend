@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 
+// imported components
+import SearchBar from "../components/MenuSearchBar";
+
 type Prices = {
   standard?: number;
   "15ml"?: number;
@@ -44,15 +47,15 @@ function Price({ item }: { item: MenuItem }) {
     <PriceContainer>
       {p15 !== undefined && (
         <PriceRow>
-          <span>15ml</span>
-          <span>¥{p15.toLocaleString()}</span>
+          <label>15ml</label>
+          <data>¥{p15.toLocaleString()}</data>
         </PriceRow>
       )}
 
       {p30 !== undefined && (
         <PriceRow>
-          <span>30ml</span>
-          <span>¥{p30.toLocaleString()}</span>
+          <label>30ml</label>
+          <data>¥{p30.toLocaleString()}</data>
         </PriceRow>
       )}
     </PriceContainer>
@@ -61,6 +64,7 @@ function Price({ item }: { item: MenuItem }) {
 export default function Menu() {
   const [menu, setMenu] = useState<MenuData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     fetch("http://127.0.0.1:8000/menu")
@@ -73,10 +77,34 @@ export default function Menu() {
       .finally(() => setLoading(false));
   }, []);
 
+  const filteredItems = useMemo(() => {
+  if (!menu) return [];
+
+  const search = searchTerm.toLowerCase().trim();
+
+  if (!search) {
+    return menu.items;
+  }
+
+  return menu.items.filter((item) =>
+    [
+      item.name,
+      item.category,
+      item.subcategory,
+      item.description,
+      item.notes,
+    ]
+      .filter(Boolean)
+      .some((field) =>
+        field!.toLowerCase().includes(search)
+      )
+  );
+}, [menu, searchTerm]);
+
   const groupedMenu = useMemo<GroupedMenu>(() => {
     if (!menu) return {};
 
-    return menu.items.reduce<GroupedMenu>((acc, item) => {
+    return filteredItems.reduce<GroupedMenu>((acc, item) => {
       const category = item.category;
       const subcategory = item.subcategory ?? "General";
 
@@ -92,7 +120,7 @@ export default function Menu() {
 
       return acc;
     }, {});
-  }, [menu]);
+  }, [filteredItems, menu]);
 
   if (loading) {
     return <h1>Loading...</h1>;
@@ -102,52 +130,57 @@ export default function Menu() {
     return <h1>No menu found.</h1>;
   }
 
-return (
-  <main>
-    <MenuHeader>Drink Menu</MenuHeader>
+  return (
+    <main>
+      <MenuHeader>Drink Menu</MenuHeader>
+      <SearchBar
+        value={searchTerm}
+        onChange={setSearchTerm}
+      />
 
-    <MenuGridContainer>
-      {Object.entries(groupedMenu).map(([categoryName, subcategories]) => (
-        <Category key={categoryName}>
-          <CategoryHeading>{categoryName}</CategoryHeading>
+      <MenuGridContainer>
+        {Object.entries(groupedMenu).map(([categoryName, subcategories]) => (
+          <Category key={categoryName}>
+            <CategoryHeading>{categoryName}</CategoryHeading>
 
-          {Object.entries(subcategories).map(([subcategoryName, items]) => (
-            <div key={subcategoryName}>
-              {subcategoryName !== "General" && (
-                <SubHeading>{subcategoryName}</SubHeading>
-              )}
+            {Object.entries(subcategories).map(([subcategoryName, items]) => (
+              <div key={subcategoryName}>
+                {subcategoryName !== "General" && (
+                  <SubHeading>{subcategoryName}</SubHeading>
+                )}
 
-              {items.map((item) => (
-                <MenuRow
-                  key={item.id}
-                  style={{
-                    opacity: item.inStock ? 1 : 0.35,
-                  }}
-                >
-                  <ItemInfo>
-                    <ItemName>{item.name}</ItemName>
-
+                {items.map((item) => (
+                  <MenuRow
+                    key={item.id}
+                    style={{
+                      opacity:
+                        item.category === "Cocktails" || item.inStock
+                          ? 1
+                          : 0.35,
+                    }}
+                  >
+                    <ItemInfo>
+                      <ItemName>{item.name}</ItemName>
+                      <Spacer />
+                      <Price item={item} />
+                    </ItemInfo>
                     {item.description && (
                       <Description>{item.description}</Description>
                     )}
 
                     {item.notes && (
-                      <Note>{item.notes}</Note>
+                      <Note>*{item.notes}</Note>
                     )}
-                  </ItemInfo>
 
-                  <Spacer />
-
-                  <Price item={item} />
-                </MenuRow>
-              ))}
-            </div>
-          ))}
-        </Category>
-      ))}
-    </MenuGridContainer>
-  </main>
-);
+                  </MenuRow>
+                ))}
+              </div>
+            ))}
+          </Category>
+        ))}
+      </MenuGridContainer>
+    </main>
+  );
 }
 
 
@@ -172,43 +205,40 @@ const CategoryHeading = styled.h2`
   border-bottom: 2px solid var(--accent);
 `;
 
-const SubHeading = styled.h3`
+const SubHeading = styled.label`
   margin: var(--space-2) 0 var(--space-1);
   color: var(--neutral-300);
 `;
 
 const MenuRow = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  margin-bottom: 0.6rem;
+  gap: var(--space-0);
+  margin-bottom: var(--space-1);
 `;
 
 const ItemInfo = styled.div`
-  flex-shrink: 0;
-  max-width: 28ch;
+  display: flex;
+  align-items: start;
+  gap: var(--space-1);
 `;
 
 const ItemName = styled.p`
-  font-weight: 500;
+  font-weight: 300;
 `;
 
-const Description = styled.p`
+const Description = styled.small`
   margin-top: 0.15rem;
-  font-size: 0.8rem;
   line-height: 1.3;
   color: var(--neutral-400);
 `;
 
-const Note = styled.span`
+const Note = styled.small`
   margin-left: 0.4rem;
   color: var(--accent);
-  font-size: 0.8rem;
 `;
 
 const Spacer = styled.div`
   flex: 1;
-  align-self: center;
+  align-self: flex-end;
   border-bottom: 1px dashed var(--neutral-700);
 `;
 
@@ -219,9 +249,8 @@ const PriceContainer = styled.div`
   min-width: 90px;
 `;
 
-const PriceText = styled.p`
+const PriceText = styled.data`
   white-space: nowrap;
-  font-weight: 500;
 `;
 
 const PriceRow = styled.div`
@@ -230,5 +259,4 @@ const PriceRow = styled.div`
   gap: 0.75rem;
   width: 100%;
   white-space: nowrap;
-  font-size: 0.9rem;
 `;
