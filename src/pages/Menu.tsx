@@ -77,28 +77,47 @@ export default function Menu() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filteredItems = useMemo(() => {
+const filteredItems = useMemo(() => {
   if (!menu) return [];
 
-  const search = searchTerm.toLowerCase().trim();
+  const search = searchTerm
+    .replace(/[¥,]/g, "")
+    .toLowerCase()
+    .trim();
 
   if (!search) {
     return menu.items;
   }
 
-  return menu.items.filter((item) =>
-    [
+  return menu.items.filter((item) => {
+    // Text search
+    const textFields = [
       item.name,
       item.category,
       item.subcategory,
       item.description,
       item.notes,
-    ]
+    ];
+
+    const textMatch = textFields
       .filter(Boolean)
       .some((field) =>
         field!.toLowerCase().includes(search)
-      )
-  );
+      );
+
+    // Exact price search
+    const priceFields = [
+      item.prices?.standard,
+      item.prices?.["15ml"],
+      item.prices?.["30ml"],
+    ];
+
+    const priceMatch = priceFields.some(
+      (price) => price?.toString() === search
+    );
+
+    return textMatch || priceMatch;
+  });
 }, [menu, searchTerm]);
 
   const groupedMenu = useMemo<GroupedMenu>(() => {
