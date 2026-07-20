@@ -168,6 +168,7 @@ const filteredItems = useMemo(() => {
                   <SubHeading>{subcategoryName}</SubHeading>
                 )}
 
+                <MenuItemsContainer>
                 {items.map((item) => (
                   <MenuRow
                     key={item.id}
@@ -193,6 +194,7 @@ const filteredItems = useMemo(() => {
 
                   </MenuRow>
                 ))}
+                </MenuItemsContainer>   
               </div>
             ))}
           </Category>
@@ -203,22 +205,33 @@ const filteredItems = useMemo(() => {
 }
 
 
-const MenuHeader = styled.h1`
+const MenuHeader = styled.h2`
   padding-top: var(--space-2);
   margin-bottom: var(--space-3);
 `;
 
 const MenuGridContainer = styled.section`
-  columns: 320px;
-  column-gap: var(--space-4);
-`;
+  columns: 100%;
+  margin-top: var(--space-3);
+    column-gap: var(--space-4);
+
+  @media (min-width: 768px) {
+    columns: var(--space-6);
+  }
+  `
+
+const MenuItemsContainer = styled.div `
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+`
 
 const Category = styled.section`
   break-inside: avoid;
   margin-bottom: var(--space-4);
 `;
 
-const CategoryHeading = styled.h2`
+const CategoryHeading = styled.h3`
   margin-bottom: var(--space-2);
   padding-bottom: 0.35rem;
   border-bottom: 2px solid var(--accent);
@@ -227,6 +240,7 @@ const CategoryHeading = styled.h2`
 const SubHeading = styled.label`
   margin: var(--space-2) 0 var(--space-1);
   color: var(--neutral-300);
+  align-self: center;
 `;
 
 const MenuRow = styled.div`
@@ -275,7 +289,8 @@ const PriceText = styled.data`
 const PriceRow = styled.div`
   display: flex;
   justify-content: space-between;
-  gap: 0.75rem;
+  align-items: center;
+  gap: var(--space-1);
   width: 100%;
   white-space: nowrap;
 `;

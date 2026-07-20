@@ -4,32 +4,43 @@ import { useState } from "react";
 import styled from "styled-components";
 import Icon from "../components/Icon";
 import FxxkupLogo from "../components/FxxkupLogo"
+import { Link as RouterLink} from "react-router-dom"
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <Navbar>
-        <Logo>
-            <FxxkupLogo />
-        </Logo>
+      <Logo>
+        <FxxkupLogo />
+      </Logo>
 
-        <Hamburger onClick={() => setIsOpen(!isOpen)}>
-          <Icon name="List" />
-        </Hamburger>
+      <Hamburger onClick={() => setIsOpen(!isOpen)}>
+        <Icon name="List" />
+      </Hamburger>
 
-        <Nav $isOpen={isOpen}>
-            <NavLink href="/home">
-                <Icon 
-                    color="var(--neutral-300)" 
-                    hoverColor="white" 
-                    name="House" />
-                Home
-            </NavLink>
-          <NavLink href="#menu">Menu</NavLink>
-          <NavLink href="#History">History</NavLink>
-          <NavLink href="#analytics">Analytics</NavLink>
-        </Nav>
+      <Nav $isOpen={isOpen}>
+        <NavLink to="/">
+          <Icon
+            color="var(--neutral-300)"
+            hoverColor="white"
+            name="House"
+          />
+          Home
+        </NavLink>
+
+        <NavLink to="/menu">
+          Menu
+        </NavLink>
+
+        <NavLink to="/tickets">
+          Tickets
+        </NavLink>
+
+        <NavLink to="/payments">
+          Payments
+        </NavLink>
+      </Nav>
     </Navbar>
   );
 }
@@ -93,7 +104,7 @@ const Nav = styled.nav<{ $isOpen: boolean }>`
     /* animation stuff */
     transform-origin: top;
     transform: ${({ $isOpen }) =>
-      $isOpen ? "scaleY(1)" : "scaleY(0)"};
+    $isOpen ? "scaleY(1)" : "scaleY(0)"};
 
     opacity: ${({ $isOpen }) => ($isOpen ? 1 : 0)};
 
@@ -102,15 +113,14 @@ const Nav = styled.nav<{ $isOpen: boolean }>`
       opacity 0.2s ease;
 
     pointer-events: ${({ $isOpen }) =>
-      $isOpen ? "auto" : "none"};
+    $isOpen ? "auto" : "none"};
   }
 `;
 
-const NavLink = styled.a`
+const NavLink = styled(RouterLink)`
   color: var(--neutral-300);
   text-decoration: none;
   display: flex;
-  flex-align: center;
   gap: var(--space-0);
   padding: var(--space-1);
 

@@ -11,13 +11,12 @@ import Tickets from "./pages/Tickets";
 import TicketDetails from "./pages/TicketDetails";
 import Menu from "./pages/Menu";
 import Payments from "./pages/Payments";
-import Header from "./layout/Header"
+import Header from "./layout/Header";
 
 export default function App() {
   return (
-    <>
-    <Header/>
     <BrowserRouter>
+      <Header />
 
       <Routes>
         <Route path="/" element={<Home />} />
@@ -43,6 +42,5 @@ export default function App() {
         />
       </Routes>
     </BrowserRouter>
-    </>
   );
 }
