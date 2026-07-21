@@ -26,12 +26,15 @@ export default function Header() {
         <NavLink 
           onClick={() => setIsOpen(false)}
           to="/">
-          <Icon
-            color="currentColor"
-            hoverColor="white"
-            name="House"
-          />
-          Home
+          {({ isActive }) => (
+            <>
+              <Icon
+                name="House"
+                weight={isActive ? "fill" : "regular"}
+              />
+              Home
+            </>
+          )}
         </NavLink>
 
         <NavLink 
@@ -51,23 +54,29 @@ export default function Header() {
         <NavLink 
           onClick={() => setIsOpen(false)}
           to="/tickets">
-          <Icon
-            color="currentColor"
-            hoverColor="white"
-            name="Ticket"
-          />
-          Tickets
+          {({ isActive }) => (
+            <>
+              <Icon
+                name="Ticket"
+                weight={isActive ? "fill" : "regular"}
+              />
+              Tickets
+            </>
+          )}
         </NavLink>
 
         <NavLink 
           onClick={() => setIsOpen(false)}
           to="/payments">
-          <Icon
-            color="currentColor"
-            hoverColor="white"
-            name="Money"
-          />
-          Payments
+          {({ isActive }) => (
+            <>
+              <Icon
+                name="Money"
+                weight={isActive ? "fill" : "regular"}
+              />
+              Payments
+            </>
+          )}
         </NavLink>
       </Nav>
     </Navbar>
