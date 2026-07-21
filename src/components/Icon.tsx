@@ -1,7 +1,6 @@
 // src/components/Icon.tsx
 
 import * as PhosphorIcons from "@phosphor-icons/react";
-import { useState } from "react";
 import type { CSSProperties } from "react";
 
 type IconProps = {
@@ -22,36 +21,24 @@ type IconProps = {
 export default function Icon({
   name,
   size = "var(--font-size-h4)",
-  color = "#ffffff",
-  hoverColor,
+  color = "currentColor",
   weight = "regular",
   style,
 }: IconProps) {
-  const [isHovered, setIsHovered] = useState(false);
-
   const Component =
     PhosphorIcons[name] as React.ElementType;
 
-  if (!Component) {
-    return null;
-  }
+  if (!Component) return null;
 
   return (
     <Component
       size={size}
-      color={
-        isHovered && hoverColor
-          ? hoverColor
-          : color
-      }
+      color={color}
       weight={weight}
       style={{
         transition: "0.2s ease",
-        cursor: "pointer",
         ...style,
       }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     />
   );
 }

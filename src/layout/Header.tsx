@@ -4,7 +4,7 @@ import { useState } from "react";
 import styled from "styled-components";
 import Icon from "../components/Icon";
 import FxxkupLogo from "../components/FxxkupLogo"
-import { Link as RouterLink} from "react-router-dom"
+import { NavLink as RouterNavLink } from "react-router-dom"
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
@@ -15,29 +15,58 @@ export default function Header() {
         <FxxkupLogo />
       </Logo>
 
-      <Hamburger onClick={() => setIsOpen(!isOpen)}>
-        <Icon name="List" />
+      <Hamburger
+        className="hollow secondary"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <Icon name={isOpen ? "X" : "List"} />
       </Hamburger>
 
       <Nav $isOpen={isOpen}>
-        <NavLink to="/">
+        <NavLink 
+          onClick={() => setIsOpen(false)}
+          to="/">
           <Icon
-            color="var(--neutral-300)"
+            color="currentColor"
             hoverColor="white"
             name="House"
           />
           Home
         </NavLink>
 
-        <NavLink to="/menu">
-          Menu
+        <NavLink 
+          onClick={() => setIsOpen(false)}
+          to="/menu">
+          {({ isActive }) => (
+            <>
+              <Icon
+                name="Book"
+                weight={isActive ? "fill" : "regular"}
+              />
+              Drink Menu
+            </>
+          )}
         </NavLink>
 
-        <NavLink to="/tickets">
+        <NavLink 
+          onClick={() => setIsOpen(false)}
+          to="/tickets">
+          <Icon
+            color="currentColor"
+            hoverColor="white"
+            name="Ticket"
+          />
           Tickets
         </NavLink>
 
-        <NavLink to="/payments">
+        <NavLink 
+          onClick={() => setIsOpen(false)}
+          to="/payments">
+          <Icon
+            color="currentColor"
+            hoverColor="white"
+            name="Money"
+          />
           Payments
         </NavLink>
       </Nav>
@@ -52,14 +81,14 @@ const Navbar = styled.header`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
+  padding: 0 var(--space-1);
   border-bottom: 1px solid var(--secondary);
   z-index: 1000;
   background: var(--neutral-950);
 
-    @media (max-width: 768px) {
+  @media (max-width: 768px) {
     flex-direction:row-reverse;
-    padding-left: 0;
+    padding: var(--space-1) 0;
   }
 `;
 
@@ -90,18 +119,15 @@ const Nav = styled.nav<{ $isOpen: boolean }>`
 
   @media (max-width: 768px) {
     position: absolute;
-    top: 70px;
+    top: var(--space-4);
     left: 0;
 
-    width: 100%;
     background: var(--neutral-900);
     border: 1px solid var(--neutral-700);
     border-radius: var(--space-2);
 
     flex-direction: column;
-    padding: 1.5rem 2rem;
-
-    /* animation stuff */
+    overflow: hidden;
     transform-origin: top;
     transform: ${({ $isOpen }) =>
     $isOpen ? "scaleY(1)" : "scaleY(0)"};
@@ -117,16 +143,51 @@ const Nav = styled.nav<{ $isOpen: boolean }>`
   }
 `;
 
-const NavLink = styled(RouterLink)`
+const NavLink = styled(RouterNavLink)`
+  position: relative;
+
   color: var(--neutral-300);
   text-decoration: none;
   display: flex;
   gap: var(--space-0);
-  padding: var(--space-1);
+  padding: var(--space-2);
 
   &:hover {
     color: white;
-    transform: scale(1.05);
-    transform-origin: center;
+  }
+
+  &[aria-current="page"] {
+    color: white;
+  }
+
+  &[aria-current="page"]::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+
+    width: 100%;
+    height: 1px;
+
+    background: white;
+  }
+
+  @media (max-width: 768px) {
+    padding: var(--space-1) var(--space-2);
+    &[aria-current="page"] {
+      background: var(--neutral-800);
+    }
+
+    &[aria-current="page"]::after {
+      display: none;
+    }
+
+    &:first-of-type {
+      padding-top: var(--space-2);
+    }
+
+    &:last-of-type {
+      padding-bottom: var(--space-2);
+    }
   }
 `;
