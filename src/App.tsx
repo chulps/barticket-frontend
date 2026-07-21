@@ -6,7 +6,7 @@ import {
   Route,
 } from "react-router-dom";
 
-import Home from "./pages/Home";
+import Dashboard from "./pages/Dashboard";
 import Tickets from "./pages/Tickets";
 import TicketDetails from "./pages/TicketDetails";
 import Menu from "./pages/Menu";
@@ -19,7 +19,7 @@ export default function App() {
       <Header />
 
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Dashboard />} />
 
         <Route
           path="/tickets"

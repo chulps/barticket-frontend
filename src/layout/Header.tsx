@@ -32,7 +32,7 @@ export default function Header() {
                 name="House"
                 weight={isActive ? "fill" : "regular"}
               />
-              Home
+              Dashboard
             </>
           )}
         </NavLink>
