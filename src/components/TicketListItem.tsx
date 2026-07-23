@@ -1,5 +1,7 @@
 import styled from "styled-components";
 
+import Icon from "../components/Icon";
+
 type TicketListItemProps = {
     id: number;
     name: string;
@@ -20,12 +22,19 @@ export default function TicketListItem({
             $selected={selected}
             onClick={onClick}
         >
-            <Info>
+            <LeftInfo>
                 <TicketNumber>#{id}</TicketNumber>
                 <CustomerName>{name}</CustomerName>
-            </Info>
+            </LeftInfo>
 
-            <Total>¥{total.toLocaleString()}</Total>
+            <RightInfo>
+                <RightInfoText>
+                    <CreatedAt>Created at (time)</CreatedAt>
+                    <Total>¥{total.toLocaleString()}</Total>
+                </RightInfoText>
+                <Icon name="CaretRight" />
+            </RightInfo>
+
         </Container>
     );
 }
@@ -37,34 +46,40 @@ const Container = styled.button<{ $selected: boolean }>`
   justify-content: space-between;
   align-items: center;
 
-  padding: var(--space-2);
+  padding: var(--space-1) var(--space-2);
 
   border: 1px solid
     ${({ $selected }) =>
         $selected
-            ? "var(--accent)"
-            : "var(--neutral-800)"};
+            ? "var(--neutral-300)"
+            : "transparent"};
 
   border-radius: var(--space-1);
 
   background: ${({ $selected }) =>
         $selected
-            ? "var(--neutral-850)"
-            : "transparent"};
+            ? "var(--neutral-800)"
+            : "var(--neutral-900)"};
 
   cursor: pointer;
   transition: 0.2s;
 
   &:hover {
-    background: var(--neutral-900);
+    background: var(--neutral-700);
   }
 `;
 
-const Info = styled.div`
+const LeftInfo = styled.div`
   display: flex;
   flex-direction: column;
   align-items: flex-start;
 `;
+
+const RightInfo = styled.div`
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+`
 
 const TicketNumber = styled.small`
   color: var(--neutral-500);
@@ -72,4 +87,14 @@ const TicketNumber = styled.small`
 
 const CustomerName = styled.strong``;
 
-const Total = styled.strong``;
+const Total = styled.data`
+    font-weight: bold;
+`;
+
+const CreatedAt = styled.small`
+    color: var(--neutral-500);
+`
+
+const RightInfoText = styled.span`
+    text-align: right;
+`

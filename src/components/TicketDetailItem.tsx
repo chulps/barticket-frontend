@@ -53,6 +53,7 @@ const Container = styled.div`
 
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--neutral-800);
+  padding: var(--space-1);
 `;
 
 const Info = styled.div`
@@ -86,7 +87,7 @@ const Quantity = styled.span`
   text-align: center;
 `;
 
-const Subtotal = styled.strong`
+const Subtotal = styled.data`
   min-width: 5rem;
   text-align: right;
 `;

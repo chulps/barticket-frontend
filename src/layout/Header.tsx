@@ -67,14 +67,14 @@ export default function Header() {
 
         <NavLink 
           onClick={() => setIsOpen(false)}
-          to="/payments">
+          to="/analytics">
           {({ isActive }) => (
             <>
               <Icon
-                name="Money"
+                name="ChartDonut"
                 weight={isActive ? "fill" : "regular"}
               />
-              Payments
+              Analytics
             </>
           )}
         </NavLink>

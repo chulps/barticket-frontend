@@ -258,16 +258,16 @@ body {
 /* scrollbar width */
 
 ::-webkit-scrollbar {
-  --scrollbar-thickness: var(--space-1);
+  --scrollbar-thickness: var(--space-0);
   width: var(--scrollbar-thickness);
   height: var(--space-1);
-  background: var(----neutral-950);
+  background: transparent;
 }
 
 /* Scrollbar Track */
 ::-webkit-scrollbar-track {
   border-radius: var(--space-0);
-  background: var(--dark);
+  background: transparent;
 }
 
 /* Scrollbar Handle */
@@ -279,7 +279,7 @@ body {
 
 /* Scrollbar Handle on hover */
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--grey-70);
+  background: var(--neutral-800);
 }
 
 /* ------------- typography ------------*/
@@ -514,7 +514,7 @@ hr {
 
 button:disabled,
 button[disabled] {
-  opacity: 50%;
+  opacity: 30%;
   pointer-events: none;
 }
 

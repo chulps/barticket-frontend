@@ -10,7 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Tickets from "./pages/Tickets";
 import TicketDetails from "./pages/TicketDetails";
 import Menu from "./pages/Menu";
-import Payments from "./pages/Payments";
+import Analytics from "./pages/Analytics";
 import Header from "./layout/Header";
 
 export default function App() {
@@ -37,8 +37,8 @@ export default function App() {
         />
 
         <Route
-          path="/payments"
-          element={<Payments />}
+          path="/analytics"
+          element={<Analytics />}
         />
       </Routes>
     </BrowserRouter>

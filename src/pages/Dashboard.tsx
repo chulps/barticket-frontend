@@ -1,10 +1,10 @@
 // src/pages/Dashboard.tsx
 
-import styled from "styled-components";
-import Icon from "../components/Icon"
+import styled from "styled-components"; 
+import { useState, useEffect } from "react"; 
+import Icon from "../components/Icon";
 import TabGroup from "../components/TabGroup";
 import TicketDetails from "../components/TicketDetails"
-import { useState } from "react";
 import TicketListItem from "../components/TicketListItem";
 
 type Ticket = {
@@ -159,14 +159,42 @@ const initialTickets: Ticket[] = [
 ];
 
 export default function Dashboard() {
-  const [tickets, setTickets] = useState(initialTickets); const [activeTab, setActiveTab] =
-    useState<"open" | "closed">("open");
 
-  const [selectedTicketId, setSelectedTicketId] =
-    useState(1);
+  const [tickets, setTickets] = useState(initialTickets);
+
+  const [activeTab, setActiveTab] = useState<"open" | "closed">("open");
+
+  const [selectedTicketId, setSelectedTicketId] = useState(1);
+
+  const [showTicketDetails, setShowTicketDetails] =
+    useState(false);
+
+  useEffect(() => {
+    // Demo mode
+    localStorage.setItem(
+      "tickets",
+      JSON.stringify(tickets)
+    );
+
+    // Production
+    // await api.updateTickets(tickets);
+
+    // or
+    // fetch("/api/tickets", {
+    //   method: "PUT",
+    //   headers: {
+    //     "Content-Type": "application/json",
+    //   },
+    //   body: JSON.stringify(tickets),
+    // });
+  }, [tickets]);
 
   const visibleTickets = tickets.filter(
     (ticket) => ticket.status === activeTab
+  );
+
+  const currentIndex = visibleTickets.findIndex(
+    (ticket) => ticket.id === selectedTicketId
   );
 
   const selectedTicket =
@@ -175,31 +203,55 @@ export default function Dashboard() {
     ) ?? null;
 
   const updateItemQuantity = (
-    ticketId: number,
-    itemName: string,
-    change: number
+    ticketId: number,   // The ticket we want to modify.
+    itemName: string,   // The item within that ticket to modify.
+    change: number      // The amount to change the quantity (+1 or -1).
   ) => {
+
+    // Update the tickets state using the previous state.
     setTickets((currentTickets) =>
+
+      // Loop through every ticket.
       currentTickets.map((ticket) => {
+
+        // If this isn't the ticket we're looking for,
+        // leave it unchanged.
         if (ticket.id !== ticketId) {
           return ticket;
         }
 
+        // This is the ticket we want to update.
         return {
+
+          // Copy all existing ticket properties.
           ...ticket,
+
+          // Create a new items array.
           items: ticket.items.map((item) => {
+
+            // If this isn't the item we're updating,
+            // leave it unchanged.
             if (item.name !== itemName) {
               return item;
             }
 
+            // Calculate the new quantity.
+            // Prevent the quantity from going below 1.
             const newQuantity = Math.max(
               1,
               item.quantity + change
             );
 
+            // Return a new version of the item.
             return {
+
+              // Copy the existing item properties.
               ...item,
+
+              // Update the quantity.
               quantity: newQuantity,
+
+              // Recalculate the subtotal.
               subtotal:
                 item.unit_price * newQuantity,
             };
@@ -209,20 +261,53 @@ export default function Dashboard() {
     );
   };
 
+  const updateTicketName = (
+    ticketId: number,
+    name: string
+  ) => {
+    setTickets((currentTickets) =>
+      currentTickets.map((ticket) =>
+        ticket.id === ticketId
+          ? { ...ticket, name }
+          : ticket
+      )
+    );
+  };
+
+  const goToPreviousTicket = () => {
+    if (currentIndex > 0) {
+      setSelectedTicketId(
+        visibleTickets[currentIndex - 1].id
+      );
+    }
+  };
+
+  const goToNextTicket = () => {
+    if (currentIndex < visibleTickets.length - 1) {
+      setSelectedTicketId(
+        visibleTickets[currentIndex + 1].id
+      );
+    }
+  };
+
   return (
-    <Container>
+    <DashboardContainer>
       <Sidebar>
 
         <SidebarHeader>
+          <label>
+            {/* add the local date and time here */}
+          </label>
           <TabGroup
             tabs={[
-              { id: "open", label: "Open" },
+              { id: "open", label: "Open" }, // props for the TabGroup component
               { id: "closed", label: "Closed" },
             ]}
             activeTab={activeTab}
             onChange={setActiveTab}
           />
 
+        </SidebarHeader>
           <TicketList>
             {visibleTickets.map((ticket) => (
               <TicketListItem
@@ -234,11 +319,12 @@ export default function Dashboard() {
                   0
                 )}
                 selected={ticket.id === selectedTicketId}
-                onClick={() => setSelectedTicketId(ticket.id)}
-              />
+                onClick={() => {
+                  setSelectedTicketId(ticket.id);
+                  setShowTicketDetails(true);
+                }} />
             ))}
           </TicketList>
-        </SidebarHeader>
 
         <button>
           <Icon name="Plus" />
@@ -246,22 +332,29 @@ export default function Dashboard() {
         </button>
       </Sidebar>
 
-      <Content>
-        <TicketDetails
-          ticket={selectedTicket}
-          onUpdateQuantity={updateItemQuantity}
-        />      
+      <Content $open={showTicketDetails}>
+      <TicketDetails
+        ticket={selectedTicket}
+        onUpdateQuantity={updateItemQuantity}
+        onUpdateName={updateTicketName}
+        onClose={() => setShowTicketDetails(false)}
+        onPrevious={goToPreviousTicket}
+        onNext={goToNextTicket}
+        hasPrevious={currentIndex > 0}
+        hasNext={currentIndex < visibleTickets.length - 1}
+      />
       </Content>
-    </Container>
+    </DashboardContainer>
   );
 }
 
-const Container = styled.main`
+//styling
+const DashboardContainer = styled.main`
   display: grid;
   grid-template-columns: var(--space-6) 1fr;
   gap: var(--space-1);
   height: calc(100vh - var(--space-4));
-  padding: var(--space-2);
+  padding: var(--space-2) 0;
 
   @media (max-width: 768px) {
     display: block;
@@ -272,9 +365,10 @@ const Sidebar = styled.aside`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding-right: var(--space-1);
-  @media (max-width: 768px) {
-    border-right: none;
+
+  @media (min-width: 768px) {
+    padding-right: var(--space-2);
+    height: calc(100vh - 100px);
   }
 `;
 
@@ -286,17 +380,30 @@ const SidebarHeader = styled.div`
 `;
 
 const TicketList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    overflow: auto;
+    height: 100%;
+    padding: var(--space-1);
+    /* background: red; */
+    margin-bottom: var(--space-1);
+    border: 1px solid var(--neutral-700);
+    border-radius: var(--space-2);
 `;
 
-const Content = styled.section`
+const Content = styled.section<{ $open: boolean }>`
   border-left: 1px solid var(--neutral-800);
   padding-left: var(--space-3);
 
   @media (max-width: 768px) {
-    display: none;
+    display: ${({ $open }) => $open ? "flex" : "none"};
+    flex-direction: column;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: var(--neutral-950);
+    border: none;
+    padding: var(--space-2);
   }
 `;

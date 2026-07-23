@@ -55,7 +55,7 @@ const TabButton = styled.button<{ $active: boolean }>`
   transition: 0.2s ease;
 
   &:hover {
-    background: var(--neutral-850);
+    background: var(--neutral-800);
     color: white;
   }
 `;

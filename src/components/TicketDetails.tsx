@@ -1,5 +1,7 @@
 import styled from "styled-components";
 import TicketDetailItem from "../components/TicketDetailItem";
+import { useState } from "react";
+import Icon from "../components/Icon"
 
 type Ticket = {
     id: number;
@@ -17,17 +19,37 @@ type Ticket = {
 
 type TicketDetailsProps = {
     ticket: Ticket | null;
+
     onUpdateQuantity: (
         ticketId: number,
         itemName: string,
         change: number
     ) => void;
+
+    onUpdateName: (
+        ticketId: number,
+        name: string
+    ) => void;
+
+    onClose: () => void;
+    onPrevious: () => void;
+    onNext: () => void;
+
+    hasPrevious: boolean;
+    hasNext: boolean;
 };
 export default function TicketDetails({
     ticket,
     onUpdateQuantity,
+    onUpdateName,
+    onClose,
+    onPrevious,
+    onNext,
+    hasPrevious,
+    hasNext,
 }: TicketDetailsProps) {
 
+    const [editingName, setEditingName] = useState(false);
     const total =
         ticket?.items.reduce(
             (sum, item) => sum + item.subtotal,
@@ -36,23 +58,77 @@ export default function TicketDetails({
 
     return (
         <Container>
-            <Header>
-                <TicketNumber>
-                    Ticket #{ticket?.id}
-                </TicketNumber>
 
-                <NameInput
-                    type="text"
-                    value={ticket?.name ?? ""}
-                    placeholder="Enter customer name..."
-                    readOnly
-                />
+            <MobileToolbar>
+                <BackButton className="hollow secondary small" onClick={onClose}>
+                    <Icon name="ArrowLeft" />
+                    Back
+                </BackButton>
+            </MobileToolbar>
+
+            <Header>
+                <ControlPanel>
+                    <TicketNumber>
+                        Ticket #{ticket?.id}
+                    </TicketNumber>
+                    <TicketCreationTime>
+                        Created at date/time
+                    </TicketCreationTime>
+                </ControlPanel>
+                <ControlPanel>
+                    {editingName ? (
+                        <NameInput
+                            autoFocus
+                            type="text"
+                            value={ticket?.name ?? ""}
+                            onChange={(e) =>
+                                ticket &&
+                                onUpdateName(ticket.id, e.target.value)
+                            }
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    setEditingName(false);
+                                }
+                            }}
+                            onBlur={() => setEditingName(false)}
+                        />
+                    ) : (
+                        <CustomerName onClick={() => setEditingName(true)}>
+                            {ticket?.name || "Walk-in"}
+                            <Icon name="PencilSimple" size={18} />
+                        </CustomerName>
+                    )}
+                    <SelectorButtons>
+                        <button
+                            className="small hollow secondary"
+                            onClick={onPrevious}
+                            disabled={!hasPrevious}
+                        >
+                            <Icon name="CaretLeft" />
+                        </button>
+
+                        <button
+                            className="small hollow secondary"
+                            onClick={onNext}
+                            disabled={!hasNext}
+                        >
+                            <Icon name="CaretRight" />
+                        </button>
+                    </SelectorButtons>
+                </ControlPanel>
             </Header>
 
             <Items>
-                <SectionTitle>Items</SectionTitle>
+                <ItemsHeader>
+                    <SectionTitle>Items</SectionTitle>
 
-                <Placeholder>
+                    <button className="small hollow">
+                        <Icon name="Plus" />
+                        Add Item
+                    </button>
+                </ItemsHeader>
+
+                <ItemList>
                     {ticket?.items.map((item) => (
                         <TicketDetailItem
                             key={`${item.name}-${item.price_key ?? "cover"}`}
@@ -60,22 +136,14 @@ export default function TicketDetails({
                             unitPrice={item.unit_price}
                             quantity={item.quantity}
                             onIncrease={() =>
-                                onUpdateQuantity(
-                                    ticket.id,
-                                    item.name,
-                                    1
-                                )
+                                onUpdateQuantity(ticket.id, item.name, 1)
                             }
                             onDecrease={() =>
-                                onUpdateQuantity(
-                                    ticket.id,
-                                    item.name,
-                                    -1
-                                )
+                                onUpdateQuantity(ticket.id, item.name, -1)
                             }
                         />
                     ))}
-                </Placeholder>
+                </ItemList>
             </Items>
 
             <Footer>
@@ -104,6 +172,7 @@ const Container = styled.section`
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: visible;
 `;
 
 const Header = styled.header`
@@ -111,7 +180,7 @@ const Header = styled.header`
   flex-direction: column;
   gap: var(--space-2);
 
-  padding-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--neutral-800);
 `;
 
@@ -128,15 +197,17 @@ const Items = styled.section`
   flex-direction: column;
   gap: var(--space-2);
 
-  padding: var(--space-3) 0;
+  padding: var(--space-2) 0;
 
   overflow-y: auto;
 `;
 
 const SectionTitle = styled.label``;
 
-const Placeholder = styled.div`
-  color: white;
+const ItemList = styled.div`
+    color: white;
+    height: 100%;
+    overflow: visible auto;
 `;
 
 const Footer = styled.footer`
@@ -151,6 +222,7 @@ const Footer = styled.footer`
 const Totals = styled.div`
   display: flex;
   flex-direction: column;
+  font-size: var(--font-size-h4);
 `;
 
 const Row = styled.div`
@@ -165,4 +237,57 @@ const Actions = styled.div`
   > * {
     flex: 1;
   }
+`;
+
+const CustomerName = styled.h3`
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+
+  padding: 0;
+  border: none;
+  background: none;
+
+  color: inherit;
+  cursor: pointer;
+
+  &:hover {
+    color: white;
+  }
+`;
+
+const MobileToolbar = styled.div`
+  display: none;
+
+  @media (max-width: 768px) {
+    display: flex;
+    margin-bottom: var(--space-2);
+  }
+`;
+
+const BackButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+`;
+
+const ControlPanel = styled.div`
+    display: flex;
+    justify-content: space-between;
+`
+
+const SelectorButtons = styled.div`
+    display: flex;
+    gap: var(--space-1);
+`
+
+const TicketCreationTime = styled.small`
+    color: var(--neutral-500);
+`
+
+const ItemsHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-inline: var(--space-1);
 `;
