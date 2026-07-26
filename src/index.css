@@ -466,6 +466,20 @@ button.success {
   background: var(--success);
 }
 
+button.hollow.success {
+  outline: 1px solid var(--success-500);
+  background: var(--neutral-900);
+}
+
+button.danger {
+  background: var(--danger-500);
+}
+
+button.hollow.danger {
+  background: var(--neutral-900);
+  outline: 1px solid var(--danger-700);
+}
+
 button.info {
   background: var(--info);
 }

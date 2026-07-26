@@ -1,13 +1,20 @@
 import styled from "styled-components";
 import Icon from "../components/Icon";
+import DropdownMenu from "../components/DropdownMenu";
+import DropdownMenuItem from "../components/DropdownMenuItem";
 
 type TicketDetailItemProps = {
+    id: number;
+
     name: string;
     unitPrice: number;
     quantity: number;
 
     onIncrease: () => void;
     onDecrease: () => void;
+
+    onRemove: () => void;
+    onAdjustPrice: () => void;
 };
 
 export default function TicketDetailItem({
@@ -16,6 +23,8 @@ export default function TicketDetailItem({
     quantity,
     onIncrease,
     onDecrease,
+    onRemove,
+    onAdjustPrice,
 }: TicketDetailItemProps) {
     const subtotal = unitPrice * quantity;
 
@@ -36,18 +45,57 @@ export default function TicketDetailItem({
                 <QuantityButton onClick={onIncrease}>
                     <Icon name="Plus" />
                 </QuantityButton>
+
             </Controls>
 
             <Subtotal>
                 ¥{subtotal.toLocaleString()}
             </Subtotal>
+            <DropdownContainer>
+                <DropdownMenu
+                    trigger={(isOpen) => (
+                        <Icon
+                            name={
+                                isOpen
+                                    ? "X"
+                                    : "DotsThreeOutlineVerticalIcon"
+                            }
+                        />
+                    )}
+                >
+                    {(closeMenu) => (
+                        <>
+                            <DropdownMenuItem
+                                onClick={() => {
+                                    closeMenu();
+                                    onAdjustPrice();
+                                }}
+                            >
+                                <Icon name="CurrencyCircleDollar" />
+                                Adjust Price
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                                danger
+                                onClick={() => {
+                                    closeMenu();
+                                    onRemove();
+                                }}
+                            >
+                                <Icon name="Trash" />
+                                Remove Item
+                            </DropdownMenuItem>
+                        </>
+                    )}
+                </DropdownMenu>
+            </DropdownContainer>
         </Container>
     );
 }
 
 const Container = styled.div`
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   align-items: center;
   gap: var(--space-2);
 
@@ -74,15 +122,21 @@ const Controls = styled.div`
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  justify-self: center;
 `;
 
 const QuantityButton = styled.button`
-  width: 2rem;
-  height: 2rem;
+  width: var(--space-2);
+  height: var(--space-2);
   padding: 0;
+    background: transparent;
+
+    &:hover {
+        background: transparent;
+    }
 `;
 
-const Quantity = styled.span`
+const Quantity = styled.data`
   min-width: 2ch;
   text-align: center;
 `;
@@ -90,4 +144,12 @@ const Quantity = styled.span`
 const Subtotal = styled.data`
   min-width: 5rem;
   text-align: right;
+  display: flex;
+  align-items: center;
+  justify-self: center;
 `;
+
+const DropdownContainer = styled.div`
+    display: flex;
+    justify-content: end;
+`
