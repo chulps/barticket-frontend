@@ -2,6 +2,7 @@ import styled from "styled-components";
 import Icon from "../components/Icon";
 import DropdownMenu from "../components/DropdownMenu";
 import DropdownMenuItem from "../components/DropdownMenuItem";
+import { useState } from "react";
 
 type TicketDetailItemProps = {
     id: number;
@@ -10,40 +11,90 @@ type TicketDetailItemProps = {
     unitPrice: number;
     quantity: number;
 
+    isEditingPrice: boolean;
+
     onIncrease: () => void;
     onDecrease: () => void;
 
     onRemove: () => void;
     onAdjustPrice: () => void;
+    onSavePrice: (price: number) => void;
 };
 
 export default function TicketDetailItem({
     name,
     unitPrice,
     quantity,
+    isEditingPrice,
     onIncrease,
     onDecrease,
     onRemove,
     onAdjustPrice,
+    onSavePrice,
 }: TicketDetailItemProps) {
     const subtotal = unitPrice * quantity;
+
+    const [priceInput, setPriceInput] = useState(unitPrice.toString());
 
     return (
         <Container>
             <Info>
                 <Name>{name}</Name>
-                <Price>¥{unitPrice.toLocaleString()} each</Price>
+                {isEditingPrice ? (
+                    <PriceInput
+                        autoFocus
+                        type="text"
+                        inputMode="numeric"
+                        value={priceInput}
+                        onChange={(e) =>
+                            setPriceInput(
+                                e.target.value.replace(/\D/g, "")
+                            )
+                        }
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                onSavePrice(Number(priceInput));
+                            }
+
+                            if (e.key === "Escape") {
+                                onSavePrice(unitPrice);
+                            }
+                        }}
+                    />
+                ) : (
+                    <Price
+                        onClick={() => {
+                            setPriceInput(unitPrice.toString());
+                            onAdjustPrice();
+                        }}
+                    >
+                        ¥{unitPrice.toLocaleString()} each
+                    </Price>
+                )}
             </Info>
 
             <Controls>
-                <QuantityButton onClick={onDecrease}>
-                    <Icon name="Minus" />
+                <QuantityButton onClick={onIncrease}>
+                    <PlusWrapper>
+                        <Icon name="Plus" />
+                    </PlusWrapper>
+
+                    <UpCaretWrapper>
+                        <Icon name="CaretUp" />
+                    </UpCaretWrapper>
                 </QuantityButton>
 
                 <Quantity>{quantity}</Quantity>
 
-                <QuantityButton onClick={onIncrease}>
-                    <Icon name="Plus" />
+                <QuantityButton onClick={onDecrease}>
+
+                    <MinusWrapper>
+                        <Icon name="Minus" />
+                    </MinusWrapper>
+
+                    <DownCaretWrapper>
+                        <Icon name="CaretDown" />
+                    </DownCaretWrapper>
                 </QuantityButton>
 
             </Controls>
@@ -97,11 +148,19 @@ const Container = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr 1fr 1fr;
   align-items: center;
-  gap: var(--space-2);
+  gap: 0;
 
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--neutral-800);
-  padding: var(--space-1);
+
+  &:last-of-type {
+    border: none;
+  }
+  
+  @media (min-width: 768px) {
+    gap: var(--space-2);
+    padding: var(--space-1);
+  }
 `;
 
 const Info = styled.div`
@@ -111,18 +170,36 @@ const Info = styled.div`
 `;
 
 const Name = styled.p`
-  font-weight: 500;
+  font-weight: normal;
 `;
 
 const Price = styled.small`
-  color: var(--neutral-400);
+    color: var(--neutral-400);
+    cursor: pointer;
+
+    &:hover {
+        color: white;
+    }
+`;
+
+const PriceInput = styled.input`
+    width: var(--space-4);
+    padding: var(--space-0);
+    font-size: var(--font-size-h6);
+    background: var(--neutral-800);
+    border-color: var(--primary);
 `;
 
 const Controls = styled.div`
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--space-1);
   justify-self: center;
+
+  @media (min-width: 576px) {
+    flex-direction: row-reverse;
+  }
 `;
 
 const QuantityButton = styled.button`
@@ -152,4 +229,36 @@ const Subtotal = styled.data`
 const DropdownContainer = styled.div`
     display: flex;
     justify-content: end;
+`
+
+const UpCaretWrapper = styled.span`
+    display: block;
+
+    @media (min-width: 576px) {
+        display: none;
+    }
+`
+
+const PlusWrapper = styled.span `
+    display: none;
+
+    @media (min-width: 576px) {
+        display: block;
+    }
+`
+
+const DownCaretWrapper = styled.span`
+    display: block;
+
+    @media (min-width: 576px) {
+        display: none;
+    }
+`
+
+const MinusWrapper = styled.span `
+    display: none;
+
+    @media (min-width: 576px) {
+        display: block;
+    }
 `

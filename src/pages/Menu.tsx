@@ -23,7 +23,8 @@ type MenuItem = {
 
   prices: Prices;
 
-  cocktail?: boolean;
+  cocktailIngredient?: boolean;
+  tags?: string[];
 };
 
 type MenuData = {
@@ -97,6 +98,7 @@ const filteredItems = useMemo(() => {
       item.subcategory,
       item.description,
       item.notes,
+      ...(item.tags ?? []),
     ];
 
     const textMatch = textFields
@@ -250,7 +252,7 @@ const MenuRow = styled.div`
 
 const ItemInfo = styled.div`
   display: flex;
-  align-items: start;
+  align-items: end;
   gap: var(--space-1);
 `;
 

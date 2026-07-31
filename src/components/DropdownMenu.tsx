@@ -95,8 +95,6 @@ const Menu = styled.div<{ $isOpen: boolean }>`
     border: 1px solid var(--neutral-700);
     border-radius: var(--space-1);
 
-    padding: var(--space-1);
-
     transform-origin: top right;
 
     transform: ${({ $isOpen }) =>

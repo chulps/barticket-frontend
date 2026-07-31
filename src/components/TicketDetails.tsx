@@ -34,6 +34,12 @@ type TicketDetailsProps = {
         change: number
     ) => void;
 
+    onUpdatePrice: (
+        ticketId: number,
+        itemId: number,
+        price: number
+    ) => void;
+
     onRemoveItem: (
         ticketId: number,
         itemId: number
@@ -67,7 +73,7 @@ type Prices = {
 
 type MenuItem = {
     id: number;
-    inStock: boolean;
+    inStock?: boolean;
 
     category: string;
     subcategory?: string;
@@ -78,7 +84,9 @@ type MenuItem = {
 
     prices: Prices;
 
-    cocktail?: boolean;
+    cocktailIngredient?: boolean;
+
+    tags?: string[];
 };
 
 type MenuData = {
@@ -91,6 +99,7 @@ export default function TicketDetails({
     ticket,
     menu,
     onUpdateQuantity,
+    onUpdatePrice,
     onUpdateName,
     onAddItem,
     onRemoveItem,
@@ -106,7 +115,7 @@ export default function TicketDetails({
     );
 
     const [showAddItemModal, setShowAddItemModal] = useState(false);
-
+    const [editingPriceItemId, setEditingPriceItemId] = useState<number | null>(null);
     const nameInputRef = useRef<HTMLInputElement>(null);
 
     const total =
@@ -122,29 +131,14 @@ export default function TicketDetails({
     return (
         <TicketDetailsContainer>
 
-            <MobileToolbar>
-                <BackButton className="hollow secondary small" onClick={onClose}>
-                    <Icon name="ArrowLeft" />
-                    Back
-                </BackButton>
-            </MobileToolbar>
-
             <Header>
                 <ControlPanel>
-                    <div>
-                        <TicketNumber>
-                            Ticket #{ticket?.id}
-                        </TicketNumber>
-                        <TicketCreationTime>
-                            Created at{" "}
-                            {createdAt?.toLocaleString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                hour: "numeric",
-                                minute: "2-digit",
-                            })}
-                        </TicketCreationTime>
-                    </div>
+
+                    <BackButton onClick={onClose}>
+                        <Icon name="ArrowLeft" />
+                        <BackButtonText>Back</BackButtonText>
+                    </BackButton>
+
                     {editingName ? (
                         <NameInput
                             ref={nameInputRef}
@@ -163,32 +157,48 @@ export default function TicketDetails({
                             onBlur={() => setEditingName(false)}
                         />
                     ) : (
-                        <CustomerName
-                            onClick={() => {
-                                setEditingName(true);
-                            }}
-                        >
-                            {ticket?.name || "Walk-in"}
-                            <Icon name="PencilSimple" size={18} />
-                        </CustomerName>
+                        <TicketHeader>
+                            <TicketNumber>
+                                Ticket #{ticket?.id}
+                            </TicketNumber>
+                            <CustomerName
+                                onClick={() => {
+                                    setEditingName(true);
+                                }}
+                            >
+                                {ticket?.name || "Walk-in"}
+                                <Icon name="PencilSimple" size={18} />
+                            </CustomerName>
+                            <TicketCreationTime>
+                                Created at{" "}
+                                {createdAt?.toLocaleString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                })}
+                            </TicketCreationTime>
+                        </TicketHeader>
                     )}
 
                     <SelectorButtons>
-                        <button
-                            className="small hollow secondary"
+                        <LeftButton
+                            // className="small hollow secondary"
                             onClick={onPrevious}
                             disabled={!hasPrevious}
                         >
                             <Icon name="CaretLeft" />
-                        </button>
+                            <PrevButtonText>Prev</PrevButtonText>
+                        </LeftButton>
 
-                        <button
-                            className="small hollow secondary"
+                        <RightButton
+                            // className="small hollow secondary"
                             onClick={onNext}
                             disabled={!hasNext}
                         >
+                            <NextButtonText>Next</NextButtonText>
                             <Icon name="CaretRight" />
-                        </button>
+                        </RightButton>
                     </SelectorButtons>
 
                 </ControlPanel>
@@ -204,33 +214,52 @@ export default function TicketDetails({
                         onClick={() => setShowAddItemModal(true)}
                     >
                         <Icon name="Plus" />
-                        Add Item
+                        <AddItemText>Add Item</AddItemText>
                     </AddItemButton>
                 </ItemsHeader>
 
                 <ItemList>
                     {ticket?.items.map((item) => (
                         <TicketDetailItem
-                            id={item.id}
                             key={item.id}
+                            id={item.id}
                             name={item.name}
                             unitPrice={item.unit_price}
                             quantity={item.quantity}
+
+                            isEditingPrice={
+                                editingPriceItemId === item.id
+                            }
+
                             onIncrease={() =>
                                 onUpdateQuantity(ticket.id, item.id, 1)
                             }
+
                             onDecrease={() =>
                                 onUpdateQuantity(ticket.id, item.id, -1)
                             }
+
                             onRemove={() =>
                                 onRemoveItem(ticket.id, item.id)
                             }
+
                             onAdjustPrice={() => {
-                                console.log("adjust price", item.id);
+                                setEditingPriceItemId(item.id);
+                            }}
+
+                            onSavePrice={(price) => {
+                                onUpdatePrice(
+                                    ticket.id,
+                                    item.id,
+                                    price
+                                );
+
+                                setEditingPriceItemId(null);
                             }}
                         />
                     ))}
                 </ItemList>
+
             </Items>
 
             <Footer>
@@ -276,11 +305,15 @@ export default function TicketDetails({
     );
 }
 
-const TicketDetailsContainer = styled.section`
+const TicketDetailsContainer = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: visible;
+
+    @media (min-width: 768px) {
+        height: calc(100vh - var(--space-4) - var(--space-3));
+    }
 `;
 
 const Header = styled.header`
@@ -292,7 +325,11 @@ const Header = styled.header`
   border-bottom: 1px solid var(--neutral-800);
 `;
 
-const TicketNumber = styled.label``;
+const TicketNumber = styled.label`
+    @media (min-width: 900px) {
+        justify-self: start;
+    }
+`;
 
 const NameInput = styled.input`
   width: 100%;
@@ -304,11 +341,9 @@ const Items = styled.section`
 
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-
-  padding: var(--space-2) 0;
 
   overflow-y: auto;
+  overflow-x: visible;
 `;
 
 const SectionTitle = styled.label`
@@ -323,16 +358,38 @@ const SectionTitle = styled.label`
 const ItemList = styled.div`
     color: white;
     height: 100%;
-    overflow: visible auto;
+    overflow-x: visible;
+    overflow-y: auto;
+    /* Target the specific class or element */
+
+  scrollbar-width: none;
+
+  -ms-overflow-style: none;
+
+&::-webkit-scrollbar {
+    display: none;
+  }
+
 `;
 
 const Footer = styled.footer`
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+    display: flex;
+    flex-direction: column;
 
-  padding-top: var(--space-3);
+    gap: var(--space-1);
+    padding-top: var(--space-1);
+  
   border-top: 1px solid var(--neutral-800);
+  
+  @media (min-width: 768px) {
+    padding-top: var(--space-3);
+    gap: var(--space-3);
+  }
+
+  @media (min-height: 400px) {
+    gap: var(--space-2);
+    padding-top: var(--space-2);
+  }
 `;
 
 const Totals = styled.div`
@@ -378,48 +435,135 @@ justify-self: center;
   }
 `;
 
-const MobileToolbar = styled.div`
-  display: none;
-
-  @media (max-width: 768px) {
-    display: flex;
-    margin-bottom: var(--space-2);
-  }
-`;
-
 const BackButton = styled.button`
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  padding: var(--space-0);
+  min-width: unset;
+  width: fit-content;
+  border-radius: var(--space-1);
+  background: var(--neutral-900);
+  border: 1px solid var(--neutral-500);
+  flex-shrink: 1;
+
+  @media (min-width: 768px) {
+    display: none;
+  }
 `;
+
+const BackButtonText = styled.span`
+    display: none;
+
+    @media (min-width: 576px) {
+        display: flex;
+    }
+`
 
 const ControlPanel = styled.div`
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: 1fr 2fr 1fr;
     align-items: center;
-    padding: var(--space-2) 0 0 0;
+    
+    @media (min-width: 786px) {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
 `
 
 const SelectorButtons = styled.div`
     display: flex;
-    gap: var(--space-1);
+    gap: 0;
     justify-self: flex-end;
+
+    @media (min-width: 768px) {
+        display: none;
+    }
+`
+const LeftButton = styled.button`
+    border-radius: var(--space-1) 0 0 var(--space-1);
+    padding: var(--space-0);
+    border: 1px solid var(--neutral-500);
+    background: var(--neutral-900);
+
+    @media (min-width: 576px) {
+        padding-right: var(--space-1);
+    }
+`
+
+const RightButton = styled.button`
+    border-radius: 0 var(--space-1) var(--space-1) 0;
+    padding: var(--space-0);
+    border: 1px solid var(--neutral-500);
+    border-left: none;
+    background: var(--neutral-900);
     
+    @media (min-width: 576px) {
+        padding-left: var(--space-1);
+    }
+`
+
+const PrevButtonText = styled.span`
+    display: none;
+
+    @media (min-width: 576px) {
+        display: flex;
+    }
+`
+
+const NextButtonText = styled.span`
+    display: none;
+
+    @media (min-width: 576px) {
+        display: flex;
+    }
 `
 
 const TicketCreationTime = styled.small`
     color: var(--neutral-500);
+
+    @media (min-width: 996px) {
+        justify-self: flex-end;
+    }
 `
 
 const ItemsHeader = styled.div`
     display: grid;
-    gap: var(--space-2);
-  grid-template-columns: repeat(4,1fr);
-  align-items: center;
-  padding-inline: var(--space-1);
+    grid-template-columns: repeat(4,1fr);
+    align-items: center;
+    padding: var(--space-1) 0;
+    border-bottom: 1px solid var(--neutral-700);
+    
+    @media (min-width: 768px) {        
+        padding-inline: var(--space-1);
+        gap: var(--space-2);
+    }
 `;
 
 const AddItemButton = styled.button`
     width: auto;
     justify-self: end;
+    background: var(--primary-500);
+`
+
+const AddItemText = styled.span`
+    display: none;
+
+    @media (min-width: 576px) {
+        display: block;
+    }
+`
+
+const TicketHeader = styled.div`
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+
+    @media (min-width: 900px) {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        width: 100%;
+    }
 `

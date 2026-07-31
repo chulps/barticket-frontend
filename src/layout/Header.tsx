@@ -90,14 +90,15 @@ const Navbar = styled.header`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 var(--space-1);
+  padding: 0 0 var(--space-1) 0;
   border-bottom: 1px solid var(--secondary);
-  z-index: 1000;
+  z-index: 1;
   background: var(--neutral-950);
+  flex-direction: row-reverse;
 
-  @media (max-width: 768px) {
-    flex-direction:row-reverse;
-    padding: var(--space-1) 0;
+  @media (min-width: 768px) {
+    padding: 0;
+    flex-direction: row;
   }
 `;
 

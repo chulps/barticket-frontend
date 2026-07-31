@@ -1,63 +1,19 @@
 // src/pages/Dashboard.tsx
 
-import styled from "styled-components";
 import { useState, useEffect } from "react";
+import styled from "styled-components";
+
+// import UI components
 import Icon from "../components/Icon";
 import TabGroup from "../components/TabGroup";
 import TicketDetails from "../components/TicketDetails"
 import TicketListItem from "../components/TicketListItem";
 
-type Ticket = {
-  id: number;
-  name: string;
-  status: "open" | "closed";
+// import types
+import type { MenuData, MenuItem, Prices } from "../types/Menu";
+import type { Ticket } from "../types/Ticket";
 
-  items: {
-    id: number;
 
-    type: "cover" | "menu";
-
-    menu_item_id?: number;
-    price_key?: string;
-
-    name: string;
-    unit_price: number;
-    quantity: number;
-    subtotal: number;
-  }[];
-
-  created_at: number;
-  updated_at: number;
-  paid_at: number | null;
-  cancelled_at: number | null;
-};
-
-type Prices = {
-  standard?: number;
-  "15ml"?: number;
-  "30ml"?: number;
-};
-
-type MenuItem = {
-  id: number;
-  inStock: boolean;
-
-  category: string;
-  subcategory?: string;
-
-  name: string;
-  description?: string;
-  notes?: string;
-
-  prices: Prices;
-
-  cocktail?: boolean;
-};
-
-type MenuData = {
-  coverCharge: number;
-  items: MenuItem[];
-};
 
 const initialTickets: Ticket[] = [
   {
@@ -251,43 +207,68 @@ export default function Dashboard() {
 
   const selectedTicket = tickets.find((ticket) => ticket.id === selectedTicketId) ?? null;
 
-const updateItemQuantity = (
-  ticketId: number,
-  itemId: number,
-  change: number
-) => {
+  const updateItemQuantity = (
+    ticketId: number,
+    itemId: number,
+    change: number
+  ) => {
 
-  setTickets((currentTickets) =>
-    currentTickets.map((ticket) => {
+    setTickets((currentTickets) =>
+      currentTickets.map((ticket) => {
 
-      if (ticket.id !== ticketId) {
-        return ticket;
-      }
+        if (ticket.id !== ticketId) {
+          return ticket;
+        }
 
-      return {
-        ...ticket,
+        return {
+          ...ticket,
 
-        items: ticket.items.map((item) => {
+          items: ticket.items.map((item) => {
 
-          if (item.id !== itemId) {
-            return item;
+            if (item.id !== itemId) {
+              return item;
+            }
+
+            const newQuantity = Math.max(
+              1,
+              item.quantity + change
+            );
+
+            return {
+              ...item,
+              quantity: newQuantity,
+              subtotal: item.unit_price * newQuantity,
+            };
+          }),
+        };
+      })
+    );
+  };
+
+  const updateItemPrice = (
+    ticketId: number,
+    itemId: number,
+    price: number
+  ) => {
+    setTickets(prev =>
+      prev.map(ticket =>
+        ticket.id === ticketId
+          ? {
+            ...ticket,
+            items: ticket.items.map(item =>
+              item.id === itemId
+                ? {
+                  ...item,
+                  unit_price: price,
+                  subtotal: price * item.quantity
+                }
+                : item
+            )
           }
-
-          const newQuantity = Math.max(
-            1,
-            item.quantity + change
-          );
-
-          return {
-            ...item,
-            quantity: newQuantity,
-            subtotal: item.unit_price * newQuantity,
-          };
-        }),
-      };
-    })
-  );
-};
+          : ticket
+      )
+    );
+  };
 
   const addItemToTicket = (
     ticketId: number,
@@ -463,6 +444,7 @@ const updateItemQuantity = (
           ticket={selectedTicket}
           menu={menu}
           onUpdateQuantity={updateItemQuantity}
+          onUpdatePrice={updateItemPrice}
           onAddItem={addItemToTicket}
           onRemoveItem={removeItemFromTicket}
           onUpdateName={updateTicketName}

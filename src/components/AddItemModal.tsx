@@ -1,36 +1,16 @@
 // AddItemModal.tsx
 
-import styled from "styled-components";
+// import react stuff
 import { useMemo, useState } from "react";
+
+// import npm packages
+import styled from "styled-components";
+
+// import types
+import type { MenuData, MenuItem, Prices } from "../types/Menu";
+
+// import UI components
 import SearchBar from "../components/MenuSearchBar";
-
-//types
-type Prices = {
-    standard?: number;
-    "15ml"?: number;
-    "30ml"?: number;
-};
-
-type MenuItem = {
-    id: number;
-    inStock: boolean;
-
-    category: string;
-    subcategory?: string;
-
-    name: string;
-    description?: string;
-    notes?: string;
-
-    prices: Prices;
-
-    cocktail?: boolean;
-};
-
-type MenuData = {
-    coverCharge: number;
-    items: MenuItem[];
-};
 
 type AddItemModalProps = {
     menu: MenuData;
@@ -57,16 +37,16 @@ export default function AddItemModal({
         if (!term) {
             return menu.items.filter(
                 (item) =>
-                    item.inStock &&
-                    item.category !== "Cocktail Ingredients"
+                    item.inStock !== false &&
+                    !item.cocktailIngredient
             );
         }
 
         return menu.items.filter((item) => {
 
             if (
-                !item.inStock ||
-                item.category === "Cocktail Ingredients"
+                item.inStock === false ||
+                item.cocktailIngredient === true
             ) {
                 return false;
             }
@@ -77,6 +57,7 @@ export default function AddItemModal({
                 item.subcategory,
                 item.description,
                 item.notes,
+                item.tags?.join(" ")
             ]
                 .filter(Boolean)
                 .some(field =>
@@ -89,7 +70,7 @@ export default function AddItemModal({
         <Overlay onClick={onClose}>
             <Modal onClick={(e) => e.stopPropagation()}>
                 <Header>
-                    <h2>Add Item</h2>
+                    <h4>Add Item</h4>
 
                     <button
                         className="small hollow secondary"
@@ -117,7 +98,7 @@ export default function AddItemModal({
 
                                 {item.prices.standard !== undefined ? (
                                     <PriceButton
-                                        className="small secondary"
+                                        className="small hollow"
                                         onClick={() =>
                                             onAddItem(item, "standard")
                                         }
@@ -128,7 +109,7 @@ export default function AddItemModal({
                                     <PriceButtons>
                                         {item.prices["15ml"] !== undefined && (
                                             <PriceButton
-                                                className="small secondary"
+                                                className="small hollow"
                                                 onClick={() =>
                                                     onAddItem(item, "15ml")
                                                 }
@@ -139,7 +120,7 @@ export default function AddItemModal({
 
                                         {item.prices["30ml"] !== undefined && (
                                             <PriceButton
-                                                className="small secondary"
+                                                className="small hollow"
                                                 onClick={() =>
                                                     onAddItem(item, "30ml")
                                                 }
@@ -165,28 +146,32 @@ const Overlay = styled.div`
     display: flex;
     justify-content: center;
     align-items: center;
+    backdrop-filter: blur(10px);
+    z-index: 10000
 `;
 
 const Modal = styled.div`
     background: var(--neutral-900);
-    padding: var(--space-3);
-    border-radius: var(--space-2);
-    min-width: 500px;
+    padding: var(--space-2) var(--space-2) 0 var(--space-2);
+    width: 100%;
+    height: 100%;
+    max-width: var(--space-7);
+    overflow: hidden auto;
+    display: flex;
+    flex-direction: column;
 `;
 
 const Header = styled.div`
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: var(--space-3);
 `;
 
 const ItemList = styled.div`
     display: flex;
     flex-direction: column;
     gap: 2px;
-    margin-top: var(--space-3);
-    max-height: 500px;
+    height: 90%;
     overflow-y: auto;
 `;
 
@@ -201,12 +186,13 @@ const ItemRow = styled.div`
     border-radius: var(--space-1);
     text-align: left;
     cursor: pointer;
+    gap: var(--space-2);
     &:hover {
         background: var(--neutral-800);
     }
 `;
 
-const ItemName = styled.small`
+const ItemName = styled.p`
   font-weight: normal;
 `;
 
