@@ -1,28 +1,23 @@
-import styled from "styled-components";
-import TicketDetailItem from "../components/TicketDetailItem";
+// import react stuff
 import { useRef, useState } from "react";
+
+//import styling package
+import styled from "styled-components";
+
+//import UI components
+import TicketDetailItem from "../components/TicketDetailItem";
 import Icon from "../components/Icon"
-import AddItemModal from "../components/AddItemModal";
+import AddItemPicker from "./AddItemPicker";
+import PaymentModal from "./PaymentModal";
+import PaidTicketSummary from "./PaidTicketSummary"
 
-// types
-type Ticket = {
-    id: number;
-    name: string;
-    created_at: number;
-    items: {
-        id: number;
+// import types
+import type { MenuData, MenuItem, Prices } from "../types/Menu";
+import type { Ticket, PaymentType } from "../types/Ticket";
 
-        type: "cover" | "menu";
+//import hooks
+import { useModal } from "../hooks/useModal";
 
-        menu_item_id?: number;
-        price_key?: string;
-
-        name: string;
-        unit_price: number;
-        quantity: number;
-        subtotal: number;
-    }[];
-};
 
 type TicketDetailsProps = {
     ticket: Ticket | null;
@@ -63,36 +58,18 @@ type TicketDetailsProps = {
 
     hasPrevious: boolean;
     hasNext: boolean;
+
+    onCancelTicket: (ticketId: number) => void;
+
+    activeTab: "open" | "paid" | "cancelled";
+
+    onPayTicket: (
+        ticketId: number,
+        paymentType: PaymentType,
+    ) => void;
 };
 
-type Prices = {
-    standard?: number;
-    "15ml"?: number;
-    "30ml"?: number;
-};
 
-type MenuItem = {
-    id: number;
-    inStock?: boolean;
-
-    category: string;
-    subcategory?: string;
-
-    name: string;
-    description?: string;
-    notes?: string;
-
-    prices: Prices;
-
-    cocktailIngredient?: boolean;
-
-    tags?: string[];
-};
-
-type MenuData = {
-    coverCharge: number;
-    items: MenuItem[];
-};
 
 // component
 export default function TicketDetails({
@@ -108,13 +85,15 @@ export default function TicketDetails({
     onNext,
     hasPrevious,
     hasNext,
+    onCancelTicket,
+    activeTab,
+    onPayTicket
 }: TicketDetailsProps) {
 
     const [editingName, setEditingName] = useState(
         () => ticket?.name === ""
     );
 
-    const [showAddItemModal, setShowAddItemModal] = useState(false);
     const [editingPriceItemId, setEditingPriceItemId] = useState<number | null>(null);
     const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -124,9 +103,13 @@ export default function TicketDetails({
             0
         ) ?? 0;
 
+    const { openModal, closeModal } = useModal();
+
     const createdAt = ticket
-        ? new Date(ticket.created_at * 1000)
+        ? new Date(ticket.created_at)
         : null;
+
+    const isEditable = activeTab === "open";
 
     return (
         <TicketDetailsContainer>
@@ -167,16 +150,19 @@ export default function TicketDetails({
                                 }}
                             >
                                 {ticket?.name || "Walk-in"}
-                                <Icon name="PencilSimple" size={18} />
+                                <Icon
+                                    className={!isEditable ? "disabled" : ""}
+                                    name="PencilSimple" size={18}
+                                />
                             </CustomerName>
-                            <TicketCreationTime>
+                            <TicketCreationTime $status={ticket?.status}>
                                 Created at{" "}
-                                {createdAt?.toLocaleString("en-US", {
+                                {createdAt?.toLocaleString("en-JP", {
                                     month: "short",
                                     day: "numeric",
                                     hour: "numeric",
                                     minute: "2-digit",
-                                })}
+                                })}{" "}by Chuck
                             </TicketCreationTime>
                         </TicketHeader>
                     )}
@@ -204,15 +190,44 @@ export default function TicketDetails({
                 </ControlPanel>
             </Header>
 
+            {ticket.status === "paid" && (
+                <PaidTicketSummary ticket={ticket} />
+            )}
+
             <Items>
                 <ItemsHeader>
                     <SectionTitle>Items</SectionTitle>
                     <SectionTitle>QTY</SectionTitle>
                     <SectionTitle>Subtotal</SectionTitle>
                     <AddItemButton
-                        className="small hollow"
-                        onClick={() => setShowAddItemModal(true)}
-                    >
+                        disabled={!isEditable}
+                        onClick={() => {
+                            if (!menu || !ticket) return;
+
+                            openModal({
+                                title: "Add Item",
+                                maxWidth: "var(--space-7)",
+                                content: (
+                                    <AddItemPicker
+                                        menu={menu}
+                                        onAddItem={(item, priceKey) => {
+                                            const unitPrice = item.prices[priceKey];
+
+                                            if (unitPrice === undefined) return;
+
+                                            onAddItem(
+                                                ticket.id,
+                                                item,
+                                                priceKey,
+                                                unitPrice
+                                            );
+
+                                            closeModal();
+                                        }}
+                                    />
+                                ),
+                            });
+                        }}                    >
                         <Icon name="Plus" />
                         <AddItemText>Add Item</AddItemText>
                     </AddItemButton>
@@ -226,6 +241,7 @@ export default function TicketDetails({
                             name={item.name}
                             unitPrice={item.unit_price}
                             quantity={item.quantity}
+                            activeTab={activeTab}
 
                             isEditingPrice={
                                 editingPriceItemId === item.id
@@ -271,35 +287,42 @@ export default function TicketDetails({
                 </Totals>
 
                 <Actions>
-                    <button className="hollow danger">
+
+                    <button
+                        className="hollow danger"
+                        onClick={() => {
+                            if (ticket) {
+                                onCancelTicket(ticket.id);
+                            }
+                        }}
+                        disabled={!isEditable}>
                         <Icon name="X" />
                         Cancel Ticket
                     </button>
+                    <button
+                        className="hollow success"
+                        disabled={!isEditable}
+                        onClick={() => {
+                            if (!ticket) return;
 
-                    <button className="hollow success">
+                            openModal({
+                                title: "Take Payment",
+                                content: (
+                                    <PaymentModal
+                                        ticket={ticket}
+                                        onConfirm={(paymentType) => {
+                                            onPayTicket(ticket.id, paymentType);
+                                        }}
+                                    />
+                                ),
+                            });
+                        }}
+                    >
                         <Icon name="Money" />
                         Take Payment
                     </button>
                 </Actions>
             </Footer>
-
-            {showAddItemModal && menu && (
-                <AddItemModal
-                    menu={menu}
-                    onClose={() => setShowAddItemModal(false)}
-                    onAddItem={(item, priceKey) => {
-                        if (!ticket) return;
-
-                        const unitPrice = item.prices[priceKey];
-
-                        if (unitPrice === undefined) return;
-
-                        onAddItem(ticket.id, item, priceKey, unitPrice);
-
-                        setShowAddItemModal(false);
-                    }}
-                />
-            )}
 
         </TicketDetailsContainer >
     );
@@ -321,8 +344,14 @@ const Header = styled.header`
   flex-direction: column;
   gap: var(--space-2);
 
-  padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--neutral-800);
+    @media (min-width: 576px) {
+        padding: var(--space-2) 0;
+    }
+
+    @media (min-width: 768px) {
+        padding: var(--space-3) 0;
+    }
 `;
 
 const TicketNumber = styled.label`
@@ -411,7 +440,7 @@ const Actions = styled.div`
   > * {
     flex: 1;
   }
-    flex-direction: column;
+    flex-direction: column-reverse;
 
     @media screen and (min-width: 768px) {
         flex-direction: row;
@@ -481,6 +510,7 @@ const SelectorButtons = styled.div`
         display: none;
     }
 `
+
 const LeftButton = styled.button`
     border-radius: var(--space-1) 0 0 var(--space-1);
     padding: var(--space-0);
@@ -520,13 +550,22 @@ const NextButtonText = styled.span`
     }
 `
 
-const TicketCreationTime = styled.small`
-    color: var(--neutral-500);
-
-    @media (min-width: 996px) {
-        justify-self: flex-end;
-    }
-`
+const TicketCreationTime = styled.small<{
+    $status?: "open" | "paid" | "cancelled";
+}>`
+  color: ${({ $status }) => {
+        switch ($status) {
+            case "open":
+                return "var(--royal-300)";
+            case "paid":
+                return "var(--success-300)";
+            case "cancelled":
+                return "var(--danger-300)";
+            default:
+                return "var(--neutral-300)";
+        }
+    }};
+`;
 
 const ItemsHeader = styled.div`
     display: grid;
@@ -544,7 +583,15 @@ const ItemsHeader = styled.div`
 const AddItemButton = styled.button`
     width: auto;
     justify-self: end;
-    background: var(--primary-500);
+    background: var(--royal-500);
+    aspect-ratio: 1/1;
+    padding: var(--space-2);
+
+    @media (min-width: 576px) {
+        aspect-ratio: unset;
+        background: var(--background-default);
+        border: 1px solid var(--primary);
+    }
 `
 
 const AddItemText = styled.span`

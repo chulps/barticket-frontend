@@ -29,7 +29,7 @@ export default function TicketListItem({
 
             <RightInfo>
                 <RightInfoText>
-                    <CreatedAt>Created at (time)</CreatedAt>
+                    <CreatedAt>Created (time) by (User)</CreatedAt>
                     <Total>¥{total.toLocaleString()}</Total>
                 </RightInfoText>
                 <Icon name="CaretRight" />
@@ -46,7 +46,7 @@ const Container = styled.button<{ $selected: boolean }>`
   justify-content: space-between;
   align-items: center;
 
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1);
 
   border: 1px solid
     ${({ $selected }) =>
@@ -73,6 +73,7 @@ const LeftInfo = styled.div`
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  max-width: 6ch;
 `;
 
 const RightInfo = styled.div`

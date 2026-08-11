@@ -19,6 +19,7 @@ type TicketDetailItemProps = {
     onRemove: () => void;
     onAdjustPrice: () => void;
     onSavePrice: (price: number) => void;
+    activeTab: "open" | "paid" | "cancelled";
 };
 
 export default function TicketDetailItem({
@@ -31,10 +32,13 @@ export default function TicketDetailItem({
     onRemove,
     onAdjustPrice,
     onSavePrice,
+    activeTab
 }: TicketDetailItemProps) {
     const subtotal = unitPrice * quantity;
 
     const [priceInput, setPriceInput] = useState(unitPrice.toString());
+
+    const isEditable = activeTab === "open";
 
     return (
         <Container>
@@ -74,7 +78,9 @@ export default function TicketDetailItem({
             </Info>
 
             <Controls>
-                <QuantityButton onClick={onIncrease}>
+                <QuantityButton 
+                    disabled={!isEditable}
+                    onClick={onIncrease}>
                     <PlusWrapper>
                         <Icon name="Plus" />
                     </PlusWrapper>
@@ -86,7 +92,9 @@ export default function TicketDetailItem({
 
                 <Quantity>{quantity}</Quantity>
 
-                <QuantityButton onClick={onDecrease}>
+                <QuantityButton 
+                    disabled={!isEditable}
+                    onClick={onDecrease}>
 
                     <MinusWrapper>
                         <Icon name="Minus" />
@@ -102,6 +110,7 @@ export default function TicketDetailItem({
             <Subtotal>
                 ¥{subtotal.toLocaleString()}
             </Subtotal>
+
             <DropdownContainer>
                 <DropdownMenu
                     trigger={(isOpen) => (

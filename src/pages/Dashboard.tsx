@@ -1,173 +1,54 @@
 // src/pages/Dashboard.tsx
 
+// import react stuff
 import { useState, useEffect } from "react";
+
+// import npm packages
 import styled from "styled-components";
 
 // import UI components
-import Icon from "../components/Icon";
-import TabGroup from "../components/TabGroup";
 import TicketDetails from "../components/TicketDetails"
-import TicketListItem from "../components/TicketListItem";
+import TicketSidebar from "../components/TicketSidebar";
 
 // import types
-import type { MenuData, MenuItem, Prices } from "../types/Menu";
-import type { Ticket } from "../types/Ticket";
+import type { MenuData } from "../types/Menu";
+import type { Ticket, PaymentType } from "../types/Ticket"
 
+// import hooks 
+import { useTickets } from "../hooks/useTickets"; // (business logic for creating or updating tickets)
 
+type DashboardProps = {
+  menu: MenuData | null;
+  loadingMenu: boolean;
+}
 
-const initialTickets: Ticket[] = [
-  {
-    id: 1,
-    name: "John",
-    status: "open",
-    items: [
-      {
-        id: 1,
-        type: "cover",
-        name: "Cover Charge",
-        unit_price: 500,
-        quantity: 1,
-        subtotal: 500,
-      },
-      {
-        id: 2,
-        type: "menu",
-        menu_item_id: 2,
-        name: "Asahi (330mL bottle)",
-        price_key: "standard",
-        unit_price: 800,
-        quantity: 2,
-        subtotal: 1600,
-      },
-      {
-        id: 3,
-        type: "menu",
-        menu_item_id: 145,
-        name: "Taketsuru Grande",
-        price_key: "15ml",
-        unit_price: 1400,
-        quantity: 1,
-        subtotal: 1400,
-      },
-    ],
-    created_at: 1781000000,
-    updated_at: 1781010600,
-    paid_at: null,
-    cancelled_at: null,
-  },
-
-  {
-    id: 2,
-    name: "Sarah",
-    status: "open",
-    items: [
-      {
-        id: 1,
-        type: "cover",
-        name: "Cover Charge",
-        unit_price: 500,
-        quantity: 2,
-        subtotal: 1000,
-      },
-      {
-        id: 2,
-        type: "menu",
-        menu_item_id: 8,
-        name: "Orion Draft",
-        price_key: "standard",
-        unit_price: 700,
-        quantity: 3,
-        subtotal: 2100,
-      },
-    ],
-    created_at: 1781001000,
-    updated_at: 1781002200,
-    paid_at: null,
-    cancelled_at: null,
-  },
-
-  {
-    id: 3,
-    name: "Walk-in",
-    status: "closed",
-    items: [
-      {
-        id: 1,
-        type: "cover",
-        name: "Cover Charge",
-        unit_price: 500,
-        quantity: 1,
-        subtotal: 500,
-      },
-      {
-        id: 2,
-        type: "menu",
-        menu_item_id: 20,
-        name: "White Russian",
-        price_key: "standard",
-        unit_price: 1200,
-        quantity: 2,
-        subtotal: 2400,
-      },
-    ],
-    created_at: 1780990000,
-    updated_at: 1780993600,
-    paid_at: 1780993600,
-    cancelled_at: null,
-  },
-
-  {
-    id: 4,
-    name: "Mike",
-    status: "closed",
-    items: [
-      {
-        id: 1,
-        type: "cover",
-        name: "Cover Charge",
-        unit_price: 500,
-        quantity: 3,
-        subtotal: 1500,
-      },
-      {
-        id: 2,
-        type: "menu",
-        menu_item_id: 51,
-        name: "Yoichi",
-        price_key: "30ml",
-        unit_price: 1800,
-        quantity: 2,
-        subtotal: 3600,
-      },
-      {
-        id: 3,
-        type: "menu",
-        menu_item_id: 9,
-        name: "Guinness",
-        price_key: "standard",
-        unit_price: 900,
-        quantity: 1,
-        subtotal: 900,
-      },
-    ],
-    created_at: 1780985000,
-    updated_at: 1780989200,
-    paid_at: 1780989200,
-    cancelled_at: null,
-  },
-];
-
-
-export default function Dashboard() {
+// component setup
+export default function Dashboard({
+  menu,
+  loadingMenu,
+}: DashboardProps) {
 
   // States
-  const [tickets, setTickets] = useState(initialTickets);
-  const [menu, setMenu] = useState<MenuData | null>(null);
-  const [activeTab, setActiveTab] = useState<"open" | "closed">("open");
+  const [activeTab, setActiveTab] = useState<"open" | "paid" | "cancelled">("open");
   const [selectedTicketId, setSelectedTicketId] = useState(1);
   const [showTicketDetails, setShowTicketDetails] = useState(false);
 
-  // useEffect
+  // business logic for updating or creating new tickets (../hooks/useTickets.ts)
+  const {
+    tickets,
+    updateItemQuantity,
+    updateItemPrice,
+    addItemToTicket,
+    updateTicketName,
+    removeItemFromTicket,
+    createTicket,
+    cancelTicket,
+    payTicket
+  } = useTickets();
+
+
+  // Effects
+  // save tickets to local storage until we can setup real api calls
   useEffect(() => {
     // Demo mode
     localStorage.setItem(
@@ -188,196 +69,23 @@ export default function Dashboard() {
     // });
   }, [tickets]);
 
-  useEffect(() => {
-    fetch("http://127.0.0.1:8000/menu")
-      .then((res) => res.json())
-      .then(setMenu)
-      .catch(console.error);
-  }, []);
-
-
-  // variables
+  // UI actions
+  // Controls tab group showing open, paid, or cancelled tickets
   const visibleTickets = tickets.filter(
     (ticket) => ticket.status === activeTab
   );
 
+  // answers which ticket is currently being displayed in ticket details?
   const currentIndex = visibleTickets.findIndex(
     (ticket) => ticket.id === selectedTicketId
   );
 
-  const selectedTicket = tickets.find((ticket) => ticket.id === selectedTicketId) ?? null;
+  // answers which ticket is selected in the left column
+  const selectedTicket =
+    visibleTickets.find((ticket) => ticket.id === selectedTicketId) ?? null;
 
-  const updateItemQuantity = (
-    ticketId: number,
-    itemId: number,
-    change: number
-  ) => {
-
-    setTickets((currentTickets) =>
-      currentTickets.map((ticket) => {
-
-        if (ticket.id !== ticketId) {
-          return ticket;
-        }
-
-        return {
-          ...ticket,
-
-          items: ticket.items.map((item) => {
-
-            if (item.id !== itemId) {
-              return item;
-            }
-
-            const newQuantity = Math.max(
-              1,
-              item.quantity + change
-            );
-
-            return {
-              ...item,
-              quantity: newQuantity,
-              subtotal: item.unit_price * newQuantity,
-            };
-          }),
-        };
-      })
-    );
-  };
-
-  const updateItemPrice = (
-    ticketId: number,
-    itemId: number,
-    price: number
-  ) => {
-    setTickets(prev =>
-      prev.map(ticket =>
-        ticket.id === ticketId
-          ? {
-            ...ticket,
-            items: ticket.items.map(item =>
-              item.id === itemId
-                ? {
-                  ...item,
-                  unit_price: price,
-                  subtotal: price * item.quantity
-                }
-                : item
-            )
-          }
-          : ticket
-      )
-    );
-  };
-
-  const addItemToTicket = (
-    ticketId: number,
-    menuItem: MenuItem,
-    priceKey: keyof Prices,
-    unitPrice: number
-  ) => {
-    setTickets((currentTickets) =>
-      currentTickets.map((ticket) => {
-        if (ticket.id !== ticketId) {
-          return ticket;
-        }
-
-        return {
-          ...ticket,
-          items: [
-            ...ticket.items,
-            {
-              id: Date.now(),
-              type: "menu",
-              menu_item_id: menuItem.id,
-              name: menuItem.name,
-              price_key: priceKey,
-              unit_price: unitPrice,
-              quantity: 1,
-              subtotal: unitPrice,
-            },
-          ],
-        };
-      })
-    );
-  };
-
-  const updateTicketName = (
-    ticketId: number,
-    name: string
-  ) => {
-    setTickets((currentTickets) =>
-      currentTickets.map((ticket) =>
-        ticket.id === ticketId
-          ? {
-            ...ticket,
-            name,
-          }
-          : ticket
-      )
-    );
-  };
-
-  const removeItemFromTicket = (
-    ticketId: number,
-    itemId: number
-  ) => {
-    setTickets((currentTickets) =>
-      currentTickets.map((ticket) =>
-        ticket.id === ticketId
-          ? {
-            ...ticket,
-            items: ticket.items.filter(
-              (item) => item.id !== itemId
-            ),
-          }
-          : ticket
-      )
-    );
-  };
-
-  const createTicket = () => {
-    const nextId =
-      tickets.length > 0
-        ? Math.max(...tickets.map((t) => t.id)) + 1
-        : 1;
-
-    const newTicket: Ticket = {
-      id: nextId,
-      name: "",
-      status: "open",
-
-      items: [
-        {
-          id: 1,
-          type: "cover",
-          name: "Cover Charge",
-          unit_price: 500,
-          quantity: 1,
-          subtotal: 500,
-        },
-      ],
-
-      created_at: Date.now(),
-      updated_at: Date.now(),
-      paid_at: null,
-      cancelled_at: null,
-    };
-
-    // Add the ticket
-    setTickets((current) => [
-      newTicket,
-      ...current,
-    ]);
-
-    // Select the new ticket
-    setSelectedTicketId(newTicket.id);
-    setActiveTab("open");
-    setShowTicketDetails(true);
-
-  };
-
-  const goToPreviousTicket = () => {
+  // function necessary for mobile users. selects previous ticket while in ticket details view
+  const selectPreviousTicket = () => {
     if (currentIndex > 0) {
       setSelectedTicketId(
         visibleTickets[currentIndex - 1].id
@@ -385,7 +93,8 @@ export default function Dashboard() {
     }
   };
 
-  const goToNextTicket = () => {
+  // function necessary for mobile users. selects next ticket while in ticket details view
+  const selectNextTicket = () => {
     if (currentIndex < visibleTickets.length - 1) {
       setSelectedTicketId(
         visibleTickets[currentIndex + 1].id
@@ -393,67 +102,98 @@ export default function Dashboard() {
     }
   };
 
+  // calculate the ticket total for the frontend
+  const getTicketTotal = (ticket: Ticket) => ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
+
+  // create a new ticket
+  const handleCreateTicket = () => {
+
+    const newTicket = createTicket();
+
+    setActiveTab("open");
+    setSelectedTicketId(newTicket.id);
+    setShowTicketDetails(true);
+
+  };
+
+  const handleCancelTicket = (ticketId: number) => {
+    cancelTicket(ticketId);          // Update the ticket
+    setActiveTab("cancelled");       // Switch tabs
+    setSelectedTicketId(ticketId);   // Keep this ticket selected
+    setShowTicketDetails(true);      // Keep details open
+  };
+
+  const handlePayTicket = (
+    ticketId: number,
+    paymentType: PaymentType,
+  ) => {
+    payTicket(ticketId, paymentType);
+
+    setActiveTab("paid");
+    setSelectedTicketId(ticketId);
+    setShowTicketDetails(true);
+  };
+
+  const [lastSelectedTicket, setLastSelectedTicket] = useState<{
+    open?: number;
+    paid?: number;
+    cancelled?: number;
+  }>({});
+
+  // messages for empty state
+  const emptyMessages = {
+    open: "No open tickets. Click the 'New Ticket' button to add a ticket.",
+    paid: "No paid tickets",
+    cancelled: "No cancelled tickets",
+  };
+
+  if (loadingMenu) {
+    return <data>Loading menu...</data>;
+  }
+
+
   return (
+
     <DashboardContainer>
-      <Sidebar>
-
-        <SidebarHeader>
-          <label>
-            {/* add the local date and time here */}
-          </label>
-          <TabGroup
-            tabs={[
-              { id: "open", label: "Open" }, // props for the TabGroup component
-              { id: "closed", label: "Closed" },
-            ]}
-            activeTab={activeTab}
-            onChange={setActiveTab}
-          />
-
-        </SidebarHeader>
-
-        <button onClick={createTicket} >
-          <Icon name="Plus" />
-          New Ticket
-        </button>
-
-        <TicketList>
-          {visibleTickets.map((ticket) => (
-            <TicketListItem
-              key={ticket.id}
-              id={ticket.id}
-              name={ticket.name}
-              total={ticket.items.reduce(
-                (sum, item) => sum + item.subtotal,
-                0
-              )}
-              selected={ticket.id === selectedTicketId}
-              onClick={() => {
-                setSelectedTicketId(ticket.id);
-                setShowTicketDetails(true);
-              }} />
-          ))}
-        </TicketList>
-
-
-      </Sidebar>
+      <TicketSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        tickets={tickets}
+        visibleTickets={visibleTickets}
+        selectedTicketId={selectedTicketId}
+        setSelectedTicketId={setSelectedTicketId}
+        setShowTicketDetails={setShowTicketDetails}
+        handleCreateTicket={handleCreateTicket}
+        getTicketTotal={getTicketTotal}
+        lastSelectedTicket={lastSelectedTicket}
+        setLastSelectedTicket={setLastSelectedTicket}
+      />
 
       <Content $open={showTicketDetails}>
-        <TicketDetails
-          key={selectedTicket?.id}
-          ticket={selectedTicket}
-          menu={menu}
-          onUpdateQuantity={updateItemQuantity}
-          onUpdatePrice={updateItemPrice}
-          onAddItem={addItemToTicket}
-          onRemoveItem={removeItemFromTicket}
-          onUpdateName={updateTicketName}
-          onClose={() => setShowTicketDetails(false)}
-          onPrevious={goToPreviousTicket}
-          onNext={goToNextTicket}
-          hasPrevious={currentIndex > 0}
-          hasNext={currentIndex < visibleTickets.length - 1}
-        />
+        {selectedTicket ? (
+          <TicketDetails
+            key={selectedTicket.id}
+            ticket={selectedTicket}
+            menu={menu}
+            onUpdateQuantity={updateItemQuantity}
+            onUpdatePrice={updateItemPrice}
+            onAddItem={addItemToTicket}
+            onRemoveItem={removeItemFromTicket}
+            onUpdateName={updateTicketName}
+            onClose={() => setShowTicketDetails(false)}
+            onPrevious={selectPreviousTicket}
+            onNext={selectNextTicket}
+            hasPrevious={currentIndex > 0}
+            hasNext={currentIndex < visibleTickets.length - 1}
+            onCancelTicket={handleCancelTicket}
+            activeTab={activeTab}
+            onPayTicket={handlePayTicket}
+          />
+        ) : (
+          <EmptyTicketDetails>
+            {emptyMessages[activeTab]}
+          </EmptyTicketDetails>
+        )}
       </Content>
     </DashboardContainer>
   );
@@ -472,38 +212,6 @@ const DashboardContainer = styled.main`
   }
 `;
 
-const Sidebar = styled.aside`
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: var(--space-2);
-
-  @media (min-width: 768px) {
-    padding-right: var(--space-2);
-    height: calc(100vh - 100px);
-  }
-`;
-
-const SidebarHeader = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-`;
-
-const TicketList = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    overflow: auto;
-    height: 100%;
-    padding: var(--space-1);
-    /* background: red; */
-    margin-bottom: var(--space-1);
-    border: 1px solid var(--neutral-700);
-    border-radius: var(--space-2);
-`;
-
 const Content = styled.section<{ $open: boolean }>`
   border-left: 1px solid var(--neutral-800);
   padding-left: var(--space-3);
@@ -518,4 +226,12 @@ const Content = styled.section<{ $open: boolean }>`
     border: none;
     padding: var(--space-2);
   }
+`;
+
+const EmptyTicketDetails = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: var(--neutral-500);
 `;

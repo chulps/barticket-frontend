@@ -528,9 +528,11 @@ hr {
 }
 
 button:disabled,
-button[disabled] {
+button[disabled],
+.disabled {
   opacity: 30%;
   pointer-events: none;
+  filter: blur(2px);
 }
 
 /* auto grid */

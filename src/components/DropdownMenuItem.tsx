@@ -51,4 +51,12 @@ const Item = styled.button<{ $danger: boolean }>`
     &:hover {
         background: var(--neutral-800);
     }
+
+    &:first-of-type {
+        padding-top: var(--space-2);
+    }
+
+    &:last-of-type {
+        padding-bottom: var(--space-2);
+    }
 `;

@@ -23,7 +23,7 @@ export default function Header() {
       </Hamburger>
 
       <Nav $isOpen={isOpen}>
-        <NavLink 
+        <NavLink
           onClick={() => setIsOpen(false)}
           to="/">
           {({ isActive }) => (
@@ -37,7 +37,7 @@ export default function Header() {
           )}
         </NavLink>
 
-        <NavLink 
+        <NavLink
           onClick={() => setIsOpen(false)}
           to="/menu">
           {({ isActive }) => (
@@ -51,21 +51,7 @@ export default function Header() {
           )}
         </NavLink>
 
-        <NavLink 
-          onClick={() => setIsOpen(false)}
-          to="/tickets">
-          {({ isActive }) => (
-            <>
-              <Icon
-                name="Ticket"
-                weight={isActive ? "fill" : "regular"}
-              />
-              Tickets
-            </>
-          )}
-        </NavLink>
-
-        <NavLink 
+        <NavLink
           onClick={() => setIsOpen(false)}
           to="/analytics">
           {({ isActive }) => (
@@ -78,6 +64,21 @@ export default function Header() {
             </>
           )}
         </NavLink>
+
+        <NavLink
+          onClick={() => setIsOpen(false)}
+          to="/profile">
+          {({ isActive }) => (
+            <>
+              <Icon
+                name="UserCircle"
+                weight={isActive ? "fill" : "regular"}
+              />
+              Profile
+            </>
+          )}
+        </NavLink>
+
       </Nav>
     </Navbar>
   );
@@ -155,6 +156,8 @@ const Nav = styled.nav<{ $isOpen: boolean }>`
 
 const NavLink = styled(RouterNavLink)`
   position: relative;
+  display: flex;
+  align-items: center;
 
   color: var(--neutral-300);
   text-decoration: none;
