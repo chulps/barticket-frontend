@@ -1,7 +1,7 @@
 import styled from "styled-components";
-import Icon from "../components/Icon";
-import DropdownMenu from "../components/DropdownMenu";
-import DropdownMenuItem from "../components/DropdownMenuItem";
+import Icon from "../Icon";
+import DropdownMenu from "../DropdownMenu";
+import DropdownMenuItem from "../DropdownMenuItem";
 import { useState } from "react";
 
 type TicketDetailItemProps = {

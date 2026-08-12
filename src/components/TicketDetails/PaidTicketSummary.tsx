@@ -1,8 +1,8 @@
 // PaidTicketSummary.tsx
 import styled from "styled-components";
 
-import Icon from "./Icon"
-import type { Ticket } from "../types/Ticket";
+import Icon from "../Icon"
+import type { Ticket } from "../../types/Ticket";
 
 type Props = {
     ticket: Ticket;
@@ -15,64 +15,60 @@ const paymentLabels = {
 };
 
 export default function PaidTicketSummary({ ticket }: Props) {
-    const total = ticket.items.reduce(
-        (sum, item) => sum + item.subtotal,
-        0
-    );
 
     return (
         <Dialog>
             <Row>
                 <label>status</label>
-                <TicketStatusPoint>
+                <Value>
                     <Icon
                         name="CheckCircle"
                         size={24}
                         weight="fill"
-                        color="var(--success-300"
+                        color="var(--success-300)"
                     />
                     <span>Paid</span>
-                </TicketStatusPoint>
+                </Value>
             </Row>
 
             <Row>
                 <label>Payment</label>
-                <TicketStatusPoint>
+                <Value>
                     <Icon
                         name="Money"
                         size={24}
                         weight="fill"
-                        color="var(--success-300"
+                        color="var(--success-300)"
                     />
                     {ticket.payment
                         ? paymentLabels[ticket.payment.type]
                         : "-"}
-                </TicketStatusPoint>
+                </Value>
             </Row>
             <Row>
                 <label>Items</label>
-                <TicketStatusPoint>
+                <Value>
                     <Icon
                         name="Hash"
                         size={24}
                         weight="fill"
-                        color="var(--success-300"
-                    />{ticket.items.length}</TicketStatusPoint>
+                        color="var(--success-300)"
+                    />{ticket.items.length}</Value>
             </Row>
             <Row>
                 <label>Paid</label>
-                <TicketStatusPoint>
+                <Value>
 
                     <Icon
                         name="Calendar"
                         size={24}
                         weight="fill"
-                        color="var(--success-300"
+                        color="var(--success-300)"
                     />
                     {ticket.payment
                         ? new Date(ticket.payment.paid_at * 1000).toLocaleString()
                         : "-"}
-                </TicketStatusPoint>
+                </Value>
             </Row>
 
         </Dialog>
@@ -94,31 +90,35 @@ const Dialog = styled.section`
 
 `;
 
-const TicketStatusPoint = styled.div`
+const Value = styled.div`
   display: flex;
   align-items: center;
   gap: var(--space-0);
 `;
 
 const Row = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
 
   &:not(:last-child) {
     margin-bottom: var(--space-2);
   }
 
-  label { 
+  label {
     color: var(--success-700);
+    text-transform: uppercase;
+    font-size: var(--font-size-small);
   }
 
   @media (min-width: 768px) {
     flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
 
-     &:not(:last-child) {
-    margin-bottom: 0;
-  }
+    &:not(:last-child) {
+      margin-bottom: 0;
+    }
   }
 `;
-
-const Total = styled.data`
-    font-size: varr(--font-size-h1);
-`

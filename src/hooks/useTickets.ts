@@ -318,6 +318,19 @@ export function useTickets() {
     );
   };
 
+  const reopenTicket = (ticketId: number) => {
+    setTickets((tickets) =>
+      tickets.map((ticket) =>
+        ticket.id === ticketId
+          ? {
+              ...ticket,
+              status: "open",
+            }
+          : ticket,
+      ),
+    );
+  };
+
   return {
     tickets,
     setTickets, // only if you actually need it outside
@@ -329,5 +342,6 @@ export function useTickets() {
     createTicket,
     cancelTicket,
     payTicket,
+    reopenTicket,
   };
 }

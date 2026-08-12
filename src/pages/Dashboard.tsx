@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import styled from "styled-components";
 
 // import UI components
-import TicketDetails from "../components/TicketDetails"
+import TicketDetails from "../components/TicketDetails/Ticket"
 import TicketSidebar from "../components/TicketSidebar";
 
 // import types
@@ -43,7 +43,8 @@ export default function Dashboard({
     removeItemFromTicket,
     createTicket,
     cancelTicket,
-    payTicket
+    payTicket,
+    reopenTicket
   } = useTickets();
 
 
@@ -134,6 +135,14 @@ export default function Dashboard({
     setShowTicketDetails(true);
   };
 
+  const handleReopenTicket = (ticketId: number) => {
+    reopenTicket(ticketId);
+
+    setActiveTab("open");
+    setSelectedTicketId(ticketId);
+    setShowTicketDetails(true);
+  };
+
   const [lastSelectedTicket, setLastSelectedTicket] = useState<{
     open?: number;
     paid?: number;
@@ -188,6 +197,7 @@ export default function Dashboard({
             onCancelTicket={handleCancelTicket}
             activeTab={activeTab}
             onPayTicket={handlePayTicket}
+            onReopenTicket={handleReopenTicket}
           />
         ) : (
           <EmptyTicketDetails>
