@@ -1,4 +1,5 @@
 // TicketActions.tsx
+import styled from "styled-components";
 
 import Icon from "../Icon";
 import PaymentModal from "../PaymentModal";
@@ -34,16 +35,16 @@ export default function TicketActions({
 
     if (activeTab === "open") {
         return (
-            <>
-                <button
+            <ButtonActions>
+                <ActionButton
                     className="hollow danger"
                     onClick={() => onCancelTicket(ticket.id)}
                 >
                     <Icon name="X" />
                     Cancel Ticket
-                </button>
+                </ActionButton>
 
-                <button
+                <ActionButton
                     className="hollow success"
                     onClick={() =>
                         openModal({
@@ -61,34 +62,45 @@ export default function TicketActions({
                 >
                     <Icon name="Money" />
                     Take Payment
-                </button>
-            </>
+                </ActionButton>
+            </ButtonActions>
         );
     }
 
     if (activeTab === "paid") {
         return (
-            <>
-                <button className="hollow">
+            <ButtonActions>
+                <ActionButton className="hollow secondary">
                     <Icon name="EnvelopeSimple" />
                     Email Receipt
-                </button>
+                </ActionButton>
 
-                <button 
+                <ActionButton 
                     className="hollow"
                     onClick={() => onReopenTicket(ticket.id)}>
                     <Icon name="ArrowCounterClockwise" />
                     Reopen Ticket
-                </button>
+                </ActionButton>
 
-                <button className="hollow danger">
+                <ActionButton className="hollow danger">
                     <Icon name="Receipt" />
                     Refund
-                </button>
-            </>
+                </ActionButton>
+            </ButtonActions>
         );
     }
 
     // Cancelled
     return null;
 }
+
+const ButtonActions = styled.div`
+    display: flex;
+    gap: var(--space-2);
+`
+
+const ActionButton = styled.button`
+    font-size: var(--font-size-h6);
+    flex: 1;
+    padding: calc(var(--space-0) + var(--space-1));
+`

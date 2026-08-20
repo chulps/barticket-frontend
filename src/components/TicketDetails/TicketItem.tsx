@@ -113,6 +113,7 @@ export default function TicketDetailItem({
 
             <DropdownContainer>
                 <DropdownMenu
+                    disabled={!isEditable}
                     trigger={(isOpen) => (
                         <Icon
                             name={

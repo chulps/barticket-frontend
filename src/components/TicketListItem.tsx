@@ -1,9 +1,16 @@
-import styled from "styled-components";
+// TicketListItem.tsx
 
+// npm packages
+import styled from "styled-components";
+import { motion } from "motion/react";
+import type { HTMLMotionProps } from "motion/react";
+
+
+// UI components
 import Icon from "../components/Icon";
 
-type TicketListItemProps = {
-    id: number;
+type TicketListItemProps = HTMLMotionProps<"button"> & {
+    ticketId: number;
     name: string;
     total: number;
     selected?: boolean;
@@ -11,19 +18,21 @@ type TicketListItemProps = {
 };
 
 export default function TicketListItem({
-    id,
+    ticketId,
     name,
     total,
     selected = false,
     onClick,
+    ...motionProps
 }: TicketListItemProps) {
     return (
         <Container
             $selected={selected}
             onClick={onClick}
+            {...motionProps}
         >
             <LeftInfo>
-                <TicketNumber>#{id}</TicketNumber>
+                <TicketNumber>#{ticketId}</TicketNumber>
                 <CustomerName>{name}</CustomerName>
             </LeftInfo>
 
@@ -39,7 +48,7 @@ export default function TicketListItem({
     );
 }
 
-const Container = styled.button<{ $selected: boolean }>`
+const Container = styled(motion.button) <{ $selected: boolean }>`  
   width: 100%;
 
   display: flex;
@@ -48,11 +57,9 @@ const Container = styled.button<{ $selected: boolean }>`
 
   padding: var(--space-1);
 
-  border: 1px solid
-    ${({ $selected }) =>
-        $selected
-            ? "var(--neutral-300)"
-            : "transparent"};
+  border: 1px solid ${({ $selected }) => $selected ? "var(--neutral-300)" : "transparent"};
+
+    box-shadow: ${({ $selected }) => $selected ? "inset -4px 0 0 var(--neutral-400)" : "none"};
 
   border-radius: var(--space-1);
 

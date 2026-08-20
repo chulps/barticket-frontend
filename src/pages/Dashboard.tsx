@@ -242,6 +242,6 @@ const EmptyTicketDetails = styled.div`
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100%;
+  min-height: 100%;
   color: var(--neutral-500);
 `;

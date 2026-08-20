@@ -19,54 +19,68 @@ export default function PaidTicketSummary({ ticket }: Props) {
     return (
         <Dialog>
             <Row>
-                <label>status</label>
-                <Value>
+                <ValueLabel>
                     <Icon
                         name="CheckCircle"
-                        size={24}
+                        size={"var(--font-size-h5"}
                         weight="fill"
-                        color="var(--success-300)"
+                        color="var(--success-700)"
                     />
+                    Status:
+                </ValueLabel>
+                <Value>
                     <span>Paid</span>
                 </Value>
             </Row>
 
             <Row>
-                <label>Payment</label>
-                <Value>
+                <ValueLabel>
                     <Icon
                         name="Money"
-                        size={24}
+                        size={"var(--font-size-h5"}
                         weight="fill"
-                        color="var(--success-300)"
+                        color="var(--success-700)"
                     />
+                    Payment Type:
+                </ValueLabel>
+                <Value>
                     {ticket.payment
                         ? paymentLabels[ticket.payment.type]
                         : "-"}
                 </Value>
             </Row>
             <Row>
-                <label>Items</label>
-                <Value>
+                <ValueLabel>
                     <Icon
                         name="Hash"
-                        size={24}
+                        size={"var(--font-size-h5"}
                         weight="fill"
-                        color="var(--success-300)"
-                    />{ticket.items.length}</Value>
+                        color="var(--success-700)"
+                    />
+                    Number of Items:
+                </ValueLabel>
+                <Value>{ticket.items.length}</Value>
             </Row>
             <Row>
-                <label>Paid</label>
-                <Value>
-
+                <ValueLabel>
                     <Icon
                         name="Calendar"
-                        size={24}
+                        size={"var(--font-size-h5"}
                         weight="fill"
-                        color="var(--success-300)"
+                        color="var(--success-700)"
                     />
+                    Date/time Paid:
+                </ValueLabel>
+                <Value>
                     {ticket.payment
-                        ? new Date(ticket.payment.paid_at * 1000).toLocaleString()
+                        ? new Date(ticket.payment.paid_at * 1000).toLocaleString(undefined, {
+                            year: "numeric",
+                            month: "numeric",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                        })
                         : "-"}
                 </Value>
             </Row>
@@ -77,48 +91,52 @@ export default function PaidTicketSummary({ ticket }: Props) {
 
 const Dialog = styled.section`
   margin: var(--space-2) 0;
+  border-radius: var(--space-2);
   padding: var(--space-3);
-
   background: var(--success-900);
   border: 1px solid var(--success-800);
-  border-radius: var(--space-2);
-
-  @media (min-width: 768px) {
     display: flex;
-    justify-content: space-between;
-  }
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--space-2);
+
+    @media screen and (min-width: 992px) {
+        flex-direction: row;
+        justify-content: space-between;
+    }
+
 
 `;
 
-const Value = styled.div`
+const Value = styled.data`
   display: flex;
   align-items: center;
   gap: var(--space-0);
+  text-align: right;
+  font-weight: bold;
+  color: var(--success-300);
+  @media (min-width: 992px) {
+    text-align: left;
+  }
 `;
 
 const Row = styled.div`
   display: flex;
+  align-items: center;
   justify-content: space-between;
   align-items: center;
-  gap: var(--space-2);
-
-  &:not(:last-child) {
-    margin-bottom: var(--space-2);
-  }
 
   label {
     color: var(--success-700);
-    text-transform: uppercase;
-    font-size: var(--font-size-small);
   }
 
-  @media (min-width: 768px) {
+  @media (min-width: 992px) {
     flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-1);
-
-    &:not(:last-child) {
-      margin-bottom: 0;
-    }
   }
 `;
+
+const ValueLabel = styled.label`
+    display: flex;
+    gap: var(--space-0);
+    align-items: center;
+`

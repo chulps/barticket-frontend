@@ -115,18 +115,36 @@ export default function TicketDetailsHeader({
   );
 }
 
-const Header = styled.header`
+const Header = styled.header<{
+    $status?: "open" | "paid" | "cancelled";
+}>`
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 
-  border-bottom: 1px solid var(--neutral-800);
-    @media (min-width: 576px) {
+  border-bottom: ${({ $status }) => {
+        switch ($status) {
+            case "open":
+                return "1px solid var(neutral-800)";
+            case "paid":
+                return "unset";
+            case "cancelled":
+                return "unset";
+            default:
+                return "1px solid var(neutral-800)";
+        }
+    }};
+    
+  @media (min-width: 576px) {
         padding: var(--space-2) 0;
     }
 
     @media (min-width: 768px) {
         padding: var(--space-3) 0;
+    }
+
+    @media (min-height:600px) {
+        padding: 0;
     }
 `;
 
@@ -170,7 +188,7 @@ const BackButton = styled.button`
   border: 1px solid var(--neutral-500);
   flex-shrink: 1;
 
-  @media (min-width: 768px) {
+  @media (min-width: 769px) {
     display: none;
   }
 `;
@@ -199,7 +217,7 @@ const SelectorButtons = styled.div`
     gap: 0;
     justify-self: flex-end;
 
-    @media (min-width: 768px) {
+    @media (min-width: 769px) {
         display: none;
     }
 `
@@ -266,9 +284,9 @@ const TicketHeader = styled.div`
     align-items: center;
     text-align: center;
 
-    @media (min-width: 900px) {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        width: 100%;
-    }
+    // @media (min-width: 768px) {
+    //     display: grid;
+    //     grid-template-columns: repeat(3, 1fr);
+        
+    // }
 `

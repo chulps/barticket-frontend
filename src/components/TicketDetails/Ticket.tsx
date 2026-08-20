@@ -100,9 +100,6 @@ export default function TicketDetails({
     return (
         <TicketDetailsContainer>
 
-            {ticket?.status === "paid" && (
-                <PaidTicketSummary ticket={ticket} />
-            )}
 
             <TicketDetailsHeader
                 ticket={ticket}
@@ -115,6 +112,10 @@ export default function TicketDetails({
                 onUpdateName={onUpdateName}
             />
 
+            {ticket?.status === "paid" && (
+                <PaidTicketSummary ticket={ticket} />
+            )}
+            
             <TicketItems
                 ticket={ticket}
                 menu={menu}
@@ -144,8 +145,4 @@ const TicketDetailsContainer = styled.div`
   flex-direction: column;
   height: 100%;
   overflow: visible;
-
-    @media (min-width: 768px) {
-        height: calc(100vh - var(--space-4) - var(--space-3));
-    }
 `;

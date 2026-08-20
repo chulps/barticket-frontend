@@ -191,7 +191,7 @@ const AddItemButton = styled.button`
     justify-self: end;
     background: var(--royal-500);
     aspect-ratio: 1 / 1;
-    padding: var(--space-2);
+    padding: calc(var(--space-1) + var(--space-0));
 
     @media (min-width: 576px) {
         aspect-ratio: unset;

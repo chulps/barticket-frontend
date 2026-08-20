@@ -1,7 +1,11 @@
-// src/components/Sidebar.tsx
+// src/components/TicketSidebar.tsx
+
+// import react stuff
+import { useState } from "react";
 
 // import npm packages
 import styled from "styled-components";
+import { motion } from "motion/react"
 
 // import types
 import type { Ticket } from "../types/Ticket";
@@ -29,7 +33,6 @@ type SidebarProps = {
     open?: number;
     paid?: number;
     cancelled?: number;
-
   };
 
   setLastSelectedTicket: React.Dispatch<
@@ -41,7 +44,6 @@ type SidebarProps = {
   >;
 };
 
-// component
 export default function TicketSidebar({
   activeTab,
   tickets,
@@ -56,8 +58,11 @@ export default function TicketSidebar({
   setLastSelectedTicket,
 }: SidebarProps) {
 
-  // toggle for deactiving UI elements depending on which tab is selected
   const isEditable = activeTab === "open";
+
+  // setup states
+  const tabOrder = ["open", "paid", "cancelled"] as const;
+  const [direction, setDirection] = useState(1);
 
   const emptyMessages = {
     open: "No open tickets. Click the 'New Ticket' button to add a ticket.",
@@ -65,46 +70,48 @@ export default function TicketSidebar({
     cancelled: "No cancelled tickets",
   };
 
-  // render
   return (
-
     <SidebarContainer>
-
       <SidebarHeader>
-        <label>
-          {/* add the local date and time here */}
-        </label>
-        <TabGroup
-          tabs={[
-            { id: "open", label: "Open" },
-            { id: "paid", label: "Paid" },
-            { id: "cancelled", label: "Cancelled" },
-          ]}
-          activeTab={activeTab}
-          onChange={(tab) => {
-            setActiveTab(tab);
+        <div>
+          <label>Status</label>
 
-            const rememberedId = lastSelectedTicket[tab];
+          <TabGroup
+            tabs={[
+              { id: "open", label: "Open" },
+              { id: "paid", label: "Paid" },
+              { id: "cancelled", label: "Cancelled" },
+            ]}
+            activeTab={activeTab}
+            onChange={(tab) => {
+              const currentIndex = tabOrder.indexOf(activeTab);
+              const nextIndex = tabOrder.indexOf(tab);
 
-            const ticket =
-              tickets.find((t) => t.id === rememberedId) ??
-              tickets.find((t) => t.status === tab);
+              setDirection(nextIndex > currentIndex ? 1 : -1);
 
-            if (ticket) {
-              setSelectedTicketId(ticket.id);
-            }
-          }}
-        />
+              setActiveTab(tab);
 
+              const rememberedId = lastSelectedTicket[tab];
+
+              const ticket =
+                tickets.find((t) => t.id === rememberedId) ??
+                tickets.find((t) => t.status === tab);
+
+              if (ticket) {
+                setSelectedTicketId(ticket.id);
+              }
+            }}
+          />
+        </div>
       </SidebarHeader>
 
       <button
         disabled={!isEditable}
-        onClick={handleCreateTicket} >
+        onClick={handleCreateTicket}
+      >
         <Icon name="Plus" />
         New Ticket
       </button>
-
 
       <TicketList>
         {visibleTickets.length === 0 ? (
@@ -112,38 +119,74 @@ export default function TicketSidebar({
             {emptyMessages[activeTab]}
           </EmptyTicketDetails>
         ) : (
-          visibleTickets.map((ticket) => (
-            <TicketListItem
-              key={ticket.id}
-              id={ticket.id}
-              name={ticket.name}
-              total={getTicketTotal(ticket)}
-              selected={ticket.id === selectedTicketId}
-              onClick={() => {
-                setSelectedTicketId(ticket.id);
-
-                setLastSelectedTicket((prev) => ({
-                  ...prev,
-                  [activeTab]: ticket.id,
-                }));
-
-                setShowTicketDetails(true);
+          visibleTickets.map((ticket, index) => (
+            <motion.div
+              key={`${activeTab}-${ticket.id}`}
+              initial={{
+                opacity: 0,
+                x: direction * 24,
               }}
-            />
+              animate={{
+                opacity: 1,
+                x: 0,
+              }}
+              transition={{
+                delay: index * 0.04,
+                duration: 0.18,
+              }}
+            >
+              <TicketListItem
+                key={`${activeTab}-${ticket.id}`}
+                ticketId={ticket.id}
+                name={ticket.name}
+                total={getTicketTotal(ticket)}
+                selected={ticket.id === selectedTicketId}
+
+                initial={{
+                  opacity: 0,
+                  x: -direction * 24,
+                }}
+
+                animate={{
+                  opacity: 1,
+                  x: 0,
+                }}
+
+                transition={{
+                  delay: index * 0.04,
+                  type: "spring",
+                  stiffness: 500,
+                  damping: 32,
+                  mass: 0.7,
+                }}
+
+                onClick={() => {
+                  setSelectedTicketId(ticket.id);
+
+                  setLastSelectedTicket((prev) => ({
+                    ...prev,
+                    [activeTab]: ticket.id,
+                  }));
+
+                  setShowTicketDetails(true);
+                }}
+              />
+            </motion.div>
           ))
         )}
       </TicketList>
     </SidebarContainer>
-
-  )
+  );
 }
 
 // styling
+
 const SidebarContainer = styled.aside`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: var(--space-2);
+  padding-top: var(--space-2);
 
   @media (min-width: 768px) {
     padding-right: var(--space-2);
@@ -155,19 +198,18 @@ const SidebarHeader = styled.div`
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin-bottom: var(--space-2);
 `;
 
 const TicketList = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    overflow: auto;
-    height: 100%;
-    padding: var(--space-1);
-    margin-bottom: var(--space-1);
-    border: 1px solid var(--neutral-700);
-    border-radius: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow: auto;
+  height: 100%;
+  padding: var(--space-1);
+  margin-bottom: var(--space-1);
+  border: 1px solid var(--neutral-700);
+  border-radius: var(--space-2);
 `;
 
 const EmptyTicketDetails = styled.p`
@@ -177,4 +219,4 @@ const EmptyTicketDetails = styled.p`
   justify-content: center;
   border-radius: var(--space-1);
   padding: var(--space-1);
-`
+`;

@@ -63,7 +63,7 @@ export default function PaymentModal({
     if (step === "success") {
         return (
             <SuccessContainer>
-                <Check>✓</Check>
+                <Check>٩( ᐛ )و <br/><br/></Check>
 
                 <h3>Payment Complete</h3>
 
@@ -71,7 +71,7 @@ export default function PaymentModal({
                     ¥{total.toLocaleString()}
                 </SuccessTotal>
 
-                <small>{paymentType.toUpperCase()}</small>
+                <p>{paymentType.toUpperCase()}</p>
             </SuccessContainer>
         );
     }
@@ -124,6 +124,7 @@ const Container = styled.div`
   width: 100%;
   height: fill-available;
   flex-grow: 1;
+    min-width: calc(var(--space-6) + var(--space-5));
   
   @media (min-width: 768px) {
     max-width: var(--space-7);
@@ -204,7 +205,8 @@ const SuccessContainer = styled.div`
     justify-content: center;
     align-items: center;
     flex: 1;
-    min-width: var(--space-6);
+    height: fit-content;
+    min-width: calc(var(--space-6) + var(--space-5));
 `
 
 const Check = styled.h1`

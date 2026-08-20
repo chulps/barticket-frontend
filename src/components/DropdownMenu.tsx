@@ -4,11 +4,13 @@ import styled from "styled-components";
 type DropdownMenuProps = {
     trigger: React.ReactNode | ((isOpen: boolean) => React.ReactNode);
     children: (closeMenu: () => void) => React.ReactNode;
+    disabled?: boolean;
 };
 
 export default function DropdownMenu({
     trigger,
     children,
+    disabled = false,
 }: DropdownMenuProps) {
 
     const [isOpen, setIsOpen] = useState(false);
@@ -48,13 +50,15 @@ export default function DropdownMenu({
         <Container ref={containerRef}>
 
             <Trigger
-                onClick={() => setIsOpen((prev) => !prev)}
+                disabled={disabled}
+                onClick={() => {
+                    if (disabled) return;
+                    setIsOpen((prev) => !prev);
+                }}
             >
-                {
-                    typeof trigger === "function"
-                        ? trigger(isOpen)
-                        : trigger
-                }
+                {typeof trigger === "function"
+                    ? trigger(isOpen)
+                    : trigger}
             </Trigger>
 
             <Menu $isOpen={isOpen}>
@@ -62,7 +66,7 @@ export default function DropdownMenu({
             </Menu>
 
         </Container>
-    
+
     );
 }
 
