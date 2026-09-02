@@ -13,7 +13,7 @@ export default function SearchBar({
     <SearchContainer>
       <Input
         type="text"
-        placeholder="Search menu..."
+        placeholder="Type something"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -23,7 +23,6 @@ export default function SearchBar({
 
 const SearchContainer = styled.div`
   width: 100%;
-  margin-bottom: 20px;
 `;
 
 const Input = styled.input`

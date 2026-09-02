@@ -16,6 +16,7 @@ type IconProps = {
     | "fill"
     | "duotone";
   style?: CSSProperties;
+  className?: string;
 };
 
 export default function Icon({
@@ -24,6 +25,7 @@ export default function Icon({
   color = "currentColor",
   weight = "regular",
   style,
+  className
 }: IconProps) {
   const Component =
     PhosphorIcons[name] as React.ElementType;
@@ -39,6 +41,7 @@ export default function Icon({
         transition: "0.2s ease",
         ...style,
       }}
+      className={className}
     />
   );
 }

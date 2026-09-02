@@ -23,7 +23,7 @@ export default function Header() {
       </Hamburger>
 
       <Nav $isOpen={isOpen}>
-        <NavLink 
+        <NavLink
           onClick={() => setIsOpen(false)}
           to="/">
           {({ isActive }) => (
@@ -32,12 +32,12 @@ export default function Header() {
                 name="House"
                 weight={isActive ? "fill" : "regular"}
               />
-              Home
+              Dashboard
             </>
           )}
         </NavLink>
 
-        <NavLink 
+        <NavLink
           onClick={() => setIsOpen(false)}
           to="/menu">
           {({ isActive }) => (
@@ -51,33 +51,34 @@ export default function Header() {
           )}
         </NavLink>
 
-        <NavLink 
+        <NavLink
           onClick={() => setIsOpen(false)}
-          to="/tickets">
+          to="/analytics">
           {({ isActive }) => (
             <>
               <Icon
-                name="Ticket"
+                name="ChartDonut"
                 weight={isActive ? "fill" : "regular"}
               />
-              Tickets
+              Analytics
             </>
           )}
         </NavLink>
 
-        <NavLink 
+        <NavLink
           onClick={() => setIsOpen(false)}
-          to="/payments">
+          to="/profile">
           {({ isActive }) => (
             <>
               <Icon
-                name="Money"
+                name="UserCircle"
                 weight={isActive ? "fill" : "regular"}
               />
-              Payments
+              Profile
             </>
           )}
         </NavLink>
+
       </Nav>
     </Navbar>
   );
@@ -90,14 +91,15 @@ const Navbar = styled.header`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 var(--space-1);
+  padding: 0 0 var(--space-1) 0;
   border-bottom: 1px solid var(--secondary);
-  z-index: 1000;
+  z-index: 1;
   background: var(--neutral-950);
+  flex-direction: row-reverse;
 
-  @media (max-width: 768px) {
-    flex-direction:row-reverse;
-    padding: var(--space-1) 0;
+  @media (min-width: 768px) {
+    padding: 0;
+    flex-direction: row;
   }
 `;
 
@@ -154,6 +156,8 @@ const Nav = styled.nav<{ $isOpen: boolean }>`
 
 const NavLink = styled(RouterNavLink)`
   position: relative;
+  display: flex;
+  align-items: center;
 
   color: var(--neutral-300);
   text-decoration: none;

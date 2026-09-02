@@ -1,4 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Roboto+Serif:opsz@8..144&family=Roboto:wght@400;500;700&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap');
 
 :root {
   --root-size: 56.25%; /* equal to 9px = 1em = 1rem */
@@ -258,16 +259,16 @@ body {
 /* scrollbar width */
 
 ::-webkit-scrollbar {
-  --scrollbar-thickness: var(--space-1);
+  --scrollbar-thickness: var(--space-0);
   width: var(--scrollbar-thickness);
   height: var(--space-1);
-  background: var(----neutral-950);
+  background: transparent;
 }
 
 /* Scrollbar Track */
 ::-webkit-scrollbar-track {
   border-radius: var(--space-0);
-  background: var(--dark);
+  background: transparent;
 }
 
 /* Scrollbar Handle */
@@ -279,7 +280,7 @@ body {
 
 /* Scrollbar Handle on hover */
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--grey-70);
+  background: var(--neutral-800);
 }
 
 /* ------------- typography ------------*/
@@ -466,6 +467,20 @@ button.success {
   background: var(--success);
 }
 
+button.hollow.success {
+  outline: 1px solid var(--success-500);
+  background: var(--neutral-900);
+}
+
+button.danger {
+  background: var(--danger-500);
+}
+
+button.hollow.danger {
+  background: var(--neutral-900);
+  outline: 1px solid var(--danger-700);
+}
+
 button.info {
   background: var(--info);
 }
@@ -513,9 +528,11 @@ hr {
 }
 
 button:disabled,
-button[disabled] {
-  opacity: 50%;
+button[disabled],
+.disabled {
+  opacity: 30%;
   pointer-events: none;
+  filter: blur(2px);
 }
 
 /* auto grid */
