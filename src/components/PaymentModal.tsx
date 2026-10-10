@@ -122,14 +122,17 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-2);
   width: 100%;
-  height: fill-available;
-  flex-grow: 1;
-    min-width: calc(var(--space-6) + var(--space-5));
-  
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+
   @media (min-width: 768px) {
-    max-width: var(--space-7);
+    padding: var(--space-3);
+    min-width: 420px;
+    max-width: 560px;
   }
 `;
 
@@ -143,24 +146,28 @@ const TotalContainer = styled.div`
 const Methods = styled.div`
     display: flex;
     gap: var(--space-1);
+    min-width: 0;
 
     button {
-        padding: unset;
+        padding: var(--space-1);
         aspect-ratio: 1/1;
         flex: 1;
+        min-width: 0;
     }
 `
 
 const Footer = styled.footer`
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-1);
+
+    button {
+        width: 100%;
+        white-space: normal;
+    }
 
     @media (min-width: 768px) {
-        min-width: var(--space-6);
-        button {
-            flex: 1;
-        }
+        gap: var(--space-2);
     }
 `
 
@@ -182,12 +189,16 @@ const MethodButton = styled.button<{ $active: boolean }>`
 
   span {
     font-size: var(--font-size-small);
+    text-align: center;
+    white-space: normal;
   }
 
-  transition: all 150ms ease;
+  transition: background 150ms ease, border-color 150ms ease;
 
-  &:hover {
-    transform: translateY(-8px);
+  @media (hover: hover) {
+    &:hover {
+      transform: translateY(-4px);
+    }
   }
 
   &:active {
@@ -196,8 +207,12 @@ const MethodButton = styled.button<{ $active: boolean }>`
 `;
 
 const Amount = styled.data`
-    font-size: var(--font-size-h1);
+    font-size: var(--font-size-h2);
     font-weight: bold;
+
+    @media (min-width: 768px) {
+        font-size: var(--font-size-h1);
+    }
 `
 
 const SuccessContainer = styled.div`
@@ -206,9 +221,22 @@ const SuccessContainer = styled.div`
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    text-align: center;
     flex: 1;
-    height: fit-content;
-    min-width: calc(var(--space-6) + var(--space-5));
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+    padding: var(--space-2);
+    gap: var(--space-1);
+
+    h3 {
+        font-size: var(--font-size-h4);
+    }
+
+    @media (min-width: 768px) {
+        min-width: 420px;
+        padding: var(--space-3);
+    }
 `
 
 const Check = styled.h1`
