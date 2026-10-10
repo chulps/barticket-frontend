@@ -8,6 +8,7 @@ import type { HTMLMotionProps } from "motion/react";
 
 // UI components
 import Icon from "../components/Icon";
+import { localeTag, useI18n } from "../i18n";
 
 type TicketListItemProps = HTMLMotionProps<"button"> & {
     ticketId: number;
@@ -29,6 +30,7 @@ export default function TicketListItem({
     onClick,
     ...motionProps
 }: TicketListItemProps) {
+    const { t, locale } = useI18n();
     return (
         <Container
             $selected={selected}
@@ -44,14 +46,14 @@ export default function TicketListItem({
                 <RightInfoText>
                     <CreatedAt>
                         {createdAt
-                            ? new Date(createdAt * 1000).toLocaleString("en-JP", {
+                            ? new Date(createdAt * 1000).toLocaleString(localeTag(locale), {
                                   month: "short",
                                   day: "numeric",
                                   hour: "numeric",
                                   minute: "2-digit",
                               })
-                            : "Created"}
-                        {createdBy ? ` by ${createdBy}` : ""}
+                            : t("created")}
+                        {createdBy ? ` ${t("byName", { name: createdBy })}` : ""}
                     </CreatedAt>
                     <Total>¥{total.toLocaleString()}</Total>
                 </RightInfoText>

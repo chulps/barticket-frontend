@@ -9,6 +9,7 @@ import MenuCategory from "../components/MenuCategory";
 import type { MenuData } from "../types/Menu";
 
 import { useFilteredMenu } from "../hooks/useFilteredMenu";
+import { useI18n } from "../i18n";
 
 
 type MenuProps = {
@@ -20,21 +21,22 @@ export default function Menu({
   menu,
   loadingMenu,
 }: MenuProps) {
+  const { t } = useI18n();
   const [searchTerm, setSearchTerm] = useState("");
 
   const groupedMenu = useFilteredMenu(menu, searchTerm);
 
   if (loadingMenu) {
-    return <h1>Loading...</h1>;
+    return <h1>{t("loading")}</h1>;
   }
 
   if (!menu) {
-    return <h1>No menu found.</h1>;
+    return <h1>{t("noMenu")}</h1>;
   }
 
   return (
     <main>
-      <MenuHeader>Drink Menu</MenuHeader>
+      <MenuHeader>{t("drinkMenu")}</MenuHeader>
 
       <SearchBar
         value={searchTerm}

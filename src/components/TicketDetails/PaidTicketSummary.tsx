@@ -3,18 +3,14 @@ import styled from "styled-components";
 
 import Icon from "../Icon"
 import type { Ticket } from "../../types/Ticket";
+import { localeTag, useI18n } from "../../i18n";
 
 type Props = {
     ticket: Ticket;
 };
 
-const paymentLabels = {
-    cash: "Cash",
-    card: "Card",
-    other: "Other",
-};
-
 export default function PaidTicketSummary({ ticket }: Props) {
+    const { t, locale } = useI18n();
 
     return (
         <Dialog>
@@ -26,10 +22,10 @@ export default function PaidTicketSummary({ ticket }: Props) {
                         weight="fill"
                         color="var(--success-700)"
                     />
-                    Status:
+                    {t("paymentStatus")}
                 </ValueLabel>
                 <Value>
-                    <span>Paid</span>
+                    <span>{t("paid")}</span>
                 </Value>
             </Row>
 
@@ -41,11 +37,11 @@ export default function PaidTicketSummary({ ticket }: Props) {
                         weight="fill"
                         color="var(--success-700)"
                     />
-                    Payment Type:
+                    {t("paymentType")}
                 </ValueLabel>
                 <Value>
                     {ticket.payment
-                        ? paymentLabels[ticket.payment.type]
+                        ? t(ticket.payment.type)
                         : "-"}
                 </Value>
             </Row>
@@ -57,7 +53,7 @@ export default function PaidTicketSummary({ ticket }: Props) {
                         weight="fill"
                         color="var(--success-700)"
                     />
-                    Number of Items:
+                    {t("numberOfItems")}
                 </ValueLabel>
                 <Value>{ticket.items.length}</Value>
             </Row>
@@ -69,11 +65,11 @@ export default function PaidTicketSummary({ ticket }: Props) {
                         weight="fill"
                         color="var(--success-700)"
                     />
-                    Date/time Paid:
+                    {t("dateTimePaid")}
                 </ValueLabel>
                 <Value>
                     {ticket.payment
-                        ? new Date(ticket.payment.paid_at * 1000).toLocaleString(undefined, {
+                        ? new Date(ticket.payment.paid_at * 1000).toLocaleString(localeTag(locale), {
                             year: "numeric",
                             month: "numeric",
                             day: "numeric",

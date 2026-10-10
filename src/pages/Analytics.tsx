@@ -4,16 +4,11 @@ import styled from "styled-components";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
 import TabGroup from "../components/TabGroup";
+import { formatDuration, localeTag, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
 
 type Range = "all" | "month" | "day";
 
-const TABS: { id: Range; label: string }[] = [
-    { id: "all", label: "All time" },
-    { id: "month", label: "Monthly" },
-    { id: "day", label: "Daily" },
-];
-
-const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const satisfies readonly MessageKey[];
 
 type Totals = {
     nights: number;
@@ -81,16 +76,16 @@ function shiftMonth(key: string, delta: number) {
     return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function formatMonth(key: string) {
+function formatMonth(key: string, locale: Locale) {
     const [year, month] = key.split("-").map(Number);
-    return new Date(year, month - 1, 1).toLocaleDateString("en-US", {
+    return new Date(year, month - 1, 1).toLocaleDateString(localeTag(locale), {
         month: "long",
         year: "numeric",
     });
 }
 
-function formatDay(iso: string) {
-    return parseDate(iso).toLocaleDateString("en-US", {
+function formatDay(iso: string, locale: Locale) {
+    return parseDate(iso).toLocaleDateString(localeTag(locale), {
         weekday: "short",
         month: "short",
         day: "numeric",
@@ -101,17 +96,13 @@ function yen(amount: number) {
     return `¥${amount.toLocaleString()}`;
 }
 
-function hours(seconds: number) {
-    const whole = Math.round(seconds / 60);
-    return `${Math.floor(whole / 60)}h ${whole % 60}m`;
-}
-
 function average(total: number, count: number) {
     if (count === 0) return "—";
     return yen(Math.round(total / count));
 }
 
 export default function Analytics() {
+    const { t, locale } = useI18n();
     const [shifts, setShifts] = useState<ShiftReport[] | null>(null);
     const [account, setAccount] = useState<Account | null>(null);
     const [error, setError] = useState("");
@@ -138,7 +129,7 @@ export default function Analytics() {
                 });
             })
             .catch((err: unknown) => {
-                setError(err instanceof ApiError ? err.message : "Could not load shifts");
+                setError(err instanceof ApiError ? err.message : translate(readLocale(), "couldNotLoadShifts"));
             });
     }, [signedIn]);
 
@@ -156,27 +147,35 @@ export default function Analytics() {
 
     return (
         <Page>
-            <h1>Analytics</h1>
-            {!signedIn ? <p>Sign in from the account page to see past shifts.</p> : null}
-            {account && account.role !== "manager" ? <p>Managers only.</p> : null}
+            <h1>{t("analytics")}</h1>
+            {!signedIn ? <p>{t("signInForShifts")}</p> : null}
+            {account && account.role !== "manager" ? <p>{t("managersOnly")}</p> : null}
             {error ? <p>{error}</p> : null}
             {account?.role === "manager" && shifts ? (
                 <>
-                    <TabGroup tabs={TABS} activeTab={range} onChange={setRange} />
+                    <TabGroup
+                        tabs={[
+                            { id: "all", label: t("allTime") },
+                            { id: "month", label: t("monthly") },
+                            { id: "day", label: t("daily") },
+                        ]}
+                        activeTab={range}
+                        onChange={setRange}
+                    />
                     {range !== "all" ? (
                         <Navigator>
                             <button type="button" className="hollow secondary" onClick={() => showMonth(shiftMonth(month, -1))}>
-                                Prev
+                                {t("prev")}
                             </button>
-                            <strong>{month ? formatMonth(month) : "No nights yet"}</strong>
+                            <strong>{month ? formatMonth(month, locale) : t("noNightsYet")}</strong>
                             <button type="button" className="hollow secondary" onClick={() => showMonth(shiftMonth(month, 1))}>
-                                Next
+                                {t("next")}
                             </button>
                         </Navigator>
                     ) : null}
                     {range === "day" ? (
                         <DayList>
-                            {monthShifts.length === 0 ? <p>No closed nights this month.</p> : null}
+                            {monthShifts.length === 0 ? <p>{t("noNightsThisMonth")}</p> : null}
                             {monthShifts.map((shift) => (
                                 <DayButton
                                     key={shift.id}
@@ -184,18 +183,20 @@ export default function Analytics() {
                                     $active={shift.id === selected?.id}
                                     onClick={() => setDayId(shift.id)}
                                 >
-                                    {formatDay(shift.business_date)}
+                                    {formatDay(shift.business_date, locale)}
                                 </DayButton>
                             ))}
                         </DayList>
                     ) : null}
-                    {visible.length === 0 ? <p>No closed nights in this range.</p> : <Summary totals={totals} />}
+                    {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} />}
                     {range === "day" && selected ? (
                         <Card>
-                            <h2>{formatDay(selected.business_date)}</h2>
-                            <p>Manager {selected.opened_by}</p>
+                            <h2>{formatDay(selected.business_date, locale)}</h2>
                             <p>
-                                {selected.paid_count} paid · {selected.cancelled_count} cancelled
+                                {t("manager")} {selected.opened_by}
+                            </p>
+                            <p>
+                                {t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}
                             </p>
                             <People hoursList={selected.staff_hours} />
                         </Card>
@@ -203,23 +204,27 @@ export default function Analytics() {
                     {range !== "day" && visible.length > 0 ? (
                         <>
                             <Card>
-                                <h2>By weekday</h2>
+                                <h2>{t("byWeekday")}</h2>
                                 {WEEKDAYS.map((label, index) => {
                                     const onDay = visible.filter((shift) => weekdayIndex(shift.business_date) === index);
                                     const row = summarize(onDay);
                                     return (
                                         <Row key={label}>
-                                            <span>{label}</span>
+                                            <span>{t(label)}</span>
                                             <span>
-                                                {row.nights} nights · {yen(row.revenue)} · {row.guests} guests · avg{" "}
-                                                {average(row.revenue, row.guests)}
+                                                {t("weekdayRow", {
+                                                    nights: row.nights,
+                                                    revenue: yen(row.revenue),
+                                                    guests: row.guests,
+                                                    bill: average(row.revenue, row.guests),
+                                                })}
                                             </span>
                                         </Row>
                                     );
                                 })}
                             </Card>
                             <Card>
-                                <h2>People</h2>
+                                <h2>{t("people")}</h2>
                                 <PeopleHours shifts={visible} />
                             </Card>
                         </>
@@ -231,46 +236,47 @@ export default function Analytics() {
 }
 
 function Summary({ totals }: { totals: Totals }) {
+    const { t, locale } = useI18n();
     return (
         <Grid>
             <Stat>
-                <label>Revenue</label>
+                <label>{t("revenue")}</label>
                 <strong>{yen(totals.revenue)}</strong>
             </Stat>
             <Stat>
-                <label>Nights</label>
+                <label>{t("nights")}</label>
                 <strong>{totals.nights}</strong>
             </Stat>
             <Stat>
-                <label>Guests</label>
+                <label>{t("guests")}</label>
                 <strong>{totals.guests}</strong>
             </Stat>
             <Stat>
-                <label>Avg bill</label>
+                <label>{t("avgBill")}</label>
                 <strong>{average(totals.revenue, totals.guests)}</strong>
             </Stat>
             <Stat>
-                <label>Avg / night</label>
+                <label>{t("avgPerNight")}</label>
                 <strong>{average(totals.revenue, totals.nights)}</strong>
             </Stat>
             <Stat>
-                <label>Hours</label>
-                <strong>{hours(totals.seconds)}</strong>
+                <label>{t("hours")}</label>
+                <strong>{formatDuration(locale, totals.seconds)}</strong>
             </Stat>
             <Stat>
-                <label>Cash</label>
+                <label>{t("cash")}</label>
                 <strong>{yen(totals.cash)}</strong>
             </Stat>
             <Stat>
-                <label>Card</label>
+                <label>{t("card")}</label>
                 <strong>{yen(totals.card)}</strong>
             </Stat>
             <Stat>
-                <label>Other</label>
+                <label>{t("other")}</label>
                 <strong>{yen(totals.other)}</strong>
             </Stat>
             <Stat>
-                <label>Cover</label>
+                <label>{t("cover")}</label>
                 <strong>{yen(totals.cover)}</strong>
             </Stat>
         </Grid>
@@ -278,13 +284,14 @@ function Summary({ totals }: { totals: Totals }) {
 }
 
 function People({ hoursList }: { hoursList: ShiftReport["staff_hours"] }) {
-    if (hoursList.length === 0) return <p>No clock-ins.</p>;
+    const { t, locale } = useI18n();
+    if (hoursList.length === 0) return <p>{t("noClockIns")}</p>;
     return (
         <div>
             {hoursList.map((person) => (
                 <Row key={person.user_id}>
                     <span>{person.name}</span>
-                    <span>{hours(person.seconds)}</span>
+                    <span>{formatDuration(locale, person.seconds)}</span>
                 </Row>
             ))}
         </div>
@@ -292,6 +299,7 @@ function People({ hoursList }: { hoursList: ShiftReport["staff_hours"] }) {
 }
 
 function PeopleHours({ shifts }: { shifts: ShiftReport[] }) {
+    const { t, locale } = useI18n();
     const people = new Map<number, { userId: number; name: string; seconds: number; nights: number }>();
     shifts.forEach((shift) => {
         const seen = new Set<number>();
@@ -311,14 +319,14 @@ function PeopleHours({ shifts }: { shifts: ShiftReport[] }) {
         });
     });
     const rows = [...people.values()].sort((a, b) => b.seconds - a.seconds);
-    if (rows.length === 0) return <p>No clock-ins.</p>;
+    if (rows.length === 0) return <p>{t("noClockIns")}</p>;
     return (
         <div>
             {rows.map((person) => (
                 <Row key={person.userId}>
                     <span>{person.name}</span>
                     <span>
-                        {hours(person.seconds)} · {person.nights} nights
+                        {t("personRow", { hours: formatDuration(locale, person.seconds), nights: person.nights })}
                     </span>
                 </Row>
             ))}

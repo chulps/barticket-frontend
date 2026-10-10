@@ -3,6 +3,7 @@ import styled from "styled-components";
 
 import Icon from "../Icon";
 import type { Ticket } from "../../types/Ticket";
+import { localeTag, useI18n } from "../../i18n";
 
 type Props = {
   ticket: Ticket;
@@ -28,6 +29,7 @@ export default function TicketDetailsHeader({
   hasNext,
   onUpdateName,
 }: Props) {
+  const { t, locale } = useI18n();
   const [editingName, setEditingName] = useState(ticket.name === "");
 
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -42,7 +44,7 @@ export default function TicketDetailsHeader({
 
                     <BackButton onClick={onClose}>
                         <Icon name="ArrowLeft" />
-                        <BackButtonText>Back</BackButtonText>
+                        <BackButtonText>{t("back")}</BackButtonText>
                     </BackButton>
 
                     {editingName ? (
@@ -65,28 +67,28 @@ export default function TicketDetailsHeader({
                     ) : (
                         <TicketHeader>
                             <TicketNumber>
-                                Ticket #{ticket.id}
+                                {t("ticketNumber", { id: ticket.id })}
                             </TicketNumber>
                             <CustomerName
                                 onClick={() => {
                                     setEditingName(true);
                                 }}
                             >
-                                {ticket.name || "Walk-in"}
+                                {ticket.name || t("walkIn")}
                                 <Icon
                                     className={!isEditable ? "disabled" : ""}
                                     name="PencilSimple" size={18}
                                 />
                             </CustomerName>
                             <TicketCreationTime $status={ticket.status}>
-                                Created at{" "}
-                                {createdAt.toLocaleString("en-JP", {
+                                {t("createdAt")}{" "}
+                                {createdAt.toLocaleString(localeTag(locale), {
                                     month: "short",
                                     day: "numeric",
                                     hour: "numeric",
                                     minute: "2-digit",
                                 })}
-                                {ticket.created_by ? ` by ${ticket.created_by}` : ""}
+                                {ticket.created_by ? ` ${t("byName", { name: ticket.created_by })}` : ""}
                             </TicketCreationTime>
                         </TicketHeader>
                     )}
@@ -98,7 +100,7 @@ export default function TicketDetailsHeader({
                             disabled={!hasPrevious}
                         >
                             <Icon name="CaretLeft" />
-                            <PrevButtonText>Prev</PrevButtonText>
+                            <PrevButtonText>{t("prev")}</PrevButtonText>
                         </LeftButton>
 
                         <RightButton
@@ -106,7 +108,7 @@ export default function TicketDetailsHeader({
                             onClick={onNext}
                             disabled={!hasNext}
                         >
-                            <NextButtonText>Next</NextButtonText>
+                            <NextButtonText>{t("next")}</NextButtonText>
                             <Icon name="CaretRight" />
                         </RightButton>
                     </SelectorButtons>

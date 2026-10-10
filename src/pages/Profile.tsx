@@ -3,8 +3,10 @@ import styled from "styled-components";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
+import { localeTag, readLocale, translate, useI18n } from "../i18n";
 
 export default function Profile() {
+    const { t, locale } = useI18n();
     const [account, setAccount] = useState<Account | null>(null);
     const [hasAccounts, setHasAccounts] = useState(true);
     const [shift, setShift] = useState<ShiftReport | null>(null);
@@ -48,7 +50,7 @@ export default function Profile() {
                 }
             } catch (err) {
                 if (!cancelled) {
-                    setError(err instanceof ApiError ? err.message : "Could not load the account");
+                    setError(err instanceof ApiError ? err.message : translate(readLocale(), "couldNotLoadAccount"));
                 }
             }
         }
@@ -63,7 +65,7 @@ export default function Profile() {
         try {
             await action();
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : "Something went wrong");
+            setError(err instanceof ApiError ? err.message : translate(readLocale(), "somethingWrong"));
         }
     }
 
@@ -73,24 +75,24 @@ export default function Profile() {
 
     return (
         <Page>
-            <h1>Account</h1>
+            <h1>{t("account")}</h1>
             {error ? <ErrorText>{error}</ErrorText> : null}
 
             {!account ? (
                 <Section>
-                    <h2>{hasAccounts ? "Sign in" : "Create the manager account"}</h2>
+                    <h2>{hasAccounts ? t("signIn") : t("createManager")}</h2>
                     {!hasAccounts ? (
                         <label>
-                            Name
+                            {t("name")}
                             <input value={name} onChange={(event) => setName(event.target.value)} />
                         </label>
                     ) : null}
                     <label>
-                        Email
+                        {t("email")}
                         <input value={email} onChange={(event) => setEmail(event.target.value)} />
                     </label>
                     <label>
-                        Password
+                        {t("password")}
                         <input
                             type="password"
                             value={password}
@@ -109,17 +111,17 @@ export default function Profile() {
                             })
                         }
                     >
-                        {hasAccounts ? "Sign in" : "Create account"}
+                        {hasAccounts ? t("signIn") : t("createAccount")}
                     </button>
                 </Section>
             ) : (
                 <>
                     <Section>
                         <p>
-                            {account.name} · {account.email} · {account.role}
+                            {account.name} · {account.email} · {t(account.role)}
                         </p>
                         <label>
-                            Name
+                            {t("name")}
                             <input
                                 defaultValue={account.name}
                                 onBlur={(event) => {
@@ -134,7 +136,7 @@ export default function Profile() {
                             />
                         </label>
                         <label>
-                            New password
+                            {t("newPassword")}
                             <input
                                 type="password"
                                 value={password}
@@ -152,7 +154,7 @@ export default function Profile() {
                                     })
                                 }
                             >
-                                Save password
+                                {t("savePassword")}
                             </button>
                             <button
                                 type="button"
@@ -165,29 +167,30 @@ export default function Profile() {
                                     })
                                 }
                             >
-                                Sign out
+                                {t("signOut")}
                             </button>
                         </Row>
                     </Section>
 
                     <Section>
-                        <h2>Tonight</h2>
+                        <h2>{t("tonight")}</h2>
                         {shift?.status === "open" ? (
                             <p>
-                                Shift open since{" "}
-                                {new Date(shift.opened_at * 1000).toLocaleTimeString("en-JP", {
-                                    hour: "numeric",
-                                    minute: "2-digit",
-                                })}{" "}
-                                by {shift.opened_by}
+                                {t("shiftOpenSince", {
+                                    time: new Date(shift.opened_at * 1000).toLocaleTimeString(localeTag(locale), {
+                                        hour: "numeric",
+                                        minute: "2-digit",
+                                    }),
+                                    name: shift.opened_by,
+                                })}
                             </p>
                         ) : (
-                            <p>No shift is open.</p>
+                            <p>{t("noShiftOpen")}</p>
                         )}
                         <Row>
                             {shift?.status !== "open" ? (
                                 <button type="button" onClick={() => run(async () => setShift(await accountApi.openShift()))}>
-                                    Open shift
+                                    {t("openShift")}
                                 </button>
                             ) : (
                                 <>
@@ -200,23 +203,27 @@ export default function Profile() {
                                             )
                                         }
                                     >
-                                        {clockedIn ? "Clock out" : "Clock in"}
+                                        {clockedIn ? t("clockOut") : t("clockIn")}
                                     </button>
                                     <button
                                         type="button"
                                         className="danger"
                                         onClick={() => run(async () => setShift(await accountApi.closeShift()))}
                                     >
-                                        Close shift
+                                        {t("closeShift")}
                                     </button>
                                 </>
                             )}
                         </Row>
                         {shift?.status === "closed" ? (
                             <p>
-                                Shift closed.
+                                {t("shiftClosed")}
                                 {account.role === "manager"
-                                    ? ` Paid ¥${shift.paid_total.toLocaleString()} · cash ¥${shift.cash_total.toLocaleString()} · card ¥${shift.card_total.toLocaleString()}`
+                                    ? ` ${t("shiftClosedTotals", {
+                                          total: shift.paid_total.toLocaleString(),
+                                          cash: shift.cash_total.toLocaleString(),
+                                          card: shift.card_total.toLocaleString(),
+                                      })}`
                                     : ""}
                             </p>
                         ) : null}
@@ -224,17 +231,17 @@ export default function Profile() {
 
                     {account.role === "manager" ? (
                         <Section>
-                            <h2>Add a person</h2>
+                            <h2>{t("addPerson")}</h2>
                             <label>
-                                Name
+                                {t("name")}
                                 <input value={staffName} onChange={(event) => setStaffName(event.target.value)} />
                             </label>
                             <label>
-                                Email
+                                {t("email")}
                                 <input value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} />
                             </label>
                             <label>
-                                Password
+                                {t("password")}
                                 <input
                                     type="password"
                                     value={staffPassword}
@@ -242,13 +249,13 @@ export default function Profile() {
                                 />
                             </label>
                             <label>
-                                Role
+                                {t("role")}
                                 <select
                                     value={staffRole}
                                     onChange={(event) => setStaffRole(event.target.value as "staff" | "manager")}
                                 >
-                                    <option value="staff">Staff</option>
-                                    <option value="manager">Manager</option>
+                                    <option value="staff">{t("staff")}</option>
+                                    <option value="manager">{t("manager")}</option>
                                 </select>
                             </label>
                             <button
@@ -267,7 +274,7 @@ export default function Profile() {
                                     })
                                 }
                             >
-                                Add account
+                                {t("addAccount")}
                             </button>
                         </Section>
                     ) : null}

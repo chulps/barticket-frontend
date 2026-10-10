@@ -4,6 +4,7 @@ import styled from "styled-components";
 
 // UI components
 import TicketActions from "./TicketActions";
+import { useI18n } from "../../i18n";
 
 // Types
 import type { PaymentType, Ticket } from "../../types/Ticket";
@@ -31,12 +32,13 @@ export default function TicketFooter({
     onPayTicket,
     onReopenTicket
 }: TicketFooterProps) {
+    const { t } = useI18n();
 
     return (
         <Footer>
             <Totals>
                 <Row>
-                    <label>Total</label>
+                    <label>{t("total")}</label>
                     <data>¥{total.toLocaleString()}</data>
                 </Row>
             </Totals>

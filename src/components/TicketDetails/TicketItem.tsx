@@ -3,6 +3,7 @@ import Icon from "../Icon";
 import DropdownMenu from "../DropdownMenu";
 import DropdownMenuItem from "../DropdownMenuItem";
 import { useState } from "react";
+import { useI18n } from "../../i18n";
 
 type TicketDetailItemProps = {
     id: number;
@@ -34,6 +35,7 @@ export default function TicketDetailItem({
     onSavePrice,
     activeTab
 }: TicketDetailItemProps) {
+    const { t } = useI18n();
     const subtotal = unitPrice * quantity;
 
     const [priceInput, setPriceInput] = useState(unitPrice.toString());
@@ -72,7 +74,7 @@ export default function TicketDetailItem({
                             onAdjustPrice();
                         }}
                     >
-                        ¥{unitPrice.toLocaleString()} each
+                        {t("priceEach", { price: unitPrice.toLocaleString() })}
                     </Price>
                 )}
             </Info>
@@ -133,7 +135,7 @@ export default function TicketDetailItem({
                                 }}
                             >
                                 <Icon name="CurrencyCircleDollar" />
-                                Adjust Price
+                                {t("adjustPrice")}
                             </DropdownMenuItem>
 
                             <DropdownMenuItem
@@ -144,7 +146,7 @@ export default function TicketDetailItem({
                                 }}
                             >
                                 <Icon name="Trash" />
-                                Remove Item
+                                {t("removeItem")}
                             </DropdownMenuItem>
                         </>
                     )}
