@@ -11,7 +11,7 @@ import TabGroup from "../components/TabGroup";
 import { formatDuration, localeTag, menuLabel, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
 import type { Ticket } from "../types/Ticket";
 
-type Range = "all" | "month" | "day";
+type Range = "all" | "year" | "month" | "day";
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const satisfies readonly MessageKey[];
 
@@ -73,6 +73,14 @@ function weekdayIndex(iso: string) {
 
 function monthKey(iso: string) {
     return iso.slice(0, 7);
+}
+
+function yearKey(iso: string) {
+    return iso.slice(0, 4);
+}
+
+function shiftYear(year: string, delta: number) {
+    return String(Number(year) + delta);
 }
 
 function shiftMonth(key: string, delta: number) {
@@ -245,7 +253,7 @@ function RangeCharts({
     range: Range;
 }) {
     const { t, locale } = useI18n();
-    const points = range === "all" ? monthPoints(shifts, locale) : nightPoints(shifts, locale);
+    const points = range === "all" || range === "year" ? monthPoints(shifts, locale) : nightPoints(shifts, locale);
     const weekdayBars: TimeBar[] = WEEKDAYS.map((label, index) => {
         const row = summarize(shifts.filter((shift) => weekdayIndex(shift.business_date) === index));
         const name = new Date(2024, 0, 1 + index).toLocaleDateString(localeTag(locale), { weekday: "short" });
@@ -261,7 +269,7 @@ function RangeCharts({
         <Bento>
             <Cell $span={4}>
                 <BarChart
-                    title={range === "all" ? t("revenueByMonth") : t("revenueByNight")}
+                    title={range === "all" || range === "year" ? t("revenueByMonth") : t("revenueByNight")}
                     bars={paymentBars(points)}
                     formatTick={(value) => compactYen(value, locale)}
                     chartHeight={220}
@@ -274,7 +282,7 @@ function RangeCharts({
             </Cell>
             <Cell $span={2}>
                 <BarChart
-                    title={range === "all" ? t("guestsByMonth") : t("guestsByNight")}
+                    title={range === "all" || range === "year" ? t("guestsByMonth") : t("guestsByNight")}
                     bars={guestBars(points)}
                     formatTick={(value) => String(Math.round(value))}
                     chartHeight={168}
@@ -342,6 +350,7 @@ export default function Analytics() {
     const [error, setError] = useState("");
     const [range, setRange] = useState<Range>("month");
     const [month, setMonth] = useState("");
+    const [year, setYear] = useState("");
     const [dayId, setDayId] = useState<number | null>(null);
     const [pickedDate, setPickedDate] = useState("");
     const signedIn = getToken() !== null;
@@ -360,6 +369,7 @@ export default function Analytics() {
                     const latest = ordered[0];
                     if (latest) {
                         setMonth(monthKey(latest.business_date));
+                        setYear(yearKey(latest.business_date));
                         setDayId(latest.id);
                         setPickedDate(latest.business_date);
                     }
@@ -371,9 +381,18 @@ export default function Analytics() {
     }, [signedIn]);
 
     const monthShifts = (shifts ?? []).filter((shift) => monthKey(shift.business_date) === month);
+    const yearShifts = (shifts ?? []).filter((shift) => yearKey(shift.business_date) === year);
     const selected = (shifts ?? []).find((shift) => shift.id === dayId) ?? null;
     const visible =
-        range === "all" ? (shifts ?? []) : range === "month" ? monthShifts : selected ? [selected] : [];
+        range === "all"
+            ? (shifts ?? [])
+            : range === "year"
+              ? yearShifts
+              : range === "month"
+                ? monthShifts
+                : selected
+                  ? [selected]
+                  : [];
     const totals = summarize(visible);
 
     function showMonth(next: string) {
@@ -402,57 +421,79 @@ export default function Analytics() {
                     <TabGroup
                         tabs={[
                             { id: "all", label: t("allTime") },
+                            { id: "year", label: t("year") },
                             { id: "month", label: t("monthly") },
                             { id: "day", label: t("daily") },
                         ]}
                         activeTab={range}
                         onChange={setRange}
                     />
+                    {range === "year" ? (
+                        <Navigator>
+                            <StepButton
+                                type="button"
+                                className="hollow secondary"
+                                aria-label={t("prev")}
+                                onClick={() => year && setYear(shiftYear(year, -1))}
+                            >
+                                <Icon name="CaretLeft" size="var(--font-size-h4)" />
+                            </StepButton>
+                            <strong>{year || t("noNightsYet")}</strong>
+                            <StepButton
+                                type="button"
+                                className="hollow secondary"
+                                aria-label={t("next")}
+                                onClick={() => year && setYear(shiftYear(year, 1))}
+                            >
+                                <Icon name="CaretRight" size="var(--font-size-h4)" />
+                            </StepButton>
+                        </Navigator>
+                    ) : null}
                     {range === "month" ? (
                         <Navigator>
-                            <button
+                            <StepButton
                                 type="button"
                                 className="hollow secondary"
                                 aria-label={t("prev")}
                                 onClick={() => showMonth(shiftMonth(month, -1))}
                             >
                                 <Icon name="CaretLeft" size="var(--font-size-h4)" />
-                            </button>
+                            </StepButton>
                             <strong>{month ? formatMonth(month, locale) : t("noNightsYet")}</strong>
-                            <button
+                            <StepButton
                                 type="button"
                                 className="hollow secondary"
                                 aria-label={t("next")}
                                 onClick={() => showMonth(shiftMonth(month, 1))}
                             >
                                 <Icon name="CaretRight" size="var(--font-size-h4)" />
-                            </button>
+                            </StepButton>
                         </Navigator>
                     ) : null}
                     {range === "day" ? (
                         <DayNavigator>
-                            <button
+                            <StepButton
                                 type="button"
                                 className="hollow secondary"
                                 aria-label={t("prev")}
                                 onClick={() => showMonth(shiftMonth(month, -1))}
                             >
                                 <Icon name="CaretLeft" size="var(--font-size-h4)" />
-                            </button>
+                            </StepButton>
                             <AnalyticsDatePicker
                                 label={pickedDate ? formatNight(pickedDate, locale) : t("noNightsYet")}
                                 value={pickedDate}
                                 shiftDates={(shifts ?? []).map((shift) => shift.business_date)}
                                 onChange={pickDate}
                             />
-                            <button
+                            <StepButton
                                 type="button"
                                 className="hollow secondary"
                                 aria-label={t("next")}
                                 onClick={() => showMonth(shiftMonth(month, 1))}
                             >
                                 <Icon name="CaretRight" size="var(--font-size-h4)" />
-                            </button>
+                            </StepButton>
                         </DayNavigator>
                     ) : null}
                     {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} />}
@@ -629,6 +670,12 @@ const Navigator = styled.div`
     align-items: center;
     justify-content: space-between;
     gap: var(--space-1);
+`;
+
+const StepButton = styled.button`
+    && {
+        padding-inline: 1em;
+    }
 `;
 
 const DayNavigator = styled(Navigator)`
