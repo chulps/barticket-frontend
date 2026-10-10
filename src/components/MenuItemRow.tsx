@@ -107,7 +107,7 @@ export default function MenuItemRow({
 
 const MenuRow = styled.div`
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-1);
   margin-bottom: var(--space-1);
 `;

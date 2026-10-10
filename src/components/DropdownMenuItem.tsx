@@ -28,21 +28,20 @@ export default function DropdownMenuItem({
 
 
 const Item = styled.button<{ $danger: boolean }>`
-    width: 100%;
-
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: var(--space-1);
-
-    padding: var(--space-1) var(--space-2);
-
-    background: transparent;
-    border: none;
-
-    text-align: left;
-    white-space: normal;
-    cursor: pointer;
+    && {
+        width: 100%;
+        min-width: unset;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: var(--space-1);
+        padding: var(--space-1) var(--space-2);
+        background: transparent;
+        border: none;
+        text-align: left;
+        white-space: nowrap;
+        cursor: pointer;
+    }
 
     color: ${({ $danger }) =>
         $danger

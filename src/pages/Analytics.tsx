@@ -425,7 +425,7 @@ export default function Analytics() {
                                 aria-label={t("prev")}
                                 onClick={() => showMonth(shiftMonth(month, -1))}
                             >
-                                <Icon name="CaretLeft" size="1.2rem" />
+                                <Icon name="CaretLeft" size="var(--font-size-h4)" />
                             </button>
                             <AnalyticsDatePicker
                                 label={pickedDate ? formatNight(pickedDate, locale) : t("noNightsYet")}
@@ -439,7 +439,7 @@ export default function Analytics() {
                                 aria-label={t("next")}
                                 onClick={() => showMonth(shiftMonth(month, 1))}
                             >
-                                <Icon name="CaretRight" size="1.2rem" />
+                                <Icon name="CaretRight" size="var(--font-size-h4)" />
                             </button>
                         </DayNavigator>
                     ) : null}

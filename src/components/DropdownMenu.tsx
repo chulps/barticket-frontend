@@ -113,8 +113,10 @@ const Menu = styled.div<{ $top: number; $right: number }>`
     top: ${({ $top }) => $top}px;
     right: ${({ $right }) => $right}px;
 
-    width: max-content;
-    min-width: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: fit-content;
     max-width: min(18rem, calc(100vw - var(--space-3)));
 
     background: var(--neutral-900);

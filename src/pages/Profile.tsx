@@ -3,6 +3,7 @@ import styled from "styled-components";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
+import Icon from "../components/Icon";
 import { localeTag, readLocale, translate, useI18n } from "../i18n";
 
 export default function Profile() {
@@ -117,6 +118,63 @@ export default function Profile() {
             ) : (
                 <>
                     <Section>
+                        <h2>{t("tonight")}</h2>
+                        {shift?.status === "open" ? (
+                            <p>
+                                {t("shiftOpenSince", {
+                                    time: new Date(shift.opened_at * 1000).toLocaleTimeString(localeTag(locale), {
+                                        hour: "numeric",
+                                        minute: "2-digit",
+                                    }),
+                                    name: shift.opened_by,
+                                })}
+                            </p>
+                        ) : (
+                            <p>{t("noShiftOpen")}</p>
+                        )}
+                        <Row>
+                            {shift?.status !== "open" ? (
+                                <button type="button" className="success" onClick={() => run(async () => setShift(await accountApi.openShift()))}>
+                                    {t("openShift")}
+                                </button>
+                            ) : (
+                                <>
+                                    <button
+                                        type="button"
+                                        className="secondary"
+                                        onClick={() =>
+                                            run(async () =>
+                                                setShift(clockedIn ? await accountApi.clockOut() : await accountApi.clockIn()),
+                                            )
+                                        }
+                                    >
+                                        {clockedIn ? t("clockOut") : t("clockIn")}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="danger"
+                                        onClick={() => run(async () => setShift(await accountApi.closeShift()))}
+                                    >
+                                        {t("closeShift")}
+                                    </button>
+                                </>
+                            )}
+                        </Row>
+                        {shift?.status === "closed" ? (
+                            <p>
+                                {t("shiftClosed")}
+                                {account.role === "manager"
+                                    ? ` ${t("shiftClosedTotals", {
+                                          total: shift.paid_total.toLocaleString(),
+                                          cash: shift.cash_total.toLocaleString(),
+                                          card: shift.card_total.toLocaleString(),
+                                      })}`
+                                    : ""}
+                            </p>
+                        ) : null}
+                    </Section>
+
+                    <Section>
                         <Who>
                             <strong>{account.name}</strong>
                             <span>{account.email}</span>
@@ -158,7 +216,7 @@ export default function Profile() {
                             >
                                 {t("savePassword")}
                             </button>
-                            <button
+                            <SignOutButton
                                 type="button"
                                 className="hollow"
                                 onClick={() =>
@@ -170,65 +228,8 @@ export default function Profile() {
                                 }
                             >
                                 {t("signOut")}
-                            </button>
+                            </SignOutButton>
                         </Row>
-                    </Section>
-
-                    <Section>
-                        <h2>{t("tonight")}</h2>
-                        {shift?.status === "open" ? (
-                            <p>
-                                {t("shiftOpenSince", {
-                                    time: new Date(shift.opened_at * 1000).toLocaleTimeString(localeTag(locale), {
-                                        hour: "numeric",
-                                        minute: "2-digit",
-                                    }),
-                                    name: shift.opened_by,
-                                })}
-                            </p>
-                        ) : (
-                            <p>{t("noShiftOpen")}</p>
-                        )}
-                        <Row>
-                            {shift?.status !== "open" ? (
-                                <button type="button" onClick={() => run(async () => setShift(await accountApi.openShift()))}>
-                                    {t("openShift")}
-                                </button>
-                            ) : (
-                                <>
-                                    <button
-                                        type="button"
-                                        className="secondary"
-                                        onClick={() =>
-                                            run(async () =>
-                                                setShift(clockedIn ? await accountApi.clockOut() : await accountApi.clockIn()),
-                                            )
-                                        }
-                                    >
-                                        {clockedIn ? t("clockOut") : t("clockIn")}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="danger"
-                                        onClick={() => run(async () => setShift(await accountApi.closeShift()))}
-                                    >
-                                        {t("closeShift")}
-                                    </button>
-                                </>
-                            )}
-                        </Row>
-                        {shift?.status === "closed" ? (
-                            <p>
-                                {t("shiftClosed")}
-                                {account.role === "manager"
-                                    ? ` ${t("shiftClosedTotals", {
-                                          total: shift.paid_total.toLocaleString(),
-                                          cash: shift.cash_total.toLocaleString(),
-                                          card: shift.card_total.toLocaleString(),
-                                      })}`
-                                    : ""}
-                            </p>
-                        ) : null}
                     </Section>
 
                     {account.role === "manager" ? (
@@ -252,13 +253,18 @@ export default function Profile() {
                             </label>
                             <label>
                                 {t("role")}
-                                <select
-                                    value={staffRole}
-                                    onChange={(event) => setStaffRole(event.target.value as "staff" | "manager")}
-                                >
-                                    <option value="staff">{t("staff")}</option>
-                                    <option value="manager">{t("manager")}</option>
-                                </select>
+                                <RoleField>
+                                    <select
+                                        value={staffRole}
+                                        onChange={(event) => setStaffRole(event.target.value as "staff" | "manager")}
+                                    >
+                                        <option value="staff">{t("staff")}</option>
+                                        <option value="manager">{t("manager")}</option>
+                                    </select>
+                                    <RoleCaret>
+                                        <Icon name="CaretDown" size="1em" />
+                                    </RoleCaret>
+                                </RoleField>
                             </label>
                             <button
                                 type="button"
@@ -333,6 +339,35 @@ const Section = styled.section`
     select {
         background: var(--dark);
     }
+`;
+
+const SignOutButton = styled.button`
+    &&,
+    &&:hover {
+        outline: 1px solid var(--danger-500);
+        outline-offset: -1px;
+    }
+`;
+
+const RoleField = styled.span`
+    position: relative;
+    display: block;
+    width: 100%;
+
+    select {
+        padding-right: 2.5em;
+    }
+`;
+
+const RoleCaret = styled.span`
+    position: absolute;
+    top: 50%;
+    right: 1em;
+    display: flex;
+    transform: translateY(-50%);
+    pointer-events: none;
+    color: var(--neutral-300);
+    font-size: var(--font-size-default);
 `;
 
 const Who = styled.div`
