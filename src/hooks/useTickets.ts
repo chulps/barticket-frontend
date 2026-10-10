@@ -194,10 +194,9 @@ export function useTickets() {
     return enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType));
   };
 
-  const reopenTicket = async (ticketId: number): Promise<Ticket | null> => {
-    console.warn(`Reopen ticket ${ticketId}: not supported by the API yet`);
-    window.alert(t("reopenUnsupported"));
-    return null;
+  const reopenTicket = (ticketId: number) => {
+    flushRename(ticketId);
+    return enqueue(ticketId, () => ticketsApi.reopen(ticketId));
   };
 
   return {

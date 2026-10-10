@@ -30,7 +30,7 @@ export default function TicketFooter({
     total,
     onCancelTicket,
     onPayTicket,
-    onReopenTicket
+    onReopenTicket,
 }: TicketFooterProps) {
     const { t } = useI18n();
 

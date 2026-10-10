@@ -128,4 +128,7 @@ export const ticketsApi = {
 
     cancel: (ticketId: number) =>
         apiRequest<ApiTicket>(`/tickets/${ticketId}/cancel`, { method: "POST" }),
+
+    reopen: (ticketId: number) =>
+        apiRequest<ApiTicket>(`/tickets/${ticketId}/reopen`, { method: "POST" }),
 };

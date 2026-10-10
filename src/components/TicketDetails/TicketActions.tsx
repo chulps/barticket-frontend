@@ -30,14 +30,14 @@ export default function TicketActions({
     activeTab,
     onCancelTicket,
     onPayTicket,
-    onReopenTicket
+    onReopenTicket,
 }: TicketActionsProps) {
     const { openModal } = useModal();
     const { t } = useI18n();
 
     if (activeTab === "open") {
         return (
-            <ButtonActions>
+            <ButtonActions $row>
                 <ActionButton
                     className="hollow danger"
                     onClick={() => onCancelTicket(ticket.id)}
