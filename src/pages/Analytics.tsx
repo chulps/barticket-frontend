@@ -5,6 +5,7 @@ import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ticketsApi, toTicket } from "../api/tickets";
 import { ApiError, getToken } from "../api/client";
 import { BarChart, DonutChart, HorizontalBarChart, type TimeBar } from "../components/AnalyticsCharts";
+import Icon from "../components/Icon";
 import TabGroup from "../components/TabGroup";
 import { formatDuration, localeTag, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
 import type { Ticket } from "../types/Ticket";
@@ -446,6 +447,7 @@ export default function Analytics() {
 
 function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Ticket[] }) {
     const { t, locale } = useI18n();
+    const [openId, setOpenId] = useState<number | null>(null);
     const dates = new Map(shifts.map((shift) => [shift.id, shift.business_date]));
     const rows = tickets
         .filter((ticket) => ticket.shiftId !== null && dates.has(ticket.shiftId) && ticket.status !== "open")
@@ -465,18 +467,39 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
                     ticket.status === "paid"
                         ? t(ticket.payment?.type ?? "paid")
                         : t("cancelled");
+                const open = openId === ticket.id;
                 return (
-                    <TicketRow key={ticket.id}>
-                        <div>
-                            <span>{ticket.name || `#${ticket.id}`}</span>
-                            <small>
-                                {date ? formatNight(date, locale) : ""}
-                                {date ? " · " : ""}
-                                {detail}
-                            </small>
-                        </div>
-                        <strong>{yen(total)}</strong>
-                    </TicketRow>
+                    <TicketCard key={ticket.id}>
+                        <TicketRow
+                            type="button"
+                            aria-expanded={open}
+                            onClick={() => setOpenId(open ? null : ticket.id)}
+                        >
+                            <span>
+                                <span>{ticket.name || `#${ticket.id}`}</span>
+                                <small>
+                                    {date ? formatNight(date, locale) : ""}
+                                    {date ? " · " : ""}
+                                    {detail}
+                                </small>
+                            </span>
+                            <span>
+                                <strong>{yen(total)}</strong>
+                                <Icon name={open ? "CaretDown" : "CaretRight"} size="1.6rem" />
+                            </span>
+                        </TicketRow>
+                        {open ? (
+                            <ItemList>
+                                {ticket.items.map((item) => (
+                                    <li key={item.id}>
+                                        <span>{item.type === "cover" ? t("coverCharge") : item.name}</span>
+                                        <data>{item.quantity}</data>
+                                        <strong>{yen(item.subtotal)}</strong>
+                                    </li>
+                                ))}
+                            </ItemList>
+                        ) : null}
+                    </TicketCard>
                 );
             })}
         </TicketLog>
@@ -611,20 +634,80 @@ const TicketLog = styled.section`
     }
 `;
 
-const TicketRow = styled.div`
+const TicketCard = styled.div`
+    background: var(--neutral-900);
+    border-radius: 12px;
+    min-width: 0;
+`;
+
+const TicketRow = styled.button`
+    width: 100%;
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: var(--space-1);
     padding: var(--space-1);
-    background: var(--neutral-900);
+    background: transparent;
+    color: inherit;
+    border: none;
     border-radius: 12px;
-    min-width: 0;
+    text-align: left;
+    white-space: normal;
+    font-size: var(--font-size-default);
+
+    &:hover,
+    &:active {
+        background: var(--neutral-800);
+        transform: none;
+        filter: none;
+    }
+
+    > span {
+        display: flex;
+        align-items: center;
+        gap: var(--space-1);
+        min-width: 0;
+    }
+
+    > span:first-child {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+    }
 
     span {
         overflow-wrap: anywhere;
     }
 
+    strong {
+        font-family: var(--font-family-data);
+        font-weight: 500;
+        white-space: nowrap;
+    }
+`;
+
+const ItemList = styled.ul`
+    list-style: none;
+    margin: 0;
+    padding: 0 var(--space-1) var(--space-1);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0);
+
+    li {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: var(--space-1);
+        align-items: baseline;
+        padding-top: var(--space-0);
+        border-top: 1px solid var(--neutral-800);
+    }
+
+    span {
+        overflow-wrap: anywhere;
+    }
+
+    data,
     strong {
         font-family: var(--font-family-data);
         font-weight: 500;
