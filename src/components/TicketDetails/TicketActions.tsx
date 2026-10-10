@@ -98,11 +98,22 @@ export default function TicketActions({
 
 const ButtonActions = styled.div`
     display: flex;
-    gap: var(--space-2);
+    flex-direction: column;
+    gap: var(--space-1);
+
+    @media (min-width: 768px) {
+        flex-direction: row;
+        gap: var(--space-2);
+    }
 `
 
 const ActionButton = styled.button`
     font-size: var(--font-size-h6);
-    flex: 1;
+    width: 100%;
     padding: calc(var(--space-0) + var(--space-1));
+
+    @media (min-width: 768px) {
+        flex: 1;
+        width: auto;
+    }
 `

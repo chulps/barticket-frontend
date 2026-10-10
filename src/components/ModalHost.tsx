@@ -84,19 +84,22 @@ const Overlay = styled.div`
 `;
 
 const Dialog = styled.div<{ $maxWidth: string }>`
-    width: min(100%, ${({ $maxWidth }) => $maxWidth});
+    width: 100%;
+    max-width: 100%;
     height: 100dvh;
-    width: fit-content;
+    overflow-x: hidden;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    box-sizing: border-box;
+    background: var(--neutral-900);
 
     @media (min-width: 768px) {
+        width: fit-content;
+        max-width: ${({ $maxWidth }) => $maxWidth};
         max-height: 80dvh;
         border-radius: var(--space-2);
     }
-
-    background: var(--neutral-900);
 `;
 
 const Footer = styled.footer`
