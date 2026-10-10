@@ -4,6 +4,17 @@ export const API_URL = (
     import.meta.env.VITE_API_URL || "http://localhost:8000"
 ).replace(/\/$/, "");
 
+const TOKEN_KEY = "barticket_token";
+
+export function getToken(): string | null {
+    return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string | null) {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+}
+
 export class ApiError extends Error {
     status: number;
 
@@ -17,12 +28,14 @@ export async function apiRequest<T>(
     path: string,
     options: { method?: string; body?: unknown } = {},
 ): Promise<T> {
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    if (options.body !== undefined) headers["Content-Type"] = "application/json";
+
     const res = await fetch(`${API_URL}${path}`, {
         method: options.method ?? "GET",
-        headers:
-            options.body === undefined
-                ? undefined
-                : { "Content-Type": "application/json" },
+        headers,
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
 

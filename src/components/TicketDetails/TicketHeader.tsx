@@ -85,7 +85,8 @@ export default function TicketDetailsHeader({
                                     day: "numeric",
                                     hour: "numeric",
                                     minute: "2-digit",
-                                })}{" "}by Chuck
+                                })}
+                                {ticket.created_by ? ` by ${ticket.created_by}` : ""}
                             </TicketCreationTime>
                         </TicketHeader>
                     )}

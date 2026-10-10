@@ -29,6 +29,7 @@ export type Ticket = {
   created_at: number;
   updated_at: number;
   cancelled_at: number | null;
+  created_by: string | null;
 
   payment: Payment | null;
 };
