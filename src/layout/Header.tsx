@@ -15,30 +15,45 @@ export default function Header() {
   const navRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [isManager, setIsManager] = useState(false);
+  const [clockedIn, setClockedIn] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
   const { t, locale, setLocale } = useI18n();
+  const canSeeNotices = isManager || clockedIn;
 
   useEffect(() => {
     let cancelled = false;
-    function loadRole() {
+    async function loadRole() {
       if (!getToken()) {
-        setIsManager(false);
+        if (!cancelled) {
+          setIsManager(false);
+          setClockedIn(false);
+        }
         return;
       }
-      accountApi
-        .me()
-        .then((me) => {
-          if (!cancelled) setIsManager(me.role === "manager");
-        })
-        .catch(() => {
-          if (!cancelled) setIsManager(false);
-        });
+      try {
+        const me = await accountApi.me();
+        const shift = await accountApi.currentShift();
+        if (cancelled) return;
+        setIsManager(me.role === "manager");
+        setClockedIn(
+          Boolean(shift?.punches.some((punch) => punch.user_id === me.id && punch.clock_out === null)),
+        );
+      } catch {
+        if (!cancelled) {
+          setIsManager(false);
+          setClockedIn(false);
+        }
+      }
     }
     loadRole();
+    const timer = window.setInterval(loadRole, 20000);
     window.addEventListener("barticket-auth", loadRole);
+    window.addEventListener("focus", loadRole);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
       window.removeEventListener("barticket-auth", loadRole);
+      window.removeEventListener("focus", loadRole);
     };
   }, []);
 
@@ -55,7 +70,7 @@ export default function Header() {
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isManager) return;
+    if (!canSeeNotices) return;
     let cancelled = false;
     async function load() {
       try {
@@ -73,7 +88,7 @@ export default function Header() {
       window.clearInterval(timer);
       window.removeEventListener("barticket-notices", load);
     };
-  }, [isManager]);
+  }, [canSeeNotices]);
 
   return (
     <Navbar>
@@ -87,6 +102,7 @@ export default function Header() {
         onClick={() => setIsOpen(!isOpen)}
       >
         <Icon name={isOpen ? "X" : "List"} />
+        {alertCount > 0 ? <MenuBadge>{alertCount}</MenuBadge> : null}
       </Hamburger>
 
       <Nav ref={navRef} $isOpen={isOpen}>
@@ -134,7 +150,7 @@ export default function Header() {
           </NavLink>
         ) : null}
 
-        {isManager ? (
+        {canSeeNotices ? (
           <NavLink
             onClick={() => setIsOpen(false)}
             to="/notifications">
@@ -145,7 +161,7 @@ export default function Header() {
                   weight={isActive ? "fill" : "regular"}
                 />
                 {t("notifications")}
-                {isManager && alertCount > 0 ? <AlertCount>{alertCount}</AlertCount> : null}
+                {alertCount > 0 ? <AlertCount>{alertCount}</AlertCount> : null}
               </>
             )}
           </NavLink>
@@ -202,6 +218,7 @@ const Logo = styled.h1`
 
 const Hamburger = styled.button`
   display: none;
+  position: relative;
   flex-direction: column;
   gap: 5px;
 
@@ -215,6 +232,24 @@ const Hamburger = styled.button`
   @media (max-width: 768px) {
     display: flex;
   }
+`;
+
+const MenuBadge = styled.span`
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(35%, -35%);
+  min-width: 1.4em;
+  height: 1.4em;
+  padding: 0 0.3em;
+  border-radius: 999px;
+  background: var(--danger-500);
+  color: white;
+  font-size: 10px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const Nav = styled.nav<{ $isOpen: boolean }>`

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import styled from "styled-components";
 
-import { ApiError } from "../api/client";
+import { accountApi } from "../api/account";
+import { ApiError, getToken } from "../api/client";
 import { listNotices, restockNotice, type NoticeList } from "../api/notices";
 import { menuLabel, useI18n, type Locale } from "../i18n";
 
@@ -16,6 +17,7 @@ export default function Notifications() {
     const { t, locale } = useI18n();
     const [notices, setNotices] = useState<NoticeList | null>(null);
     const [denied, setDenied] = useState(false);
+    const [isManager, setIsManager] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -34,12 +36,21 @@ export default function Notifications() {
             }
         }
         load();
+        if (getToken()) {
+            accountApi.me().then((me) => {
+                if (!cancelled) setIsManager(me.role === "manager");
+            }).catch(() => {
+                if (!cancelled) setIsManager(false);
+            });
+        }
         const timer = window.setInterval(load, 20000);
         window.addEventListener("barticket-auth", load);
+        window.addEventListener("barticket-notices", load);
         return () => {
             cancelled = true;
             window.clearInterval(timer);
             window.removeEventListener("barticket-auth", load);
+            window.removeEventListener("barticket-notices", load);
         };
     }, []);
 
@@ -56,7 +67,7 @@ export default function Notifications() {
     return (
         <main>
             <Heading>{t("notifications")}</Heading>
-            {denied ? <p>{t("managersOnly")}</p> : null}
+            {denied ? <p>{t("clockInForNotices")}</p> : null}
             {!denied && notices && notices.notices.length === 0 ? <p>{t("noNotifications")}</p> : null}
             {!denied && notices
                 ? notices.notices.map((notice) => (
@@ -66,13 +77,15 @@ export default function Notifications() {
                             {" · "}
                             {formatWhen(notice.at, locale)}
                         </AlertText>
-                        <RestockButton
-                            type="button"
-                            className="small hollow"
-                            onClick={() => restock(notice.id)}
-                        >
-                            {t("markInStock")}
-                        </RestockButton>
+                        {isManager ? (
+                            <RestockButton
+                                type="button"
+                                className="small hollow"
+                                onClick={() => restock(notice.id)}
+                            >
+                                {t("markInStock")}
+                            </RestockButton>
+                        ) : null}
                     </Alert>
                 ))
                 : null}
