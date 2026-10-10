@@ -83,6 +83,8 @@ export const accountApi = {
         password?: string;
     }) => apiRequest<Account>("/users", { method: "POST", body }),
 
+    removeUser: (userId: number) => apiRequest<Account[]>(`/users/${userId}`, { method: "DELETE" }),
+
     currentShift: () => apiRequest<ShiftReport | null>("/shifts/current"),
 
     openShift: () => apiRequest<ShiftReport>("/shifts/open", { method: "POST" }),
