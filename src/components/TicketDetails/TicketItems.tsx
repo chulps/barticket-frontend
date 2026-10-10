@@ -17,7 +17,7 @@ import type { Ticket } from "../../types/Ticket";
 
 // Hooks
 import { useModal } from "../../hooks/useModal";
-import { useI18n } from "../../i18n";
+import { menuLabel, useI18n } from "../../i18n";
 
 type TicketItemsProps = {
     ticket: Ticket;
@@ -64,7 +64,7 @@ export default function TicketItems({
     onAddItem,
 }: TicketItemsProps) {
     const { openModal, closeModal } = useModal();
-    const { t } = useI18n();
+    const { t, locale } = useI18n();
 
     const isEditable = activeTab === "open";
 
@@ -115,7 +115,7 @@ export default function TicketItems({
                     <TicketDetailItem
                         key={item.id}
                         id={item.id}
-                        name={item.type === "cover" ? t("coverCharge") : item.name}
+                        name={item.type === "cover" ? t("coverCharge") : menuLabel(locale, item.name)}
                         unitPrice={item.unit_price}
                         quantity={item.quantity}
                         activeTab={activeTab}

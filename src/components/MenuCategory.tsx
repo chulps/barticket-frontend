@@ -2,6 +2,7 @@ import styled from "styled-components";
 
 import type { MenuItem } from "../types/Menu";
 import MenuItemRow from "./MenuItemRow"
+import { menuLabel, useI18n } from "../i18n";
 
 
 type MenuCategoryProps = {
@@ -15,15 +16,16 @@ export default function MenuCategory({
   subcategories,
   onToggleStock,
 }: MenuCategoryProps) {
+  const { locale } = useI18n();
   return (
     <Category>
-      <CategoryHeading>{category}</CategoryHeading>
+      <CategoryHeading>{menuLabel(locale, category)}</CategoryHeading>
 
       {Object.entries(subcategories).map(
         ([subcategory, items]) => (
           <div key={subcategory}>
             {subcategory !== "General" && (
-              <SubHeading>{subcategory}</SubHeading>
+              <SubHeading>{menuLabel(locale, subcategory)}</SubHeading>
             )}
 
             <MenuItemsContainer>
