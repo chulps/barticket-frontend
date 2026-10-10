@@ -45,6 +45,7 @@ export default function Menu({
     try {
       const updated = await setMenuStock(item.id, item.inStock === false);
       onItemChange(updated);
+      window.dispatchEvent(new Event("barticket-notices"));
     } catch (error) {
       window.alert(error instanceof ApiError ? error.message : t("stockUpdateFailed"));
     }
