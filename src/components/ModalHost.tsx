@@ -10,10 +10,12 @@ import styled from "styled-components";
 
 // import UI components
 import Icon from "../components/Icon"
+import { useI18n } from "../i18n";
 
 // component
 export default function ModalHost() {
     const { modal, closeModal } = useModal();
+    const { t } = useI18n();
 
     useEffect(() => {
         function handleKeyDown(e: KeyboardEvent) {
@@ -58,7 +60,7 @@ export default function ModalHost() {
       {modal.closeStyle === "button" && (
         <Footer>
           <button onClick={closeModal}>
-            {modal.closeText ?? "Close"}
+            {modal.closeText ?? t("close")}
           </button>
         </Footer>
       )}

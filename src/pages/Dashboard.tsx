@@ -16,6 +16,7 @@ import type { Ticket, PaymentType } from "../types/Ticket"
 
 // import hooks 
 import { useTickets } from "../hooks/useTickets"; // (business logic for creating or updating tickets)
+import { useI18n } from "../i18n";
 
 type DashboardProps = {
   menu: MenuData | null;
@@ -27,6 +28,7 @@ export default function Dashboard({
   menu,
   loadingMenu,
 }: DashboardProps) {
+  const { t } = useI18n();
 
   // States
   const [activeTab, setActiveTab] = useState<"open" | "paid" | "cancelled">("open");
@@ -130,13 +132,13 @@ export default function Dashboard({
 
   // messages for empty state
   const emptyMessages = {
-    open: "No open tickets. Click the 'New Ticket' button to add a ticket.",
-    paid: "No paid tickets",
-    cancelled: "No cancelled tickets",
+    open: t("noOpenTickets"),
+    paid: t("noPaidTickets"),
+    cancelled: t("noCancelledTickets"),
   };
 
   if (loadingMenu) {
-    return <data>Loading menu...</data>;
+    return <data>{t("loadingMenu")}</data>;
   }
 
 

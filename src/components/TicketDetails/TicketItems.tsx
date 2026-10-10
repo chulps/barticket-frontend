@@ -17,6 +17,7 @@ import type { Ticket } from "../../types/Ticket";
 
 // Hooks
 import { useModal } from "../../hooks/useModal";
+import { useI18n } from "../../i18n";
 
 type TicketItemsProps = {
     ticket: Ticket;
@@ -63,15 +64,16 @@ export default function TicketItems({
     onAddItem,
 }: TicketItemsProps) {
     const { openModal, closeModal } = useModal();
+    const { t } = useI18n();
 
     const isEditable = activeTab === "open";
 
     return (
         <Items>
             <ItemsHeader>
-                <SectionTitle>Items</SectionTitle>
-                <SectionTitle>QTY</SectionTitle>
-                <SectionTitle>Subtotal</SectionTitle>
+                <SectionTitle>{t("items")}</SectionTitle>
+                <SectionTitle>{t("qty")}</SectionTitle>
+                <SectionTitle>{t("subtotal")}</SectionTitle>
 
                 <AddItemButton
                     disabled={!isEditable}
@@ -79,7 +81,7 @@ export default function TicketItems({
                         if (!menu) return;
 
                         openModal({
-                            title: "Add Item",
+                            title: t("addItem"),
                             maxWidth: "var(--space-7)",
                             content: (
                                 <AddItemPicker
@@ -104,7 +106,7 @@ export default function TicketItems({
                     }}
                 >
                     <Icon name="Plus" />
-                    <AddItemText>Add Item</AddItemText>
+                    <AddItemText>{t("addItem")}</AddItemText>
                 </AddItemButton>
             </ItemsHeader>
 
@@ -113,7 +115,7 @@ export default function TicketItems({
                     <TicketDetailItem
                         key={item.id}
                         id={item.id}
-                        name={item.name}
+                        name={item.type === "cover" ? t("coverCharge") : item.name}
                         unitPrice={item.unit_price}
                         quantity={item.quantity}
                         activeTab={activeTab}

@@ -9,6 +9,7 @@ import type { PaymentType, Ticket } from "../../types/Ticket";
 
 // Hooks
 import { useModal } from "../../hooks/useModal";
+import { useI18n } from "../../i18n";
 
 type TicketActionsProps = {
     ticket: Ticket;
@@ -32,6 +33,7 @@ export default function TicketActions({
     onReopenTicket
 }: TicketActionsProps) {
     const { openModal } = useModal();
+    const { t } = useI18n();
 
     if (activeTab === "open") {
         return (
@@ -41,14 +43,14 @@ export default function TicketActions({
                     onClick={() => onCancelTicket(ticket.id)}
                 >
                     <Icon name="X" />
-                    Cancel Ticket
+                    {t("cancelTicket")}
                 </ActionButton>
 
                 <ActionButton
                     className="hollow success"
                     onClick={() =>
                         openModal({
-                            title: "Take Payment",
+                            title: t("takePayment"),
                             content: (
                                 <PaymentModal
                                     ticket={ticket}
@@ -61,7 +63,7 @@ export default function TicketActions({
                     }
                 >
                     <Icon name="Money" />
-                    Take Payment
+                    {t("takePayment")}
                 </ActionButton>
             </ButtonActions>
         );
@@ -72,19 +74,19 @@ export default function TicketActions({
             <ButtonActions>
                 <ActionButton className="hollow secondary">
                     <Icon name="EnvelopeSimple" />
-                    Email Receipt
+                    {t("emailReceipt")}
                 </ActionButton>
 
                 <ActionButton 
                     className="hollow"
                     onClick={() => onReopenTicket(ticket.id)}>
                     <Icon name="ArrowCounterClockwise" />
-                    Reopen Ticket
+                    {t("reopenTicket")}
                 </ActionButton>
 
                 <ActionButton className="hollow danger">
                     <Icon name="Receipt" />
-                    Refund
+                    {t("refund")}
                 </ActionButton>
             </ButtonActions>
         );

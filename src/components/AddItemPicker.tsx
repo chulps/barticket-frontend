@@ -14,6 +14,7 @@ import SearchBar from "./MenuSearchBar";
 
 // import hooks
 import { useModal } from "../hooks/useModal";
+import { useI18n } from "../i18n";
 
 type AddItemModalProps = {
     menu: MenuData;
@@ -29,6 +30,7 @@ export default function AddItemModal({
     menu,
     onAddItem,
 }: AddItemModalProps) {
+    const { t } = useI18n();
     const [search, setSearch] = useState("");
     const [selectedItems, setSelectedItems] = useState<
         { item: MenuItem; priceKey: keyof Prices }[]
@@ -190,11 +192,11 @@ export default function AddItemModal({
                 selectedItems.length > 0 && (
                     <Footer>
                         <CancelButton onClick={handleCancel}>
-                            Cancel
+                            {t("cancel")}
                         </CancelButton>
 
                         <SaveButton onClick={handleSave}>
-                            Save ({selectedItems.length})
+                            {t("saveCount", { count: selectedItems.length })}
                         </SaveButton>
                     </Footer>
                 )

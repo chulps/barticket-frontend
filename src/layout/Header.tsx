@@ -7,10 +7,12 @@ import FxxkupLogo from "../components/FxxkupLogo"
 import { NavLink as RouterNavLink } from "react-router-dom"
 import { accountApi } from "../api/account";
 import { getToken } from "../api/client";
+import { useI18n } from "../i18n";
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [isManager, setIsManager] = useState(false);
+  const { t, locale, setLocale } = useI18n();
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +61,7 @@ export default function Header() {
                 name="House"
                 weight={isActive ? "fill" : "regular"}
               />
-              Dashboard
+              {t("dashboard")}
             </>
           )}
         </NavLink>
@@ -73,7 +75,7 @@ export default function Header() {
                 name="Book"
                 weight={isActive ? "fill" : "regular"}
               />
-              Drink Menu
+              {t("drinkMenu")}
             </>
           )}
         </NavLink>
@@ -88,7 +90,7 @@ export default function Header() {
                   name="ChartDonut"
                   weight={isActive ? "fill" : "regular"}
                 />
-                Analytics
+                {t("analytics")}
               </>
             )}
           </NavLink>
@@ -103,10 +105,17 @@ export default function Header() {
                 name="UserCircle"
                 weight={isActive ? "fill" : "regular"}
               />
-              Profile
+              {t("profile")}
             </>
           )}
         </NavLink>
+
+        <LanguageButton
+          type="button"
+          onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
+        >
+          {locale === "ja" ? "English" : "日本語"}
+        </LanguageButton>
 
       </Nav>
     </Navbar>
@@ -180,6 +189,19 @@ const Nav = styled.nav<{ $isOpen: boolean }>`
 
     pointer-events: ${({ $isOpen }) =>
     $isOpen ? "auto" : "none"};
+  }
+`;
+
+const LanguageButton = styled.button`
+  background: none;
+  border: none;
+  color: var(--neutral-300);
+  cursor: pointer;
+  padding: var(--space-2);
+  text-align: left;
+
+  &:hover {
+    color: white;
   }
 `;
 

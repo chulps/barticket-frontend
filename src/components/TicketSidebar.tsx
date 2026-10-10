@@ -14,6 +14,7 @@ import type { Ticket } from "../types/Ticket";
 import TicketListItem from "./TicketListItem";
 import TabGroup from "./TabGroup";
 import Icon from "./Icon";
+import { useI18n } from "../i18n";
 
 // props
 type SidebarProps = {
@@ -59,28 +60,29 @@ export default function TicketSidebar({
 }: SidebarProps) {
 
   const isEditable = activeTab === "open";
+  const { t } = useI18n();
 
   // setup states
   const tabOrder = ["open", "paid", "cancelled"] as const;
   const [direction, setDirection] = useState(1);
 
   const emptyMessages = {
-    open: "No open tickets. Click the 'New Ticket' button to add a ticket.",
-    paid: "No paid tickets",
-    cancelled: "No cancelled tickets",
+    open: t("noOpenTickets"),
+    paid: t("noPaidTickets"),
+    cancelled: t("noCancelledTickets"),
   };
 
   return (
     <SidebarContainer>
       <SidebarHeader>
         <div>
-          <label>Status</label>
+          <label>{t("status")}</label>
 
           <TabGroup
             tabs={[
-              { id: "open", label: "Open" },
-              { id: "paid", label: "Paid" },
-              { id: "cancelled", label: "Cancelled" },
+              { id: "open", label: t("open") },
+              { id: "paid", label: t("paid") },
+              { id: "cancelled", label: t("cancelled") },
             ]}
             activeTab={activeTab}
             onChange={(tab) => {
@@ -110,7 +112,7 @@ export default function TicketSidebar({
         onClick={handleCreateTicket}
       >
         <Icon name="Plus" />
-        New Ticket
+        {t("newTicket")}
       </button>
 
       <TicketList>

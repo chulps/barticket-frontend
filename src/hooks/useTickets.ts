@@ -7,6 +7,7 @@ import type { PaymentType, Ticket } from "../types/Ticket";
 
 // import api
 import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
+import { useI18n } from "../i18n";
 
 // the name input saves on every keystroke, so wait until typing pauses
 const RENAME_DELAY_MS = 500;
@@ -17,6 +18,7 @@ function reportError(error: unknown) {
 }
 
 export function useTickets() {
+  const { t } = useI18n();
   const [tickets, setTickets] = useState<Ticket[]>([]);
 
   // latest tickets for async callbacks, which would otherwise see stale state
@@ -97,11 +99,11 @@ export function useTickets() {
 
   const updateItemPrice = (ticketId: number, itemId: number, price: number) => {
     if (itemId === COVER_ITEM_ID) {
-      window.alert("The cover price comes from the bar settings and can't be changed per ticket.");
+      window.alert(t("coverPriceFixed"));
       return;
     }
     if (!Number.isFinite(price) || price < 0) {
-      window.alert("Enter a price of 0 or more.");
+      window.alert(t("priceMinimum"));
       return;
     }
 
@@ -166,7 +168,7 @@ export function useTickets() {
 
   const removeItemFromTicket = (ticketId: number, itemId: number) => {
     if (itemId === COVER_ITEM_ID) {
-      window.alert("The cover charge can't be removed. Use − to lower the guest count (minimum 1).");
+      window.alert(t("coverCannotRemove"));
       return;
     }
 
@@ -194,7 +196,7 @@ export function useTickets() {
 
   const reopenTicket = async (ticketId: number): Promise<Ticket | null> => {
     console.warn(`Reopen ticket ${ticketId}: not supported by the API yet`);
-    window.alert("Reopening tickets isn't supported by the backend yet.");
+    window.alert(t("reopenUnsupported"));
     return null;
   };
 

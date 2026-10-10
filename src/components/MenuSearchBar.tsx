@@ -1,4 +1,5 @@
 import styled from "styled-components";
+import { useI18n } from "../i18n";
 
 type SearchBarProps = {
   value: string;
@@ -9,11 +10,12 @@ export default function SearchBar({
   value,
   onChange,
 }: SearchBarProps) {
+  const { t } = useI18n();
   return (
     <SearchContainer>
       <Input
         type="text"
-        placeholder="Type something"
+        placeholder={t("searchPlaceholder")}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />

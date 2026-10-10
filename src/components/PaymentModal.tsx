@@ -7,6 +7,7 @@ import { useModal } from "../hooks/useModal";
 import type { Ticket } from "../types/Ticket";
 
 import Icon from "../components/Icon"
+import { useI18n, type MessageKey } from "../i18n";
 
 type IconName = React.ComponentProps<typeof Icon>["name"];type PaymentType = "cash" | "card" | "other";
 
@@ -19,22 +20,22 @@ type PaymentModalProps = {
 const paymentMethods = [
   {
     type: "cash",
-    label: "Cash",
+    label: "cash",
     icon: "Money",
   },
   {
     type: "card",
-    label: "Card",
+    label: "card",
     icon: "CreditCard",
   },
   {
     type: "other",
-    label: "Other",
+    label: "other",
     icon: "Wallet",
   },
 ] as const satisfies {
   type: PaymentType;
-  label: string;
+  label: MessageKey;
   icon: IconName;
 }[];
 
@@ -43,6 +44,7 @@ export default function PaymentModal({
     onConfirm,
 }: PaymentModalProps) {
     const { closeModal } = useModal();
+    const { t } = useI18n();
 
     const [paymentType, setPaymentType] =
         useState<PaymentType>("cash");
@@ -65,13 +67,13 @@ export default function PaymentModal({
             <SuccessContainer>
                 <Check>٩( ᐛ )و <br/><br/></Check>
 
-                <h3>Payment Complete</h3>
+                <h3>{t("paymentComplete")}</h3>
 
                 <SuccessTotal>
                     ¥{total.toLocaleString()}
                 </SuccessTotal>
 
-                <p>{paymentType.toUpperCase()}</p>
+                <p>{t(paymentType)}</p>
             </SuccessContainer>
         );
     }
@@ -82,7 +84,7 @@ export default function PaymentModal({
                 <Amount>
                     ¥{total.toLocaleString()}
                 </Amount>
-                <small>Receive Payment</small>
+                <small>{t("receivePayment")}</small>
             </TotalContainer>
 
             <Methods>
@@ -95,7 +97,7 @@ export default function PaymentModal({
                         <Icon 
                             size="var(--font-size-h3)"
                             name={method.icon} />
-                        <span>{method.label}</span>
+                        <span>{t(method.label)}</span>
                     </MethodButton>
                 ))}
             </Methods>
@@ -105,11 +107,11 @@ export default function PaymentModal({
                     className="hollow"
                     onClick={closeModal}
                 >
-                    Cancel
+                    {t("cancel")}
                 </button>
 
                 <button onClick={handleConfirm}>
-                    Confirm Payment
+                    {t("confirmPayment")}
                 </button>
             </Footer>
         </Container>
