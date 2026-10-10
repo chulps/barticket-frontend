@@ -135,6 +135,8 @@ const en = {
     clockInBeforeTickets: "Clock in on an open shift before starting a ticket.",
     ranOut: "Ran out",
     stockUpdateFailed: "Couldn't update that item.",
+    priceUpdateFailed: "Couldn't update that price.",
+    save: "Save",
 } as const;
 
 const ja: { [K in keyof typeof en]: string } = {
@@ -274,6 +276,8 @@ const ja: { [K in keyof typeof en]: string } = {
     clockInBeforeTickets: "伝票を作るには、シフトを開いて出勤してください。",
     ranOut: "品切れ",
     stockUpdateFailed: "在庫を更新できませんでした。",
+    priceUpdateFailed: "価格を更新できませんでした。",
+    save: "保存",
 };
 
 export const translations = { en, ja };

@@ -1,21 +1,46 @@
 import styled from "styled-components";
 
 import MenuPrice from "./MenuPrice";
+import MenuPriceEditor from "./MenuPriceEditor";
+import DropdownMenu from "./DropdownMenu";
+import DropdownMenuItem from "./DropdownMenuItem";
+import Icon from "./Icon";
 
-import type { MenuItem } from "../types/Menu";
+import type { MenuItem, Prices } from "../types/Menu";
 import { menuLabel, useI18n } from "../i18n";
+import { useModal } from "../hooks/useModal";
+
+const PRICE_KEYS = ["standard", "15ml", "30ml"] as const;
 
 type MenuItemRowProps = {
     item: MenuItem;
     onToggle?: (item: MenuItem) => void;
+    onSavePrices?: (item: MenuItem, prices: Prices) => Promise<void>;
 };
 
 export default function MenuItemRow({
     item,
     onToggle,
+    onSavePrices,
 }: MenuItemRowProps) {
     const { t, locale } = useI18n();
+    const { openModal } = useModal();
     const unavailable = item.inStock === false;
+    const canEditPrice = PRICE_KEYS.some((key) => item.prices?.[key] !== undefined);
+
+    function openPriceEditor() {
+        if (!onSavePrices) return;
+        openModal({
+            title: menuLabel(locale, item.name),
+            maxWidth: "420px",
+            content: (
+                <MenuPriceEditor
+                    item={item}
+                    onSave={(prices) => onSavePrices(item, prices)}
+                />
+            ),
+        });
+    }
 
     return (
         <MenuRow>
@@ -36,24 +61,52 @@ export default function MenuItemRow({
                 <MenuPrice item={item} />
             </ItemInfo>
             {onToggle ? (
-                <StockButton
-                    type="button"
-                    className="small hollow secondary"
-                    onClick={() => onToggle(item)}
+                <DropdownMenu
+                    trigger={(isOpen) => (
+                        <Icon name={isOpen ? "X" : "DotsThreeOutlineVerticalIcon"} />
+                    )}
                 >
-                    {unavailable ? t("markInStock") : t("markOutOfStock")}
-                </StockButton>
+                    {(closeMenu) => (
+                        <>
+                            <DropdownMenuItem
+                                danger={!unavailable}
+                                onClick={() => {
+                                    closeMenu();
+                                    onToggle(item);
+                                }}
+                            >
+                                <Icon name={unavailable ? "CheckCircle" : "Prohibit"} />
+                                {unavailable ? t("markInStock") : t("markOutOfStock")}
+                            </DropdownMenuItem>
+                            {canEditPrice && onSavePrices ? (
+                                <DropdownMenuItem
+                                    onClick={() => {
+                                        closeMenu();
+                                        openPriceEditor();
+                                    }}
+                                >
+                                    <Icon name="CurrencyCircleDollar" />
+                                    {t("adjustPrice")}
+                                </DropdownMenuItem>
+                            ) : null}
+                        </>
+                    )}
+                </DropdownMenu>
             ) : null}
         </MenuRow>
     );
 }
 
 const MenuRow = styled.div`
-  gap: var(--space-0);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
   margin-bottom: var(--space-1);
 `;
 
 const ItemInfo = styled.div`
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: end;
   gap: var(--space-1);
@@ -74,11 +127,6 @@ const OutOfStock = styled.span`
   color: var(--danger-400);
   font-size: 12px;
   white-space: nowrap;
-`;
-
-const StockButton = styled.button`
-  width: auto;
-  margin-top: var(--space-0);
 `;
 
 const Description = styled.small`
