@@ -33,6 +33,7 @@ export default function MenuItemRow({
         openModal({
             title: menuLabel(locale, item.name),
             maxWidth: "420px",
+            fitContent: true,
             content: (
                 <MenuPriceEditor
                     item={item}

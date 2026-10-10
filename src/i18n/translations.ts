@@ -137,6 +137,7 @@ const en = {
     stockUpdateFailed: "Couldn't update that item.",
     priceUpdateFailed: "Couldn't update that price.",
     save: "Save",
+    price: "Price",
 } as const;
 
 const ja: { [K in keyof typeof en]: string } = {
@@ -278,6 +279,7 @@ const ja: { [K in keyof typeof en]: string } = {
     stockUpdateFailed: "在庫を更新できませんでした。",
     priceUpdateFailed: "価格を更新できませんでした。",
     save: "保存",
+    price: "価格",
 };
 
 export const translations = { en, ja };
