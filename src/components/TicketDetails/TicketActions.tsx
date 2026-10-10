@@ -71,22 +71,18 @@ export default function TicketActions({
 
     if (activeTab === "paid") {
         return (
-            <ButtonActions>
+            <ButtonActions $row>
                 <ActionButton className="hollow secondary">
                     <Icon name="EnvelopeSimple" />
                     {t("emailReceipt")}
                 </ActionButton>
 
-                <ActionButton 
+                <ActionButton
                     className="hollow"
-                    onClick={() => onReopenTicket(ticket.id)}>
+                    onClick={() => onReopenTicket(ticket.id)}
+                >
                     <Icon name="ArrowCounterClockwise" />
                     {t("reopenTicket")}
-                </ActionButton>
-
-                <ActionButton className="hollow danger">
-                    <Icon name="Receipt" />
-                    {t("refund")}
                 </ActionButton>
             </ButtonActions>
         );
@@ -96,10 +92,31 @@ export default function TicketActions({
     return null;
 }
 
-const ButtonActions = styled.div`
+const ButtonActions = styled.div<{ $row?: boolean }>`
     display: flex;
-    flex-direction: column;
+    flex-direction: ${({ $row }) => ($row ? "row" : "column")};
     gap: var(--space-1);
+    width: 100%;
+
+    ${({ $row }) =>
+        $row &&
+        `
+        && > button {
+            flex: 1;
+            width: auto;
+        }
+
+        @media (max-width: 767px) {
+            && > button {
+                padding-left: var(--space-1);
+                padding-right: var(--space-1);
+
+                &:hover {
+                    transform: none;
+                }
+            }
+        }
+    `}
 
     @media (min-width: 768px) {
         flex-direction: row;
@@ -110,7 +127,9 @@ const ButtonActions = styled.div`
 const ActionButton = styled.button`
     font-size: var(--font-size-h6);
     width: 100%;
+    min-width: 0;
     padding: calc(var(--space-0) + var(--space-1));
+    justify-content: center;
 
     @media (min-width: 768px) {
         flex: 1;
