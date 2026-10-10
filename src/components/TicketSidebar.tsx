@@ -140,6 +140,8 @@ export default function TicketSidebar({
                 ticketId={ticket.id}
                 name={ticket.name}
                 total={getTicketTotal(ticket)}
+                createdAt={ticket.created_at}
+                createdBy={ticket.created_by}
                 selected={ticket.id === selectedTicketId}
 
                 initial={{

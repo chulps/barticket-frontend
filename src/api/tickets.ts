@@ -28,6 +28,7 @@ export type ApiTicket = {
     created_at: number;
     paid_at: number | null;
     cancelled_at: number | null;
+    created_by: string | null;
     payment: { type: PaymentType; amount: number; paid_at: number } | null;
 };
 
@@ -66,6 +67,7 @@ export function toTicket(api: ApiTicket): Ticket {
         created_at: api.created_at,
         updated_at: api.cancelled_at ?? api.paid_at ?? api.created_at,
         cancelled_at: api.cancelled_at,
+        created_by: api.created_by,
         payment: api.payment
             ? { type: api.payment.type, paid_at: api.payment.paid_at }
             : null,

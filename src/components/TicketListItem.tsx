@@ -13,6 +13,8 @@ type TicketListItemProps = HTMLMotionProps<"button"> & {
     ticketId: number;
     name: string;
     total: number;
+    createdAt?: number;
+    createdBy?: string | null;
     selected?: boolean;
     onClick?: () => void;
 };
@@ -21,6 +23,8 @@ export default function TicketListItem({
     ticketId,
     name,
     total,
+    createdAt,
+    createdBy,
     selected = false,
     onClick,
     ...motionProps
@@ -38,7 +42,17 @@ export default function TicketListItem({
 
             <RightInfo>
                 <RightInfoText>
-                    <CreatedAt>Created (time) by (User)</CreatedAt>
+                    <CreatedAt>
+                        {createdAt
+                            ? new Date(createdAt * 1000).toLocaleString("en-JP", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                              })
+                            : "Created"}
+                        {createdBy ? ` by ${createdBy}` : ""}
+                    </CreatedAt>
                     <Total>¥{total.toLocaleString()}</Total>
                 </RightInfoText>
                 <Icon name="CaretRight" />
