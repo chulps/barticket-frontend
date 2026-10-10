@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { translations, type Locale, type MessageKey } from "./translations";
+import { menuJa, translations, type Locale, type MessageKey } from "./translations";
 
 const LOCALE_KEY = "barticket_locale";
 
@@ -47,6 +47,18 @@ export function translate(
 
 export function localeTag(locale: Locale) {
     return locale === "ja" ? "ja-JP" : "en-US";
+}
+
+export function menuLabel(locale: Locale, text: string | null | undefined) {
+    if (!text) return "";
+    if (locale !== "ja") return text;
+    return menuJa[text] ?? text;
+}
+
+export function menuHaystack(text: string | null | undefined) {
+    if (!text) return "";
+    const japanese = menuJa[text];
+    return japanese && japanese !== text ? `${text} ${japanese}` : text;
 }
 
 export function formatDuration(locale: Locale, seconds: number) {

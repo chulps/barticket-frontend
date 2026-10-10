@@ -3,7 +3,7 @@ import styled from "styled-components";
 import MenuPrice from "./MenuPrice";
 
 import type { MenuItem } from "../types/Menu";
-import { useI18n } from "../i18n";
+import { menuLabel, useI18n } from "../i18n";
 
 type MenuItemRowProps = {
     item: MenuItem;
@@ -14,7 +14,7 @@ export default function MenuItemRow({
     item,
     onToggle,
 }: MenuItemRowProps) {
-    const { t } = useI18n();
+    const { t, locale } = useI18n();
     const unavailable = item.inStock === false;
 
     return (
@@ -22,14 +22,14 @@ export default function MenuItemRow({
             <ItemInfo>
                 <div>
                     <NameLine>
-                        <ItemName>{item.name}</ItemName>
+                        <ItemName>{menuLabel(locale, item.name)}</ItemName>
                         {unavailable ? <OutOfStock>{t("outOfStock")}</OutOfStock> : null}
                     </NameLine>
                     {item.description && (
-                        <Description>{item.description}</Description>
+                        <Description>{menuLabel(locale, item.description)}</Description>
                     )}
                     {item.notes && (
-                        <Note>*{item.notes}</Note>
+                        <Note>*{menuLabel(locale, item.notes)}</Note>
                     )}
                 </div>
                 <Spacer />

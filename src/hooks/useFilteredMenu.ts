@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import type { MenuData, MenuItem } from "../types/Menu";
+import { menuHaystack } from "../i18n";
 
 type GroupedMenu = Record<
   string,
@@ -31,7 +32,7 @@ export function useFilteredMenu(
         item.description,
         item.notes,
         ...(item.tags ?? []),
-      ];
+      ].map((field) => menuHaystack(field));
 
       const textMatch = textFields
         .filter(Boolean)

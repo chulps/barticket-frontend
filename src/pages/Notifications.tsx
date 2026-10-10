@@ -3,7 +3,7 @@ import styled from "styled-components";
 
 import { ApiError } from "../api/client";
 import { listNotices, type NoticeList } from "../api/notices";
-import { useI18n, type Locale } from "../i18n";
+import { menuLabel, useI18n, type Locale } from "../i18n";
 
 function formatWhen(unix: number, locale: Locale) {
     return new Date(unix * 1000).toLocaleTimeString(locale === "ja" ? "ja-JP" : "en-US", {
@@ -51,7 +51,7 @@ export default function Notifications() {
             {!denied && notices
                 ? notices.notices.map((notice) => (
                     <Alert key={`${notice.item}-${notice.at}`}>
-                        {t("stockoutLine", { name: notice.by, item: notice.item })}
+                        {t("stockoutLine", { name: notice.by, item: menuLabel(locale, notice.item) })}
                         {" · "}
                         {formatWhen(notice.at, locale)}
                     </Alert>

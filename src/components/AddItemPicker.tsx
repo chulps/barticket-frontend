@@ -14,7 +14,7 @@ import SearchBar from "./MenuSearchBar";
 
 // import hooks
 import { useModal } from "../hooks/useModal";
-import { useI18n } from "../i18n";
+import { menuHaystack, menuLabel, useI18n } from "../i18n";
 
 type AddItemModalProps = {
     menu: MenuData;
@@ -30,7 +30,7 @@ export default function AddItemModal({
     menu,
     onAddItem,
 }: AddItemModalProps) {
-    const { t } = useI18n();
+    const { t, locale } = useI18n();
     const [search, setSearch] = useState("");
     const [selectedItems, setSelectedItems] = useState<
         { item: MenuItem; priceKey: keyof Prices }[]
@@ -108,7 +108,7 @@ export default function AddItemModal({
                 item.description,
                 item.notes,
                 item.tags?.join(" "),
-            ]
+            ].map((field) => menuHaystack(field))
                 .filter(Boolean)
                 .some((field) => field!.toLowerCase().includes(term));
         });
@@ -135,7 +135,7 @@ export default function AddItemModal({
                             )
                         }
                     >
-                        {selection.item.name} ✕
+                        {menuLabel(locale, selection.item.name)} ✕
                     </Chip>
                 ))}
             </SelectedItems>
@@ -185,7 +185,7 @@ export default function AddItemModal({
 
                     return (
                         <ItemRow key={item.id} $available={!unavailable}>
-                            <ItemName>{item.name}</ItemName>
+                            <ItemName>{menuLabel(locale, item.name)}</ItemName>
                             {priceControl}
                         </ItemRow>
                     );

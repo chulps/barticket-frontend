@@ -7,7 +7,7 @@ import { ApiError, getToken } from "../api/client";
 import { BarChart, DonutChart, HorizontalBarChart, type TimeBar } from "../components/AnalyticsCharts";
 import Icon from "../components/Icon";
 import TabGroup from "../components/TabGroup";
-import { formatDuration, localeTag, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
+import { formatDuration, localeTag, menuLabel, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
 import type { Ticket } from "../types/Ticket";
 
 type Range = "all" | "month" | "day";
@@ -461,7 +461,7 @@ function Stockouts({ shifts }: { shifts: ShiftReport[] }) {
             <h2>{t("ranOut")}</h2>
             {rows.map((row) => (
                 <p key={`${row.shiftId}-${row.item}-${row.at}`}>
-                    {formatNight(row.night, locale)} · {t("stockoutLine", { name: row.by, item: row.item })}
+                    {formatNight(row.night, locale)} · {t("stockoutLine", { name: row.by, item: menuLabel(locale, row.item) })}
                 </p>
             ))}
         </Card>
@@ -515,7 +515,7 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
                             <ItemList>
                                 {ticket.items.map((item) => (
                                     <li key={item.id}>
-                                        <span>{item.type === "cover" ? t("coverCharge") : item.name}</span>
+                                        <span>{item.type === "cover" ? t("coverCharge") : menuLabel(locale, item.name)}</span>
                                         <data>{item.quantity}</data>
                                         <strong>{yen(item.subtotal)}</strong>
                                     </li>
