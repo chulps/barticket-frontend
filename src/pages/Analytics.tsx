@@ -89,19 +89,21 @@ function formatMonth(key: string, locale: Locale) {
     });
 }
 
-function formatDay(iso: string, locale: Locale) {
-    return parseDate(iso).toLocaleDateString(localeTag(locale), {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-    });
-}
-
 function formatNight(iso: string, locale: Locale) {
     const start = parseDate(iso);
     const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
-    const endText = end.toLocaleDateString(localeTag(locale), { month: "short", day: "numeric" });
-    return `${formatDay(iso, locale)}–${endText}`;
+    const tag = localeTag(locale);
+    const weekday = start.toLocaleDateString(tag, { weekday: "short" });
+    const startDay = start.getDate();
+    const endDay = end.getDate();
+    if (locale === "ja") {
+        const startMonth = start.getMonth() + 1;
+        const endLabel = start.getMonth() === end.getMonth() ? `${endDay}日` : `${end.getMonth() + 1}月${endDay}日`;
+        return `${startMonth}月${startDay}日(${weekday})~${endLabel}`;
+    }
+    const month = start.toLocaleDateString(tag, { month: "short" });
+    const endLabel = start.getMonth() === end.getMonth() ? String(endDay) : end.toLocaleDateString(tag, { month: "short", day: "numeric" });
+    return `${weekday}, ${month} ${startDay}~${endLabel}`;
 }
 
 function yen(amount: number) {
@@ -408,12 +410,22 @@ export default function Analytics() {
                     />
                     {range === "month" ? (
                         <Navigator>
-                            <button type="button" className="hollow secondary" onClick={() => showMonth(shiftMonth(month, -1))}>
-                                {t("prev")}
+                            <button
+                                type="button"
+                                className="hollow secondary"
+                                aria-label={t("prev")}
+                                onClick={() => showMonth(shiftMonth(month, -1))}
+                            >
+                                <Icon name="CaretLeft" size="var(--font-size-h4)" />
                             </button>
                             <strong>{month ? formatMonth(month, locale) : t("noNightsYet")}</strong>
-                            <button type="button" className="hollow secondary" onClick={() => showMonth(shiftMonth(month, 1))}>
-                                {t("next")}
+                            <button
+                                type="button"
+                                className="hollow secondary"
+                                aria-label={t("next")}
+                                onClick={() => showMonth(shiftMonth(month, 1))}
+                            >
+                                <Icon name="CaretRight" size="var(--font-size-h4)" />
                             </button>
                         </Navigator>
                     ) : null}

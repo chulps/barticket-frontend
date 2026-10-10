@@ -117,7 +117,7 @@ const Menu = styled.div<{ $top: number; $right: number }>`
     flex-direction: column;
     align-items: stretch;
     width: fit-content;
-    max-width: min(18rem, calc(100vw - var(--space-3)));
+    max-width: calc(100vw - var(--space-3));
 
     background: var(--neutral-900);
     border: 1px solid var(--neutral-700);
