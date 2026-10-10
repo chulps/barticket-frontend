@@ -33,6 +33,7 @@ export type ShiftReport = {
     paid_count: number;
     cancelled_count: number;
     staff_hours: { user_id: number; name: string; seconds: number }[];
+    stockouts?: { item: string; at: number; by: string }[];
     punches: ShiftPunch[];
 };
 

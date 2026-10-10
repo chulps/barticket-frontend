@@ -55,6 +55,7 @@ export default function AddItemModal({
         item: MenuItem,
         priceKey: keyof Prices
     ) => {
+        if (item.inStock === false) return;
         setSelectedItems(prev => {
             const exists = prev.some(
                 selected =>
@@ -90,11 +91,6 @@ export default function AddItemModal({
 
 
         return menu.items.filter((item) => {
-            // Hide items that aren't in stock
-            if (item.inStock === false) {
-                return false;
-            }
-
             // Hide ingredient-only items
             if (item.category === "Cocktail Ingredients") {
                 return false;
@@ -146,16 +142,19 @@ export default function AddItemModal({
 
             <ItemList>
                 {filteredItems.map((item) => {
-                    if (!item.prices) {
+                    const unavailable = item.inStock === false;
+                    if (!item.prices && !unavailable) {
                         console.warn("Menu item missing prices:", item);
                         return null;
                     }
 
                     return (
-                        <ItemRow key={item.id}>
+                        <ItemRow key={item.id} $available={!unavailable}>
                             <ItemName>{item.name}</ItemName>
 
-                            {item.prices.standard !== undefined ? (
+                            {unavailable ? (
+                                <OutOfStock>{t("outOfStock")}</OutOfStock>
+                            ) : item.prices!.standard !== undefined ? (
                                 <PriceButton
                                     className="small hollow"
                                     onClick={() => selectItem(item, "standard")}
@@ -214,7 +213,7 @@ const ItemList = styled.div`
     overflow-y: auto;
 `;
 
-const ItemRow = styled.div`
+const ItemRow = styled.div<{ $available?: boolean }>`
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -224,7 +223,7 @@ const ItemRow = styled.div`
     border: none;
     border-radius: var(--space-1);
     text-align: left;
-    cursor: pointer;
+    cursor: ${({ $available }) => ($available === false ? "default" : "pointer")};
     gap: var(--space-2);
     &:hover {
         background: var(--neutral-800);
@@ -233,6 +232,12 @@ const ItemRow = styled.div`
 
 const ItemName = styled.p`
   font-weight: normal;
+`;
+
+const OutOfStock = styled.span`
+  color: var(--danger-400);
+  font-size: 12px;
+  white-space: nowrap;
 `;
 
 const PriceButtons = styled.div`

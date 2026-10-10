@@ -3,26 +3,28 @@ import styled from "styled-components";
 import MenuPrice from "./MenuPrice";
 
 import type { MenuItem } from "../types/Menu";
+import { useI18n } from "../i18n";
 
 type MenuItemRowProps = {
     item: MenuItem;
+    onToggle?: (item: MenuItem) => void;
 };
 
 export default function MenuItemRow({
     item,
+    onToggle,
 }: MenuItemRowProps) {
+    const { t } = useI18n();
+    const unavailable = item.inStock === false;
+
     return (
-        <MenuRow
-            style={{
-                opacity:
-                    item.category === "Cocktails" || item.inStock
-                        ? 1
-                        : 0.35,
-            }}
-        >
+        <MenuRow>
             <ItemInfo>
                 <div>
-                    <ItemName>{item.name}</ItemName>
+                    <NameLine>
+                        <ItemName>{item.name}</ItemName>
+                        {unavailable ? <OutOfStock>{t("outOfStock")}</OutOfStock> : null}
+                    </NameLine>
                     {item.description && (
                         <Description>{item.description}</Description>
                     )}
@@ -33,8 +35,15 @@ export default function MenuItemRow({
                 <Spacer />
                 <MenuPrice item={item} />
             </ItemInfo>
-
-
+            {onToggle ? (
+                <StockButton
+                    type="button"
+                    className="small hollow secondary"
+                    onClick={() => onToggle(item)}
+                >
+                    {unavailable ? t("markInStock") : t("markOutOfStock")}
+                </StockButton>
+            ) : null}
         </MenuRow>
     );
 }
@@ -50,8 +59,26 @@ const ItemInfo = styled.div`
   gap: var(--space-1);
 `;
 
+const NameLine = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+`;
+
 const ItemName = styled.p`
   font-weight: 300;
+`;
+
+const OutOfStock = styled.span`
+  color: var(--danger-400);
+  font-size: 12px;
+  white-space: nowrap;
+`;
+
+const StockButton = styled.button`
+  width: auto;
+  margin-top: var(--space-0);
 `;
 
 const Description = styled.small`

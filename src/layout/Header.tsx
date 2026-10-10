@@ -7,11 +7,13 @@ import FxxkupLogo from "../components/FxxkupLogo"
 import { NavLink as RouterNavLink } from "react-router-dom"
 import { accountApi } from "../api/account";
 import { getToken } from "../api/client";
+import { listNotices } from "../api/notices";
 import { useI18n } from "../i18n";
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [isManager, setIsManager] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
   const { t, locale, setLocale } = useI18n();
 
   useEffect(() => {
@@ -37,6 +39,25 @@ export default function Header() {
       window.removeEventListener("barticket-auth", loadRole);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isManager) return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const data = await listNotices();
+        if (!cancelled) setAlertCount(data.notices.length);
+      } catch {
+        if (!cancelled) setAlertCount(0);
+      }
+    }
+    load();
+    const timer = window.setInterval(load, 20000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [isManager]);
 
   return (
     <Navbar>
@@ -91,6 +112,23 @@ export default function Header() {
                   weight={isActive ? "fill" : "regular"}
                 />
                 {t("analytics")}
+              </>
+            )}
+          </NavLink>
+        ) : null}
+
+        {isManager ? (
+          <NavLink
+            onClick={() => setIsOpen(false)}
+            to="/notifications">
+            {({ isActive }) => (
+              <>
+                <Icon
+                  name="Bell"
+                  weight={isActive ? "fill" : "regular"}
+                />
+                {t("notifications")}
+                {isManager && alertCount > 0 ? <AlertCount>{alertCount}</AlertCount> : null}
               </>
             )}
           </NavLink>
@@ -203,6 +241,11 @@ const LanguageButton = styled.button`
   &:hover {
     color: white;
   }
+`;
+
+const AlertCount = styled.span`
+  color: var(--danger-400);
+  font-size: 12px;
 `;
 
 const NavLink = styled(RouterNavLink)`

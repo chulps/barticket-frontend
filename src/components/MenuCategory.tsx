@@ -7,11 +7,13 @@ import MenuItemRow from "./MenuItemRow"
 type MenuCategoryProps = {
   category: string;
   subcategories: Record<string, MenuItem[]>;
+  onToggleStock?: (item: MenuItem) => void;
 };
 
 export default function MenuCategory({
   category,
   subcategories,
+  onToggleStock,
 }: MenuCategoryProps) {
   return (
     <Category>
@@ -29,6 +31,7 @@ export default function MenuCategory({
                 <MenuItemRow
                   key={item.id}
                   item={item}
+                  onToggle={onToggleStock}
                 />
               ))}
             </MenuItemsContainer>

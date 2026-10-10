@@ -45,6 +45,7 @@ type SidebarProps = {
   >;
 
   nightOpen: boolean;
+  canCreate: boolean;
 };
 
 export default function TicketSidebar({
@@ -60,6 +61,7 @@ export default function TicketSidebar({
   getTicketTotal,
   setLastSelectedTicket,
   nightOpen,
+  canCreate,
 }: SidebarProps) {
 
   const isEditable = activeTab === "open";
@@ -111,12 +113,15 @@ export default function TicketSidebar({
       </SidebarHeader>
 
       <button
-        disabled={!isEditable}
+        disabled={!isEditable || !canCreate}
         onClick={handleCreateTicket}
       >
         <Icon name="Plus" />
         {t("newTicket")}
       </button>
+      {activeTab === "open" && !canCreate ? (
+        <ClockHint>{t("clockInBeforeTickets")}</ClockHint>
+      ) : null}
 
       <TicketList>
         {visibleTickets.length === 0 ? (
@@ -199,6 +204,12 @@ const SidebarContainer = styled.aside`
     padding-right: var(--space-2);
     height: calc(100vh - 100px);
   }
+`;
+
+const ClockHint = styled.p`
+  color: var(--neutral-400);
+  font-size: 12px;
+  margin: 0;
 `;
 
 const SidebarHeader = styled.div`
