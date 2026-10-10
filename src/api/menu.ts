@@ -1,8 +1,15 @@
 // api/menu.ts
 
-import type { MenuData } from "../types/Menu";
+import type { MenuData, MenuItem } from "../types/Menu";
 import { apiRequest } from "./client";
 
 export function getMenu(): Promise<MenuData> {
     return apiRequest<MenuData>("/menu");
+}
+
+export function setMenuStock(itemId: number, inStock: boolean): Promise<MenuItem> {
+    return apiRequest<MenuItem>(`/menu/items/${itemId}/stock`, {
+        method: "PATCH",
+        body: { in_stock: inStock },
+    });
 }

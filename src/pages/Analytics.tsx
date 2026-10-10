@@ -438,10 +438,33 @@ export default function Analytics() {
                             <StaffChart shifts={[selected]} />
                         </DayBento>
                     ) : null}
+                    {visible.length > 0 ? <Stockouts shifts={visible} /> : null}
                     {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} /> : null}
                 </>
             ) : null}
         </Page>
+    );
+}
+
+function Stockouts({ shifts }: { shifts: ShiftReport[] }) {
+    const { t, locale } = useI18n();
+    const rows = shifts.flatMap((shift) =>
+        (shift.stockouts ?? []).map((row) => ({
+            ...row,
+            shiftId: shift.id,
+            night: shift.business_date,
+        })),
+    );
+    if (rows.length === 0) return null;
+    return (
+        <Card>
+            <h2>{t("ranOut")}</h2>
+            {rows.map((row) => (
+                <p key={`${row.shiftId}-${row.item}-${row.at}`}>
+                    {formatNight(row.night, locale)} · {t("stockoutLine", { name: row.by, item: row.item })}
+                </p>
+            ))}
+        </Card>
     );
 }
 

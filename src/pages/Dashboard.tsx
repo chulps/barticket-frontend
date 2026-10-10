@@ -17,7 +17,8 @@ import type { Ticket, PaymentType } from "../types/Ticket"
 // import hooks 
 import { useTickets } from "../hooks/useTickets"; // (business logic for creating or updating tickets)
 import { useI18n } from "../i18n";
-import { accountApi } from "../api/account";
+import { accountApi, type Account, type ShiftReport } from "../api/account";
+import { getToken } from "../api/client";
 
 type DashboardProps = {
   menu: MenuData | null;
@@ -36,6 +37,8 @@ export default function Dashboard({
   const [selectedTicketId, setSelectedTicketId] = useState(1);
   const [showTicketDetails, setShowTicketDetails] = useState(false);
   const [openShiftId, setOpenShiftId] = useState<number | null | undefined>(undefined);
+  const [me, setMe] = useState<Account | null>(null);
+  const [shift, setShift] = useState<ShiftReport | null>(null);
 
   // business logic for updating or creating new tickets (../hooks/useTickets.ts)
   const {
@@ -52,11 +55,46 @@ export default function Dashboard({
   } = useTickets();
 
   useEffect(() => {
-    accountApi
-      .currentShift()
-      .then((shift) => setOpenShiftId(shift?.id ?? null))
-      .catch(() => setOpenShiftId(undefined));
+    let cancelled = false;
+    async function load() {
+      try {
+        const current = await accountApi.currentShift();
+        if (cancelled) return;
+        setShift(current);
+        setOpenShiftId(current?.id ?? null);
+      } catch {
+        if (cancelled) return;
+        setShift(null);
+        setOpenShiftId(undefined);
+      }
+      if (!getToken()) {
+        if (!cancelled) setMe(null);
+        return;
+      }
+      try {
+        const account = await accountApi.me();
+        if (!cancelled) setMe(account);
+      } catch {
+        if (!cancelled) setMe(null);
+      }
+    }
+    load();
+    const timer = window.setInterval(load, 20000);
+    window.addEventListener("focus", load);
+    window.addEventListener("barticket-auth", load);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", load);
+      window.removeEventListener("barticket-auth", load);
+    };
   }, []);
+
+  const canCreate = Boolean(
+    me &&
+    shift?.status === "open" &&
+    shift.punches.some((punch) => punch.user_id === me.id && punch.clock_out === null),
+  );
 
   // Paid and cancelled tickets stay on the board only for the open shift.
   const visibleTickets = tickets.filter((ticket) => {
@@ -168,6 +206,7 @@ export default function Dashboard({
         lastSelectedTicket={lastSelectedTicket}
         setLastSelectedTicket={setLastSelectedTicket}
         nightOpen={openShiftId !== null}
+        canCreate={canCreate}
       />
 
       <Content $open={showTicketDetails}>

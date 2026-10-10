@@ -125,6 +125,16 @@ const en = {
     priceMinimum: "Enter a price of 0 or more.",
     coverCannotRemove: "The cover charge can't be removed. Use − to lower the guest count (minimum 1).",
     reopenUnsupported: "Reopening tickets isn't supported by the backend yet.",
+
+    outOfStock: "out of stock",
+    markOutOfStock: "Mark out of stock",
+    markInStock: "Mark in stock",
+    notifications: "Notifications",
+    noNotifications: "No stock alerts.",
+    stockoutLine: "{name} marked {item} out of stock",
+    clockInBeforeTickets: "Clock in on an open shift before starting a ticket.",
+    ranOut: "Ran out",
+    stockUpdateFailed: "Couldn't update that item.",
 } as const;
 
 const ja: { [K in keyof typeof en]: string } = {
@@ -254,6 +264,16 @@ const ja: { [K in keyof typeof en]: string } = {
     priceMinimum: "0円以上の価格を入力してください。",
     coverCannotRemove: "カバーは削除できません。−で人数を減らします（最低1人）。",
     reopenUnsupported: "伝票の再開はまだできません。",
+
+    outOfStock: "品切れ",
+    markOutOfStock: "品切れにする",
+    markInStock: "在庫ありに戻す",
+    notifications: "通知",
+    noNotifications: "品切れの通知はありません。",
+    stockoutLine: "{name}が{item}を品切れにしました",
+    clockInBeforeTickets: "伝票を作るには、シフトを開いて出勤してください。",
+    ranOut: "品切れ",
+    stockUpdateFailed: "在庫を更新できませんでした。",
 };
 
 export const translations = { en, ja };
