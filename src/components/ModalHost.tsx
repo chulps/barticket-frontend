@@ -99,6 +99,7 @@ const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
         $fit &&
         `
         width: min(100% - var(--space-3), ${$maxWidth});
+        max-height: 90dvh;
         border: 1px solid var(--neutral-700);
         border-radius: var(--space-2);
     `}

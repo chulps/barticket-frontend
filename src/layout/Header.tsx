@@ -171,7 +171,7 @@ const Navbar = styled.header`
   align-items: center;
   padding: 0 0 var(--space-1) 0;
   border-bottom: 1px solid var(--secondary);
-  z-index: 1;
+  z-index: 100;
   background: var(--neutral-950);
   flex-direction: row-reverse;
 

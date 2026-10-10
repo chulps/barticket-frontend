@@ -14,6 +14,7 @@ export type MenuItem = {
     subcategory?: string;
 
     name: string;
+    brand?: string;
     volume?: string;
 
     description?: string;

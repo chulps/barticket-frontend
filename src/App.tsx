@@ -48,6 +48,19 @@ export default function App() {
     };
   }, []);
 
+  function addMenuItem(created: MenuItem) {
+    setMenu((current) => {
+      if (!current) return current;
+      if (current.items.some((item) => item.id === created.id)) return current;
+      return {
+        ...current,
+        items: [...current.items, { ...created, prices: created.prices ?? {} }].sort(
+          (a, b) => a.id - b.id,
+        ),
+      };
+    });
+  }
+
   function applyMenuItem(updated: MenuItem) {
     setMenu((current) => {
       if (!current) return current;
@@ -78,7 +91,8 @@ export default function App() {
           <Route path="/menu" element={<Menu 
             menu={menu}
             loadingMenu={loadingMenu}
-            onItemChange={applyMenuItem} />} />
+            onItemChange={applyMenuItem}
+            onItemAdded={addMenuItem} />} />
 
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/notifications" element={<Notifications />} />
