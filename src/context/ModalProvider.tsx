@@ -7,6 +7,7 @@ export type ModalOptions = {
   closeStyle?: "icon" | "button" | "none";
   closeText?: string;
   maxWidth?: string;
+  fitContent?: boolean;
 };
 
 export type ModalContextType = {

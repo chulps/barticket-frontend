@@ -20,6 +20,7 @@ export default function MenuPriceEditor({ item, onSave }: MenuPriceEditorProps) 
         Object.fromEntries(keys.map((key) => [key, String(item.prices[key])])),
     );
     const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
 
     async function save(event: React.FormEvent) {
         event.preventDefault();
@@ -28,11 +29,12 @@ export default function MenuPriceEditor({ item, onSave }: MenuPriceEditorProps) 
             const raw = values[key] ?? "";
             const amount = Number(raw);
             if (raw === "" || !Number.isInteger(amount) || amount < 0) {
-                window.alert(t("priceMinimum"));
+                setError(t("priceMinimum"));
                 return;
             }
             prices[key] = amount;
         }
+        setError("");
         setSaving(true);
         try {
             await onSave(prices);
@@ -48,22 +50,31 @@ export default function MenuPriceEditor({ item, onSave }: MenuPriceEditorProps) 
         <Form onSubmit={save}>
             {keys.map((key) => (
                 <Field key={key}>
-                    <span>{key === "standard" ? "¥" : key}</span>
-                    <Input
-                        inputMode="numeric"
-                        value={values[key] ?? ""}
-                        onChange={(event) =>
-                            setValues((current) => ({
-                                ...current,
-                                [key]: event.target.value.replace(/\D/g, ""),
-                            }))
-                        }
-                    />
+                    <Caption>{key === "standard" ? t("price") : key}</Caption>
+                    <Amount>
+                        <Yen>¥</Yen>
+                        <Input
+                            inputMode="numeric"
+                            value={values[key] ?? ""}
+                            onChange={(event) =>
+                                setValues((current) => ({
+                                    ...current,
+                                    [key]: event.target.value.replace(/\D/g, ""),
+                                }))
+                            }
+                        />
+                    </Amount>
                 </Field>
             ))}
-            <Save type="submit" disabled={saving}>
-                {t("save")}
-            </Save>
+            {error ? <ErrorText>{error}</ErrorText> : null}
+            <Actions>
+                <button type="button" className="hollow" onClick={closeModal}>
+                    {t("cancel")}
+                </button>
+                <button type="submit" disabled={saving}>
+                    {t("save")}
+                </button>
+            </Actions>
         </Form>
     );
 }
@@ -72,25 +83,75 @@ const Form = styled.form`
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    padding: var(--space-2);
+    padding: 0 var(--space-2) var(--space-2);
+    box-sizing: border-box;
+    width: 100%;
 `;
 
-const Field = styled.label`
+const Field = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0);
+`;
+
+const Caption = styled.span`
+    font-size: var(--font-size-small);
+    color: var(--neutral-400);
+`;
+
+const Amount = styled.div`
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
+    justify-content: flex-end;
+    gap: var(--space-0);
+    background: var(--neutral-800);
+    border: 1px solid var(--neutral-700);
+    border-radius: var(--space-1);
+    padding: 0 var(--space-1);
+
+    &:focus-within {
+        border-color: var(--royal-400);
+    }
+`;
+
+const Yen = styled.span`
+    color: var(--neutral-400);
+    font-family: var(--font-family-data);
 `;
 
 const Input = styled.input`
-    width: 8rem;
-    padding: var(--space-0);
-    font-size: var(--font-size-h6);
-    text-align: right;
-    background: var(--neutral-800);
-    border-color: var(--primary);
+    && {
+        width: 8rem;
+        margin: 0;
+        border: none;
+        background: transparent;
+        padding: var(--space-1) 0;
+        text-align: right;
+        font-family: var(--font-family-data);
+        font-size: var(--font-size-h4);
+        transform: none;
+    }
+
+    &&:focus {
+        outline: none;
+        border: none;
+        background: transparent;
+        transform: none;
+    }
 `;
 
-const Save = styled.button`
-    align-self: flex-end;
+const ErrorText = styled.p`
+    margin: 0;
+    color: var(--danger-400);
+    font-size: var(--font-size-small);
+`;
+
+const Actions = styled.div`
+    display: flex;
+    gap: var(--space-1);
+
+    button {
+        flex: 1;
+        width: auto;
+    }
 `;

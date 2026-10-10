@@ -37,6 +37,7 @@ export default function ModalHost() {
     <Dialog
       onClick={(e) => e.stopPropagation()}
       $maxWidth={modal.maxWidth ?? "600px"}
+      $fit={modal.fitContent === true}
     >
       {(modal.title || modal.closeStyle === "icon") && (
         <Header>
@@ -83,10 +84,10 @@ const Overlay = styled.div`
   z-index: 1000;
 `;
 
-const Dialog = styled.div<{ $maxWidth: string }>`
+const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
     width: 100%;
     max-width: 100%;
-    height: 100dvh;
+    height: ${({ $fit }) => ($fit ? "auto" : "100dvh")};
     overflow-x: hidden;
     overflow-y: auto;
     display: flex;
@@ -94,8 +95,17 @@ const Dialog = styled.div<{ $maxWidth: string }>`
     box-sizing: border-box;
     background: var(--neutral-900);
 
+    ${({ $fit, $maxWidth }) =>
+        $fit &&
+        `
+        width: min(100% - var(--space-3), ${$maxWidth});
+        border: 1px solid var(--neutral-700);
+        border-radius: var(--space-2);
+    `}
+
     @media (min-width: 768px) {
-        width: fit-content;
+        width: ${({ $fit, $maxWidth }) =>
+            $fit ? `min(100% - var(--space-3), ${$maxWidth})` : "fit-content"};
         max-width: ${({ $maxWidth }) => $maxWidth};
         max-height: 80dvh;
         border-radius: var(--space-2);
@@ -124,6 +134,9 @@ const Header = styled.header`
 `
 
 const Title = styled.h4`
+    margin: 0;
+    flex: 1;
+    min-width: 0;
 `
 
 const CloseButton = styled.button`
