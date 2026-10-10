@@ -13,6 +13,7 @@ export function getToken(): string | null {
 export function setToken(token: string | null) {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
+    window.dispatchEvent(new Event("barticket-auth"));
 }
 
 export class ApiError extends Error {

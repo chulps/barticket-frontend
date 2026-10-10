@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import styled from "styled-components";
 
-import { accountApi, type ShiftReport } from "../api/account";
+import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
 
 function hours(seconds: number) {
@@ -11,14 +11,19 @@ function hours(seconds: number) {
 
 export default function Analytics() {
     const [shifts, setShifts] = useState<ShiftReport[] | null>(null);
+    const [account, setAccount] = useState<Account | null>(null);
     const [error, setError] = useState("");
     const signedIn = getToken() !== null;
 
     useEffect(() => {
         if (!signedIn) return;
         accountApi
-            .closedShifts()
-            .then(setShifts)
+            .me()
+            .then((me) => {
+                setAccount(me);
+                if (me.role !== "manager") return;
+                return accountApi.closedShifts().then(setShifts);
+            })
             .catch((err: unknown) => {
                 setError(err instanceof ApiError ? err.message : "Could not load shifts");
             });
@@ -28,6 +33,7 @@ export default function Analytics() {
         <Page>
             <h1>Analytics</h1>
             {!signedIn ? <p>Sign in from the account page to see past shifts.</p> : null}
+            {account && account.role !== "manager" ? <p>Managers only.</p> : null}
             {error ? <p>{error}</p> : null}
             {shifts?.length === 0 ? <p>No closed shifts yet.</p> : null}
             {shifts?.map((shift) => (
