@@ -1,6 +1,6 @@
 // src/components/Header.tsx
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import Icon from "../components/Icon";
 import FxxkupLogo from "../components/FxxkupLogo"
@@ -12,6 +12,8 @@ import { useI18n } from "../i18n";
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
+  const navRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [isManager, setIsManager] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
   const { t, locale, setLocale } = useI18n();
@@ -41,6 +43,18 @@ export default function Header() {
   }, []);
 
   useEffect(() => {
+    if (!isOpen) return;
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (navRef.current?.contains(target)) return;
+      if (menuButtonRef.current?.contains(target)) return;
+      setIsOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  useEffect(() => {
     if (!isManager) return;
     let cancelled = false;
     async function load() {
@@ -68,13 +82,14 @@ export default function Header() {
       </Logo>
 
       <Hamburger
+        ref={menuButtonRef}
         className="hollow secondary"
         onClick={() => setIsOpen(!isOpen)}
       >
         <Icon name={isOpen ? "X" : "List"} />
       </Hamburger>
 
-      <Nav $isOpen={isOpen}>
+      <Nav ref={navRef} $isOpen={isOpen}>
         <NavLink
           onClick={() => setIsOpen(false)}
           to="/">

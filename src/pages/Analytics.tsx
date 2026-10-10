@@ -5,6 +5,7 @@ import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ticketsApi, toTicket } from "../api/tickets";
 import { ApiError, getToken } from "../api/client";
 import { BarChart, DonutChart, HorizontalBarChart, type TimeBar } from "../components/AnalyticsCharts";
+import AnalyticsDatePicker from "../components/AnalyticsDatePicker";
 import Icon from "../components/Icon";
 import TabGroup from "../components/TabGroup";
 import { formatDuration, localeTag, menuLabel, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
@@ -340,6 +341,7 @@ export default function Analytics() {
     const [range, setRange] = useState<Range>("month");
     const [month, setMonth] = useState("");
     const [dayId, setDayId] = useState<number | null>(null);
+    const [pickedDate, setPickedDate] = useState("");
     const signedIn = getToken() !== null;
 
     useEffect(() => {
@@ -357,6 +359,7 @@ export default function Analytics() {
                     if (latest) {
                         setMonth(monthKey(latest.business_date));
                         setDayId(latest.id);
+                        setPickedDate(latest.business_date);
                     }
                 });
             })
@@ -374,7 +377,16 @@ export default function Analytics() {
     function showMonth(next: string) {
         setMonth(next);
         const inMonth = (shifts ?? []).filter((shift) => monthKey(shift.business_date) === next);
-        setDayId(inMonth[0]?.id ?? null);
+        const first = inMonth[0];
+        setDayId(first?.id ?? null);
+        setPickedDate(first?.business_date ?? `${next}-01`);
+    }
+
+    function pickDate(iso: string) {
+        setPickedDate(iso);
+        setMonth(monthKey(iso));
+        const match = (shifts ?? []).find((shift) => shift.business_date === iso);
+        setDayId(match?.id ?? null);
     }
 
     return (
@@ -394,7 +406,7 @@ export default function Analytics() {
                         activeTab={range}
                         onChange={setRange}
                     />
-                    {range !== "all" ? (
+                    {range === "month" ? (
                         <Navigator>
                             <button type="button" className="hollow secondary" onClick={() => showMonth(shiftMonth(month, -1))}>
                                 {t("prev")}
@@ -406,19 +418,30 @@ export default function Analytics() {
                         </Navigator>
                     ) : null}
                     {range === "day" ? (
-                        <DayList>
-                            {monthShifts.length === 0 ? <p>{t("noNightsThisMonth")}</p> : null}
-                            {monthShifts.map((shift) => (
-                                <DayButton
-                                    key={shift.id}
-                                    type="button"
-                                    $active={shift.id === selected?.id}
-                                    onClick={() => setDayId(shift.id)}
-                                >
-                                    {formatNight(shift.business_date, locale)}
-                                </DayButton>
-                            ))}
-                        </DayList>
+                        <DayNavigator>
+                            <button
+                                type="button"
+                                className="hollow secondary"
+                                aria-label={t("prev")}
+                                onClick={() => showMonth(shiftMonth(month, -1))}
+                            >
+                                <Icon name="CaretLeft" size="1.2rem" />
+                            </button>
+                            <AnalyticsDatePicker
+                                label={pickedDate ? formatNight(pickedDate, locale) : t("noNightsYet")}
+                                value={pickedDate}
+                                shiftDates={(shifts ?? []).map((shift) => shift.business_date)}
+                                onChange={pickDate}
+                            />
+                            <button
+                                type="button"
+                                className="hollow secondary"
+                                aria-label={t("next")}
+                                onClick={() => showMonth(shiftMonth(month, 1))}
+                            >
+                                <Icon name="CaretRight" size="1.2rem" />
+                            </button>
+                        </DayNavigator>
                     ) : null}
                     {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} />}
                     {range !== "day" && visible.length > 0 ? (
@@ -438,7 +461,7 @@ export default function Analytics() {
                             <StaffChart shifts={[selected]} />
                         </DayBento>
                     ) : null}
-                    {visible.length > 0 ? <Stockouts shifts={visible} /> : null}
+                    {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
                     {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} /> : null}
                 </>
             ) : null}
@@ -458,11 +481,11 @@ function Stockouts({ shifts }: { shifts: ShiftReport[] }) {
     if (rows.length === 0) return null;
     return (
         <Card>
-            <h2>{t("ranOut")}</h2>
+            <AlertTitle>{t("ranOut")}</AlertTitle>
             {rows.map((row) => (
-                <p key={`${row.shiftId}-${row.item}-${row.at}`}>
+                <AlertLine key={`${row.shiftId}-${row.item}-${row.at}`}>
                     {formatNight(row.night, locale)} · {t("stockoutLine", { name: row.by, item: menuLabel(locale, row.item) })}
-                </p>
+                </AlertLine>
             ))}
         </Card>
     );
@@ -583,6 +606,10 @@ const Page = styled.main`
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+
+    @media (max-width: 768px) {
+        padding-inline: calc(var(--space-2) / 2);
+    }
 `;
 
 const Navigator = styled.div`
@@ -590,6 +617,12 @@ const Navigator = styled.div`
     align-items: center;
     justify-content: space-between;
     gap: var(--space-1);
+`;
+
+const DayNavigator = styled(Navigator)`
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    justify-items: center;
 `;
 
 const Grid = styled.div`
@@ -748,6 +781,15 @@ const DayBento = styled.div`
     }
 `;
 
+const AlertTitle = styled.h2`
+    color: var(--danger-400);
+`;
+
+const AlertLine = styled.p`
+    margin: 0;
+    color: var(--danger-400);
+`;
+
 const Card = styled.section`
     padding: var(--space-1);
     background: var(--neutral-900);
@@ -763,14 +805,3 @@ const Card = styled.section`
     }
 `;
 
-const DayList = styled.div`
-    display: flex;
-    gap: var(--space-1);
-    overflow-x: auto;
-`;
-
-const DayButton = styled.button<{ $active: boolean }>`
-    white-space: nowrap;
-    background: ${({ $active }) => ($active ? "var(--neutral-700)" : "var(--neutral-900)")};
-    color: white;
-`;

@@ -45,9 +45,9 @@ export function BarChart({
     const { ref, width: container } = useWidth();
     const max = niceMax(Math.max(...bars.map((bar) => bar.segments.reduce((sum, segment) => sum + segment.value, 0)), 0));
     const ticks = axisTicks(max);
-    const available = container > 0 ? container - AXIS - 12 : 480;
+    const available = container > 0 ? container - AXIS : 480;
     const plotWidth = Math.max(available, bars.length * 40);
-    const width = AXIS + plotWidth + 12;
+    const width = plotWidth + AXIS;
     const height = chartHeight;
     const innerHeight = height - PAD_TOP - PAD_BOTTOM;
 
@@ -60,18 +60,18 @@ export function BarChart({
                         const y = PAD_TOP + innerHeight - (tick / max) * innerHeight;
                         return (
                             <g key={tick}>
-                                <line x1={AXIS} x2={width - 8} y1={y} y2={y} stroke="var(--neutral-800)" />
-                                <text x={AXIS - 8} y={y + 4} textAnchor="end" fill="var(--neutral-400)" fontSize="11">
+                                <line x1={0} x2={plotWidth} y1={y} y2={y} stroke="var(--neutral-800)" />
+                                <text x={plotWidth + 8} y={y + 4} textAnchor="start" fill="var(--neutral-400)" fontSize="11">
                                     {formatTick(tick)}
                                 </text>
                             </g>
                         );
                     })}
-                    <line x1={AXIS} x2={width - 8} y1={PAD_TOP + innerHeight} y2={PAD_TOP + innerHeight} stroke="var(--neutral-600)" />
+                    <line x1={0} x2={plotWidth} y1={PAD_TOP + innerHeight} y2={PAD_TOP + innerHeight} stroke="var(--neutral-600)" />
                     {bars.map((bar, index) => {
                         const slot = plotWidth / Math.max(bars.length, 1);
                         const barWidth = Math.min(64, slot * 0.62);
-                        const x = AXIS + index * slot + (slot - barWidth) / 2;
+                        const x = index * slot + (slot - barWidth) / 2;
                         const heights = bar.segments.map((segment) => (max === 0 ? 0 : (segment.value / max) * innerHeight));
                         return (
                             <g key={bar.id}>
@@ -149,7 +149,7 @@ export function DonutChart({
         <Card aria-label={title} $compact>
             <h2>{title}</h2>
             <DonutLayout>
-                <svg viewBox="0 0 120 120" width="112" height="112" role="img">
+                <DonutRing viewBox="0 0 120 120" role="img">
                     <circle cx="60" cy="60" r={radius} fill="none" stroke="var(--neutral-800)" strokeWidth="14" />
                     <g transform="rotate(-90 60 60)">
                         {arcs.map((arc) => (
@@ -169,7 +169,7 @@ export function DonutChart({
                     <text x="60" y="64" textAnchor="middle" fill="white" fontSize="11" fontFamily="var(--font-family-data)">
                         {center}
                     </text>
-                </svg>
+                </DonutRing>
                 <Legend>
                     {slices.map((slice) => (
                         <LegendItem key={slice.id}>
@@ -204,7 +204,7 @@ export function HorizontalBarChart({ title, bars }: { title: string; bars: Named
                         const barWidth = max === 0 ? 0 : (bar.value / max) * plot;
                         return (
                             <g key={bar.id}>
-                                <text x={labelWidth - 10} y={y + 5} textAnchor="end" fill="var(--neutral-200)" fontSize="13">
+                                <text x={0} y={y + 5} textAnchor="start" fill="var(--neutral-200)" fontSize="13">
                                     {bar.label}
                                 </text>
                                 <rect x={labelWidth} y={y - 8} width={Math.max(barWidth, bar.value > 0 ? 2 : 0)} height="16" fill={bar.color ?? "var(--royal-300)"} rx="2" />
@@ -286,9 +286,14 @@ const Scroll = styled.div`
 const DonutLayout = styled.div`
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     gap: var(--space-1);
     flex: 1;
+`;
+
+const DonutRing = styled.svg`
+    width: min(220px, 100%);
+    height: auto;
 `;
 
 const InlineLegend = styled.ul`
