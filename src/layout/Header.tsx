@@ -53,9 +53,11 @@ export default function Header() {
     }
     load();
     const timer = window.setInterval(load, 20000);
+    window.addEventListener("barticket-notices", load);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      window.removeEventListener("barticket-notices", load);
     };
   }, [isManager]);
 
