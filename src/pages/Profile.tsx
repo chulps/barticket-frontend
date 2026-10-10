@@ -214,8 +214,10 @@ export default function Profile() {
                         </Row>
                         {shift?.status === "closed" ? (
                             <p>
-                                Closed. Paid ¥{shift.paid_total.toLocaleString()} · cash ¥
-                                {shift.cash_total.toLocaleString()} · card ¥{shift.card_total.toLocaleString()}
+                                Shift closed.
+                                {account.role === "manager"
+                                    ? ` Paid ¥${shift.paid_total.toLocaleString()} · cash ¥${shift.cash_total.toLocaleString()} · card ¥${shift.card_total.toLocaleString()}`
+                                    : ""}
                             </p>
                         ) : null}
                     </Section>

@@ -1,13 +1,40 @@
 // src/components/Header.tsx
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "styled-components";
 import Icon from "../components/Icon";
 import FxxkupLogo from "../components/FxxkupLogo"
 import { NavLink as RouterNavLink } from "react-router-dom"
+import { accountApi } from "../api/account";
+import { getToken } from "../api/client";
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isManager, setIsManager] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    function loadRole() {
+      if (!getToken()) {
+        setIsManager(false);
+        return;
+      }
+      accountApi
+        .me()
+        .then((me) => {
+          if (!cancelled) setIsManager(me.role === "manager");
+        })
+        .catch(() => {
+          if (!cancelled) setIsManager(false);
+        });
+    }
+    loadRole();
+    window.addEventListener("barticket-auth", loadRole);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("barticket-auth", loadRole);
+    };
+  }, []);
 
   return (
     <Navbar>
@@ -51,19 +78,21 @@ export default function Header() {
           )}
         </NavLink>
 
-        <NavLink
-          onClick={() => setIsOpen(false)}
-          to="/analytics">
-          {({ isActive }) => (
-            <>
-              <Icon
-                name="ChartDonut"
-                weight={isActive ? "fill" : "regular"}
-              />
-              Analytics
-            </>
-          )}
-        </NavLink>
+        {isManager ? (
+          <NavLink
+            onClick={() => setIsOpen(false)}
+            to="/analytics">
+            {({ isActive }) => (
+              <>
+                <Icon
+                  name="ChartDonut"
+                  weight={isActive ? "fill" : "regular"}
+                />
+                Analytics
+              </>
+            )}
+          </NavLink>
+        ) : null}
 
         <NavLink
           onClick={() => setIsOpen(false)}
