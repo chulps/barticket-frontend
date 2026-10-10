@@ -4,11 +4,14 @@ import styled from "styled-components";
 // imported components
 import SearchBar from "../components/MenuSearchBar";
 import MenuCategory from "../components/MenuCategory";
+import MenuItemForm from "../components/MenuItemForm";
+import Icon from "../components/Icon";
 
 // import Menu data types
 import type { MenuData, MenuItem, Prices } from "../types/Menu";
 
 import { useFilteredMenu } from "../hooks/useFilteredMenu";
+import { useModal } from "../hooks/useModal";
 import { useI18n } from "../i18n";
 import { setMenuPrices, setMenuStock } from "../api/menu";
 import { ApiError, getToken } from "../api/client";
@@ -18,14 +21,17 @@ type MenuProps = {
   menu: MenuData | null;
   loadingMenu: boolean;
   onItemChange: (item: MenuItem) => void;
+  onItemAdded: (item: MenuItem) => void;
 };
 
 export default function Menu({
   menu,
   loadingMenu,
   onItemChange,
+  onItemAdded,
 }: MenuProps) {
   const { t } = useI18n();
+  const { openModal } = useModal();
   const [searchTerm, setSearchTerm] = useState("");
   const [signedIn, setSignedIn] = useState(() => Boolean(getToken()));
 
@@ -64,9 +70,42 @@ export default function Menu({
     return <h1>{t("noMenu")}</h1>;
   }
 
+  const menuItems = menu.items;
+
+  function openAddDrink() {
+    const categories = Array.from(new Set(menuItems.map((item) => item.category))).sort();
+    const subcategories = Array.from(
+      new Set(
+        menuItems
+          .map((item) => item.subcategory)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    ).sort();
+    openModal({
+      title: t("addDrink"),
+      maxWidth: "480px",
+      fitContent: true,
+      content: (
+        <MenuItemForm
+          categories={categories}
+          subcategories={subcategories}
+          onCreated={onItemAdded}
+        />
+      ),
+    });
+  }
+
   return (
     <main>
-      <MenuHeader>{t("drinkMenu")}</MenuHeader>
+      <MenuHeader>
+        <h2>{t("drinkMenu")}</h2>
+        {signedIn ? (
+          <AddButton type="button" className="small" onClick={openAddDrink}>
+            <Icon name="Plus" />
+            {t("addDrink")}
+          </AddButton>
+        ) : null}
+      </MenuHeader>
 
       <SearchBar
         value={searchTerm}
@@ -89,9 +128,25 @@ export default function Menu({
 }
 
 
-const MenuHeader = styled.h2`
+const MenuHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
   padding-top: var(--space-2);
   margin-bottom: var(--space-3);
+
+  h2 {
+    margin: 0;
+  }
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+`;
+
+const AddButton = styled.button`
+  width: auto;
 `;
 
 const MenuGridContainer = styled.section`

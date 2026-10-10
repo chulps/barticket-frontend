@@ -27,6 +27,8 @@ export function useFilteredMenu(
     return menu.items.filter((item) => {
       const textFields = [
         item.name,
+        item.brand,
+        item.volume,
         item.category,
         item.subcategory,
         item.description,

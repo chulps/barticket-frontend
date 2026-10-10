@@ -103,6 +103,8 @@ export default function AddItemModal({
 
             return [
                 item.name,
+                item.brand,
+                item.volume,
                 item.category,
                 item.subcategory,
                 item.description,

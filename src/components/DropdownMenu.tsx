@@ -113,11 +113,14 @@ const Menu = styled.div<{ $top: number; $right: number }>`
     top: ${({ $top }) => $top}px;
     right: ${({ $right }) => $right}px;
 
+    width: max-content;
     min-width: 160px;
+    max-width: min(18rem, calc(100vw - var(--space-3)));
 
     background: var(--neutral-900);
     border: 1px solid var(--neutral-700);
     border-radius: var(--space-1);
 
-    z-index: 200;
+    z-index: 1200;
+    color: var(--white);
 `;

@@ -115,7 +115,14 @@ export default function TicketItems({
                     <TicketDetailItem
                         key={item.id}
                         id={item.id}
-                        name={item.type === "cover" ? t("coverCharge") : menuLabel(locale, item.name)}
+                        name={
+                            item.type === "cover"
+                                ? t("coverCharge")
+                                : menuLabel(
+                                    locale,
+                                    menu?.items.find((row) => row.id === item.menu_item_id)?.name ?? item.name,
+                                )
+                        }
                         unitPrice={item.unit_price}
                         quantity={item.quantity}
                         activeTab={activeTab}
@@ -155,8 +162,9 @@ const Items = styled.section`
 
 const ItemsHeader = styled.div`
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto minmax(4.5rem, max-content) auto;
     align-items: center;
+    gap: var(--space-1);
     padding: var(--space-1) 0;
     border-bottom: 1px solid var(--neutral-700);
 

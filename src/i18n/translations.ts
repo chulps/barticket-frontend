@@ -138,6 +138,21 @@ const en = {
     priceUpdateFailed: "Couldn't update that price.",
     save: "Save",
     price: "Price",
+    addDrink: "Add drink",
+    brand: "Brand",
+    category: "Category",
+    subcategory: "Subcategory",
+    description: "Description",
+    notes: "Notes",
+    volume: "Volume",
+    tags: "Tags",
+    tagHint: "Type a tag and press Enter",
+    cocktailIngredient: "Cocktail ingredient",
+    inStockLabel: "In stock",
+    addMenuItemFailed: "Couldn't add that drink.",
+    menuItemNameRequired: "Enter a name.",
+    menuItemCategoryRequired: "Enter a category.",
+    menuItemPriceRequired: "Enter at least one price, or mark it as a cocktail ingredient.",
 } as const;
 
 const ja: { [K in keyof typeof en]: string } = {
@@ -280,6 +295,21 @@ const ja: { [K in keyof typeof en]: string } = {
     priceUpdateFailed: "価格を更新できませんでした。",
     save: "保存",
     price: "価格",
+    addDrink: "ドリンクを追加",
+    brand: "銘柄",
+    category: "カテゴリー",
+    subcategory: "サブカテゴリー",
+    description: "説明",
+    notes: "メモ",
+    volume: "容量",
+    tags: "タグ",
+    tagHint: "タグを入力してEnter",
+    cocktailIngredient: "カクテル材料",
+    inStockLabel: "在庫あり",
+    addMenuItemFailed: "ドリンクを追加できませんでした。",
+    menuItemNameRequired: "名前を入力してください。",
+    menuItemCategoryRequired: "カテゴリーを入力してください。",
+    menuItemPriceRequired: "価格を1つ入力するか、カクテル材料にしてください。",
 };
 
 export const translations = { en, ja };

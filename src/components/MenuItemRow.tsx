@@ -51,6 +51,13 @@ export default function MenuItemRow({
                         <ItemName>{menuLabel(locale, item.name)}</ItemName>
                         {unavailable ? <OutOfStock>{t("outOfStock")}</OutOfStock> : null}
                     </NameLine>
+                    {item.brand || item.volume ? (
+                        <Meta>
+                            {[item.brand ? menuLabel(locale, item.brand) : "", item.volume ?? ""]
+                                .filter(Boolean)
+                                .join(" · ")}
+                        </Meta>
+                    ) : null}
                     {item.description && (
                         <Description>{menuLabel(locale, item.description)}</Description>
                     )}
@@ -128,6 +135,12 @@ const OutOfStock = styled.span`
   color: var(--danger-400);
   font-size: 12px;
   white-space: nowrap;
+`;
+
+const Meta = styled.small`
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--neutral-300);
 `;
 
 const Description = styled.small`

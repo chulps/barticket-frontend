@@ -32,6 +32,8 @@ const Item = styled.button<{ $danger: boolean }>`
 
     display: flex;
     align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-1);
 
     padding: var(--space-1) var(--space-2);
 
@@ -39,6 +41,7 @@ const Item = styled.button<{ $danger: boolean }>`
     border: none;
 
     text-align: left;
+    white-space: normal;
     cursor: pointer;
 
     color: ${({ $danger }) =>
@@ -50,6 +53,7 @@ const Item = styled.button<{ $danger: boolean }>`
 
     &:hover {
         background: var(--neutral-800);
+        transform: none;
     }
 
     &:first-of-type {

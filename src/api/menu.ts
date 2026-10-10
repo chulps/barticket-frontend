@@ -14,6 +14,27 @@ export function setMenuStock(itemId: number, inStock: boolean): Promise<MenuItem
     });
 }
 
+export type NewMenuItem = {
+    name: string;
+    category: string;
+    subcategory?: string;
+    description?: string;
+    notes?: string;
+    brand?: string;
+    volume?: string;
+    tags: string[];
+    prices: Prices;
+    in_stock: boolean;
+    cocktail_ingredient: boolean;
+};
+
+export function createMenuItem(item: NewMenuItem): Promise<MenuItem> {
+    return apiRequest<MenuItem>("/menu/items", {
+        method: "POST",
+        body: item,
+    });
+}
+
 export function setMenuPrices(itemId: number, prices: Prices): Promise<MenuItem> {
     return apiRequest<MenuItem>(`/menu/items/${itemId}/prices`, {
         method: "PATCH",

@@ -158,9 +158,9 @@ export default function TicketDetailItem({
 
 const Container = styled.div`
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) auto minmax(4.5rem, max-content) auto;
   align-items: center;
-  gap: 0;
+  gap: var(--space-1);
 
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--neutral-800);
@@ -182,7 +182,9 @@ const Info = styled.div`
 `;
 
 const Name = styled.p`
+  margin: 0;
   font-weight: normal;
+  line-height: 1.3;
 `;
 
 const Price = styled.small`
