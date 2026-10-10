@@ -245,23 +245,29 @@ function RangeCharts({
     });
 
     return (
-        <>
-            <BarChart
-                title={range === "all" ? t("revenueByMonth") : t("revenueByNight")}
-                bars={paymentBars(points)}
-                formatTick={(value) => compactYen(value, locale)}
-                legend={[
-                    { label: t("cash"), color: CASH },
-                    { label: t("card"), color: CARD },
-                    { label: t("other"), color: OTHER },
-                ]}
-            />
-            <ChartPair>
+        <Bento>
+            <Cell $span={4}>
+                <BarChart
+                    title={range === "all" ? t("revenueByMonth") : t("revenueByNight")}
+                    bars={paymentBars(points)}
+                    formatTick={(value) => compactYen(value, locale)}
+                    chartHeight={220}
+                    legend={[
+                        { label: t("cash"), color: CASH },
+                        { label: t("card"), color: CARD },
+                        { label: t("other"), color: OTHER },
+                    ]}
+                />
+            </Cell>
+            <Cell $span={2}>
                 <BarChart
                     title={range === "all" ? t("guestsByMonth") : t("guestsByNight")}
                     bars={guestBars(points)}
                     formatTick={(value) => String(Math.round(value))}
+                    chartHeight={168}
                 />
+            </Cell>
+            <Cell>
                 <DonutChart
                     title={t("payments")}
                     center={yen(totals.revenue)}
@@ -271,9 +277,8 @@ function RangeCharts({
                         { id: "other", label: t("other"), value: totals.other, display: yen(totals.other), color: OTHER },
                     ]}
                 />
-            </ChartPair>
-            <ChartPair>
-                <BarChart title={t("byWeekday")} bars={weekdayBars} formatTick={(value) => compactYen(value, locale)} />
+            </Cell>
+            <Cell>
                 <DonutChart
                     title={t("tickets")}
                     center={String(totals.paid + totals.cancelled)}
@@ -288,9 +293,14 @@ function RangeCharts({
                         },
                     ]}
                 />
-            </ChartPair>
-            <StaffChart shifts={shifts} />
-        </>
+            </Cell>
+            <Cell $span={2}>
+                <BarChart title={t("byWeekday")} bars={weekdayBars} formatTick={(value) => compactYen(value, locale)} chartHeight={168} />
+            </Cell>
+            <Cell $span={2}>
+                <StaffChart shifts={shifts} />
+            </Cell>
+        </Bento>
     );
 }
 
@@ -403,17 +413,19 @@ export default function Analytics() {
                         <RangeCharts shifts={visible} totals={totals} range={range} />
                     ) : null}
                     {range === "day" && selected ? (
-                        <Card>
-                            <h2>{formatDay(selected.business_date, locale)}</h2>
-                            <p>
-                                {t("manager")} {selected.opened_by}
-                            </p>
-                            <p>
-                                {t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}
-                            </p>
-                        </Card>
+                        <DayBento>
+                            <Card>
+                                <h2>{formatDay(selected.business_date, locale)}</h2>
+                                <p>
+                                    {t("manager")} {selected.opened_by}
+                                </p>
+                                <p>
+                                    {t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}
+                                </p>
+                            </Card>
+                            <StaffChart shifts={[selected]} />
+                        </DayBento>
                     ) : null}
-                    {range === "day" && selected ? <StaffChart shifts={[selected]} /> : null}
                 </>
             ) : null}
         </Page>
@@ -424,29 +436,13 @@ function Summary({ totals }: { totals: Totals }) {
     const { t, locale } = useI18n();
     return (
         <Grid>
-            <Stat>
+            <Stat $lead>
                 <label>{t("revenue")}</label>
                 <strong>{yen(totals.revenue)}</strong>
             </Stat>
-            <Stat>
-                <label>{t("nights")}</label>
-                <strong>{totals.nights}</strong>
-            </Stat>
-            <Stat>
+            <Stat $lead>
                 <label>{t("guests")}</label>
                 <strong>{totals.guests}</strong>
-            </Stat>
-            <Stat>
-                <label>{t("avgBill")}</label>
-                <strong>{average(totals.revenue, totals.guests)}</strong>
-            </Stat>
-            <Stat>
-                <label>{t("avgPerNight")}</label>
-                <strong>{average(totals.revenue, totals.nights)}</strong>
-            </Stat>
-            <Stat>
-                <label>{t("hours")}</label>
-                <strong>{formatDuration(locale, totals.seconds)}</strong>
             </Stat>
             <Stat>
                 <label>{t("cash")}</label>
@@ -463,6 +459,22 @@ function Summary({ totals }: { totals: Totals }) {
             <Stat>
                 <label>{t("cover")}</label>
                 <strong>{yen(totals.cover)}</strong>
+            </Stat>
+            <Stat>
+                <label>{t("avgBill")}</label>
+                <strong>{average(totals.revenue, totals.guests)}</strong>
+            </Stat>
+            <Stat>
+                <label>{t("nights")}</label>
+                <strong>{totals.nights}</strong>
+            </Stat>
+            <Stat>
+                <label>{t("avgPerNight")}</label>
+                <strong>{average(totals.revenue, totals.nights)}</strong>
+            </Stat>
+            <Stat>
+                <label>{t("hours")}</label>
+                <strong>{formatDuration(locale, totals.seconds)}</strong>
             </Stat>
         </Grid>
     );
@@ -485,40 +497,75 @@ const Navigator = styled.div`
 
 const Grid = styled.div`
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-1);
+
+    @media (min-width: 720px) {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
 `;
 
-const Stat = styled.div`
-    padding: var(--space-1);
+const Stat = styled.div<{ $lead?: boolean }>`
+    padding: ${({ $lead }) => ($lead ? "var(--space-2)" : "var(--space-1)")};
     background: var(--neutral-900);
     border-radius: 12px;
+    min-width: 0;
+    grid-column: ${({ $lead }) => ($lead ? "span 2" : "auto")};
 
     label {
         color: var(--neutral-400);
+        font-size: var(--font-size-small);
     }
 
     strong {
         display: block;
-        margin-top: 4px;
+        margin-top: 2px;
+        font-family: var(--font-family-data);
+        font-size: ${({ $lead }) => ($lead ? "var(--font-size-h4)" : "var(--font-size-h5)")};
+        font-weight: 500;
+    }
+`;
+
+const Bento = styled.div`
+    display: grid;
+    gap: var(--space-1);
+    grid-template-columns: minmax(0, 1fr);
+
+    @media (min-width: 840px) {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+`;
+
+const Cell = styled.div<{ $span?: number }>`
+    min-width: 0;
+
+    @media (min-width: 840px) {
+        grid-column: span ${({ $span }) => $span ?? 1};
+    }
+`;
+
+const DayBento = styled.div`
+    display: grid;
+    gap: var(--space-1);
+    align-items: start;
+
+    @media (min-width: 840px) {
+        grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
     }
 `;
 
 const Card = styled.section`
-    padding: var(--space-2);
+    padding: var(--space-1);
     background: var(--neutral-900);
     border-radius: 12px;
     display: flex;
     flex-direction: column;
-    gap: var(--space-1);
-`;
+    gap: var(--space-0);
 
-const ChartPair = styled.div`
-    display: grid;
-    gap: var(--space-2);
-
-    @media (min-width: 768px) {
-        grid-template-columns: 1fr 1fr;
+    h2 {
+        font-size: var(--font-size-h5);
+        line-height: 1.2;
+        font-weight: 500;
     }
 `;
 
