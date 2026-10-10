@@ -1,7 +1,7 @@
 // src/pages/Dashboard.tsx
 
 // import react stuff
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 // import npm packages
 import styled from "styled-components";
@@ -47,29 +47,6 @@ export default function Dashboard({
     reopenTicket
   } = useTickets();
 
-
-  // Effects
-  // save tickets to local storage until we can setup real api calls
-  useEffect(() => {
-    // Demo mode
-    localStorage.setItem(
-      "tickets",
-      JSON.stringify(tickets)
-    );
-
-    // Production
-    // await api.updateTickets(tickets);
-
-    // or
-    // fetch("/api/tickets", {
-    //   method: "PUT",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //   },
-    //   body: JSON.stringify(tickets),
-    // });
-  }, [tickets]);
-
   // UI actions
   // Controls tab group showing open, paid, or cancelled tickets
   const visibleTickets = tickets.filter(
@@ -107,9 +84,11 @@ export default function Dashboard({
   const getTicketTotal = (ticket: Ticket) => ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
 
   // create a new ticket
-  const handleCreateTicket = () => {
+  // tab switches wait for the backend so a failed request doesn't move the ticket
+  const handleCreateTicket = async () => {
 
-    const newTicket = createTicket();
+    const newTicket = await createTicket();
+    if (!newTicket) return;
 
     setActiveTab("open");
     setSelectedTicketId(newTicket.id);
@@ -117,26 +96,26 @@ export default function Dashboard({
 
   };
 
-  const handleCancelTicket = (ticketId: number) => {
-    cancelTicket(ticketId);          // Update the ticket
+  const handleCancelTicket = async (ticketId: number) => {
+    if (!(await cancelTicket(ticketId))) return; // Update the ticket
     setActiveTab("cancelled");       // Switch tabs
     setSelectedTicketId(ticketId);   // Keep this ticket selected
     setShowTicketDetails(true);      // Keep details open
   };
 
-  const handlePayTicket = (
+  const handlePayTicket = async (
     ticketId: number,
     paymentType: PaymentType,
   ) => {
-    payTicket(ticketId, paymentType);
+    if (!(await payTicket(ticketId, paymentType))) return;
 
     setActiveTab("paid");
     setSelectedTicketId(ticketId);
     setShowTicketDetails(true);
   };
 
-  const handleReopenTicket = (ticketId: number) => {
-    reopenTicket(ticketId);
+  const handleReopenTicket = async (ticketId: number) => {
+    if (!(await reopenTicket(ticketId))) return;
 
     setActiveTab("open");
     setSelectedTicketId(ticketId);
