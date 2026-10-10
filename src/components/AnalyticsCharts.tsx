@@ -34,11 +34,13 @@ export function BarChart({
     bars,
     formatTick,
     legend,
+    chartHeight = 200,
 }: {
     title: string;
     bars: TimeBar[];
     formatTick: (value: number) => string;
     legend?: { label: string; color: string }[];
+    chartHeight?: number;
 }) {
     const { ref, width: container } = useWidth();
     const max = niceMax(Math.max(...bars.map((bar) => bar.segments.reduce((sum, segment) => sum + segment.value, 0)), 0));
@@ -46,7 +48,7 @@ export function BarChart({
     const available = container > 0 ? container - AXIS - 12 : 480;
     const plotWidth = Math.max(available, bars.length * 40);
     const width = AXIS + plotWidth + 12;
-    const height = 248;
+    const height = chartHeight;
     const innerHeight = height - PAD_TOP - PAD_BOTTOM;
 
     return (
@@ -128,7 +130,7 @@ export function DonutChart({
     center: string;
 }) {
     const total = slices.reduce((sum, slice) => sum + slice.value, 0);
-    const radius = 58;
+    const radius = 42;
     const circumference = 2 * Math.PI * radius;
     const drawn = slices.filter((slice) => slice.value > 0);
     const arcs = drawn.map((slice, index) => {
@@ -144,27 +146,27 @@ export function DonutChart({
     });
 
     return (
-        <Card aria-label={title}>
+        <Card aria-label={title} $compact>
             <h2>{title}</h2>
             <DonutLayout>
-                <svg viewBox="0 0 160 160" width="160" height="160" role="img">
-                    <circle cx="80" cy="80" r={radius} fill="none" stroke="var(--neutral-800)" strokeWidth="18" />
-                    <g transform="rotate(-90 80 80)">
+                <svg viewBox="0 0 120 120" width="112" height="112" role="img">
+                    <circle cx="60" cy="60" r={radius} fill="none" stroke="var(--neutral-800)" strokeWidth="14" />
+                    <g transform="rotate(-90 60 60)">
                         {arcs.map((arc) => (
                             <circle
                                 key={arc.id}
-                                cx="80"
-                                cy="80"
+                                cx="60"
+                                cy="60"
                                 r={radius}
                                 fill="none"
                                 stroke={arc.color}
-                                strokeWidth="18"
+                                strokeWidth="14"
                                 strokeDasharray={`${arc.dash} ${circumference - arc.dash}`}
                                 strokeDashoffset={-arc.offset}
                             />
                         ))}
                     </g>
-                    <text x="80" y="84" textAnchor="middle" fill="white" fontSize="14" fontFamily="var(--font-family-data)">
+                    <text x="60" y="64" textAnchor="middle" fill="white" fontSize="11" fontFamily="var(--font-family-data)">
                         {center}
                     </text>
                 </svg>
@@ -186,7 +188,7 @@ export function HorizontalBarChart({ title, bars }: { title: string; bars: Named
     const { ref, width: container } = useWidth();
     const max = niceMax(Math.max(...bars.map((bar) => bar.value), 0));
     const width = Math.max(container, 320);
-    const row = 36;
+    const row = 28;
     const height = 28 + bars.length * row;
     const labelWidth = 108;
     const plot = width - labelWidth - 88;
@@ -259,14 +261,21 @@ function niceMax(value: number) {
     return nice * exponent;
 }
 
-const Card = styled.section`
-    padding: var(--space-2);
+const Card = styled.section<{ $compact?: boolean }>`
+    padding: ${({ $compact }) => ($compact ? "var(--space-1)" : "var(--space-2)")};
     background: var(--neutral-900);
     border-radius: 12px;
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
     min-width: 0;
+    height: 100%;
+
+    h2 {
+        font-size: var(--font-size-h5);
+        line-height: 1.2;
+        font-weight: 500;
+    }
 `;
 
 const Scroll = styled.div`
@@ -276,9 +285,10 @@ const Scroll = styled.div`
 
 const DonutLayout = styled.div`
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    flex: 1;
 `;
 
 const InlineLegend = styled.ul`
@@ -297,8 +307,8 @@ const Legend = styled.ul`
     display: flex;
     flex-direction: column;
     gap: var(--space-0);
-    flex: 1;
-    min-width: 12rem;
+    width: 100%;
+    margin-top: auto;
 `;
 
 const LegendItem = styled.li`
