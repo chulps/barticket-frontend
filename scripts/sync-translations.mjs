@@ -247,6 +247,7 @@ function isFreshCopy(text) {
     if (/^[a-z][a-zA-Z0-9]*$/.test(text)) return false;
     if (/^\d+(\.\d+)?\s*(ml|cl|oz|g|kg|l)$/i.test(text)) return false;
     if (/[&|;]/.test(text)) return false;
+    if (/!==|===|=>|\?\s*\(|\)\s*:/.test(text)) return false;
     return true;
 }
 

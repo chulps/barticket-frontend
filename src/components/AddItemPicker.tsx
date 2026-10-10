@@ -148,40 +148,45 @@ export default function AddItemModal({
                         return null;
                     }
 
+                    const standardPrice = item.prices?.standard;
+                    let priceControl = (
+                        <PriceButtons>
+                            {item.prices?.["15ml"] !== undefined && (
+                                <PriceButton
+                                    className="small hollow"
+                                    onClick={() => selectItem(item, "15ml")}
+                                >
+                                    15ml · ¥{item.prices["15ml"]!.toLocaleString()}
+                                </PriceButton>
+                            )}
+
+                            {item.prices?.["30ml"] !== undefined && (
+                                <PriceButton
+                                    className="small hollow"
+                                    onClick={() => selectItem(item, "30ml")}
+                                >
+                                    30ml · ¥{item.prices["30ml"]!.toLocaleString()}
+                                </PriceButton>
+                            )}
+                        </PriceButtons>
+                    );
+                    if (unavailable) {
+                        priceControl = <OutOfStock>{t("outOfStock")}</OutOfStock>;
+                    } else if (standardPrice !== undefined && item.prices) {
+                        priceControl = (
+                            <PriceButton
+                                className="small hollow"
+                                onClick={() => selectItem(item, "standard")}
+                            >
+                                ¥{item.prices.standard!.toLocaleString()}
+                            </PriceButton>
+                        );
+                    }
+
                     return (
                         <ItemRow key={item.id} $available={!unavailable}>
                             <ItemName>{item.name}</ItemName>
-
-                            {unavailable ? (
-                                <OutOfStock>{t("outOfStock")}</OutOfStock>
-                            ) : item.prices!.standard !== undefined ? (
-                                <PriceButton
-                                    className="small hollow"
-                                    onClick={() => selectItem(item, "standard")}
-                                >
-                                    ¥{item.prices.standard.toLocaleString()}
-                                </PriceButton>
-                            ) : (
-                                <PriceButtons>
-                                    {item.prices["15ml"] !== undefined && (
-                                        <PriceButton
-                                            className="small hollow"
-                                            onClick={() => selectItem(item, "15ml")}
-                                        >
-                                            15ml · ¥{item.prices["15ml"]!.toLocaleString()}
-                                        </PriceButton>
-                                    )}
-
-                                    {item.prices["30ml"] !== undefined && (
-                                        <PriceButton
-                                            className="small hollow"
-                                            onClick={() => selectItem(item, "30ml")}
-                                        >
-                                            30ml · ¥{item.prices["30ml"]!.toLocaleString()}
-                                        </PriceButton>
-                                    )}
-                                </PriceButtons>
-                            )}
+                            {priceControl}
                         </ItemRow>
                     );
                 })}
