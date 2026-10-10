@@ -3,6 +3,7 @@ import styled from "styled-components";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
+import { ColumnChart, MeterChart, type ChartColumn, type ChartMeter } from "../components/AnalyticsCharts";
 import TabGroup from "../components/TabGroup";
 import { formatDuration, localeTag, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
 
@@ -101,6 +102,72 @@ function average(total: number, count: number) {
     return yen(Math.round(total / count));
 }
 
+function nightColumns(
+    shifts: ShiftReport[],
+    field: "paid_total" | "guest_count",
+    locale: Locale,
+): ChartColumn[] {
+    return [...shifts]
+        .sort((a, b) => a.business_date.localeCompare(b.business_date))
+        .map((shift) => ({
+            id: String(shift.id),
+            label: parseDate(shift.business_date).toLocaleDateString(localeTag(locale), {
+                month: "numeric",
+                day: "numeric",
+            }),
+            value: shift[field],
+            title:
+                field === "paid_total"
+                    ? `${formatDay(shift.business_date, locale)} · ${yen(shift.paid_total)}`
+                    : `${formatDay(shift.business_date, locale)} · ${shift.guest_count}`,
+        }));
+}
+
+function staffMeters(shifts: ShiftReport[], locale: Locale): (ChartMeter & { nights: number })[] {
+    const people = new Map<number, { userId: number; name: string; seconds: number; nights: number }>();
+    shifts.forEach((shift) => {
+        const seen = new Set<number>();
+        shift.staff_hours.forEach((person) => {
+            const row = people.get(person.user_id) ?? {
+                userId: person.user_id,
+                name: person.name,
+                seconds: 0,
+                nights: 0,
+            };
+            row.seconds += person.seconds;
+            if (!seen.has(person.user_id)) {
+                row.nights += 1;
+                seen.add(person.user_id);
+            }
+            people.set(person.user_id, row);
+        });
+    });
+    return [...people.values()]
+        .sort((a, b) => b.seconds - a.seconds)
+        .map((person) => ({
+            id: String(person.userId),
+            label: person.name,
+            value: person.seconds,
+            display: formatDuration(locale, person.seconds),
+            nights: person.nights,
+        }));
+}
+
+function StaffChart({ shifts }: { shifts: ShiftReport[] }) {
+    const { t, locale } = useI18n();
+    const meters = staffMeters(shifts, locale);
+    if (meters.length === 0) return <p>{t("noClockIns")}</p>;
+    return (
+        <MeterChart
+            title={t("people")}
+            meters={meters.map((person) => ({
+                ...person,
+                detail: `${t("nights")} ${person.nights}`,
+            }))}
+        />
+    );
+}
+
 export default function Analytics() {
     const { t, locale } = useI18n();
     const [shifts, setShifts] = useState<ShiftReport[] | null>(null);
@@ -189,6 +256,23 @@ export default function Analytics() {
                         </DayList>
                     ) : null}
                     {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} />}
+                    {visible.length > 1 ? (
+                        <ChartPair>
+                            <ColumnChart title={t("revenueByNight")} columns={nightColumns(visible, "paid_total", locale)} />
+                            <ColumnChart title={t("guestsByNight")} columns={nightColumns(visible, "guest_count", locale)} />
+                        </ChartPair>
+                    ) : null}
+                    {visible.length > 0 ? (
+                        <MeterChart
+                            title={t("payments")}
+                            meters={[
+                                { id: "cash", label: t("cash"), value: totals.cash, display: yen(totals.cash), color: "var(--success-400)" },
+                                { id: "card", label: t("card"), value: totals.card, display: yen(totals.card), color: "var(--royal-300)" },
+                                { id: "other", label: t("other"), value: totals.other, display: yen(totals.other), color: "var(--neutral-300)" },
+                                { id: "cover", label: t("cover"), value: totals.cover, display: yen(totals.cover), color: "var(--royal-200)" },
+                            ]}
+                        />
+                    ) : null}
                     {range === "day" && selected ? (
                         <Card>
                             <h2>{formatDay(selected.business_date, locale)}</h2>
@@ -198,35 +282,25 @@ export default function Analytics() {
                             <p>
                                 {t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}
                             </p>
-                            <People hoursList={selected.staff_hours} />
                         </Card>
                     ) : null}
+                    {range === "day" && selected ? <StaffChart shifts={[selected]} /> : null}
                     {range !== "day" && visible.length > 0 ? (
                         <>
-                            <Card>
-                                <h2>{t("byWeekday")}</h2>
-                                {WEEKDAYS.map((label, index) => {
-                                    const onDay = visible.filter((shift) => weekdayIndex(shift.business_date) === index);
-                                    const row = summarize(onDay);
-                                    return (
-                                        <Row key={label}>
-                                            <span>{t(label)}</span>
-                                            <span>
-                                                {t("weekdayRow", {
-                                                    nights: row.nights,
-                                                    revenue: yen(row.revenue),
-                                                    guests: row.guests,
-                                                    bill: average(row.revenue, row.guests),
-                                                })}
-                                            </span>
-                                        </Row>
-                                    );
+                            <MeterChart
+                                title={t("byWeekday")}
+                                meters={WEEKDAYS.map((label, index) => {
+                                    const row = summarize(visible.filter((shift) => weekdayIndex(shift.business_date) === index));
+                                    return {
+                                        id: label,
+                                        label: t(label),
+                                        value: row.revenue,
+                                        display: yen(row.revenue),
+                                        detail: `${t("nights")} ${row.nights} · ${t("guests")} ${row.guests} · ${t("avgBill")} ${average(row.revenue, row.guests)}`,
+                                    };
                                 })}
-                            </Card>
-                            <Card>
-                                <h2>{t("people")}</h2>
-                                <PeopleHours shifts={visible} />
-                            </Card>
+                            />
+                            <StaffChart shifts={visible} />
                         </>
                     ) : null}
                 </>
@@ -283,56 +357,6 @@ function Summary({ totals }: { totals: Totals }) {
     );
 }
 
-function People({ hoursList }: { hoursList: ShiftReport["staff_hours"] }) {
-    const { t, locale } = useI18n();
-    if (hoursList.length === 0) return <p>{t("noClockIns")}</p>;
-    return (
-        <div>
-            {hoursList.map((person) => (
-                <Row key={person.user_id}>
-                    <span>{person.name}</span>
-                    <span>{formatDuration(locale, person.seconds)}</span>
-                </Row>
-            ))}
-        </div>
-    );
-}
-
-function PeopleHours({ shifts }: { shifts: ShiftReport[] }) {
-    const { t, locale } = useI18n();
-    const people = new Map<number, { userId: number; name: string; seconds: number; nights: number }>();
-    shifts.forEach((shift) => {
-        const seen = new Set<number>();
-        shift.staff_hours.forEach((person) => {
-            const row = people.get(person.user_id) ?? {
-                userId: person.user_id,
-                name: person.name,
-                seconds: 0,
-                nights: 0,
-            };
-            row.seconds += person.seconds;
-            if (!seen.has(person.user_id)) {
-                row.nights += 1;
-                seen.add(person.user_id);
-            }
-            people.set(person.user_id, row);
-        });
-    });
-    const rows = [...people.values()].sort((a, b) => b.seconds - a.seconds);
-    if (rows.length === 0) return <p>{t("noClockIns")}</p>;
-    return (
-        <div>
-            {rows.map((person) => (
-                <Row key={person.userId}>
-                    <span>{person.name}</span>
-                    <span>
-                        {t("personRow", { hours: formatDuration(locale, person.seconds), nights: person.nights })}
-                    </span>
-                </Row>
-            ))}
-        </div>
-    );
-}
 
 const Page = styled.main`
     padding: var(--space-2);
@@ -378,11 +402,13 @@ const Card = styled.section`
     gap: var(--space-1);
 `;
 
-const Row = styled.p`
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-1);
-    margin: 0;
+const ChartPair = styled.div`
+    display: grid;
+    gap: var(--space-2);
+
+    @media (min-width: 768px) {
+        grid-template-columns: 1fr 1fr;
+    }
 `;
 
 const DayList = styled.div`
