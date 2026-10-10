@@ -1,3 +1,38 @@
+# BarTicket Frontend
+
+React + Vite frontend for [BarTicket-API](https://github.com/andrewmurphy-dev/BarTicket-API).
+
+## Run locally
+
+Start the backend first (see its README), then:
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173). Use `localhost`, not
+`127.0.0.1`, so the browser origin is allowed by the backend's CORS settings.
+
+The app calls `http://localhost:8000` by default. To use another backend, copy
+`.env.example` to `.env.local` and set `VITE_API_URL`.
+
+## Deploy (GitHub Pages)
+
+`.github/workflows/deploy.yml` builds and publishes the site on every push to
+`main`. One-time setup by a repo admin:
+
+1. **Settings → Pages → Build and deployment → Source:** select **GitHub Actions**.
+   GitHub Pages on a private repo needs a paid GitHub plan; otherwise make the repo public.
+2. **Settings → Secrets and variables → Actions → Variables:** add `VITE_API_URL`
+   with the hosted backend URL. Without it, the live site calls `http://localhost:8000`,
+   which only works on a machine running the backend.
+
+The site is served at `https://<owner>.github.io/barticket-frontend/`. The backend
+must list `https://<owner>.github.io` in `CORS_ORIGINS`.
+
+---
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

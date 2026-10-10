@@ -32,7 +32,7 @@ export default function TicketDetailsHeader({
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  const createdAt = new Date(ticket.created_at);
+  const createdAt = new Date(ticket.created_at * 1000);
 
   const isEditable = activeTab === "open";
 

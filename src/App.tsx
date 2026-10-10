@@ -32,7 +32,7 @@ export default function App() {
       .finally(() => setLoadingMenu(false));
   }, []);
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
 
       <ModalProvider>
 
