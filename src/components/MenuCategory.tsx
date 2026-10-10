@@ -1,6 +1,6 @@
 import styled from "styled-components";
 
-import type { MenuItem } from "../types/Menu";
+import type { MenuItem, Prices } from "../types/Menu";
 import MenuItemRow from "./MenuItemRow"
 import { menuLabel, useI18n } from "../i18n";
 
@@ -9,12 +9,14 @@ type MenuCategoryProps = {
   category: string;
   subcategories: Record<string, MenuItem[]>;
   onToggleStock?: (item: MenuItem) => void;
+  onSavePrices?: (item: MenuItem, prices: Prices) => Promise<void>;
 };
 
 export default function MenuCategory({
   category,
   subcategories,
   onToggleStock,
+  onSavePrices,
 }: MenuCategoryProps) {
   const { locale } = useI18n();
   return (
@@ -34,6 +36,7 @@ export default function MenuCategory({
                   key={item.id}
                   item={item}
                   onToggle={onToggleStock}
+                  onSavePrices={onSavePrices}
                 />
               ))}
             </MenuItemsContainer>

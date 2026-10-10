@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import styled from "styled-components";
 
 type DropdownMenuProps = {
@@ -14,56 +15,72 @@ export default function DropdownMenu({
 }: DropdownMenuProps) {
 
     const [isOpen, setIsOpen] = useState(false);
+    const [box, setBox] = useState<{ top: number; right: number } | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
     const closeMenu = () => setIsOpen(false);
 
+    function toggle() {
+        if (disabled) return;
+        if (isOpen) {
+            closeMenu();
+            return;
+        }
+        const rect = containerRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        setBox({
+            top: rect.bottom + 6,
+            right: window.innerWidth - rect.right,
+        });
+        setIsOpen(true);
+    }
 
-    // Close when clicking outside
     useEffect(() => {
-
         const handleClickOutside = (event: MouseEvent) => {
-            if (
-                containerRef.current &&
-                !containerRef.current.contains(event.target as Node)
-            ) {
-                closeMenu();
-            }
+            const target = event.target as Node;
+            if (containerRef.current?.contains(target)) return;
+            if (menuRef.current?.contains(target)) return;
+            closeMenu();
         };
 
-        document.addEventListener(
-            "mousedown",
-            handleClickOutside
-        );
-
-        return () => {
-            document.removeEventListener(
-                "mousedown",
-                handleClickOutside
-            );
-        };
-
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const close = () => setIsOpen(false);
+        window.addEventListener("scroll", close, true);
+        window.addEventListener("resize", close);
+        return () => {
+            window.removeEventListener("scroll", close, true);
+            window.removeEventListener("resize", close);
+        };
+    }, [isOpen]);
 
 
     return (
         <Container ref={containerRef}>
 
             <Trigger
+                type="button"
                 disabled={disabled}
-                onClick={() => {
-                    if (disabled) return;
-                    setIsOpen((prev) => !prev);
-                }}
+                onClick={toggle}
             >
                 {typeof trigger === "function"
                     ? trigger(isOpen)
                     : trigger}
             </Trigger>
 
-            <Menu $isOpen={isOpen}>
-                {children(closeMenu)}
-            </Menu>
+            {isOpen && box
+                ? createPortal(
+                    <Menu ref={menuRef} $top={box.top} $right={box.right}>
+                        {children(closeMenu)}
+                    </Menu>,
+                    document.body,
+                )
+                : null}
 
         </Container>
 
@@ -80,18 +97,21 @@ const Trigger = styled.button`
     background: transparent;
     border: none;
     padding: 0;
+    min-width: unset;
+    color: inherit;
     cursor: pointer;
 
     &:hover {
         background: transparent;
+        transform: none;
     }
 `;
 
 
-const Menu = styled.div<{ $isOpen: boolean }>`
-    position: absolute;
-    right: 0;
-    top: calc(100% + var(--space-1));
+const Menu = styled.div<{ $top: number; $right: number }>`
+    position: fixed;
+    top: ${({ $top }) => $top}px;
+    right: ${({ $right }) => $right}px;
 
     min-width: 160px;
 
@@ -99,22 +119,5 @@ const Menu = styled.div<{ $isOpen: boolean }>`
     border: 1px solid var(--neutral-700);
     border-radius: var(--space-1);
 
-    transform-origin: top right;
-
-    transform: ${({ $isOpen }) =>
-        $isOpen
-            ? "scale(1)"
-            : "scale(0.95)"};
-
-    opacity: ${({ $isOpen }) =>
-        $isOpen ? 1 : 0};
-
-    pointer-events: ${({ $isOpen }) =>
-        $isOpen ? "auto" : "none"};
-
-    transition:
-        transform 0.15s ease,
-        opacity 0.15s ease;
-
-    z-index: 100;
+    z-index: 200;
 `;

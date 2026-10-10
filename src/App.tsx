@@ -18,7 +18,7 @@ import ModalHost from "./components/ModalHost"
 import { ModalProvider } from "./context/ModalProvider";
 import { useState, useEffect } from "react";
 
-import type { MenuData } from "./types/Menu";
+import type { MenuData, MenuItem } from "./types/Menu";
 import { getMenu } from "./api/menu";
 
 
@@ -48,13 +48,15 @@ export default function App() {
     };
   }, []);
 
-  function applyStock(itemId: number, inStock: boolean) {
+  function applyMenuItem(updated: MenuItem) {
     setMenu((current) => {
       if (!current) return current;
       return {
         ...current,
         items: current.items.map((item) =>
-          item.id === itemId ? { ...item, inStock } : item,
+          item.id === updated.id
+            ? { ...item, inStock: updated.inStock, prices: updated.prices ?? item.prices }
+            : item,
         ),
       };
     });
@@ -76,7 +78,7 @@ export default function App() {
           <Route path="/menu" element={<Menu 
             menu={menu}
             loadingMenu={loadingMenu}
-            onStockChange={applyStock} />} />
+            onItemChange={applyMenuItem} />} />
 
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/notifications" element={<Notifications />} />

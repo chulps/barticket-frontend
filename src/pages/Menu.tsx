@@ -6,24 +6,24 @@ import SearchBar from "../components/MenuSearchBar";
 import MenuCategory from "../components/MenuCategory";
 
 // import Menu data types
-import type { MenuData, MenuItem } from "../types/Menu";
+import type { MenuData, MenuItem, Prices } from "../types/Menu";
 
 import { useFilteredMenu } from "../hooks/useFilteredMenu";
 import { useI18n } from "../i18n";
-import { setMenuStock } from "../api/menu";
+import { setMenuPrices, setMenuStock } from "../api/menu";
 import { ApiError, getToken } from "../api/client";
 
 
 type MenuProps = {
   menu: MenuData | null;
   loadingMenu: boolean;
-  onStockChange: (itemId: number, inStock: boolean) => void;
+  onItemChange: (item: MenuItem) => void;
 };
 
 export default function Menu({
   menu,
   loadingMenu,
-  onStockChange,
+  onItemChange,
 }: MenuProps) {
   const { t } = useI18n();
   const [searchTerm, setSearchTerm] = useState("");
@@ -38,9 +38,19 @@ export default function Menu({
   async function toggleStock(item: MenuItem) {
     try {
       const updated = await setMenuStock(item.id, item.inStock === false);
-      onStockChange(item.id, updated.inStock !== false);
+      onItemChange(updated);
     } catch (error) {
       window.alert(error instanceof ApiError ? error.message : t("stockUpdateFailed"));
+    }
+  }
+
+  async function savePrices(item: MenuItem, prices: Prices) {
+    try {
+      const updated = await setMenuPrices(item.id, prices);
+      onItemChange(updated);
+    } catch (error) {
+      window.alert(error instanceof ApiError ? error.message : t("priceUpdateFailed"));
+      throw error;
     }
   }
 
@@ -70,6 +80,7 @@ export default function Menu({
             category={category}
             subcategories={subcategories}
             onToggleStock={signedIn ? toggleStock : undefined}
+            onSavePrices={signedIn ? savePrices : undefined}
           />
         ))}
       </MenuGridContainer>
