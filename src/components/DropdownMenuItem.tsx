@@ -30,17 +30,24 @@ export default function DropdownMenuItem({
 const Item = styled.button<{ $danger: boolean }>`
     && {
         width: 100%;
-        min-width: unset;
+        min-width: max-content;
         display: flex;
         align-items: center;
         justify-content: flex-start;
         gap: var(--space-1);
         padding: var(--space-1) var(--space-2);
+        padding-right: calc(var(--space-2) + var(--space-1));
         background: transparent;
         border: none;
         text-align: left;
         white-space: nowrap;
         cursor: pointer;
+    }
+
+    svg {
+        flex: 0 0 auto;
+        width: 1em;
+        height: 1em;
     }
 
     color: ${({ $danger }) =>

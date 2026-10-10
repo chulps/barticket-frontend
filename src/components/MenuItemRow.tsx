@@ -83,7 +83,7 @@ export default function MenuItemRow({
                                     onToggle(item);
                                 }}
                             >
-                                <Icon name={unavailable ? "CheckCircle" : "Prohibit"} />
+                                <Icon name={unavailable ? "CheckCircle" : "Prohibit"} size="1em" />
                                 {unavailable ? t("markInStock") : t("markOutOfStock")}
                             </DropdownMenuItem>
                             {canEditPrice && onSavePrices ? (

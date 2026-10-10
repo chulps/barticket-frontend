@@ -177,6 +177,12 @@ const DateButton = styled.button`
     border: 1px solid var(--neutral-700);
     white-space: normal;
 
+    svg {
+        width: var(--font-size-h4);
+        height: var(--font-size-h4);
+        flex-shrink: 0;
+    }
+
     &:hover {
         background: var(--neutral-800);
         transform: none;
