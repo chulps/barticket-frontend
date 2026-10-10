@@ -3,7 +3,7 @@ import styled from "styled-components";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
-import { ColumnChart, MeterChart, type ChartColumn, type ChartMeter } from "../components/AnalyticsCharts";
+import { BarChart, DonutChart, HorizontalBarChart, type TimeBar } from "../components/AnalyticsCharts";
 import TabGroup from "../components/TabGroup";
 import { formatDuration, localeTag, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
 
@@ -102,28 +102,97 @@ function average(total: number, count: number) {
     return yen(Math.round(total / count));
 }
 
-function nightColumns(
-    shifts: ShiftReport[],
-    field: "paid_total" | "guest_count",
-    locale: Locale,
-): ChartColumn[] {
-    return [...shifts]
-        .sort((a, b) => a.business_date.localeCompare(b.business_date))
-        .map((shift) => ({
-            id: String(shift.id),
-            label: parseDate(shift.business_date).toLocaleDateString(localeTag(locale), {
-                month: "numeric",
-                day: "numeric",
-            }),
-            value: shift[field],
-            title:
-                field === "paid_total"
-                    ? `${formatDay(shift.business_date, locale)} · ${yen(shift.paid_total)}`
-                    : `${formatDay(shift.business_date, locale)} · ${shift.guest_count}`,
-        }));
+const CASH = "var(--success-400)";
+const CARD = "var(--royal-400)";
+const OTHER = "var(--neutral-300)";
+
+type Point = {
+    id: string;
+    label: string;
+    title: string;
+    cash: number;
+    card: number;
+    other: number;
+    guests: number;
+};
+
+function chronological(shifts: ShiftReport[]) {
+    return [...shifts].sort((a, b) => a.business_date.localeCompare(b.business_date));
 }
 
-function staffMeters(shifts: ShiftReport[], locale: Locale): (ChartMeter & { nights: number })[] {
+function nightPoints(shifts: ShiftReport[], locale: Locale): Point[] {
+    return chronological(shifts).map((shift) => ({
+        id: String(shift.id),
+        label: parseDate(shift.business_date).toLocaleDateString(localeTag(locale), {
+            month: "numeric",
+            day: "numeric",
+        }),
+        title: `${formatDay(shift.business_date, locale)} · ${yen(shift.paid_total)} · ${shift.guest_count}`,
+        cash: shift.cash_total,
+        card: shift.card_total,
+        other: shift.other_total,
+        guests: shift.guest_count,
+    }));
+}
+
+function monthPoints(shifts: ShiftReport[], locale: Locale): Point[] {
+    const groups = new Map<string, ShiftReport[]>();
+    chronological(shifts).forEach((shift) => {
+        const key = monthKey(shift.business_date);
+        groups.set(key, [...(groups.get(key) ?? []), shift]);
+    });
+    return [...groups.entries()].map(([key, rows]) => {
+        const totals = summarize(rows);
+        const label = parseDate(`${key}-01`).toLocaleDateString(localeTag(locale), {
+            month: "short",
+            year: "2-digit",
+        });
+        return {
+            id: key,
+            label,
+            title: `${formatMonth(key, locale)} · ${yen(totals.revenue)} · ${totals.guests}`,
+            cash: totals.cash,
+            card: totals.card,
+            other: totals.other,
+            guests: totals.guests,
+        };
+    });
+}
+
+function paymentBars(points: Point[]): TimeBar[] {
+    return points.map((point) => ({
+        id: point.id,
+        label: point.label,
+        title: point.title,
+        segments: [
+            { value: point.cash, color: CASH },
+            { value: point.card, color: CARD },
+            { value: point.other, color: OTHER },
+        ],
+    }));
+}
+
+function guestBars(points: Point[]): TimeBar[] {
+    return points.map((point) => ({
+        id: point.id,
+        label: point.label,
+        title: `${point.label} · ${point.guests}`,
+        segments: [{ value: point.guests, color: "var(--royal-200)" }],
+    }));
+}
+
+function compactYen(amount: number, locale: Locale) {
+    if (amount === 0) return "¥0";
+    if (locale === "ja" && amount >= 10000) {
+        const man = amount / 10000;
+        const text = Number.isInteger(man) ? String(man) : man.toFixed(1);
+        return `¥${text}万`;
+    }
+    if (amount >= 1000) return `¥${Math.round(amount / 1000)}k`;
+    return yen(amount);
+}
+
+function staffMeters(shifts: ShiftReport[], locale: Locale) {
     const people = new Map<number, { userId: number; name: string; seconds: number; nights: number }>();
     shifts.forEach((shift) => {
         const seen = new Set<number>();
@@ -153,16 +222,90 @@ function staffMeters(shifts: ShiftReport[], locale: Locale): (ChartMeter & { nig
         }));
 }
 
+function RangeCharts({
+    shifts,
+    totals,
+    range,
+}: {
+    shifts: ShiftReport[];
+    totals: Totals;
+    range: Range;
+}) {
+    const { t, locale } = useI18n();
+    const points = range === "all" ? monthPoints(shifts, locale) : nightPoints(shifts, locale);
+    const weekdayBars: TimeBar[] = WEEKDAYS.map((label, index) => {
+        const row = summarize(shifts.filter((shift) => weekdayIndex(shift.business_date) === index));
+        const name = new Date(2024, 0, 1 + index).toLocaleDateString(localeTag(locale), { weekday: "short" });
+        return {
+            id: label,
+            label: name,
+            title: `${t(label)} · ${yen(row.revenue)} · ${row.guests}`,
+            segments: [{ value: row.revenue, color: "var(--royal-400)" }],
+        };
+    });
+
+    return (
+        <>
+            <BarChart
+                title={range === "all" ? t("revenueByMonth") : t("revenueByNight")}
+                bars={paymentBars(points)}
+                formatTick={(value) => compactYen(value, locale)}
+                legend={[
+                    { label: t("cash"), color: CASH },
+                    { label: t("card"), color: CARD },
+                    { label: t("other"), color: OTHER },
+                ]}
+            />
+            <ChartPair>
+                <BarChart
+                    title={range === "all" ? t("guestsByMonth") : t("guestsByNight")}
+                    bars={guestBars(points)}
+                    formatTick={(value) => String(Math.round(value))}
+                />
+                <DonutChart
+                    title={t("payments")}
+                    center={yen(totals.revenue)}
+                    slices={[
+                        { id: "cash", label: t("cash"), value: totals.cash, display: yen(totals.cash), color: CASH },
+                        { id: "card", label: t("card"), value: totals.card, display: yen(totals.card), color: CARD },
+                        { id: "other", label: t("other"), value: totals.other, display: yen(totals.other), color: OTHER },
+                    ]}
+                />
+            </ChartPair>
+            <ChartPair>
+                <BarChart title={t("byWeekday")} bars={weekdayBars} formatTick={(value) => compactYen(value, locale)} />
+                <DonutChart
+                    title={t("tickets")}
+                    center={String(totals.paid + totals.cancelled)}
+                    slices={[
+                        { id: "paid", label: t("paid"), value: totals.paid, display: String(totals.paid), color: "var(--success-400)" },
+                        {
+                            id: "cancelled",
+                            label: t("cancelled"),
+                            value: totals.cancelled,
+                            display: String(totals.cancelled),
+                            color: "var(--danger-400)",
+                        },
+                    ]}
+                />
+            </ChartPair>
+            <StaffChart shifts={shifts} />
+        </>
+    );
+}
+
 function StaffChart({ shifts }: { shifts: ShiftReport[] }) {
     const { t, locale } = useI18n();
     const meters = staffMeters(shifts, locale);
     if (meters.length === 0) return <p>{t("noClockIns")}</p>;
     return (
-        <MeterChart
+        <HorizontalBarChart
             title={t("people")}
-            meters={meters.map((person) => ({
-                ...person,
-                detail: `${t("nights")} ${person.nights}`,
+            bars={meters.map((person) => ({
+                id: person.id,
+                label: person.label,
+                value: person.value,
+                display: person.display,
             }))}
         />
     );
@@ -256,22 +399,8 @@ export default function Analytics() {
                         </DayList>
                     ) : null}
                     {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} />}
-                    {visible.length > 1 ? (
-                        <ChartPair>
-                            <ColumnChart title={t("revenueByNight")} columns={nightColumns(visible, "paid_total", locale)} />
-                            <ColumnChart title={t("guestsByNight")} columns={nightColumns(visible, "guest_count", locale)} />
-                        </ChartPair>
-                    ) : null}
-                    {visible.length > 0 ? (
-                        <MeterChart
-                            title={t("payments")}
-                            meters={[
-                                { id: "cash", label: t("cash"), value: totals.cash, display: yen(totals.cash), color: "var(--success-400)" },
-                                { id: "card", label: t("card"), value: totals.card, display: yen(totals.card), color: "var(--royal-300)" },
-                                { id: "other", label: t("other"), value: totals.other, display: yen(totals.other), color: "var(--neutral-300)" },
-                                { id: "cover", label: t("cover"), value: totals.cover, display: yen(totals.cover), color: "var(--royal-200)" },
-                            ]}
-                        />
+                    {range !== "day" && visible.length > 0 ? (
+                        <RangeCharts shifts={visible} totals={totals} range={range} />
                     ) : null}
                     {range === "day" && selected ? (
                         <Card>
@@ -285,24 +414,6 @@ export default function Analytics() {
                         </Card>
                     ) : null}
                     {range === "day" && selected ? <StaffChart shifts={[selected]} /> : null}
-                    {range !== "day" && visible.length > 0 ? (
-                        <>
-                            <MeterChart
-                                title={t("byWeekday")}
-                                meters={WEEKDAYS.map((label, index) => {
-                                    const row = summarize(visible.filter((shift) => weekdayIndex(shift.business_date) === index));
-                                    return {
-                                        id: label,
-                                        label: t(label),
-                                        value: row.revenue,
-                                        display: yen(row.revenue),
-                                        detail: `${t("nights")} ${row.nights} · ${t("guests")} ${row.guests} · ${t("avgBill")} ${average(row.revenue, row.guests)}`,
-                                    };
-                                })}
-                            />
-                            <StaffChart shifts={visible} />
-                        </>
-                    ) : null}
                 </>
             ) : null}
         </Page>
