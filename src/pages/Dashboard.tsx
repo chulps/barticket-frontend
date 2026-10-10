@@ -1,7 +1,7 @@
 // src/pages/Dashboard.tsx
 
 // import react stuff
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // import npm packages
 import styled from "styled-components";
@@ -17,6 +17,7 @@ import type { Ticket, PaymentType } from "../types/Ticket"
 // import hooks 
 import { useTickets } from "../hooks/useTickets"; // (business logic for creating or updating tickets)
 import { useI18n } from "../i18n";
+import { accountApi } from "../api/account";
 
 type DashboardProps = {
   menu: MenuData | null;
@@ -34,6 +35,7 @@ export default function Dashboard({
   const [activeTab, setActiveTab] = useState<"open" | "paid" | "cancelled">("open");
   const [selectedTicketId, setSelectedTicketId] = useState(1);
   const [showTicketDetails, setShowTicketDetails] = useState(false);
+  const [openShiftId, setOpenShiftId] = useState<number | null | undefined>(undefined);
 
   // business logic for updating or creating new tickets (../hooks/useTickets.ts)
   const {
@@ -49,11 +51,19 @@ export default function Dashboard({
     reopenTicket
   } = useTickets();
 
-  // UI actions
-  // Controls tab group showing open, paid, or cancelled tickets
-  const visibleTickets = tickets.filter(
-    (ticket) => ticket.status === activeTab
-  );
+  useEffect(() => {
+    accountApi
+      .currentShift()
+      .then((shift) => setOpenShiftId(shift?.id ?? null))
+      .catch(() => setOpenShiftId(undefined));
+  }, []);
+
+  // Paid and cancelled tickets stay on the board only for the open shift.
+  const visibleTickets = tickets.filter((ticket) => {
+    if (ticket.status !== activeTab) return false;
+    if (activeTab === "open" || openShiftId === undefined) return true;
+    return openShiftId !== null && ticket.shiftId === openShiftId;
+  });
 
   // answers which ticket is currently being displayed in ticket details?
   const currentIndex = visibleTickets.findIndex(
@@ -157,6 +167,7 @@ export default function Dashboard({
         getTicketTotal={getTicketTotal}
         lastSelectedTicket={lastSelectedTicket}
         setLastSelectedTicket={setLastSelectedTicket}
+        nightOpen={openShiftId !== null}
       />
 
       <Content $open={showTicketDetails}>

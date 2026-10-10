@@ -43,6 +43,8 @@ type SidebarProps = {
       cancelled?: number;
     }>
   >;
+
+  nightOpen: boolean;
 };
 
 export default function TicketSidebar({
@@ -57,6 +59,7 @@ export default function TicketSidebar({
   handleCreateTicket,
   getTicketTotal,
   setLastSelectedTicket,
+  nightOpen,
 }: SidebarProps) {
 
   const isEditable = activeTab === "open";
@@ -118,7 +121,7 @@ export default function TicketSidebar({
       <TicketList>
         {visibleTickets.length === 0 ? (
           <EmptyTicketDetails>
-            {emptyMessages[activeTab]}
+            {!nightOpen && activeTab !== "open" ? t("closedNightTickets") : emptyMessages[activeTab]}
           </EmptyTicketDetails>
         ) : (
           visibleTickets.map((ticket, index) => (

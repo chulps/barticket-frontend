@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import styled from "styled-components";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
+import { ticketsApi, toTicket } from "../api/tickets";
 import { ApiError, getToken } from "../api/client";
 import { BarChart, DonutChart, HorizontalBarChart, type TimeBar } from "../components/AnalyticsCharts";
 import TabGroup from "../components/TabGroup";
 import { formatDuration, localeTag, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
+import type { Ticket } from "../types/Ticket";
 
 type Range = "all" | "month" | "day";
 
@@ -93,6 +95,13 @@ function formatDay(iso: string, locale: Locale) {
     });
 }
 
+function formatNight(iso: string, locale: Locale) {
+    const start = parseDate(iso);
+    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
+    const endText = end.toLocaleDateString(localeTag(locale), { month: "short", day: "numeric" });
+    return `${formatDay(iso, locale)}–${endText}`;
+}
+
 function yen(amount: number) {
     return `¥${amount.toLocaleString()}`;
 }
@@ -127,7 +136,7 @@ function nightPoints(shifts: ShiftReport[], locale: Locale): Point[] {
             month: "numeric",
             day: "numeric",
         }),
-        title: `${formatDay(shift.business_date, locale)} · ${yen(shift.paid_total)} · ${shift.guest_count}`,
+        title: `${formatNight(shift.business_date, locale)} · ${yen(shift.paid_total)} · ${shift.guest_count}`,
         cash: shift.cash_total,
         card: shift.card_total,
         other: shift.other_total,
@@ -324,6 +333,7 @@ function StaffChart({ shifts }: { shifts: ShiftReport[] }) {
 export default function Analytics() {
     const { t, locale } = useI18n();
     const [shifts, setShifts] = useState<ShiftReport[] | null>(null);
+    const [tickets, setTickets] = useState<Ticket[]>([]);
     const [account, setAccount] = useState<Account | null>(null);
     const [error, setError] = useState("");
     const [range, setRange] = useState<Range>("month");
@@ -338,9 +348,10 @@ export default function Analytics() {
             .then((me) => {
                 setAccount(me);
                 if (me.role !== "manager") return;
-                return accountApi.closedShifts().then((rows) => {
+                return Promise.all([accountApi.closedShifts(), ticketsApi.list()]).then(([rows, ticketRows]) => {
                     const ordered = [...rows].sort((a, b) => b.business_date.localeCompare(a.business_date));
                     setShifts(ordered);
+                    setTickets(ticketRows.map(toTicket));
                     const latest = ordered[0];
                     if (latest) {
                         setMonth(monthKey(latest.business_date));
@@ -403,7 +414,7 @@ export default function Analytics() {
                                     $active={shift.id === selected?.id}
                                     onClick={() => setDayId(shift.id)}
                                 >
-                                    {formatDay(shift.business_date, locale)}
+                                    {formatNight(shift.business_date, locale)}
                                 </DayButton>
                             ))}
                         </DayList>
@@ -415,7 +426,7 @@ export default function Analytics() {
                     {range === "day" && selected ? (
                         <DayBento>
                             <Card>
-                                <h2>{formatDay(selected.business_date, locale)}</h2>
+                                <h2>{formatNight(selected.business_date, locale)}</h2>
                                 <p>
                                     {t("manager")} {selected.opened_by}
                                 </p>
@@ -426,9 +437,49 @@ export default function Analytics() {
                             <StaffChart shifts={[selected]} />
                         </DayBento>
                     ) : null}
+                    {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} /> : null}
                 </>
             ) : null}
         </Page>
+    );
+}
+
+function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Ticket[] }) {
+    const { t, locale } = useI18n();
+    const dates = new Map(shifts.map((shift) => [shift.id, shift.business_date]));
+    const rows = tickets
+        .filter((ticket) => ticket.shiftId !== null && dates.has(ticket.shiftId) && ticket.status !== "open")
+        .sort((a, b) => {
+            const byDate = (dates.get(a.shiftId ?? 0) ?? "").localeCompare(dates.get(b.shiftId ?? 0) ?? "");
+            return byDate || a.id - b.id;
+        });
+
+    return (
+        <TicketLog>
+            <h2>{t("tickets")}</h2>
+            {rows.length === 0 ? <p>{t("noTicketsInRange")}</p> : null}
+            {rows.map((ticket) => {
+                const date = dates.get(ticket.shiftId ?? 0);
+                const total = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
+                const detail =
+                    ticket.status === "paid"
+                        ? t(ticket.payment?.type ?? "paid")
+                        : t("cancelled");
+                return (
+                    <TicketRow key={ticket.id}>
+                        <div>
+                            <span>{ticket.name || `#${ticket.id}`}</span>
+                            <small>
+                                {date ? formatNight(date, locale) : ""}
+                                {date ? " · " : ""}
+                                {detail}
+                            </small>
+                        </div>
+                        <strong>{yen(total)}</strong>
+                    </TicketRow>
+                );
+            })}
+        </TicketLog>
     );
 }
 
@@ -541,6 +592,43 @@ const Cell = styled.div<{ $span?: number }>`
 
     @media (min-width: 840px) {
         grid-column: span ${({ $span }) => $span ?? 1};
+    }
+`;
+
+const TicketLog = styled.section`
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+
+    h2 {
+        font-size: var(--font-size-h5);
+        font-weight: 500;
+    }
+
+    small {
+        display: block;
+        color: var(--neutral-400);
+    }
+`;
+
+const TicketRow = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1);
+    background: var(--neutral-900);
+    border-radius: 12px;
+    min-width: 0;
+
+    span {
+        overflow-wrap: anywhere;
+    }
+
+    strong {
+        font-family: var(--font-family-data);
+        font-weight: 500;
+        white-space: nowrap;
     }
 `;
 
