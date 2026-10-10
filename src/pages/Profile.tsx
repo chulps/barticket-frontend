@@ -117,9 +117,11 @@ export default function Profile() {
             ) : (
                 <>
                     <Section>
-                        <p>
-                            {account.name} · {account.email} · {t(account.role)}
-                        </p>
+                        <Who>
+                            <strong>{account.name}</strong>
+                            <span>{account.email}</span>
+                            <span>{t(account.role)}</span>
+                        </Who>
                         <label>
                             {t("name")}
                             <input
@@ -285,23 +287,86 @@ export default function Profile() {
 }
 
 const Page = styled.main`
-    padding: var(--space-2);
+    width: 100%;
+    max-width: 480px;
+    padding: var(--space-2) 0;
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    max-width: 28rem;
+
+    h1 {
+        font-size: var(--font-size-h3);
+    }
+
+    h2 {
+        font-size: var(--font-size-h4);
+        font-weight: 500;
+    }
 `;
 
 const Section = styled.section`
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    padding: var(--space-2);
+    background: var(--neutral-900);
+    border-radius: 12px;
+
+    label {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-0);
+        letter-spacing: 0.04em;
+    }
+
+    input,
+    select {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    input:focus,
+    select:focus {
+        transform: none;
+    }
+
+    select {
+        background: var(--dark);
+    }
+`;
+
+const Who = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    strong {
+        font-size: var(--font-size-h4);
+        font-weight: 500;
+    }
+
+    span {
+        color: var(--neutral-300);
+        overflow-wrap: anywhere;
+    }
 `;
 
 const Row = styled.div`
     display: flex;
+    flex-direction: column;
     gap: var(--space-1);
-    flex-wrap: wrap;
+
+    button {
+        width: 100%;
+    }
+
+    @media (min-width: 640px) {
+        flex-direction: row;
+
+        button {
+            flex: 1;
+        }
+    }
 `;
 
 const ErrorText = styled.p`
