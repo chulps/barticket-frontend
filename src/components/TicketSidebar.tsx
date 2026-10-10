@@ -6,6 +6,7 @@ import { useState } from "react";
 // import npm packages
 import styled from "styled-components";
 import { motion } from "motion/react"
+import { Link } from "react-router-dom";
 
 // import types
 import type { Ticket } from "../types/Ticket";
@@ -120,7 +121,11 @@ export default function TicketSidebar({
         {t("newTicket")}
       </button>
       {activeTab === "open" && !canCreate ? (
-        <ClockHint>{t("clockInBeforeTickets")}</ClockHint>
+        <ClockHint>
+          {t("clockInBeforeLead")}
+          <ProfileLink to="/profile">{t("clockInLink")}</ProfileLink>
+          {t("clockInBeforeRest")}
+        </ClockHint>
       ) : null}
 
       <TicketList>
@@ -207,9 +212,15 @@ const SidebarContainer = styled.aside`
 `;
 
 const ClockHint = styled.p`
-  color: var(--neutral-400);
+  color: var(--danger-400);
   font-size: 12px;
   margin: 0;
+`;
+
+const ProfileLink = styled(Link)`
+  color: var(--royal-400);
+  font-size: inherit;
+  text-decoration: underline;
 `;
 
 const SidebarHeader = styled.div`

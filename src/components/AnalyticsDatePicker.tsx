@@ -51,7 +51,7 @@ export default function AnalyticsDatePicker({
                 aria-expanded={open}
                 onClick={() => setOpen((current) => !current)}
             >
-                <Icon name="CalendarBlank" size="1.4rem" />
+                <Icon name="CalendarBlank" size="var(--font-size-h4)" />
                 {label}
             </DateButton>
             {open ? (
