@@ -318,7 +318,7 @@ const LanguageToggle = styled.div`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5em;
+  gap: var(--space-2);
   flex-shrink: 0;
   background: none;
   border: none;
