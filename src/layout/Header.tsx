@@ -343,7 +343,7 @@ const Nav = styled.nav<{ $isOpen: boolean; $authenticated: boolean }>`
 
     align-items: stretch;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
     transform-origin: top;
     transform: ${({ $isOpen, $authenticated }) =>
     !$authenticated || $isOpen ? "scaleY(1)" : "scaleY(0)"};
