@@ -22,12 +22,13 @@ export default function AddStaffDrink({ menu, onAdd }: Props) {
     }, [locale]);
     const item = menu.items.find(row => String(row.id) === itemId);
     const prices = item ? Object.entries(item.prices).filter((entry): entry is [string, number] => typeof entry[1] === "number") : [["standard", 500] as [string, number]];
-    const price = prices.find(([key]) => key === priceKey)?.[1] ?? prices[0]?.[1] ?? 500;
+    const selectedKey = prices.some(([key]) => key === priceKey) ? priceKey : (prices[0]?.[0] ?? "standard");
+    const price = prices.find(([key]) => key === selectedKey)?.[1] ?? 500;
     return (
         <Form onSubmit={event => {
             event.preventDefault();
             if (!staffId || quantity < 1) return;
-            onAdd(Number(staffId), item ? item.id : null, item ? priceKey : "standard", quantity);
+            onAdd(Number(staffId), item ? item.id : null, item ? selectedKey : "standard", quantity);
         }}>
             <label>{locale === "ja" ? "スタッフ" : "Staff recipient"}
                 <select required value={staffId} onChange={event => setStaffId(event.target.value)}>
@@ -44,7 +45,7 @@ export default function AddStaffDrink({ menu, onAdd }: Props) {
                 </select>
             </label>
             {item ? <label>{locale === "ja" ? "サイズ・価格" : "Size / price"}
-                <select value={priceKey} onChange={event => setPriceKey(event.target.value)}>
+                <select value={selectedKey} onChange={event => setPriceKey(event.target.value)}>
                     {prices.map(([key, value]) => <option key={key} value={key}>{key} — ¥{value.toLocaleString()}</option>)}
                 </select>
             </label> : null}
