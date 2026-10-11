@@ -29,14 +29,15 @@ export default function AddStaffDrink({ menu, onAdd }: Props) {
 
     const matches = useMemo(() => {
         const term = menuHaystack(search).toLowerCase().trim();
+        if (!term) return [];
         return menu.items.filter(row =>
             row.inStock !== false &&
             row.category !== "Cocktail Ingredients" &&
             numericPrices(row.prices).length > 0 &&
-            (!term || [row.name, row.brand, row.category, row.subcategory, row.volume, row.description, row.tags?.join(" ")]
+            [row.name, row.brand, row.category, row.subcategory, row.volume, row.description, row.tags?.join(" ")]
                 .map(value => menuHaystack(value ?? "").toLowerCase())
-                .some(value => value.includes(term)))
-        );
+                .some(value => value.includes(term))
+        ).slice(0, 40);
     }, [menu.items, search]);
     const item = menu.items.find(row => row.id === itemId);
     const prices: [string, number][] = item ? numericPrices(item.prices) : [["standard", 500]];
@@ -94,10 +95,11 @@ export default function AddStaffDrink({ menu, onAdd }: Props) {
                     </button>
                 ))}
             </div> : null}
-            <div className="preview"><span>{item ? menuLabel(locale, item.name) : (locale === "ja" ? "通常スタッフドリンク" : "Default Staff Drink")}</span><strong>¥{price.toLocaleString()}</strong></div>
-            <small>{locale === "ja" ? "1回につき1杯追加します。伝票上で数量と価格を変更できます。" : "Adds one drink. Adjust quantity or price on the ticket."}</small>
-            {error ? <p role="alert">{error}</p> : null}
-            <button className="submit" type="submit">{locale === "ja" ? "伝票に追加" : "Add to ticket"}</button>
+            <div className="dock">
+                <div className="preview"><span>{item ? menuLabel(locale, item.name) : (locale === "ja" ? "通常スタッフドリンク" : "Default Staff Drink")}</span><strong>¥{price.toLocaleString()}</strong></div>
+                {error ? <p role="alert">{error}</p> : null}
+                <button className="submit" type="submit">{locale === "ja" ? "伝票に追加" : "Add to ticket"}</button>
+            </div>
         </Form>
     );
 }
@@ -108,11 +110,14 @@ const Form = styled.form`
     gap: var(--space-2);
     min-width: 0;
     width: 100%;
+    padding: 0 var(--space-2);
+    box-sizing: border-box;
     .people-field { display: flex; flex-direction: column; gap: var(--space-1); }
     .people-field > span { font-size: var(--font-size-label); letter-spacing: 2px; text-transform: uppercase; color: var(--secondary); }
     .people, .sizes { display: flex; flex-wrap: wrap; gap: var(--space-1); }
     .people button, .sizes button {
         width: auto;
+        min-height: 44px;
         padding: var(--space-1) var(--space-2);
         background: transparent;
         color: white;
@@ -120,15 +125,63 @@ const Form = styled.form`
         border-radius: 999px;
         transform: none;
     }
-    .people button:hover, .sizes button:hover { background: var(--neutral-800); color: white; transform: none; filter: none; }
-    .people button.selected, .sizes button.selected, .people button.selected:hover, .sizes button.selected:hover { background: var(--royal-500); border-color: var(--royal-500); color: white; }
-    input { width: 100%; box-sizing: border-box; padding: var(--space-1); background: var(--neutral-900); color: white; border: 1px solid var(--neutral-600); border-radius: 6px; }
+    .people button:hover, .sizes button:hover, .people button:active, .sizes button:active {
+        background: var(--neutral-800);
+        color: white;
+        transform: none;
+        filter: none;
+    }
+    .people button.selected, .sizes button.selected, .people button.selected:hover, .sizes button.selected:hover {
+        background: var(--royal-500);
+        border-color: var(--royal-500);
+        color: white;
+    }
+    input, input:focus {
+        width: 100%;
+        box-sizing: border-box;
+        padding: var(--space-1);
+        background: var(--neutral-900);
+        color: white;
+        border: 1px solid var(--neutral-600);
+        border-radius: 6px;
+        transform: none;
+    }
     .drink-field { min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
-    .choices { max-height: min(35vh, 300px); overflow-y: auto; display: flex; flex-direction: column; border: 1px solid var(--neutral-700); border-radius: 6px; }
-    .choices button { text-align: left; display: flex; justify-content: space-between; gap: var(--space-1); padding: var(--space-1); background: transparent; color: inherit; cursor: pointer; border: none; border-bottom: 1px solid var(--neutral-800); }
-    .choices button.selected { background: var(--royal-500); color: white; }
+    .choices { max-height: min(32dvh, 280px); overflow-y: auto; display: flex; flex-direction: column; border: 1px solid var(--neutral-700); border-radius: 6px; }
+    .choices button {
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--space-1);
+        min-height: 44px;
+        padding: var(--space-1);
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        border: none;
+        border-bottom: 1px solid var(--neutral-800);
+        border-radius: 0;
+        white-space: normal;
+        transform: none;
+    }
+    .choices button:hover, .choices button:active { background: var(--neutral-800); color: inherit; transform: none; filter: none; }
+    .choices button.selected, .choices button.selected:hover { background: var(--royal-500); color: white; }
     .choices button span { white-space: nowrap; }
     .choices p { padding: var(--space-1); }
+    .dock {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+        margin-inline: calc(var(--space-2) * -1);
+        padding: var(--space-1) var(--space-2) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+        background: var(--neutral-900);
+        border-top: 1px solid var(--neutral-700);
+    }
     .preview { display: flex; justify-content: space-between; align-items: center; gap: var(--space-1); font-weight: 600; }
+    .preview span { min-width: 0; }
     .submit { width: 100%; }
 `;

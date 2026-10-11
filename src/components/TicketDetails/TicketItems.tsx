@@ -123,12 +123,14 @@ export default function TicketItems({
                         key={item.id}
                         id={item.id}
                         name={
-                            item.staff_drink ? item.name : item.type === "cover"
-                                ? t("coverCharge")
-                                : menuLabel(
-                                    locale,
-                                    menu?.items.find((row) => row.id === item.menu_item_id)?.name ?? item.name,
-                                )
+                            item.staff_drink
+                                ? [item.staff_name, item.drink_name].filter(Boolean).join(" · ") || item.name
+                                : item.type === "cover"
+                                    ? t("coverCharge")
+                                    : menuLabel(
+                                        locale,
+                                        menu?.items.find((row) => row.id === item.menu_item_id)?.name ?? item.name,
+                                    )
                         }
                         unitPrice={item.unit_price}
                         quantity={item.quantity}
