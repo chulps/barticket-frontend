@@ -46,6 +46,7 @@ export default function Dashboard({
     updateItemQuantity,
     updateItemPrice,
     addItemToTicket,
+    addStaffDrinkToTicket,
     updateTicketName,
     removeItemFromTicket,
     createTicket,
@@ -218,6 +219,7 @@ export default function Dashboard({
             onUpdateQuantity={updateItemQuantity}
             onUpdatePrice={updateItemPrice}
             onAddItem={addItemToTicket}
+            onAddStaffDrink={addStaffDrinkToTicket}
             onRemoveItem={removeItemFromTicket}
             onUpdateName={updateTicketName}
             onClose={() => setShowTicketDetails(false)}
