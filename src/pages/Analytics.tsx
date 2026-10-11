@@ -130,6 +130,7 @@ const OTHER = "var(--neutral-300)";
 type Point = {
     id: string;
     label: string;
+    detailLabel: string;
     title: string;
     cash: number;
     card: number;
@@ -144,6 +145,7 @@ function chronological(shifts: ShiftReport[]) {
 function nightPoints(shifts: ShiftReport[], locale: Locale): Point[] {
     return chronological(shifts).map((shift) => ({
         id: String(shift.id),
+        detailLabel: parseDate(shift.business_date).toLocaleDateString(localeTag(locale), { year: "numeric", month: "long", day: "numeric" }),
         label: parseDate(shift.business_date).toLocaleDateString(localeTag(locale), {
             month: "numeric",
             day: "numeric",
@@ -170,6 +172,7 @@ function monthPoints(shifts: ShiftReport[], locale: Locale): Point[] {
         });
         return {
             id: key,
+            detailLabel: formatMonth(key, locale),
             label,
             title: `${formatMonth(key, locale)} · ${yen(totals.revenue)} · ${totals.guests}`,
             cash: totals.cash,
@@ -185,7 +188,7 @@ function paymentBars(points: Point[]): TimeBar[] {
         id: point.id,
         label: point.label,
         title: point.title,
-        detailLabel: point.label,
+        detailLabel: point.detailLabel,
         segments: [
             { value: point.cash, color: CASH },
             { value: point.card, color: CARD },
@@ -199,7 +202,7 @@ function guestBars(points: Point[]): TimeBar[] {
         id: point.id,
         label: point.label,
         title: `${point.label} · ${point.guests}`,
-        detailLabel: point.label,
+        detailLabel: point.detailLabel,
         segments: [{ value: point.guests, color: "var(--royal-200)" }],
     }));
 }
