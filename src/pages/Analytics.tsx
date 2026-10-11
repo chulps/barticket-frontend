@@ -4,7 +4,7 @@ import styled from "styled-components";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ticketsApi, toTicket } from "../api/tickets";
 import { ApiError, getToken } from "../api/client";
-import { BarChart, DonutChart, HorizontalBarChart, type TimeBar } from "../components/AnalyticsCharts";
+import { BarChart, DonutChart, HorizontalBarChart, CopyPanelButton, type TimeBar } from "../components/AnalyticsCharts";
 import AnalyticsDatePicker from "../components/AnalyticsDatePicker";
 import Icon from "../components/Icon";
 import TabGroup from "../components/TabGroup";
@@ -270,14 +270,23 @@ function staffMeters(shifts: ShiftReport[], locale: Locale) {
         }));
 }
 
+function copyPeriod(range: Range, month: string, year: string, selected: ShiftReport | null, locale: Locale): string {
+    if (range === "all") return locale === "ja" ? "全期間" : "All Time";
+    if (range === "year") return year;
+    if (range === "month") return month ? formatMonth(month, locale) : "";
+    return selected ? formatNight(selected.business_date, locale) : "";
+}
+
 function RangeCharts({
     shifts,
     totals,
     range,
+    context,
 }: {
     shifts: ShiftReport[];
     totals: Totals;
     range: Range;
+    context: string;
 }) {
     const { t, locale } = useI18n();
     const points = range === "all" ? yearPoints(shifts) : range === "year" ? monthPoints(shifts, locale) : nightPoints(shifts, locale);
@@ -303,6 +312,7 @@ function RangeCharts({
                 <BarChart
                     title={range === "all" ? (locale === "ja" ? "年別売上" : "Revenue by Year") : range === "year" ? t("revenueByMonth") : t("revenueByNight")}
                     bars={paymentBars(points)}
+                    copyContext={context}
                     summary={averageRevenueSummary}
                     formatTick={(value) => compactYen(value, locale)}
                     formatFull={(value) => yen(value)}
@@ -319,6 +329,7 @@ function RangeCharts({
                 <BarChart
                     title={range === "all" ? (locale === "ja" ? "年別客数" : "Guests by Year") : range === "year" ? t("guestsByMonth") : t("guestsByNight")}
                     bars={guestBars(points)}
+                    copyContext={context}
                     summary={{
                         label: locale === "ja" ? "平均客数" : "Average Guests",
                         value: String(Math.round(totals.guests / Math.max(totals.nights, 1))),
@@ -333,6 +344,8 @@ function RangeCharts({
                 <DonutChart
                     title={t("payments")}
                     center={yen(totals.revenue)}
+                    copyContext={context}
+                    locale={locale}
                     slices={[
                         { id: "cash", label: t("cash"), value: totals.cash, display: yen(totals.cash), color: CASH },
                         { id: "card", label: t("card"), value: totals.card, display: yen(totals.card), color: CARD },
@@ -344,6 +357,8 @@ function RangeCharts({
                 <DonutChart
                     title={t("tickets")}
                     center={String(totals.paid + totals.cancelled)}
+                    copyContext={context}
+                    locale={locale}
                     slices={[
                         { id: "paid", label: t("paid"), value: totals.paid, display: String(totals.paid), color: "var(--success-400)" },
                         {
@@ -357,22 +372,24 @@ function RangeCharts({
                 />
             </Cell>
             <Cell $span={2}>
-                <BarChart title={t("byWeekday")} bars={weekdayBars} summary={averageRevenueSummary} formatTick={(value) => compactYen(value, locale)} formatFull={(value) => yen(value)} locale={locale} chartHeight={168} />
+                <BarChart title={t("byWeekday")} bars={weekdayBars} copyContext={context} summary={averageRevenueSummary} formatTick={(value) => compactYen(value, locale)} formatFull={(value) => yen(value)} locale={locale} chartHeight={168} />
             </Cell>
             <Cell $span={2}>
-                <StaffChart shifts={shifts} />
+                <StaffChart shifts={shifts} context={context} />
             </Cell>
         </Bento>
     );
 }
 
-function StaffChart({ shifts }: { shifts: ShiftReport[] }) {
+function StaffChart({ shifts, context }: { shifts: ShiftReport[]; context?: string }) {
     const { t, locale } = useI18n();
     const meters = staffMeters(shifts, locale);
     if (meters.length === 0) return <p>{t("noClockIns")}</p>;
     return (
         <HorizontalBarChart
             title={t("people")}
+            copyContext={context}
+            locale={locale}
             bars={meters.map((person) => ({
                 id: person.id,
                 label: person.label,
@@ -537,9 +554,9 @@ export default function Analytics() {
                             </StepButton>
                         </DayNavigator>
                     ) : null}
-                    {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} />}
+                    {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} context={copyPeriod(range, month, year, selected, locale)} />}
                     {range !== "day" && visible.length > 0 ? (
-                        <RangeCharts shifts={visible} totals={totals} range={range} />
+                        <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} />
                     ) : null}
                     {range === "day" && selected ? (
                         <DayBento>
@@ -552,7 +569,7 @@ export default function Analytics() {
                                     {t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}
                                 </p>
                             </Card>
-                            <StaffChart shifts={[selected]} />
+                            <StaffChart shifts={[selected]} context={copyPeriod(range, month, year, selected, locale)} />
                         </DayBento>
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
@@ -646,47 +663,57 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
     );
 }
 
-function Summary({ totals }: { totals: Totals }) {
+function Summary({ totals, context }: { totals: Totals; context: string }) {
     const { t, locale } = useI18n();
     return (
         <Grid>
             <Stat $lead>
+                <CopyPanelButton locale={locale} text={`${context} → ${t("revenue")}: ${yen(totals.revenue)}`} />
                 <label>{t("revenue")}</label>
                 <strong>{yen(totals.revenue)}</strong>
             </Stat>
             <Stat $lead>
+                <CopyPanelButton locale={locale} text={`${context} → ${t("guests")}: ${totals.guests}`} />
                 <label>{t("guests")}</label>
                 <strong>{totals.guests}</strong>
             </Stat>
             <Stat>
+                <CopyPanelButton locale={locale} text={`${context} → ${t("cash")}: ${yen(totals.cash)}`} />
                 <label>{t("cash")}</label>
                 <strong>{yen(totals.cash)}</strong>
             </Stat>
             <Stat>
+                <CopyPanelButton locale={locale} text={`${context} → ${t("card")}: ${yen(totals.card)}`} />
                 <label>{t("card")}</label>
                 <strong>{yen(totals.card)}</strong>
             </Stat>
             <Stat>
+                <CopyPanelButton locale={locale} text={`${context} → ${t("other")}: ${yen(totals.other)}`} />
                 <label>{t("other")}</label>
                 <strong>{yen(totals.other)}</strong>
             </Stat>
             <Stat>
+                <CopyPanelButton locale={locale} text={`${context} → ${t("cover")}: ${yen(totals.cover)}`} />
                 <label>{t("cover")}</label>
                 <strong>{yen(totals.cover)}</strong>
             </Stat>
             <Stat>
+                <CopyPanelButton locale={locale} text={`${context} → ${t("avgBill")}: ${average(totals.revenue, totals.guests)}`} />
                 <label>{t("avgBill")}</label>
                 <strong>{average(totals.revenue, totals.guests)}</strong>
             </Stat>
             <Stat>
+                <CopyPanelButton locale={locale} text={`${context} → ${t("nights")}: ${totals.nights}`} />
                 <label>{t("nights")}</label>
                 <strong>{totals.nights}</strong>
             </Stat>
             <Stat>
+                <CopyPanelButton locale={locale} text={`${context} → ${t("avgPerNight")}: ${average(totals.revenue, totals.nights)}`} />
                 <label>{t("avgPerNight")}</label>
                 <strong>{average(totals.revenue, totals.nights)}</strong>
             </Stat>
             <Stat>
+                <CopyPanelButton locale={locale} text={`${context} → ${t("hours")}: ${formatDuration(locale, totals.seconds)}`} />
                 <label>{t("hours")}</label>
                 <strong>{formatDuration(locale, totals.seconds)}</strong>
             </Stat>
@@ -736,6 +763,9 @@ const Grid = styled.div`
 `;
 
 const Stat = styled.div<{ $lead?: boolean }>`
+    position: relative;
+    > button { position: absolute; top: var(--space-0); right: var(--space-0); }
+    > label { display: block; padding-right: 2em; }
     padding: ${({ $lead }) => ($lead ? "var(--space-2)" : "var(--space-1)")};
     background: var(--neutral-900);
     border-radius: 12px;
