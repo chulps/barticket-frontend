@@ -11,7 +11,9 @@ import { useI18n } from "../i18n";
 
 // the name input saves on every keystroke, so wait until typing pauses
 const RENAME_DELAY_MS = 500;
-const TICKET_REFRESH_MS = 5000;
+const ACTIVE_REFRESH_MS = 10000;
+const IDLE_REFRESH_MS = 60000;
+const ACTIVE_WINDOW_MS = 30000;
 
 function reportError(error: unknown) {
   console.error(error);
@@ -82,10 +84,13 @@ export function useTickets() {
     let cancelled = false;
     let fetching = false;
     let initialErrorReported = false;
+    let lastActivityAt = Date.now();
+    let lastRefreshAt = 0;
 
     const refresh = async () => {
       if (cancelled || fetching || document.visibilityState === "hidden" || pendingWrites.current > 0) return;
       fetching = true;
+      lastRefreshAt = Date.now();
       const revision = localRevision.current;
       try {
         const list = await ticketsApi.list();
@@ -111,16 +116,34 @@ export function useTickets() {
     };
 
     void refresh();
-    const timer = window.setInterval(() => void refresh(), TICKET_REFRESH_MS);
-    const onFocus = () => void refresh();
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") void refresh();
+    // A lightweight timer only checks whether a request is due. It does not
+    // make a network request on every tick.
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      const active = now - lastActivityAt < ACTIVE_WINDOW_MS;
+      const interval = active ? ACTIVE_REFRESH_MS : IDLE_REFRESH_MS;
+      if (now - lastRefreshAt >= interval) void refresh();
+    }, ACTIVE_REFRESH_MS);
+    const markActivity = () => { lastActivityAt = Date.now(); };
+    const onFocus = () => {
+      markActivity();
+      void refresh();
     };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        markActivity();
+        void refresh();
+      }
+    };
+    window.addEventListener("pointerdown", markActivity, { passive: true });
+    window.addEventListener("keydown", markActivity);
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      window.removeEventListener("pointerdown", markActivity);
+      window.removeEventListener("keydown", markActivity);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
@@ -230,11 +253,15 @@ export function useTickets() {
   };
 
   const createTicket = async (): Promise<Ticket | null> => {
+    pendingWrites.current += 1;
+    localRevision.current += 1;
     try {
       return applyServerTicket(await ticketsApi.create());
     } catch (error) {
       reportError(error);
       return null;
+    } finally {
+      pendingWrites.current -= 1;
     }
   };
 
