@@ -1,5 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
+import Icon from "./Icon";
+
+export function CopyPanelButton({ text, locale }: { text: string; locale: "en" | "ja" }) {
+    const [copied, setCopied] = useState(false);
+    const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => () => { if (timeout.current) clearTimeout(timeout.current); }, []);
+    return <CopyControl type="button" title={locale === "ja" ? "コピー" : "Copy panel"} aria-label={locale === "ja" ? "パネルをコピー" : "Copy panel"} onClick={async () => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            if (timeout.current) clearTimeout(timeout.current);
+            timeout.current = setTimeout(() => setCopied(false), 1800);
+        } catch { setCopied(false); }
+    }}><Icon name={copied ? "Check" : "Copy"} /><span className="sr-only">{copied ? (locale === "ja" ? "コピーしました" : "Copied") : ""}</span></CopyControl>;
+}
+
+const CopyControl = styled.button`
+    flex: none;
+    padding: var(--space-1);
+    background: transparent;
+    color: var(--neutral-300);
+    border: none;
+    cursor: pointer;
+    &:hover { background: transparent; color: white; }
+`;
+
 
 export type BarSegment = {
     value: number;
@@ -38,6 +64,7 @@ export function BarChart({
     locale,
     legend,
     summary,
+    copyContext,
     chartHeight = 200,
 }: {
     title: string;
@@ -47,6 +74,7 @@ export function BarChart({
     locale: "en" | "ja";
     legend?: { label: string; color: string }[];
     summary?: { label: string; value: string };
+    copyContext?: string;
     chartHeight?: number;
 }) {
     const { ref, width: container } = useWidth();
@@ -100,6 +128,7 @@ export function BarChart({
                         <h3>{summary.value}</h3>
                     </ChartSummary>
                 ) : null}
+                {copyContext ? <CopyPanelButton locale={locale} text={`${copyContext} → ${title}: ${bars.map((bar) => `${bar.detailLabel ?? bar.label}: ${formatFull(bar.segments.reduce((sum, segment) => sum + segment.value, 0))}`).join("; ")}`} /> : null}
             </ChartHeading>
             <Scroll ref={ref}>
                 <svg viewBox={`0 0 ${width} ${height}`} role="img" width={width} height={height}>
@@ -195,10 +224,14 @@ export function DonutChart({
     title,
     slices,
     center,
+    copyContext,
+    locale = "en",
 }: {
     title: string;
     slices: DonutSlice[];
     center: string;
+    copyContext?: string;
+    locale?: "en" | "ja";
 }) {
     const total = slices.reduce((sum, slice) => sum + slice.value, 0);
     const radius = 42;
@@ -218,7 +251,7 @@ export function DonutChart({
 
     return (
         <Card aria-label={title} $compact>
-            <h2>{title}</h2>
+            <ChartHeading><h2>{title}</h2>{copyContext ? <CopyPanelButton locale={locale} text={`${copyContext} → ${title}: ${center}; ${slices.map(slice => `${slice.label}: ${slice.display}`).join("; ")}`} /> : null}</ChartHeading>
             <DonutLayout>
                 <DonutRing viewBox="0 0 120 120" role="img">
                     <circle cx="60" cy="60" r={radius} fill="none" stroke="var(--neutral-800)" strokeWidth="14" />
@@ -255,7 +288,7 @@ export function DonutChart({
     );
 }
 
-export function HorizontalBarChart({ title, bars }: { title: string; bars: NamedBar[] }) {
+export function HorizontalBarChart({ title, bars, copyContext, locale = "en" }: { title: string; bars: NamedBar[]; copyContext?: string; locale?: "en" | "ja" }) {
     const { ref, width: container } = useWidth();
     const max = niceMax(Math.max(...bars.map((bar) => bar.value), 0));
     const width = Math.max(container, 320);
@@ -266,7 +299,7 @@ export function HorizontalBarChart({ title, bars }: { title: string; bars: Named
 
     return (
         <Card aria-label={title}>
-            <h2>{title}</h2>
+            <ChartHeading><h2>{title}</h2>{copyContext ? <CopyPanelButton locale={locale} text={`${copyContext} → ${title}: ${bars.map(bar => `${bar.label}: ${bar.display}`).join("; ")}`} /> : null}</ChartHeading>
             <Scroll ref={ref}>
                 <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img">
                     <line x1={labelWidth} x2={labelWidth} y1={8} y2={height - 8} stroke="var(--neutral-600)" />
