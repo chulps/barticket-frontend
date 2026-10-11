@@ -108,14 +108,14 @@ export default function Header() {
       <Nav ref={navRef} $isOpen={isOpen}>
         <NavLink
           onClick={() => setIsOpen(false)}
-          to="/">
+          to="/tickets">
           {({ isActive }) => (
             <>
               <Icon
-                name="House"
+                name="ListDashes"
                 weight={isActive ? "fill" : "regular"}
               />
-              {t("dashboard")}
+              {t("tickets")}
             </>
           )}
         </NavLink>

@@ -5,6 +5,7 @@ import {
   BrowserRouter,
   Routes,
   Route,
+  Navigate,
 } from "react-router-dom";
 
 // import components
@@ -82,7 +83,8 @@ export default function App() {
         <Header />
 
         <Routes>
-          <Route path="/" element={<Dashboard 
+          <Route path="/" element={<Navigate to="/tickets" replace />} />
+          <Route path="/tickets" element={<Dashboard 
             menu={menu}
             loadingMenu={loadingMenu} />} />
 
