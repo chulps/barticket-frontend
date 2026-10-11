@@ -327,6 +327,15 @@ const ModeSwitch = styled.div`
     display: flex;
     gap: var(--space-1);
     padding: var(--space-1) var(--space-2);
-    button { flex: 1; padding: var(--space-1); background: transparent; border: 1px solid var(--neutral-700); border-radius: 6px; }
-    button.selected { background: var(--royal-500); color: white; }
+    button {
+        flex: 1;
+        min-height: 44px;
+        padding: var(--space-1);
+        background: transparent;
+        border: 1px solid var(--neutral-700);
+        border-radius: 6px;
+        transform: none;
+    }
+    button:hover, button:active { transform: none; filter: none; background: var(--neutral-800); color: white; }
+    button.selected, button.selected:hover { background: var(--royal-500); color: white; }
 `;

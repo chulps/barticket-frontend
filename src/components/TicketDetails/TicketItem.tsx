@@ -185,6 +185,7 @@ const Name = styled.p`
   margin: 0;
   font-weight: normal;
   line-height: 1.3;
+  overflow-wrap: anywhere;
 `;
 
 const Price = styled.small`
