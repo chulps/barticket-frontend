@@ -473,13 +473,7 @@ const ToggleTrack = styled.span<{ $japanese: boolean }>`
     border-radius: inherit;
     position: absolute;
     inset: 0;
-    background: repeating-linear-gradient(
-      to bottom,
-      #B31942 0px,
-      #B31942 4px,
-      #FFFFFF 4px,
-      #FFFFFF 8px
-    );
+    background: repeating-linear-gradient(rgb(179, 25, 66) -1px, rgb(179, 25, 66) 4px, rgb(255, 255, 255) 4px, rgb(255, 255, 255) 8px);
     opacity: ${({ $japanese }) => $japanese ? 0 : 1};
     transition: opacity 300ms ease;
   }
