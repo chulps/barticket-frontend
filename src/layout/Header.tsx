@@ -447,6 +447,10 @@ const LanguageLabel = styled.span`
   display: inline-flex;
   align-items: center;
   gap: var(--space-0);
+
+  @media (min-width: 769px) {
+    gap: var(--space-1);
+  }
 `;
 
 const LanguageText = styled.span`
