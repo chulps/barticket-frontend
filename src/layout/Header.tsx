@@ -105,7 +105,8 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         {alertCount > 0 ? <MenuBadge>{alertCount}</MenuBadge> : null}
       </Hamburger> : null}
 
-      {authenticated ? <Nav ref={navRef} $isOpen={isOpen}>
+      <Nav ref={navRef} $isOpen={isOpen} $authenticated={authenticated}>
+        {authenticated ? <NavTabs>
         <NavLink
           onClick={() => setIsOpen(false)}
           to="/tickets">
@@ -181,7 +182,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           )}
         </NavLink>
 
-      </Nav> : null}
+        </NavTabs> : null}
 
       <LanguageToggle
         type="button"
@@ -197,6 +198,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           <ToggleThumb />
         </ToggleTrack>
       </LanguageToggle>
+      </Nav>
     </Navbar>
   );
 }
@@ -260,33 +262,45 @@ const MenuBadge = styled.span`
   justify-content: center;
 `;
 
-const Nav = styled.nav<{ $isOpen: boolean }>`
+const Nav = styled.nav<{ $isOpen: boolean; $authenticated: boolean }>`
   display: flex;
-  gap: 0;
+  gap: var(--space-1);
+  align-items: center;
 
   @media (max-width: 768px) {
-    position: absolute;
+    position: ${({ $authenticated }) => $authenticated ? "absolute" : "static"};
     top: var(--space-4);
     left: 0;
 
-    background: var(--neutral-900);
-    border: 1px solid var(--neutral-700);
+    background: ${({ $authenticated }) => $authenticated ? "var(--neutral-900)" : "transparent"};
+    border: ${({ $authenticated }) => $authenticated ? "1px solid var(--neutral-700)" : "none"};
     border-radius: var(--space-2);
 
+    align-items: stretch;
     flex-direction: column;
     overflow: hidden;
     transform-origin: top;
-    transform: ${({ $isOpen }) =>
-    $isOpen ? "scaleY(1)" : "scaleY(0)"};
+    transform: ${({ $isOpen, $authenticated }) =>
+    !$authenticated || $isOpen ? "scaleY(1)" : "scaleY(0)"};
 
-    opacity: ${({ $isOpen }) => ($isOpen ? 1 : 0)};
+    opacity: ${({ $isOpen, $authenticated }) => (!$authenticated || $isOpen ? 1 : 0)};
 
     transition:
       transform 0.3s ease,
       opacity 0.2s ease;
 
-    pointer-events: ${({ $isOpen }) =>
-    $isOpen ? "auto" : "none"};
+    pointer-events: ${({ $isOpen, $authenticated }) =>
+    !$authenticated || $isOpen ? "auto" : "none"};
+  }
+`;
+
+const NavTabs = styled.div`
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
   }
 `;
 
