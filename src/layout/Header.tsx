@@ -221,7 +221,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           }
         }}
       >
-        <LanguageLabel><Icon name="Translate" size="1.25em" /> <span>{locale === "ja" ? "言語" : "Language"}</span></LanguageLabel>
+        <LanguageLabel><Icon name="Translate" size="1.25em" /> <LanguageText>{locale === "ja" ? "言語" : "Language"}</LanguageText></LanguageLabel>
         <ToggleTrack $japanese={locale === "ja"} aria-hidden="true">
           <ToggleFlag>{locale === "ja" ? "🇯🇵" : "🇺🇸"}</ToggleFlag>
           <ToggleThumb />
@@ -450,6 +450,12 @@ const LanguageLabel = styled.span`
   display: inline-flex;
   align-items: center;
   gap: var(--space-0);
+`;
+
+const LanguageText = styled.span`
+  @media (min-width: 769px) {
+    display: none;
+  }
 `;
 
 const ToggleTrack = styled.span<{ $japanese: boolean }>`
