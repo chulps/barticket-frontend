@@ -424,7 +424,7 @@ const LanguageToggle = styled.div`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
+  gap: var(--space-0);
   flex-shrink: 0;
   background: none;
   border: none;
@@ -436,6 +436,7 @@ const LanguageToggle = styled.div`
   &:focus-visible { outline: 2px solid white; outline-offset: -2px; }
 
   @media (max-width: 768px) {
+    gap: var(--space-2);
     width: 100%;
     box-sizing: border-box;
     justify-content: space-between;
@@ -447,10 +448,6 @@ const LanguageLabel = styled.span`
   display: inline-flex;
   align-items: center;
   gap: var(--space-0);
-
-  @media (min-width: 769px) {
-    gap: var(--space-1);
-  }
 `;
 
 const LanguageText = styled.span`
