@@ -1,0 +1,26 @@
+name: Frontend checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Adaptive refresh policy tests
+        run: node --test tests/ticketRefreshPolicy.test.mjs
+      - name: TypeScript and production build
+        run: npm run build
+      - name: ESLint (ticket sync files)
+        run: npx eslint src/hooks/useTickets.ts src/hooks/ticketRefreshPolicy.ts

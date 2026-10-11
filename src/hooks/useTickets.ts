@@ -8,6 +8,7 @@ import type { PaymentType, Ticket } from "../types/Ticket";
 // import api
 import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
 import { useI18n } from "../i18n";
+import { ACTIVE_REFRESH_MS, isTicketRefreshDue } from "./ticketRefreshPolicy";
 
 // the name input saves on every keystroke, so wait until typing pauses
 const RENAME_DELAY_MS = 500;
@@ -28,8 +29,12 @@ export function useTickets() {
   // names typed but not saved yet; server responses must not overwrite them
   const pendingNames = useRef(new Map<number, string>());
   const renameTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  // Protect local writes and in-flight edits from stale background snapshots.
+  const pendingWrites = useRef(0);
+  const localRevision = useRef(0);
 
   const commit = (next: Ticket[]) => {
+    localRevision.current += 1;
     ticketsRef.current = next;
     setTickets(next);
   };
@@ -52,6 +57,8 @@ export function useTickets() {
     ticketId: number,
     request: (current: Ticket | undefined) => Promise<ApiTicket> | null,
   ): Promise<Ticket | null> => {
+    pendingWrites.current += 1;
+    localRevision.current += 1;
     const previous = queues.current.get(ticketId) ?? Promise.resolve();
     const next = previous.then(async () => {
       try {
@@ -62,20 +69,82 @@ export function useTickets() {
         return null;
       }
     });
-    queues.current.set(ticketId, next);
-    return next;
+    const settled = next.finally(() => {
+      pendingWrites.current -= 1;
+    });
+    queues.current.set(ticketId, settled);
+    return settled;
   };
 
-  // Load tickets from the backend
+  // Refresh from the existing REST endpoint so other devices' changes appear
+  // without a backend subscription or WebSocket connection.
   useEffect(() => {
-    ticketsApi
-      .list()
-      .then((list) => {
+    let cancelled = false;
+    let fetching = false;
+    let initialErrorReported = false;
+    let lastActivityAt = Date.now();
+    let lastRefreshAt = 0;
+
+    const refresh = async () => {
+      if (cancelled || fetching || document.visibilityState === "hidden" || pendingWrites.current > 0) return;
+      fetching = true;
+      lastRefreshAt = Date.now();
+      const revision = localRevision.current;
+      try {
+        const list = await ticketsApi.list();
+        if (cancelled || pendingWrites.current > 0 || revision !== localRevision.current) return;
         const loaded = list.map(toTicket).sort((a, b) => b.id - a.id);
-        ticketsRef.current = loaded;
-        setTickets(loaded);
-      })
-      .catch(reportError);
+        // Never overwrite a name being edited or awaiting its debounced save.
+        const next = loaded.map((ticket) => {
+          const pendingName = pendingNames.current.get(ticket.id);
+          return pendingName === undefined ? ticket : { ...ticket, name: pendingName };
+        });
+        ticketsRef.current = next;
+        setTickets(next);
+      } catch (error) {
+        if (!cancelled) {
+          if (!initialErrorReported) {
+            initialErrorReported = true;
+            reportError(error);
+          } else console.warn("Unable to refresh tickets", error);
+        }
+      } finally {
+        fetching = false;
+      }
+    };
+
+    void refresh();
+    // A lightweight timer only checks whether a request is due. It does not
+    // make a network request on every tick.
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      if (isTicketRefreshDue(now, lastActivityAt, lastRefreshAt, document.visibilityState === "visible")) {
+        void refresh();
+      }
+    }, ACTIVE_REFRESH_MS);
+    const markActivity = () => { lastActivityAt = Date.now(); };
+    const onFocus = () => {
+      markActivity();
+      void refresh();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        markActivity();
+        void refresh();
+      }
+    };
+    window.addEventListener("pointerdown", markActivity, { passive: true });
+    window.addEventListener("keydown", markActivity);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("pointerdown", markActivity);
+      window.removeEventListener("keydown", markActivity);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   // Ticket actions
@@ -182,11 +251,15 @@ export function useTickets() {
   };
 
   const createTicket = async (): Promise<Ticket | null> => {
+    pendingWrites.current += 1;
+    localRevision.current += 1;
     try {
       return applyServerTicket(await ticketsApi.create());
     } catch (error) {
       reportError(error);
       return null;
+    } finally {
+      pendingWrites.current -= 1;
     }
   };
 
