@@ -45,6 +45,8 @@ type TicketDetailsProps = {
         unitPrice: number
     ) => void;
 
+    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
+
     onCancelTicket: (ticketId: number) => void;
 
     activeTab: "open" | "paid" | "cancelled";
@@ -73,6 +75,7 @@ export default function TicketDetails({
     onUpdateQuantity,
     onUpdatePrice,
     onAddItem,
+    onAddStaffDrink,
     onRemoveItem,
     onCancelTicket,
     activeTab,
@@ -126,6 +129,7 @@ export default function TicketDetails({
                 onUpdatePrice={onUpdatePrice}
                 onRemoveItem={onRemoveItem}
                 onAddItem={onAddItem}
+                onAddStaffDrink={onAddStaffDrink}
             />
 
             <TicketFooter
