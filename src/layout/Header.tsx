@@ -15,6 +15,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
   const navRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [isManager, setIsManager] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
   const [clockedIn, setClockedIn] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
   const { t, locale, setLocale } = useI18n();
@@ -26,6 +27,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       if (!getToken()) {
         if (!cancelled) {
           setIsManager(false);
+          setUserName(null);
           setClockedIn(false);
         }
         return;
@@ -35,12 +37,14 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         const shift = await accountApi.currentShift();
         if (cancelled) return;
         setIsManager(me.role === "manager");
+        setUserName(me.name.trim() || null);
         setClockedIn(
           Boolean(shift?.punches.some((punch) => punch.user_id === me.id && punch.clock_out === null)),
         );
       } catch {
         if (!cancelled) {
           setIsManager(false);
+          setUserName(null);
           setClockedIn(false);
         }
       }
@@ -177,7 +181,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
                 name="UserCircle"
                 weight={isActive ? "fill" : "regular"}
               />
-              {t("profile")}
+              {userName ?? t("profile")}
             </>
           )}
         </NavLink>
