@@ -390,8 +390,11 @@ const MoreButton = styled.button`
   background: transparent;
   color: var(--neutral-300);
   border: none;
-  padding: var(--space-2);
+  padding: var(--space-1);
   cursor: pointer;
+  &&:hover {
+    background: transparent;
+  }
   &:focus-visible { outline: 2px solid white; }
 `;
 
