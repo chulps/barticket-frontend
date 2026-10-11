@@ -561,6 +561,7 @@ export default function Analytics() {
                     {range === "day" && selected ? (
                         <DayBento>
                             <Card>
+                                <CopyPanelButton locale={locale} text={`${formatNight(selected.business_date, locale)} → ${t("manager")}: ${selected.opened_by}; ${t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}`} />
                                 <h2>{formatNight(selected.business_date, locale)}</h2>
                                 <p>
                                     {t("manager")} {selected.opened_by}
@@ -592,6 +593,7 @@ function Stockouts({ shifts }: { shifts: ShiftReport[] }) {
     if (rows.length === 0) return null;
     return (
         <Card>
+            <CopyPanelButton locale={locale} text={`${t("ranOut")}: ${rows.map(row => `${formatNight(row.night, locale)} · ${t("stockoutLine", { name: row.by, item: menuLabel(locale, row.item) })}`).join("; ")}`} />
             <AlertTitle>{t("ranOut")}</AlertTitle>
             {rows.map((row) => (
                 <AlertLine key={`${row.shiftId}-${row.item}-${row.at}`}>
@@ -921,6 +923,9 @@ const AlertLine = styled.p`
 `;
 
 const Card = styled.section`
+    position: relative;
+    > button:first-child { position: absolute; top: var(--space-0); right: var(--space-0); }
+    > h2, > p:first-of-type { padding-right: var(--space-3); }
     padding: var(--space-1);
     background: var(--neutral-900);
     border-radius: 12px;
