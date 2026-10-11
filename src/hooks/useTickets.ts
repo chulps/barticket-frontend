@@ -81,7 +81,7 @@ export function useTickets() {
   useEffect(() => {
     let cancelled = false;
     let fetching = false;
-    let loadedOnce = false;
+    let initialErrorReported = false;
 
     const refresh = async () => {
       if (cancelled || fetching || document.visibilityState === "hidden" || pendingWrites.current > 0) return;
@@ -98,11 +98,12 @@ export function useTickets() {
         });
         ticketsRef.current = next;
         setTickets(next);
-        loadedOnce = true;
       } catch (error) {
         if (!cancelled) {
-          if (!loadedOnce) reportError(error);
-          else console.warn("Unable to refresh tickets", error);
+          if (!initialErrorReported) {
+            initialErrorReported = true;
+            reportError(error);
+          } else console.warn("Unable to refresh tickets", error);
         }
       } finally {
         fetching = false;
