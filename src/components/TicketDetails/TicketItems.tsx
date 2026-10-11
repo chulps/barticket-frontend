@@ -112,7 +112,7 @@ export default function TicketItems({
                     <Icon name="Plus" />
                     <AddItemText>{t("addItem")}</AddItemText>
                 </AddItemButton>
-                <button type="button" disabled={!isEditable || !menu} onClick={() => {
+                <button className="staff-drink-action" type="button" disabled={!isEditable || !menu} onClick={() => {
                     if (!menu) return;
                     openModal({ title: locale === "ja" ? "スタッフドリンク" : "Staff Drink", maxWidth: "var(--space-7)", content: <AddStaffDrink menu={menu} onAdd={(staffId, menuItemId, priceKey, quantity) => {
                         onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity);
@@ -172,6 +172,12 @@ const Items = styled.section`
 `;
 
 const ItemsHeader = styled.div`
+    .staff-drink-action {
+        grid-column: 1 / -1;
+        justify-self: end;
+        cursor: pointer;
+        padding: var(--space-1);
+    }
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(4.5rem, max-content) auto;
     align-items: center;
