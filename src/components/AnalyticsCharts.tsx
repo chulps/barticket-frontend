@@ -10,6 +10,7 @@ export type TimeBar = {
     id: string;
     label: string;
     title: string;
+    detailLabel?: string;
     segments: BarSegment[];
 };
 
@@ -33,16 +34,22 @@ export function BarChart({
     title,
     bars,
     formatTick,
+    formatFull,
+    locale,
     legend,
     chartHeight = 200,
 }: {
     title: string;
     bars: TimeBar[];
     formatTick: (value: number) => string;
+    formatFull: (value: number) => string;
+    locale: "en" | "ja";
     legend?: { label: string; color: string }[];
     chartHeight?: number;
 }) {
     const { ref, width: container } = useWidth();
+    const [selected, setSelected] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
     const max = niceMax(Math.max(...bars.map((bar) => bar.segments.reduce((sum, segment) => sum + segment.value, 0)), 0));
     const ticks = axisTicks(max);
     const available = container > 0 ? container - AXIS : 480;
@@ -50,6 +57,14 @@ export function BarChart({
     const width = plotWidth + AXIS;
     const height = chartHeight;
     const innerHeight = height - PAD_TOP - PAD_BOTTOM;
+    const active = bars.find((bar) => bar.id === selected);
+    const activeTotal = active?.segments.reduce((sum, segment) => sum + segment.value, 0) ?? 0;
+    const activeLabel = active?.detailLabel ?? active?.label ?? "";
+    const show = (id: string) => { setSelected(id); setCopied(false); };
+    const copy = async (text: string) => {
+        try { await navigator.clipboard.writeText(text); setCopied(true); }
+        catch { setCopied(false); }
+    };
 
     return (
         <Card aria-label={title}>
@@ -75,7 +90,7 @@ export function BarChart({
                         const total = bar.segments.reduce((sum, segment) => sum + segment.value, 0);
                         const heights = bar.segments.map((segment) => (max === 0 ? 0 : (segment.value / max) * innerHeight));
                         return (
-                            <g key={bar.id}>
+                            <g key={bar.id} tabIndex={0} role="button" aria-label={`${bar.detailLabel ?? bar.label}: ${formatFull(total)}`} onMouseEnter={() => show(bar.id)} onFocus={() => show(bar.id)} onClick={() => show(bar.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); show(bar.id); } }} style={{ cursor: "pointer", outlineOffset: 2 }}>
                                 <title>{bar.title}</title>
                                 {bar.segments.map((segment, segmentIndex) => {
                                     const barHeight = heights[segmentIndex];
@@ -118,6 +133,18 @@ export function BarChart({
                     })}
                 </svg>
             </Scroll>
+            {active ? (
+                <BarDetails role="group" aria-label={locale === "ja" ? "棒グラフの詳細" : "Bar details"}>
+                    <div><strong>{activeLabel}</strong><strong>{formatFull(activeTotal)}</strong></div>
+                    <div>
+                        <button type="button" onClick={() => void copy(activeLabel)}>{locale === "ja" ? "日付をコピー" : "Copy date"}</button>
+                        <button type="button" onClick={() => void copy(formatFull(activeTotal))}>{locale === "ja" ? "金額・人数をコピー" : "Copy value"}</button>
+                        <button type="button" onClick={() => void copy(`${activeLabel}\t${formatFull(activeTotal)}`)}>{locale === "ja" ? "両方コピー" : "Copy both"}</button>
+                        <button type="button" onClick={() => setSelected(null)} aria-label={locale === "ja" ? "閉じる" : "Close"}>×</button>
+                        {copied ? <span role="status">{locale === "ja" ? "コピーしました" : "Copied"}</span> : null}
+                    </div>
+                </BarDetails>
+            ) : null}
             {legend ? (
                 <InlineLegend>
                     {legend.map((item) => (
@@ -349,4 +376,29 @@ const Amount = styled.span`
     font-family: var(--font-family-data);
     color: var(--neutral-300);
     font-size: var(--font-size-small);
+`;
+
+const BarDetails = styled.div`
+    padding: var(--space-1);
+    background: var(--neutral-800);
+    border: 1px solid var(--neutral-700);
+    border-radius: var(--space-1);
+    color: var(--neutral-100);
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+
+    > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+    > div:first-child { justify-content: space-between; }
+    button {
+        padding: var(--space-1);
+        background: transparent;
+        color: inherit;
+        border: 1px solid var(--neutral-600);
+        border-radius: var(--space-1);
+        cursor: pointer;
+        font-size: inherit;
+    }
+    button:hover { background: var(--neutral-700); }
 `;
