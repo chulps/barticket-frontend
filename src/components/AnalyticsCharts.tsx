@@ -6,15 +6,50 @@ export function CopyPanelButton({ text, locale }: { text: string; locale: "en" |
     const [copied, setCopied] = useState(false);
     const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => () => { if (timeout.current) clearTimeout(timeout.current); }, []);
-    return <CopyControl type="button" title={locale === "ja" ? "コピー" : "Copy panel"} aria-label={locale === "ja" ? "パネルをコピー" : "Copy panel"} onClick={async () => {
-        try {
-            await navigator.clipboard.writeText(text);
-            setCopied(true);
-            if (timeout.current) clearTimeout(timeout.current);
-            timeout.current = setTimeout(() => setCopied(false), 1800);
-        } catch { setCopied(false); }
-    }}><Icon name={copied ? "Check" : "Copy"} /><span className="sr-only">{copied ? (locale === "ja" ? "コピーしました" : "Copied") : ""}</span></CopyControl>;
+    return (
+        <CopyWrapper>
+            <CopyControl
+                type="button"
+                title={locale === "ja" ? "コピー" : "Copy panel"}
+                aria-label={locale === "ja" ? "パネルをコピー" : "Copy panel"}
+                onClick={async () => {
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        setCopied(true);
+                        if (timeout.current) clearTimeout(timeout.current);
+                        timeout.current = setTimeout(() => setCopied(false), 1800);
+                    } catch { setCopied(false); }
+                }}
+            >
+                <Icon name={copied ? "Check" : "Copy"} />
+            </CopyControl>
+            {copied ? (
+                <CopyTooltip role="status">{locale === "ja" ? "コピーしました！" : "Copied!"}</CopyTooltip>
+            ) : null}
+        </CopyWrapper>
+    );
 }
+
+const CopyWrapper = styled.span`
+    display: inline-flex;
+    position: relative;
+    align-items: center;
+    flex: none;
+`;
+
+const CopyTooltip = styled.span`
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 4px);
+    z-index: 20;
+    white-space: nowrap;
+    border-radius: var(--space-1);
+    padding: var(--space-0) var(--space-1);
+    background: var(--neutral-700);
+    color: white;
+    font-size: var(--font-size-small);
+    pointer-events: none;
+`;
 
 const CopyControl = styled.button`
     flex: none;
@@ -23,7 +58,9 @@ const CopyControl = styled.button`
     color: var(--neutral-300);
     border: none;
     cursor: pointer;
-    &:hover { background: transparent; color: white; }
+    transition: color 0.15s ease, background 0.15s ease;
+    &:hover { background: var(--neutral-700); color: white; }
+    &:focus-visible { outline: 2px solid white; outline-offset: 2px; }
 `;
 
 
