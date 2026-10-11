@@ -162,13 +162,14 @@ const Items = styled.section`
 
 const ItemsHeader = styled.div`
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(4.5rem, max-content) auto;
+    grid-template-columns: minmax(0, 1fr) 3rem 4.5rem 2.75rem;
     align-items: center;
     gap: var(--space-1);
     padding: var(--space-1) 0;
     border-bottom: 1px solid var(--neutral-700);
 
     @media (min-width: 768px) {
+        grid-template-columns: minmax(0, 1fr) 5.5rem 5rem 7.5rem;
         padding-inline: var(--space-1);
         gap: var(--space-2);
     }
