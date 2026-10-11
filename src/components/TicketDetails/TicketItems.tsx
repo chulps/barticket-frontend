@@ -10,6 +10,7 @@ import styled from "styled-components";
 import TicketDetailItem from "./TicketItem";
 import Icon from "../Icon";
 import AddItemPicker from "../AddItemPicker";
+import AddStaffDrink from "../AddStaffDrink";
 
 // Types
 import type { MenuData, MenuItem, Prices } from "../../types/Menu";
@@ -44,6 +45,8 @@ type TicketItemsProps = {
         itemId: number
     ) => void;
 
+    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
+
     onAddItem: (
         ticketId: number,
         menuItem: MenuItem,
@@ -62,6 +65,7 @@ export default function TicketItems({
     onUpdatePrice,
     onRemoveItem,
     onAddItem,
+    onAddStaffDrink,
 }: TicketItemsProps) {
     const { openModal, closeModal } = useModal();
     const { t, locale } = useI18n();
@@ -108,6 +112,13 @@ export default function TicketItems({
                     <Icon name="Plus" />
                     <AddItemText>{t("addItem")}</AddItemText>
                 </AddItemButton>
+                <button type="button" disabled={!isEditable || !menu} onClick={() => {
+                    if (!menu) return;
+                    openModal({ title: locale === "ja" ? "スタッフドリンク" : "Staff Drink", maxWidth: "var(--space-7)", content: <AddStaffDrink menu={menu} onAdd={(staffId, menuItemId, priceKey, quantity) => {
+                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity);
+                        closeModal();
+                    }} /> });
+                }}>{locale === "ja" ? "スタッフドリンク +" : "Staff Drink +"}</button>
             </ItemsHeader>
 
             <ItemList>
@@ -116,7 +127,7 @@ export default function TicketItems({
                         key={item.id}
                         id={item.id}
                         name={
-                            item.type === "cover"
+                            item.staff_drink ? item.name : item.type === "cover"
                                 ? t("coverCharge")
                                 : menuLabel(
                                     locale,
