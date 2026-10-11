@@ -497,28 +497,16 @@ const ToggleThumb = styled.span<{ $japanese: boolean }>`
   border-radius: 50%;
   background: ${({ $japanese }) => $japanese ? "#BC002D" : "#0A3161"};
   box-shadow: 0 1px 5px rgb(0 0 0 / 25%);
+  border: 2px solid white;
+  box-sizing: border-box;
   transform: translateX(${({ $japanese }) => $japanese ? "32px" : "0"});
   transition:
     transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
     background-color 300ms ease;
   pointer-events: none;
 
-  /* White stars, approximated with a small scattered dot field. */
-  &::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background-image: radial-gradient(circle, white 1px, transparent 1.3px);
-    background-size: 7px 7px;
-    background-position: 2px 2px;
-    opacity: ${({ $japanese }) => $japanese ? 0 : 1};
-    transition: opacity 250ms ease;
-  }
-
   @media (prefers-reduced-motion: reduce) {
     transition: none;
-    &::after { transition: none; }
   }
 `;
 
