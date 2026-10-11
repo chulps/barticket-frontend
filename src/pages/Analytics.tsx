@@ -185,6 +185,7 @@ function paymentBars(points: Point[]): TimeBar[] {
         id: point.id,
         label: point.label,
         title: point.title,
+        detailLabel: point.label,
         segments: [
             { value: point.cash, color: CASH },
             { value: point.card, color: CARD },
@@ -198,6 +199,7 @@ function guestBars(points: Point[]): TimeBar[] {
         id: point.id,
         label: point.label,
         title: `${point.label} · ${point.guests}`,
+        detailLabel: point.label,
         segments: [{ value: point.guests, color: "var(--royal-200)" }],
     }));
 }
@@ -209,6 +211,7 @@ function compactYen(amount: number, locale: Locale) {
         const text = Number.isInteger(man) ? String(man) : man.toFixed(1);
         return `¥${text}万`;
     }
+    if (amount >= 1000000) return `¥${Number((amount / 1000000).toFixed(2))}M`;
     if (amount >= 1000) return `¥${Math.round(amount / 1000)}k`;
     return yen(amount);
 }
@@ -261,6 +264,7 @@ function RangeCharts({
             id: label,
             label: name,
             title: `${t(label)} · ${yen(row.revenue)} · ${row.guests}`,
+            detailLabel: t(label),
             segments: [{ value: row.revenue, color: "var(--royal-400)" }],
         };
     });
@@ -272,6 +276,8 @@ function RangeCharts({
                     title={range === "all" || range === "year" ? t("revenueByMonth") : t("revenueByNight")}
                     bars={paymentBars(points)}
                     formatTick={(value) => compactYen(value, locale)}
+                    formatFull={(value) => yen(value)}
+                    locale={locale}
                     chartHeight={220}
                     legend={[
                         { label: t("cash"), color: CASH },
@@ -285,6 +291,8 @@ function RangeCharts({
                     title={range === "all" || range === "year" ? t("guestsByMonth") : t("guestsByNight")}
                     bars={guestBars(points)}
                     formatTick={(value) => String(Math.round(value))}
+                    formatFull={(value) => value.toLocaleString(localeTag(locale))}
+                    locale={locale}
                     chartHeight={168}
                 />
             </Cell>
@@ -316,7 +324,7 @@ function RangeCharts({
                 />
             </Cell>
             <Cell $span={2}>
-                <BarChart title={t("byWeekday")} bars={weekdayBars} formatTick={(value) => compactYen(value, locale)} chartHeight={168} />
+                <BarChart title={t("byWeekday")} bars={weekdayBars} formatTick={(value) => compactYen(value, locale)} formatFull={(value) => yen(value)} locale={locale} chartHeight={168} />
             </Cell>
             <Cell $span={2}>
                 <StaffChart shifts={shifts} />
