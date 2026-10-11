@@ -52,6 +52,7 @@ const CopyTooltip = styled.span`
 `;
 
 const CopyControl = styled.button`
+    > svg { pointer-events: none; }
     flex: none;
     padding: var(--space-1);
     background: transparent;
