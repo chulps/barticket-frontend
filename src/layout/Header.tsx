@@ -202,7 +202,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           }
         }}
       >
-        <Icon name="Translate" size="1.25em" />
+        <LanguageLabel><Icon name="Translate" size="1.25em" /> <span>{locale === "ja" ? "言語" : "Language"}</span></LanguageLabel>
         <ToggleTrack $japanese={locale === "ja"} aria-hidden="true">
           <ToggleFlag>{locale === "ja" ? "🇯🇵" : "🇺🇸"}</ToggleFlag>
           <ToggleThumb />
@@ -318,7 +318,7 @@ const LanguageToggle = styled.div`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5em;
+  gap: var(--space-2);
   flex-shrink: 0;
   background: none;
   border: none;
@@ -328,6 +328,19 @@ const LanguageToggle = styled.div`
 
   &:hover { color: white; }
   &:focus-visible { outline: 2px solid white; outline-offset: -2px; }
+
+  @media (max-width: 768px) {
+    width: 100%;
+    box-sizing: border-box;
+    justify-content: space-between;
+    border-top: 1px solid var(--neutral-700);
+  }
+`;
+
+const LanguageLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0);
 `;
 
 const ToggleTrack = styled.span<{ $japanese: boolean }>`
@@ -409,8 +422,5 @@ const NavLink = styled(RouterNavLink)`
       padding-top: var(--space-2);
     }
 
-    &:last-of-type {
-      padding-bottom: var(--space-2);
-    }
   }
 `;
