@@ -670,53 +670,103 @@ function Summary({ totals, context }: { totals: Totals; context: string }) {
     return (
         <Grid>
             <Stat $lead>
-                <CopyPanelButton locale={locale} text={`${context} → ${t("revenue")}: ${yen(totals.revenue)}`} />
-                <label>{t("revenue")}</label>
+                <StatHeader>
+
+                    <label>{t("revenue")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("revenue")}: ${yen(totals.revenue)}`} />
+
+                </StatHeader>
                 <strong>{yen(totals.revenue)}</strong>
             </Stat>
             <Stat $lead>
-                <CopyPanelButton locale={locale} text={`${context} → ${t("guests")}: ${totals.guests}`} />
-                <label>{t("guests")}</label>
+                <StatHeader>
+
+                    <label>{t("guests")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("guests")}: ${totals.guests}`} />
+
+                </StatHeader>
                 <strong>{totals.guests}</strong>
             </Stat>
             <Stat>
-                <CopyPanelButton locale={locale} text={`${context} → ${t("cash")}: ${yen(totals.cash)}`} />
-                <label>{t("cash")}</label>
+                <StatHeader>
+
+                    <label>{t("cash")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("cash")}: ${yen(totals.cash)}`} />
+
+                </StatHeader>
                 <strong>{yen(totals.cash)}</strong>
             </Stat>
             <Stat>
-                <CopyPanelButton locale={locale} text={`${context} → ${t("card")}: ${yen(totals.card)}`} />
-                <label>{t("card")}</label>
+                <StatHeader>
+
+                    <label>{t("card")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("card")}: ${yen(totals.card)}`} />
+
+                </StatHeader>
                 <strong>{yen(totals.card)}</strong>
             </Stat>
             <Stat>
-                <CopyPanelButton locale={locale} text={`${context} → ${t("other")}: ${yen(totals.other)}`} />
-                <label>{t("other")}</label>
+                <StatHeader>
+
+                    <label>{t("other")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("other")}: ${yen(totals.other)}`} />
+
+                </StatHeader>
                 <strong>{yen(totals.other)}</strong>
             </Stat>
             <Stat>
-                <CopyPanelButton locale={locale} text={`${context} → ${t("cover")}: ${yen(totals.cover)}`} />
-                <label>{t("cover")}</label>
+                <StatHeader>
+
+                    <label>{t("cover")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("cover")}: ${yen(totals.cover)}`} />
+
+                </StatHeader>
                 <strong>{yen(totals.cover)}</strong>
             </Stat>
             <Stat>
-                <CopyPanelButton locale={locale} text={`${context} → ${t("avgBill")}: ${average(totals.revenue, totals.guests)}`} />
-                <label>{t("avgBill")}</label>
+                <StatHeader>
+
+                    <label>{t("avgBill")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("avgBill")}: ${average(totals.revenue, totals.guests)}`} />
+
+                </StatHeader>
                 <strong>{average(totals.revenue, totals.guests)}</strong>
             </Stat>
             <Stat>
-                <CopyPanelButton locale={locale} text={`${context} → ${t("nights")}: ${totals.nights}`} />
-                <label>{t("nights")}</label>
+                <StatHeader>
+
+                    <label>{t("nights")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("nights")}: ${totals.nights}`} />
+
+                </StatHeader>
                 <strong>{totals.nights}</strong>
             </Stat>
             <Stat>
-                <CopyPanelButton locale={locale} text={`${context} → ${t("avgPerNight")}: ${average(totals.revenue, totals.nights)}`} />
-                <label>{t("avgPerNight")}</label>
+                <StatHeader>
+
+                    <label>{t("avgPerNight")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("avgPerNight")}: ${average(totals.revenue, totals.nights)}`} />
+
+                </StatHeader>
                 <strong>{average(totals.revenue, totals.nights)}</strong>
             </Stat>
             <Stat>
-                <CopyPanelButton locale={locale} text={`${context} → ${t("hours")}: ${formatDuration(locale, totals.seconds)}`} />
-                <label>{t("hours")}</label>
+                <StatHeader>
+
+                    <label>{t("hours")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("hours")}: ${formatDuration(locale, totals.seconds)}`} />
+
+                </StatHeader>
                 <strong>{formatDuration(locale, totals.seconds)}</strong>
             </Stat>
         </Grid>
@@ -766,8 +816,6 @@ const Grid = styled.div`
 
 const Stat = styled.div<{ $lead?: boolean }>`
     position: relative;
-    > span:has(> button) { position: absolute; top: var(--space-0); right: var(--space-0); }
-    > label { display: block; padding-right: 2em; }
     padding: ${({ $lead }) => ($lead ? "var(--space-2)" : "var(--space-1)")};
     background: var(--neutral-900);
     border-radius: 12px;
@@ -786,6 +834,16 @@ const Stat = styled.div<{ $lead?: boolean }>`
         font-size: ${({ $lead }) => ($lead ? "var(--font-size-h4)" : "var(--font-size-h5)")};
         font-weight: 500;
     }
+`;
+
+const StatHeader = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-1);
+    min-width: 0;
+
+    label { min-width: 0; }
 `;
 
 const Bento = styled.div`
