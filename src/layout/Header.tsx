@@ -471,8 +471,6 @@ const ToggleTrack = styled.span<{ $japanese: boolean }>`
   &::before {
     content: "";
     border-radius: inherit;
-    outline: 4px solid var(--background-color);
-    outline-offset: -2px;
     position: absolute;
     inset: 0;
     background: repeating-linear-gradient(
@@ -484,6 +482,18 @@ const ToggleTrack = styled.span<{ $japanese: boolean }>`
     );
     opacity: ${({ $japanese }) => $japanese ? 0 : 1};
     transition: opacity 300ms ease;
+  }
+
+  /* Keep the inset outline visible in both languages. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    outline: 4px solid var(--background-color);
+    outline-offset: -2px;
+    pointer-events: none;
+    z-index: 2;
   }
 
   @media (prefers-reduced-motion: reduce) {
