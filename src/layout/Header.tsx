@@ -158,7 +158,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         </NavLink>
 
         {isManager ? (
-          <NavLink
+          <SecondaryNavLink
             onClick={() => setIsOpen(false)}
             to="/analytics">
             {({ isActive }) => (
@@ -170,11 +170,11 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
                 {t("analytics")}
               </>
             )}
-          </NavLink>
+          </SecondaryNavLink>
         ) : null}
 
         {canSeeNotices ? (
-          <NavLink
+          <SecondaryNavLink
             onClick={() => setIsOpen(false)}
             to="/notifications">
             {({ isActive }) => (
@@ -187,10 +187,10 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
                 {alertCount > 0 ? <AlertCount>{alertCount}</AlertCount> : null}
               </>
             )}
-          </NavLink>
+          </SecondaryNavLink>
         ) : null}
 
-        <NavLink
+        <SecondaryNavLink
           onClick={() => setIsOpen(false)}
           to="/profile">
           {({ isActive }) => (
@@ -202,7 +202,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
               {userName ?? t("profile")}
             </>
           )}
-        </NavLink>
+        </SecondaryNavLink>
 
         </NavTabs> : null}
 
@@ -390,8 +390,11 @@ const MoreButton = styled.button`
   background: transparent;
   color: var(--neutral-300);
   border: none;
-  padding: var(--space-2);
+  padding: var(--space-1);
   cursor: pointer;
+  &&:hover {
+    background: transparent;
+  }
   &:focus-visible { outline: 2px solid white; }
 `;
 
@@ -532,5 +535,10 @@ const NavLink = styled(RouterNavLink)`
       padding-top: var(--space-2);
     }
 
+  }
+`;
+const SecondaryNavLink = styled(NavLink)`
+  @media (min-width: 769px) {
+    display: none;
   }
 `;
