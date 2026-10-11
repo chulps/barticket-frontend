@@ -59,7 +59,7 @@ const CopyControl = styled.button`
     border: none;
     cursor: pointer;
     transition: color 0.15s ease, background 0.15s ease;
-    &:hover { background: var(--neutral-700); color: white; }
+    &&:hover { background: var(--neutral-700); color: white; cursor: pointer; transform: none; filter: none; }
     &:focus-visible { outline: 2px solid white; outline-offset: 2px; }
 `;
 
@@ -159,13 +159,15 @@ export function BarChart({
         <Card ref={chartRef} aria-label={title}>
             <ChartHeading>
                 <h2>{title}</h2>
-                {summary ? (
-                    <ChartSummary>
-                        <label>{summary.label}</label>
-                        <h3>{summary.value}</h3>
-                    </ChartSummary>
-                ) : null}
-                {copyContext ? <CopyPanelButton locale={locale} text={`${copyContext} → ${title}: ${bars.map((bar) => `${bar.detailLabel ?? bar.label}: ${formatFull(bar.segments.reduce((sum, segment) => sum + segment.value, 0))}`).join("; ")}`} /> : null}
+                <ChartHeadingActions>
+                    {summary ? (
+                        <ChartSummary>
+                            <label>{summary.label}</label>
+                            <h3>{summary.value}</h3>
+                        </ChartSummary>
+                    ) : null}
+                    {copyContext ? <CopyPanelButton locale={locale} text={`${copyContext} → ${title}: ${bars.map((bar) => `${bar.detailLabel ?? bar.label}: ${formatFull(bar.segments.reduce((sum, segment) => sum + segment.value, 0))}`).join("; ")}`} /> : null}
+                </ChartHeadingActions>
             </ChartHeading>
             <Scroll ref={ref}>
                 <svg viewBox={`0 0 ${width} ${height}`} role="img" width={width} height={height}>
@@ -510,6 +512,13 @@ const ChartHeading = styled.div`
     align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-1);
+`;
+
+const ChartHeadingActions = styled.span`
+    display: inline-flex;
+    align-items: flex-start;
+    gap: var(--space-1);
+    margin-left: auto;
 `;
 
 const ChartSummary = styled.span`
