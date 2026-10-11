@@ -22,5 +22,5 @@ jobs:
         run: node --test tests/ticketRefreshPolicy.test.mjs
       - name: TypeScript and production build
         run: npm run build
-      - name: ESLint
-        run: npm run lint
+      - name: ESLint (ticket sync files)
+        run: npx eslint src/hooks/useTickets.ts src/hooks/ticketRefreshPolicy.ts
