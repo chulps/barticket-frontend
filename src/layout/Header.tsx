@@ -223,8 +223,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       >
         <LanguageLabel><Icon name="Translate" size="1.25em" /> <LanguageText>{locale === "ja" ? "言語" : "Language"}</LanguageText></LanguageLabel>
         <ToggleTrack $japanese={locale === "ja"} aria-hidden="true">
-          <ToggleFlag>{locale === "ja" ? "🇯🇵" : "🇺🇸"}</ToggleFlag>
-          <ToggleThumb />
+          <ToggleThumb $japanese={locale === "ja"} />
         </ToggleTrack>
       </LanguageToggle>
       {authenticated ? (
@@ -457,32 +456,65 @@ const LanguageText = styled.span`
 `;
 
 const ToggleTrack = styled.span<{ $japanese: boolean }>`
-  display: flex;
-  align-items: center;
-  flex-direction: ${({ $japanese }) => $japanese ? "row" : "row-reverse"};
-  justify-content: space-between;
-  gap: 3px;
-  padding: 3px;
-  min-width: 64px;
+  position: relative;
+  display: inline-block;
+  width: 64px;
   height: 32px;
+  flex-shrink: 0;
   border-radius: 999px;
-  background: var(--neutral-800);
+  background: white;
   border: 1px solid var(--neutral-700);
   box-sizing: border-box;
+  overflow: hidden;
+
+  /* The stripes fade away as the Japanese white field takes over. */
+  &::before {
+    content: "";
+    border-radius: inherit;
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(rgb(179, 25, 66) -1px, rgb(179, 25, 66) 4px, rgb(255, 255, 255) 4px, rgb(255, 255, 255) 8px);
+    opacity: ${({ $japanese }) => $japanese ? 0 : 1};
+    transition: opacity 300ms ease;
+  }
+
+  /* Keep the inset outline visible in both languages. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    outline: 4px solid var(--background-color);
+    outline-offset: -2px;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before { transition: none; }
+  }
 `;
 
-const ToggleFlag = styled.span`
-  font-size: 19px;
-  line-height: 1;
-`;
-
-const ToggleThumb = styled.span`
-  display: block;
+const ToggleThumb = styled.span<{ $japanese: boolean }>`
+  position: absolute;
+  left: 3px;
+  top: 3px;
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: white;
-  flex-shrink: 0;
+  background: ${({ $japanese }) => $japanese ? "#BC002D" : "#0A3161"};
+  box-shadow: 0 1px 5px rgb(0 0 0 / 25%);
+  border: 2px solid white;
+  box-sizing: border-box;
+  transform: translateX(${({ $japanese }) => $japanese ? "32px" : "0"});
+  transition:
+    transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 300ms ease;
+  pointer-events: none;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 `;
 
 const AlertCount = styled.span`
