@@ -8,12 +8,10 @@ import type { PaymentType, Ticket } from "../types/Ticket";
 // import api
 import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
 import { useI18n } from "../i18n";
+import { ACTIVE_REFRESH_MS, isTicketRefreshDue } from "./ticketRefreshPolicy";
 
 // the name input saves on every keystroke, so wait until typing pauses
 const RENAME_DELAY_MS = 500;
-const ACTIVE_REFRESH_MS = 10000;
-const IDLE_REFRESH_MS = 60000;
-const ACTIVE_WINDOW_MS = 30000;
 
 function reportError(error: unknown) {
   console.error(error);
@@ -120,9 +118,9 @@ export function useTickets() {
     // make a network request on every tick.
     const timer = window.setInterval(() => {
       const now = Date.now();
-      const active = now - lastActivityAt < ACTIVE_WINDOW_MS;
-      const interval = active ? ACTIVE_REFRESH_MS : IDLE_REFRESH_MS;
-      if (now - lastRefreshAt >= interval) void refresh();
+      if (isTicketRefreshDue(now, lastActivityAt, lastRefreshAt, document.visibilityState === "visible")) {
+        void refresh();
+      }
     }, ACTIVE_REFRESH_MS);
     const markActivity = () => { lastActivityAt = Date.now(); };
     const onFocus = () => {
