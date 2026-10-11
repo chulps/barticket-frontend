@@ -114,7 +114,7 @@ export default function TicketItems({
                 </AddItemButton>
                 <button className="staff-drink-action" type="button" disabled={!isEditable || !menu} onClick={() => {
                     if (!menu) return;
-                    openModal({ title: locale === "ja" ? "スタッフドリンク" : "Staff Drink", maxWidth: "var(--space-7)", content: <AddStaffDrink menu={menu} onAdd={(staffId, menuItemId, priceKey, quantity) => {
+                    openModal({ title: locale === "ja" ? "スタッフドリンク" : "Staff Drink", maxWidth: "560px", content: <AddStaffDrink menu={menu} onAdd={(staffId, menuItemId, priceKey, quantity) => {
                         onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity);
                         closeModal();
                     }} /> });
