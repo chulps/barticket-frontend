@@ -4,7 +4,7 @@ import styled from "styled-components";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ticketsApi, toTicket } from "../api/tickets";
 import { ApiError, getToken } from "../api/client";
-import { BarChart, DonutChart, HorizontalBarChart, type TimeBar } from "../components/AnalyticsCharts";
+import { BarChart, DonutChart, HorizontalBarChart, CopyPanelButton, type TimeBar } from "../components/AnalyticsCharts";
 import AnalyticsDatePicker from "../components/AnalyticsDatePicker";
 import Icon from "../components/Icon";
 import TabGroup from "../components/TabGroup";
@@ -130,6 +130,7 @@ const OTHER = "var(--neutral-300)";
 type Point = {
     id: string;
     label: string;
+    detailLabel: string;
     title: string;
     cash: number;
     card: number;
@@ -144,6 +145,7 @@ function chronological(shifts: ShiftReport[]) {
 function nightPoints(shifts: ShiftReport[], locale: Locale): Point[] {
     return chronological(shifts).map((shift) => ({
         id: String(shift.id),
+        detailLabel: parseDate(shift.business_date).toLocaleDateString(localeTag(locale), { year: "numeric", month: "long", day: "numeric" }),
         label: parseDate(shift.business_date).toLocaleDateString(localeTag(locale), {
             month: "numeric",
             day: "numeric",
@@ -170,8 +172,30 @@ function monthPoints(shifts: ShiftReport[], locale: Locale): Point[] {
         });
         return {
             id: key,
+            detailLabel: formatMonth(key, locale),
             label,
             title: `${formatMonth(key, locale)} · ${yen(totals.revenue)} · ${totals.guests}`,
+            cash: totals.cash,
+            card: totals.card,
+            other: totals.other,
+            guests: totals.guests,
+        };
+    });
+}
+
+function yearPoints(shifts: ShiftReport[]): Point[] {
+    const groups = new Map<string, ShiftReport[]>();
+    chronological(shifts).forEach((shift) => {
+        const key = yearKey(shift.business_date);
+        groups.set(key, [...(groups.get(key) ?? []), shift]);
+    });
+    return [...groups.entries()].map(([key, rows]) => {
+        const totals = summarize(rows);
+        return {
+            id: key,
+            label: key,
+            detailLabel: key,
+            title: `${key} · ${yen(totals.revenue)} · ${totals.guests}`,
             cash: totals.cash,
             card: totals.card,
             other: totals.other,
@@ -185,6 +209,7 @@ function paymentBars(points: Point[]): TimeBar[] {
         id: point.id,
         label: point.label,
         title: point.title,
+        detailLabel: point.detailLabel,
         segments: [
             { value: point.cash, color: CASH },
             { value: point.card, color: CARD },
@@ -198,6 +223,7 @@ function guestBars(points: Point[]): TimeBar[] {
         id: point.id,
         label: point.label,
         title: `${point.label} · ${point.guests}`,
+        detailLabel: point.detailLabel,
         segments: [{ value: point.guests, color: "var(--royal-200)" }],
     }));
 }
@@ -209,6 +235,7 @@ function compactYen(amount: number, locale: Locale) {
         const text = Number.isInteger(man) ? String(man) : man.toFixed(1);
         return `¥${text}万`;
     }
+    if (amount >= 1000000) return `¥${Number((amount / 1000000).toFixed(2))}M`;
     if (amount >= 1000) return `¥${Math.round(amount / 1000)}k`;
     return yen(amount);
 }
@@ -243,17 +270,30 @@ function staffMeters(shifts: ShiftReport[], locale: Locale) {
         }));
 }
 
+function copyPeriod(range: Range, month: string, year: string, selected: ShiftReport | null, locale: Locale): string {
+    if (range === "all") return locale === "ja" ? "全期間" : "All Time";
+    if (range === "year") return year;
+    if (range === "month") return month ? formatMonth(month, locale) : "";
+    return selected ? formatNight(selected.business_date, locale) : "";
+}
+
 function RangeCharts({
     shifts,
     totals,
     range,
+    context,
 }: {
     shifts: ShiftReport[];
     totals: Totals;
     range: Range;
+    context: string;
 }) {
     const { t, locale } = useI18n();
-    const points = range === "all" || range === "year" ? monthPoints(shifts, locale) : nightPoints(shifts, locale);
+    const points = range === "all" ? yearPoints(shifts) : range === "year" ? monthPoints(shifts, locale) : nightPoints(shifts, locale);
+    const averageRevenueSummary = {
+        label: locale === "ja" ? "一晩の平均売上" : "Average Revenue / Night",
+        value: yen(Math.round(totals.revenue / Math.max(totals.nights, 1))),
+    };
     const weekdayBars: TimeBar[] = WEEKDAYS.map((label, index) => {
         const row = summarize(shifts.filter((shift) => weekdayIndex(shift.business_date) === index));
         const name = new Date(2024, 0, 1 + index).toLocaleDateString(localeTag(locale), { weekday: "short" });
@@ -261,6 +301,7 @@ function RangeCharts({
             id: label,
             label: name,
             title: `${t(label)} · ${yen(row.revenue)} · ${row.guests}`,
+            detailLabel: t(label),
             segments: [{ value: row.revenue, color: "var(--royal-400)" }],
         };
     });
@@ -269,9 +310,13 @@ function RangeCharts({
         <Bento>
             <Cell $span={4}>
                 <BarChart
-                    title={range === "all" || range === "year" ? t("revenueByMonth") : t("revenueByNight")}
+                    title={range === "all" ? (locale === "ja" ? "年別売上" : "Revenue by Year") : range === "year" ? t("revenueByMonth") : t("revenueByNight")}
                     bars={paymentBars(points)}
+                    copyContext={context}
+                    summary={averageRevenueSummary}
                     formatTick={(value) => compactYen(value, locale)}
+                    formatFull={(value) => yen(value)}
+                    locale={locale}
                     chartHeight={220}
                     legend={[
                         { label: t("cash"), color: CASH },
@@ -282,9 +327,16 @@ function RangeCharts({
             </Cell>
             <Cell $span={2}>
                 <BarChart
-                    title={range === "all" || range === "year" ? t("guestsByMonth") : t("guestsByNight")}
+                    title={range === "all" ? (locale === "ja" ? "年別客数" : "Guests by Year") : range === "year" ? t("guestsByMonth") : t("guestsByNight")}
                     bars={guestBars(points)}
+                    copyContext={context}
+                    summary={{
+                        label: locale === "ja" ? "平均客数" : "Average Guests",
+                        value: String(Math.round(totals.guests / Math.max(totals.nights, 1))),
+                    }}
                     formatTick={(value) => String(Math.round(value))}
+                    formatFull={(value) => value.toLocaleString(localeTag(locale))}
+                    locale={locale}
                     chartHeight={168}
                 />
             </Cell>
@@ -292,6 +344,8 @@ function RangeCharts({
                 <DonutChart
                     title={t("payments")}
                     center={yen(totals.revenue)}
+                    copyContext={context}
+                    locale={locale}
                     slices={[
                         { id: "cash", label: t("cash"), value: totals.cash, display: yen(totals.cash), color: CASH },
                         { id: "card", label: t("card"), value: totals.card, display: yen(totals.card), color: CARD },
@@ -303,6 +357,8 @@ function RangeCharts({
                 <DonutChart
                     title={t("tickets")}
                     center={String(totals.paid + totals.cancelled)}
+                    copyContext={context}
+                    locale={locale}
                     slices={[
                         { id: "paid", label: t("paid"), value: totals.paid, display: String(totals.paid), color: "var(--success-400)" },
                         {
@@ -316,22 +372,24 @@ function RangeCharts({
                 />
             </Cell>
             <Cell $span={2}>
-                <BarChart title={t("byWeekday")} bars={weekdayBars} formatTick={(value) => compactYen(value, locale)} chartHeight={168} />
+                <BarChart title={t("byWeekday")} bars={weekdayBars} copyContext={context} summary={averageRevenueSummary} formatTick={(value) => compactYen(value, locale)} formatFull={(value) => yen(value)} locale={locale} chartHeight={168} />
             </Cell>
             <Cell $span={2}>
-                <StaffChart shifts={shifts} />
+                <StaffChart shifts={shifts} context={context} />
             </Cell>
         </Bento>
     );
 }
 
-function StaffChart({ shifts }: { shifts: ShiftReport[] }) {
+function StaffChart({ shifts, context }: { shifts: ShiftReport[]; context?: string }) {
     const { t, locale } = useI18n();
     const meters = staffMeters(shifts, locale);
     if (meters.length === 0) return <p>{t("noClockIns")}</p>;
     return (
         <HorizontalBarChart
             title={t("people")}
+            copyContext={context}
+            locale={locale}
             bars={meters.map((person) => ({
                 id: person.id,
                 label: person.label,
@@ -496,13 +554,14 @@ export default function Analytics() {
                             </StepButton>
                         </DayNavigator>
                     ) : null}
-                    {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} />}
+                    {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} context={copyPeriod(range, month, year, selected, locale)} />}
                     {range !== "day" && visible.length > 0 ? (
-                        <RangeCharts shifts={visible} totals={totals} range={range} />
+                        <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} />
                     ) : null}
                     {range === "day" && selected ? (
                         <DayBento>
                             <Card>
+                                <CopyPanelButton locale={locale} text={`${formatNight(selected.business_date, locale)} → ${t("manager")}: ${selected.opened_by}; ${t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}`} />
                                 <h2>{formatNight(selected.business_date, locale)}</h2>
                                 <p>
                                     {t("manager")} {selected.opened_by}
@@ -511,7 +570,7 @@ export default function Analytics() {
                                     {t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}
                                 </p>
                             </Card>
-                            <StaffChart shifts={[selected]} />
+                            <StaffChart shifts={[selected]} context={copyPeriod(range, month, year, selected, locale)} />
                         </DayBento>
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
@@ -534,6 +593,7 @@ function Stockouts({ shifts }: { shifts: ShiftReport[] }) {
     if (rows.length === 0) return null;
     return (
         <Card>
+            <CopyPanelButton locale={locale} text={`${t("ranOut")}: ${rows.map(row => `${formatNight(row.night, locale)} · ${t("stockoutLine", { name: row.by, item: menuLabel(locale, row.item) })}`).join("; ")}`} />
             <AlertTitle>{t("ranOut")}</AlertTitle>
             {rows.map((row) => (
                 <AlertLine key={`${row.shiftId}-${row.item}-${row.at}`}>
@@ -605,48 +665,108 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
     );
 }
 
-function Summary({ totals }: { totals: Totals }) {
+function Summary({ totals, context }: { totals: Totals; context: string }) {
     const { t, locale } = useI18n();
     return (
         <Grid>
             <Stat $lead>
-                <label>{t("revenue")}</label>
+                <StatHeader>
+
+                    <label>{t("revenue")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("revenue")}: ${yen(totals.revenue)}`} />
+
+                </StatHeader>
                 <strong>{yen(totals.revenue)}</strong>
             </Stat>
             <Stat $lead>
-                <label>{t("guests")}</label>
+                <StatHeader>
+
+                    <label>{t("guests")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("guests")}: ${totals.guests}`} />
+
+                </StatHeader>
                 <strong>{totals.guests}</strong>
             </Stat>
             <Stat>
-                <label>{t("cash")}</label>
+                <StatHeader>
+
+                    <label>{t("cash")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("cash")}: ${yen(totals.cash)}`} />
+
+                </StatHeader>
                 <strong>{yen(totals.cash)}</strong>
             </Stat>
             <Stat>
-                <label>{t("card")}</label>
+                <StatHeader>
+
+                    <label>{t("card")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("card")}: ${yen(totals.card)}`} />
+
+                </StatHeader>
                 <strong>{yen(totals.card)}</strong>
             </Stat>
             <Stat>
-                <label>{t("other")}</label>
+                <StatHeader>
+
+                    <label>{t("other")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("other")}: ${yen(totals.other)}`} />
+
+                </StatHeader>
                 <strong>{yen(totals.other)}</strong>
             </Stat>
             <Stat>
-                <label>{t("cover")}</label>
+                <StatHeader>
+
+                    <label>{t("cover")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("cover")}: ${yen(totals.cover)}`} />
+
+                </StatHeader>
                 <strong>{yen(totals.cover)}</strong>
             </Stat>
             <Stat>
-                <label>{t("avgBill")}</label>
+                <StatHeader>
+
+                    <label>{t("avgBill")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("avgBill")}: ${average(totals.revenue, totals.guests)}`} />
+
+                </StatHeader>
                 <strong>{average(totals.revenue, totals.guests)}</strong>
             </Stat>
             <Stat>
-                <label>{t("nights")}</label>
+                <StatHeader>
+
+                    <label>{t("nights")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("nights")}: ${totals.nights}`} />
+
+                </StatHeader>
                 <strong>{totals.nights}</strong>
             </Stat>
             <Stat>
-                <label>{t("avgPerNight")}</label>
+                <StatHeader>
+
+                    <label>{t("avgPerNight")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("avgPerNight")}: ${average(totals.revenue, totals.nights)}`} />
+
+                </StatHeader>
                 <strong>{average(totals.revenue, totals.nights)}</strong>
             </Stat>
             <Stat>
-                <label>{t("hours")}</label>
+                <StatHeader>
+
+                    <label>{t("hours")}</label>
+
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("hours")}: ${formatDuration(locale, totals.seconds)}`} />
+
+                </StatHeader>
                 <strong>{formatDuration(locale, totals.seconds)}</strong>
             </Stat>
         </Grid>
@@ -695,6 +815,7 @@ const Grid = styled.div`
 `;
 
 const Stat = styled.div<{ $lead?: boolean }>`
+    position: relative;
     padding: ${({ $lead }) => ($lead ? "var(--space-2)" : "var(--space-1)")};
     background: var(--neutral-900);
     border-radius: 12px;
@@ -713,6 +834,16 @@ const Stat = styled.div<{ $lead?: boolean }>`
         font-size: ${({ $lead }) => ($lead ? "var(--font-size-h4)" : "var(--font-size-h5)")};
         font-weight: 500;
     }
+`;
+
+const StatHeader = styled.div`
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-1);
+    min-width: 0;
+
+    label { min-width: 0; }
 `;
 
 const Bento = styled.div`
@@ -850,6 +981,9 @@ const AlertLine = styled.p`
 `;
 
 const Card = styled.section`
+    position: relative;
+    > span:has(> button):first-child { position: absolute; top: var(--space-0); right: var(--space-0); }
+    > h2, > p:first-of-type { padding-right: var(--space-3); }
     padding: var(--space-1);
     background: var(--neutral-900);
     border-radius: 12px;

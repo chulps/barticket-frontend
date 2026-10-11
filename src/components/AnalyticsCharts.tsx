@@ -1,5 +1,69 @@
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
+import Icon from "./Icon";
+
+export function CopyPanelButton({ text, locale }: { text: string; locale: "en" | "ja" }) {
+    const [copied, setCopied] = useState(false);
+    const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => () => { if (timeout.current) clearTimeout(timeout.current); }, []);
+    return (
+        <CopyWrapper>
+            <CopyControl
+                type="button"
+                title={locale === "ja" ? "コピー" : "Copy panel"}
+                aria-label={locale === "ja" ? "パネルをコピー" : "Copy panel"}
+                onClick={async () => {
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        setCopied(true);
+                        if (timeout.current) clearTimeout(timeout.current);
+                        timeout.current = setTimeout(() => setCopied(false), 1800);
+                    } catch { setCopied(false); }
+                }}
+            >
+                <Icon name={copied ? "Check" : "Copy"} />
+            </CopyControl>
+            {copied ? (
+                <CopyTooltip role="status">{locale === "ja" ? "コピーしました！" : "Copied!"}</CopyTooltip>
+            ) : null}
+        </CopyWrapper>
+    );
+}
+
+const CopyWrapper = styled.span`
+    display: inline-flex;
+    position: relative;
+    align-items: center;
+    flex: none;
+`;
+
+const CopyTooltip = styled.span`
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 4px);
+    z-index: 20;
+    white-space: nowrap;
+    border-radius: var(--space-1);
+    padding: var(--space-0) var(--space-1);
+    background: var(--neutral-700);
+    color: white;
+    font-size: var(--font-size-small);
+    pointer-events: none;
+`;
+
+const CopyControl = styled.button`
+    > svg { pointer-events: none; }
+    flex: none;
+    padding: var(--space-1);
+    background: transparent;
+    color: var(--neutral-300);
+    border: none;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+    &&:hover { background: var(--neutral-700); color: white; cursor: pointer; transform: none; filter: none; }
+    &:focus-visible { outline: 2px solid white; outline-offset: 2px; }
+`;
+
 
 export type BarSegment = {
     value: number;
@@ -10,6 +74,7 @@ export type TimeBar = {
     id: string;
     label: string;
     title: string;
+    detailLabel?: string;
     segments: BarSegment[];
 };
 
@@ -33,16 +98,48 @@ export function BarChart({
     title,
     bars,
     formatTick,
+    formatFull,
+    locale,
     legend,
+    summary,
+    copyContext,
     chartHeight = 200,
 }: {
     title: string;
     bars: TimeBar[];
     formatTick: (value: number) => string;
+    formatFull: (value: number) => string;
+    locale: "en" | "ja";
     legend?: { label: string; color: string }[];
+    summary?: { label: string; value: string };
+    copyContext?: string;
     chartHeight?: number;
 }) {
     const { ref, width: container } = useWidth();
+    const [selected, setSelected] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
+    const chartRef = useRef<HTMLElement>(null);
+    useEffect(() => {
+        if (selected === null) return;
+        const dismissOutside = (event: PointerEvent) => {
+            if (event.target instanceof Node && !chartRef.current?.contains(event.target)) {
+                setSelected(null);
+                setCopied(false);
+            }
+        };
+        const dismissEscape = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                setSelected(null);
+                setCopied(false);
+            }
+        };
+        document.addEventListener("pointerdown", dismissOutside);
+        document.addEventListener("keydown", dismissEscape);
+        return () => {
+            document.removeEventListener("pointerdown", dismissOutside);
+            document.removeEventListener("keydown", dismissEscape);
+        };
+    }, [selected]);
     const max = niceMax(Math.max(...bars.map((bar) => bar.segments.reduce((sum, segment) => sum + segment.value, 0)), 0));
     const ticks = axisTicks(max);
     const available = container > 0 ? container - AXIS : 480;
@@ -50,10 +147,29 @@ export function BarChart({
     const width = plotWidth + AXIS;
     const height = chartHeight;
     const innerHeight = height - PAD_TOP - PAD_BOTTOM;
+    const active = bars.find((bar) => bar.id === selected);
+    const activeTotal = active?.segments.reduce((sum, segment) => sum + segment.value, 0) ?? 0;
+    const activeLabel = active?.detailLabel ?? active?.label ?? "";
+    const show = (id: string) => { setSelected(id); setCopied(false); };
+    const copy = async (text: string) => {
+        try { await navigator.clipboard.writeText(text); setCopied(true); }
+        catch { setCopied(false); }
+    };
 
     return (
-        <Card aria-label={title}>
-            <h2>{title}</h2>
+        <Card ref={chartRef} aria-label={title}>
+            <ChartHeading>
+                <h2>{title}</h2>
+                <ChartHeadingActions>
+                    {summary ? (
+                        <ChartSummary>
+                            <label>{summary.label}</label>
+                            <h3>{summary.value}</h3>
+                        </ChartSummary>
+                    ) : null}
+                    {copyContext ? <CopyPanelButton locale={locale} text={`${copyContext} → ${title}: ${bars.map((bar) => `${bar.detailLabel ?? bar.label}: ${formatFull(bar.segments.reduce((sum, segment) => sum + segment.value, 0))}`).join("; ")}`} /> : null}
+                </ChartHeadingActions>
+            </ChartHeading>
             <Scroll ref={ref}>
                 <svg viewBox={`0 0 ${width} ${height}`} role="img" width={width} height={height}>
                     {ticks.map((tick) => {
@@ -72,9 +188,10 @@ export function BarChart({
                         const slot = plotWidth / Math.max(bars.length, 1);
                         const barWidth = Math.min(64, slot * 0.62);
                         const x = index * slot + (slot - barWidth) / 2;
+                        const total = bar.segments.reduce((sum, segment) => sum + segment.value, 0);
                         const heights = bar.segments.map((segment) => (max === 0 ? 0 : (segment.value / max) * innerHeight));
                         return (
-                            <g key={bar.id}>
+                            <g key={bar.id} tabIndex={0} role="button" aria-label={`${bar.detailLabel ?? bar.label}: ${formatFull(total)}`} onClick={() => show(bar.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); show(bar.id); } }} style={{ cursor: "pointer", outlineOffset: 2 }}>
                                 <title>{bar.title}</title>
                                 {bar.segments.map((segment, segmentIndex) => {
                                     const barHeight = heights[segmentIndex];
@@ -94,6 +211,17 @@ export function BarChart({
                                 })}
                                 <text
                                     x={x + barWidth / 2}
+                                    y={Math.max(13, PAD_TOP + innerHeight - (total / max) * innerHeight - 6)}
+                                    textAnchor="middle"
+                                    fill="var(--neutral-100)"
+                                    fontSize="10"
+                                    fontFamily="var(--font-family-data)"
+                                    fontWeight="500"
+                                >
+                                    {formatTick(total)}
+                                </text>
+                                <text
+                                    x={x + barWidth / 2}
                                     y={height - 10}
                                     textAnchor="middle"
                                     fill="var(--neutral-400)"
@@ -106,6 +234,18 @@ export function BarChart({
                     })}
                 </svg>
             </Scroll>
+            {active ? (
+                <BarDetails role="group" aria-label={locale === "ja" ? "棒グラフの詳細" : "Bar details"}>
+                    <div><strong>{activeLabel}</strong><strong>{formatFull(activeTotal)}</strong></div>
+                    <div>
+                        <button type="button" onClick={() => void copy(activeLabel)}>{locale === "ja" ? "日付をコピー" : "Copy date"}</button>
+                        <button type="button" onClick={() => void copy(formatFull(activeTotal))}>{locale === "ja" ? "金額・人数をコピー" : "Copy value"}</button>
+                        <button type="button" onClick={() => void copy(`${activeLabel}\t${formatFull(activeTotal)}`)}>{locale === "ja" ? "両方コピー" : "Copy both"}</button>
+                        <button type="button" onClick={() => setSelected(null)} aria-label={locale === "ja" ? "閉じる" : "Close"}>×</button>
+                        {copied ? <span role="status">{locale === "ja" ? "コピーしました" : "Copied"}</span> : null}
+                    </div>
+                </BarDetails>
+            ) : null}
             {legend ? (
                 <InlineLegend>
                     {legend.map((item) => (
@@ -124,10 +264,14 @@ export function DonutChart({
     title,
     slices,
     center,
+    copyContext,
+    locale = "en",
 }: {
     title: string;
     slices: DonutSlice[];
     center: string;
+    copyContext?: string;
+    locale?: "en" | "ja";
 }) {
     const total = slices.reduce((sum, slice) => sum + slice.value, 0);
     const radius = 42;
@@ -147,7 +291,7 @@ export function DonutChart({
 
     return (
         <Card aria-label={title} $compact>
-            <h2>{title}</h2>
+            <ChartHeading><h2>{title}</h2>{copyContext ? <CopyPanelButton locale={locale} text={`${copyContext} → ${title}: ${center}; ${slices.map(slice => `${slice.label}: ${slice.display}`).join("; ")}`} /> : null}</ChartHeading>
             <DonutLayout>
                 <DonutRing viewBox="0 0 120 120" role="img">
                     <circle cx="60" cy="60" r={radius} fill="none" stroke="var(--neutral-800)" strokeWidth="14" />
@@ -184,7 +328,7 @@ export function DonutChart({
     );
 }
 
-export function HorizontalBarChart({ title, bars }: { title: string; bars: NamedBar[] }) {
+export function HorizontalBarChart({ title, bars, copyContext, locale = "en" }: { title: string; bars: NamedBar[]; copyContext?: string; locale?: "en" | "ja" }) {
     const { ref, width: container } = useWidth();
     const max = niceMax(Math.max(...bars.map((bar) => bar.value), 0));
     const width = Math.max(container, 320);
@@ -195,7 +339,7 @@ export function HorizontalBarChart({ title, bars }: { title: string; bars: Named
 
     return (
         <Card aria-label={title}>
-            <h2>{title}</h2>
+            <ChartHeading><h2>{title}</h2>{copyContext ? <CopyPanelButton locale={locale} text={`${copyContext} → ${title}: ${bars.map(bar => `${bar.label}: ${bar.display}`).join("; ")}`} /> : null}</ChartHeading>
             <Scroll ref={ref}>
                 <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img">
                     <line x1={labelWidth} x2={labelWidth} y1={8} y2={height - 8} stroke="var(--neutral-600)" />
@@ -221,7 +365,7 @@ export function HorizontalBarChart({ title, bars }: { title: string; bars: Named
 }
 
 const AXIS = 64;
-const PAD_TOP = 12;
+const PAD_TOP = 25;
 const PAD_BOTTOM = 32;
 
 function useWidth() {
@@ -337,4 +481,61 @@ const Amount = styled.span`
     font-family: var(--font-family-data);
     color: var(--neutral-300);
     font-size: var(--font-size-small);
+`;
+
+const BarDetails = styled.div`
+    padding: var(--space-1);
+    background: var(--neutral-800);
+    border: 1px solid var(--neutral-700);
+    border-radius: var(--space-1);
+    color: var(--neutral-100);
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+
+    > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+    > div:first-child { justify-content: space-between; }
+    button {
+        padding: var(--space-1);
+        background: transparent;
+        color: inherit;
+        border: 1px solid var(--neutral-600);
+        border-radius: var(--space-1);
+        cursor: pointer;
+        font-size: inherit;
+    }
+    button:hover { background: var(--neutral-700); }
+`;
+
+const ChartHeading = styled.div`
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-1);
+`;
+
+const ChartHeadingActions = styled.span`
+    display: inline-flex;
+    align-items: flex-start;
+    gap: var(--space-1);
+    margin-left: auto;
+`;
+
+const ChartSummary = styled.span`
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0);
+
+    label {
+        color: var(--neutral-400);
+        font-size: var(--font-size-small);
+    }
+
+    h3 {
+        font-family: var(--font-family-data);
+        font-size: var(--font-size-h3);
+        font-weight: 500;
+        margin: 0;
+    }
 `;
