@@ -185,12 +185,18 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         </NavTabs> : null}
 
       <LanguageToggle
-        type="button"
+        tabIndex={0}
         role="switch"
         aria-checked={locale === "ja"}
         aria-label={locale === "ja" ? "Language: Japanese. Switch to English" : "Language: English. Switch to Japanese"}
         title={locale === "ja" ? "日本語 → English" : "English → 日本語"}
         onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setLocale(locale === "ja" ? "en" : "ja");
+          }
+        }}
       >
         <Icon name="Translate" size="1.25em" />
         <ToggleTrack $japanese={locale === "ja"} aria-hidden="true">
@@ -304,7 +310,7 @@ const NavTabs = styled.div`
   }
 `;
 
-const LanguageToggle = styled.button`
+const LanguageToggle = styled.div`
   display: inline-flex;
   align-items: center;
   justify-content: center;
