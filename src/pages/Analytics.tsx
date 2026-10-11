@@ -293,6 +293,10 @@ function RangeCharts({
                 <BarChart
                     title={range === "all" || range === "year" ? t("guestsByMonth") : t("guestsByNight")}
                     bars={guestBars(points)}
+                    summary={{
+                        label: locale === "ja" ? "平均客数" : "Average Guests",
+                        value: String(Math.round(totals.guests / Math.max(totals.nights, 1))),
+                    }}
                     formatTick={(value) => String(Math.round(value))}
                     formatFull={(value) => value.toLocaleString(localeTag(locale))}
                     locale={locale}
