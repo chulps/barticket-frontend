@@ -176,6 +176,7 @@ const ItemsHeader = styled.div`
     border-bottom: 1px solid var(--neutral-700);
 
     @media (min-width: 768px) {
+        grid-template-columns: minmax(0, 1fr) 5.5rem 5rem 7.5rem;
         padding-inline: var(--space-1);
         gap: var(--space-2);
         grid-template-columns: minmax(0, 1fr) 5.5rem 5rem 8rem;
