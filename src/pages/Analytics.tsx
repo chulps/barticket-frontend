@@ -260,6 +260,10 @@ function RangeCharts({
 }) {
     const { t, locale } = useI18n();
     const points = range === "all" || range === "year" ? monthPoints(shifts, locale) : nightPoints(shifts, locale);
+    const averageRevenueSummary = {
+        label: locale === "ja" ? "一晩の平均売上" : "Average Revenue / Night",
+        value: yen(Math.round(totals.revenue / Math.max(totals.nights, 1))),
+    };
     const weekdayBars: TimeBar[] = WEEKDAYS.map((label, index) => {
         const row = summarize(shifts.filter((shift) => weekdayIndex(shift.business_date) === index));
         const name = new Date(2024, 0, 1 + index).toLocaleDateString(localeTag(locale), { weekday: "short" });
@@ -278,6 +282,7 @@ function RangeCharts({
                 <BarChart
                     title={range === "all" || range === "year" ? t("revenueByMonth") : t("revenueByNight")}
                     bars={paymentBars(points)}
+                    summary={averageRevenueSummary}
                     formatTick={(value) => compactYen(value, locale)}
                     formatFull={(value) => yen(value)}
                     locale={locale}
@@ -331,7 +336,7 @@ function RangeCharts({
                 />
             </Cell>
             <Cell $span={2}>
-                <BarChart title={t("byWeekday")} bars={weekdayBars} formatTick={(value) => compactYen(value, locale)} formatFull={(value) => yen(value)} locale={locale} chartHeight={168} />
+                <BarChart title={t("byWeekday")} bars={weekdayBars} summary={averageRevenueSummary} formatTick={(value) => compactYen(value, locale)} formatFull={(value) => yen(value)} locale={locale} chartHeight={168} />
             </Cell>
             <Cell $span={2}>
                 <StaffChart shifts={shifts} />
