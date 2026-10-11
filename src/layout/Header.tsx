@@ -223,7 +223,6 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       >
         <LanguageLabel><Icon name="Translate" size="1.25em" /> <LanguageText>{locale === "ja" ? "言語" : "Language"}</LanguageText></LanguageLabel>
         <ToggleTrack $japanese={locale === "ja"} aria-hidden="true">
-          <ToggleFlag $japanese={locale === "ja"} key={locale}>{locale === "ja" ? "🇯🇵" : "🇺🇸"}</ToggleFlag>
           <ToggleThumb $japanese={locale === "ja"} />
         </ToggleTrack>
       </LanguageToggle>
@@ -463,29 +462,29 @@ const ToggleTrack = styled.span<{ $japanese: boolean }>`
   height: 32px;
   flex-shrink: 0;
   border-radius: 999px;
-  background: var(--neutral-800);
+  background: white;
   border: 1px solid var(--neutral-700);
   box-sizing: border-box;
   overflow: hidden;
-`;
 
-const ToggleFlag = styled.span<{ $japanese: boolean }>`
-  position: absolute;
-  top: 50%;
-  ({ $japanese }) => $japanese ? "left: 6px;" : "right: 6px;"
-  transform: translateY(-50%);
-  font-size: 19px;
-  line-height: 1;
-  pointer-events: none;
-  animation: flagPop 260ms ease-out both;
-
-  @keyframes flagPop {
-    from { opacity: 0; scale: 0.72; }
-    to { opacity: 1; scale: 1; }
+  /* The stripes fade away as the Japanese white field takes over. */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to bottom,
+      #B31942 0px,
+      #B31942 4px,
+      #FFFFFF 4px,
+      #FFFFFF 8px
+    );
+    opacity: ${({ $japanese }) => $japanese ? 0 : 1};
+    transition: opacity 300ms ease;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    animation: none;
+    &::before { transition: none; }
   }
 `;
 
@@ -496,14 +495,30 @@ const ToggleThumb = styled.span<{ $japanese: boolean }>`
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: white;
+  background: ${({ $japanese }) => $japanese ? "#BC002D" : "#0A3161"};
   box-shadow: 0 1px 5px rgb(0 0 0 / 25%);
   transform: translateX(${({ $japanese }) => $japanese ? "32px" : "0"});
-  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 300ms ease;
   pointer-events: none;
+
+  /* White stars, approximated with a small scattered dot field. */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: radial-gradient(circle, white 1px, transparent 1.3px);
+    background-size: 7px 7px;
+    background-position: 2px 2px;
+    opacity: ${({ $japanese }) => $japanese ? 0 : 1};
+    transition: opacity 250ms ease;
+  }
 
   @media (prefers-reduced-motion: reduce) {
     transition: none;
+    &::after { transition: none; }
   }
 `;
 
