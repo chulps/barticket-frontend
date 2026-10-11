@@ -400,9 +400,28 @@ function StaffChart({ shifts, context }: { shifts: ShiftReport[]; context?: stri
     );
 }
 
+function staffDrinkShifts(
+    visible: ShiftReport[],
+    openShift: ShiftReport | null,
+    range: Range,
+    month: string,
+    year: string,
+    pickedDate: string,
+): ShiftReport[] {
+    if (!openShift) return visible;
+    const inRange =
+        range === "all" ||
+        (range === "year" && yearKey(openShift.business_date) === year) ||
+        (range === "month" && monthKey(openShift.business_date) === month) ||
+        (range === "day" && openShift.business_date === pickedDate);
+    if (!inRange) return visible;
+    return [openShift, ...visible.filter((shift) => shift.id !== openShift.id)];
+}
+
 export default function Analytics() {
     const { t, locale } = useI18n();
     const [shifts, setShifts] = useState<ShiftReport[] | null>(null);
+    const [openShift, setOpenShift] = useState<ShiftReport | null>(null);
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [account, setAccount] = useState<Account | null>(null);
     const [error, setError] = useState("");
@@ -420,9 +439,10 @@ export default function Analytics() {
             .then((me) => {
                 setAccount(me);
                 if (me.role !== "manager") return;
-                return Promise.all([accountApi.closedShifts(), ticketsApi.list()]).then(([rows, ticketRows]) => {
+                return Promise.all([accountApi.closedShifts(), accountApi.currentShift(), ticketsApi.list()]).then(([rows, current, ticketRows]) => {
                     const ordered = [...rows].sort((a, b) => b.business_date.localeCompare(a.business_date));
                     setShifts(ordered);
+                    setOpenShift(current);
                     setTickets(ticketRows.map(toTicket));
                     const latest = ordered[0];
                     if (latest) {
@@ -452,6 +472,7 @@ export default function Analytics() {
                   ? [selected]
                   : [];
     const totals = summarize(visible);
+    const staffShifts = staffDrinkShifts(visible, openShift, range, month, year, pickedDate);
 
     function showMonth(next: string) {
         setMonth(next);
@@ -574,7 +595,7 @@ export default function Analytics() {
                         </DayBento>
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
-                    {visible.length > 0 ? <StaffDrinksReport shifts={visible} context={copyPeriod(range, month, year, selected, locale)} /> : null}
+                    {staffShifts.length > 0 ? <StaffDrinksReport shifts={staffShifts} context={copyPeriod(range, month, year, selected, locale)} /> : null}
                     {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} /> : null}
                 </>
             ) : null}
@@ -601,7 +622,7 @@ function StaffDrinksReport({ shifts, context }: { shifts: ShiftReport[]; context
     const totalCount = rows.reduce((sum, row) => sum + row.quantity, 0);
     const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
     const heading = locale === "ja" ? "スタッフドリンク" : "Staff Drinks";
-    const text = [`${context} → ${heading}`, ...rows.map(row => `${row.staff} · ${row.drink} · ¥${row.unitPrice.toLocaleString()} × ${row.quantity} = ¥${row.revenue.toLocaleString()}`), `${locale === "ja" ? "合計" : "Total"}: ${totalCount} / ¥${totalRevenue.toLocaleString()}`].join("\\n");
+    const text = [`${context} → ${heading}`, ...rows.map(row => `${row.staff} · ${row.drink} · ¥${row.unitPrice.toLocaleString()} × ${row.quantity} = ¥${row.revenue.toLocaleString()}`), `${locale === "ja" ? "合計" : "Total"}: ${totalCount} / ¥${totalRevenue.toLocaleString()}`].join("\n");
     return (
         <StaffDrinkPanel>
             <header><h2>{heading}</h2><CopyPanelButton locale={locale} text={text} /></header>
