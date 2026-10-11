@@ -11,6 +11,7 @@ import { useI18n } from "../i18n";
 
 // the name input saves on every keystroke, so wait until typing pauses
 const RENAME_DELAY_MS = 500;
+const TICKET_REFRESH_MS = 5000;
 
 function reportError(error: unknown) {
   console.error(error);
@@ -28,8 +29,12 @@ export function useTickets() {
   // names typed but not saved yet; server responses must not overwrite them
   const pendingNames = useRef(new Map<number, string>());
   const renameTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  // Protect local writes and in-flight edits from stale background snapshots.
+  const pendingWrites = useRef(0);
+  const localRevision = useRef(0);
 
   const commit = (next: Ticket[]) => {
+    localRevision.current += 1;
     ticketsRef.current = next;
     setTickets(next);
   };
@@ -52,6 +57,8 @@ export function useTickets() {
     ticketId: number,
     request: (current: Ticket | undefined) => Promise<ApiTicket> | null,
   ): Promise<Ticket | null> => {
+    pendingWrites.current += 1;
+    localRevision.current += 1;
     const previous = queues.current.get(ticketId) ?? Promise.resolve();
     const next = previous.then(async () => {
       try {
@@ -62,20 +69,60 @@ export function useTickets() {
         return null;
       }
     });
-    queues.current.set(ticketId, next);
-    return next;
+    const settled = next.finally(() => {
+      pendingWrites.current -= 1;
+    });
+    queues.current.set(ticketId, settled);
+    return settled;
   };
 
-  // Load tickets from the backend
+  // Refresh from the existing REST endpoint so other devices' changes appear
+  // without a backend subscription or WebSocket connection.
   useEffect(() => {
-    ticketsApi
-      .list()
-      .then((list) => {
+    let cancelled = false;
+    let fetching = false;
+    let loadedOnce = false;
+
+    const refresh = async () => {
+      if (cancelled || fetching || document.visibilityState === "hidden" || pendingWrites.current > 0) return;
+      fetching = true;
+      const revision = localRevision.current;
+      try {
+        const list = await ticketsApi.list();
+        if (cancelled || pendingWrites.current > 0 || revision !== localRevision.current) return;
         const loaded = list.map(toTicket).sort((a, b) => b.id - a.id);
-        ticketsRef.current = loaded;
-        setTickets(loaded);
-      })
-      .catch(reportError);
+        // Never overwrite a name being edited or awaiting its debounced save.
+        const next = loaded.map((ticket) => {
+          const pendingName = pendingNames.current.get(ticket.id);
+          return pendingName === undefined ? ticket : { ...ticket, name: pendingName };
+        });
+        ticketsRef.current = next;
+        setTickets(next);
+        loadedOnce = true;
+      } catch (error) {
+        if (!cancelled) {
+          if (!loadedOnce) reportError(error);
+          else console.warn("Unable to refresh tickets", error);
+        }
+      } finally {
+        fetching = false;
+      }
+    };
+
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), TICKET_REFRESH_MS);
+    const onFocus = () => void refresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   // Ticket actions
