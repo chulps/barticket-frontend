@@ -158,9 +158,9 @@ export default function TicketDetailItem({
 
 const Container = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(4.5rem, max-content) auto;
+  grid-template-columns: 25% 25% 25% 25%;
   align-items: center;
-  gap: var(--space-1);
+  column-gap: 0;
 
   padding: var(--space-2) 0;
   border-bottom: 1px solid var(--neutral-800);
@@ -170,7 +170,7 @@ const Container = styled.div`
   }
   
   @media (min-width: 768px) {
-    gap: var(--space-2);
+    column-gap: 0;
     padding: var(--space-1);
   }
 `;
@@ -242,6 +242,7 @@ const Subtotal = styled.data`
 
 const DropdownContainer = styled.div`
     display: flex;
+    justify-self: end;
     justify-content: end;
 `
 
