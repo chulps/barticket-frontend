@@ -37,6 +37,7 @@ export function BarChart({
     formatFull,
     locale,
     legend,
+    summary,
     chartHeight = 200,
 }: {
     title: string;
@@ -45,6 +46,7 @@ export function BarChart({
     formatFull: (value: number) => string;
     locale: "en" | "ja";
     legend?: { label: string; color: string }[];
+    summary?: { label: string; value: string };
     chartHeight?: number;
 }) {
     const { ref, width: container } = useWidth();
@@ -69,6 +71,12 @@ export function BarChart({
     return (
         <Card aria-label={title}>
             <h2>{title}</h2>
+            {summary ? (
+                <ChartSummary>
+                    <label>{summary.label}</label>
+                    <h3>{summary.value}</h3>
+                </ChartSummary>
+            ) : null}
             <Scroll ref={ref}>
                 <svg viewBox={`0 0 ${width} ${height}`} role="img" width={width} height={height}>
                     {ticks.map((tick) => {
@@ -401,4 +409,22 @@ const BarDetails = styled.div`
         font-size: inherit;
     }
     button:hover { background: var(--neutral-700); }
+`;
+
+const ChartSummary = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0);
+
+    label {
+        color: var(--neutral-400);
+        font-size: var(--font-size-small);
+    }
+
+    h3 {
+        font-family: var(--font-family-data);
+        font-size: var(--font-size-h3);
+        font-weight: 500;
+        margin: 0;
+    }
 `;
