@@ -52,6 +52,28 @@ export function BarChart({
     const { ref, width: container } = useWidth();
     const [selected, setSelected] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const chartRef = useRef<HTMLElement>(null);
+    useEffect(() => {
+        if (selected === null) return;
+        const dismissOutside = (event: PointerEvent) => {
+            if (event.target instanceof Node && !chartRef.current?.contains(event.target)) {
+                setSelected(null);
+                setCopied(false);
+            }
+        };
+        const dismissEscape = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                setSelected(null);
+                setCopied(false);
+            }
+        };
+        document.addEventListener("pointerdown", dismissOutside);
+        document.addEventListener("keydown", dismissEscape);
+        return () => {
+            document.removeEventListener("pointerdown", dismissOutside);
+            document.removeEventListener("keydown", dismissEscape);
+        };
+    }, [selected]);
     const max = niceMax(Math.max(...bars.map((bar) => bar.segments.reduce((sum, segment) => sum + segment.value, 0)), 0));
     const ticks = axisTicks(max);
     const available = container > 0 ? container - AXIS : 480;
@@ -69,7 +91,7 @@ export function BarChart({
     };
 
     return (
-        <Card aria-label={title}>
+        <Card ref={chartRef} aria-label={title}>
             <ChartHeading>
                 <h2>{title}</h2>
                 {summary ? (
