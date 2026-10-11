@@ -162,16 +162,15 @@ const Items = styled.section`
 
 const ItemsHeader = styled.div`
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 3rem 4.5rem 2.75rem;
+    grid-template-columns: 25% 25% 25% 25%;
     align-items: center;
-    gap: var(--space-1);
+    column-gap: 0;
     padding: var(--space-1) 0;
     border-bottom: 1px solid var(--neutral-700);
 
     @media (min-width: 768px) {
-        grid-template-columns: minmax(0, 1fr) 5.5rem 5rem 7.5rem;
         padding-inline: var(--space-1);
-        gap: var(--space-2);
+        column-gap: 0;
     }
 `;
 
@@ -199,6 +198,8 @@ const ItemList = styled.div`
 
 const AddItemButton = styled.button`
     width: auto;
+    grid-column: 4;
+    justify-self: end;
     justify-self: end;
     background: var(--royal-500);
     aspect-ratio: 1 / 1;
