@@ -175,12 +175,6 @@ const ItemsHeader = styled.div`
     padding: var(--space-1) 0;
     border-bottom: 1px solid var(--neutral-700);
 
-    /* Keep ticket headings aligned with the item row's four-column layout. */
-    > label:nth-child(1) { grid-column: 1; justify-self: start; }
-    > label:nth-child(2) { grid-column: 2; justify-self: center; }
-    > label:nth-child(3) { grid-column: 3; justify-self: end; }
-    > button { grid-column: 4; }
-
     @media (min-width: 768px) {
         padding-inline: var(--space-1);
         gap: var(--space-2);
