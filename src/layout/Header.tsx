@@ -233,13 +233,13 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
             type="button"
             aria-label="More navigation options"
             aria-expanded={moreOpen}
-            aria-controls="mobile-more-menu"
+            aria-controls="desktop-more-menu"
             onClick={() => setMoreOpen((open) => !open)}
           >
             <Icon name="DotsThreeOutlineVertical" />
           </MoreButton>
           {moreOpen ? (
-            <MoreDropdown id="mobile-more-menu">
+            <MoreDropdown id="desktop-more-menu">
               <MoreLink to="/profile" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
                 <Icon name="UserCircle" />{userName ?? t("profile")}
               </MoreLink>
@@ -276,10 +276,6 @@ const Navbar = styled.header`
   z-index: 100;
   background: var(--neutral-950);
   flex-direction: row-reverse;
-
-  @media (max-width: 768px) {
-    padding-top: var(--space-1);
-  }
 
   @media (min-width: 768px) {
     padding: 0;
@@ -343,7 +339,7 @@ const Nav = styled.nav<{ $isOpen: boolean; $authenticated: boolean }>`
 
     align-items: stretch;
     flex-direction: column;
-    overflow: visible;
+    overflow: hidden;
     transform-origin: top;
     transform: ${({ $isOpen, $authenticated }) =>
     !$authenticated || $isOpen ? "scaleY(1)" : "scaleY(0)"};
@@ -374,16 +370,16 @@ const MobileTools = styled.div`
   align-items: center;
   gap: var(--space-1);
   @media (max-width: 768px) {
-    width: 100%;
+    display: contents;
   }
 `;
 
 const MoreWrap = styled.div`
-  display: none;
+  display: block;
   position: relative;
+  flex-shrink: 0;
   @media (max-width: 768px) {
-    display: block;
-    flex-shrink: 0;
+    display: none;
   }
 `;
 
@@ -418,7 +414,7 @@ const MoreLink = styled(RouterNavLink)`
   gap: var(--space-1);
   color: var(--neutral-300);
   text-decoration: none;
-  padding: var(--space-2);
+  padding: var(--space-1) var(--space-2);
   &:hover, &:focus-visible { color: white; background: var(--neutral-800); }
 `;
 
@@ -438,8 +434,7 @@ const LanguageToggle = styled.div`
   &:focus-visible { outline: 2px solid white; outline-offset: -2px; }
 
   @media (max-width: 768px) {
-    flex: 1;
-    min-width: 0;
+    width: 100%;
     box-sizing: border-box;
     justify-content: space-between;
     border-top: 1px solid var(--neutral-700);
