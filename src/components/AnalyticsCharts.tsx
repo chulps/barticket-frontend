@@ -72,6 +72,7 @@ export function BarChart({
                         const slot = plotWidth / Math.max(bars.length, 1);
                         const barWidth = Math.min(64, slot * 0.62);
                         const x = index * slot + (slot - barWidth) / 2;
+                        const total = bar.segments.reduce((sum, segment) => sum + segment.value, 0);
                         const heights = bar.segments.map((segment) => (max === 0 ? 0 : (segment.value / max) * innerHeight));
                         return (
                             <g key={bar.id}>
@@ -92,6 +93,17 @@ export function BarChart({
                                         />
                                     );
                                 })}
+                                <text
+                                    x={x + barWidth / 2}
+                                    y={Math.max(13, PAD_TOP + innerHeight - (total / max) * innerHeight - 6)}
+                                    textAnchor="middle"
+                                    fill="var(--neutral-100)"
+                                    fontSize="10"
+                                    fontFamily="var(--font-family-data)"
+                                    fontWeight="500"
+                                >
+                                    {formatTick(total)}
+                                </text>
                                 <text
                                     x={x + barWidth / 2}
                                     y={height - 10}
@@ -221,7 +233,7 @@ export function HorizontalBarChart({ title, bars }: { title: string; bars: Named
 }
 
 const AXIS = 64;
-const PAD_TOP = 12;
+const PAD_TOP = 25;
 const PAD_BOTTOM = 32;
 
 function useWidth() {
