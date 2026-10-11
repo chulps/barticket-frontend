@@ -10,7 +10,7 @@ import { getToken } from "../api/client";
 import { listNotices } from "../api/notices";
 import { useI18n } from "../i18n";
 
-export default function Header() {
+export default function Header({ authenticated }: { authenticated: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -96,16 +96,16 @@ export default function Header() {
         <FxxkupLogo />
       </Logo>
 
-      <Hamburger
+      {authenticated ? <Hamburger
         ref={menuButtonRef}
         className="hollow secondary"
         onClick={() => setIsOpen(!isOpen)}
       >
         <Icon name={isOpen ? "X" : "List"} />
         {alertCount > 0 ? <MenuBadge>{alertCount}</MenuBadge> : null}
-      </Hamburger>
+      </Hamburger> : null}
 
-      <Nav ref={navRef} $isOpen={isOpen}>
+      {authenticated ? <Nav ref={navRef} $isOpen={isOpen}>
         <NavLink
           onClick={() => setIsOpen(false)}
           to="/tickets">
@@ -181,14 +181,11 @@ export default function Header() {
           )}
         </NavLink>
 
-        <LanguageButton
-          type="button"
-          onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
-        >
+      </Nav> : (
+        <LanguageButton type="button" onClick={() => setLocale(locale === "ja" ? "en" : "ja")}>
           {locale === "ja" ? "English" : "日本語"}
         </LanguageButton>
-
-      </Nav>
+      )}
     </Navbar>
   );
 }
