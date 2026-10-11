@@ -766,7 +766,7 @@ const Grid = styled.div`
 
 const Stat = styled.div<{ $lead?: boolean }>`
     position: relative;
-    > button { position: absolute; top: var(--space-0); right: var(--space-0); }
+    > span:has(> button) { position: absolute; top: var(--space-0); right: var(--space-0); }
     > label { display: block; padding-right: 2em; }
     padding: ${({ $lead }) => ($lead ? "var(--space-2)" : "var(--space-1)")};
     background: var(--neutral-900);
@@ -924,7 +924,7 @@ const AlertLine = styled.p`
 
 const Card = styled.section`
     position: relative;
-    > button:first-child { position: absolute; top: var(--space-0); right: var(--space-0); }
+    > span:has(> button):first-child { position: absolute; top: var(--space-0); right: var(--space-0); }
     > h2, > p:first-of-type { padding-right: var(--space-3); }
     padding: var(--space-1);
     background: var(--neutral-900);
