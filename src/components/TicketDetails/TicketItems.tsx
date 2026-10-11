@@ -10,7 +10,6 @@ import styled from "styled-components";
 import TicketDetailItem from "./TicketItem";
 import Icon from "../Icon";
 import AddItemPicker from "../AddItemPicker";
-import AddStaffDrink from "../AddStaffDrink";
 
 // Types
 import type { MenuData, MenuItem, Prices } from "../../types/Menu";
@@ -90,6 +89,10 @@ export default function TicketItems({
                             content: (
                                 <AddItemPicker
                                     menu={menu}
+                                    onAddStaffDrink={(staffId, menuItemId, priceKey, quantity) => {
+                                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity);
+                                        closeModal();
+                                    }}
                                     onAddItem={(item, priceKey) => {
                                         const unitPrice = item.prices[priceKey];
 
@@ -112,13 +115,6 @@ export default function TicketItems({
                     <Icon name="Plus" />
                     <AddItemText>{t("addItem")}</AddItemText>
                 </AddItemButton>
-                <button className="staff-drink-action" type="button" disabled={!isEditable || !menu} onClick={() => {
-                    if (!menu) return;
-                    openModal({ title: locale === "ja" ? "スタッフドリンク" : "Staff Drink", maxWidth: "560px", content: <AddStaffDrink menu={menu} onAdd={(staffId, menuItemId, priceKey, quantity) => {
-                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity);
-                        closeModal();
-                    }} /> });
-                }}>{locale === "ja" ? "スタッフドリンク +" : "Staff Drink +"}</button>
             </ItemsHeader>
 
             <ItemList>
@@ -172,12 +168,6 @@ const Items = styled.section`
 `;
 
 const ItemsHeader = styled.div`
-    .staff-drink-action {
-        grid-column: 1 / -1;
-        justify-self: end;
-        cursor: pointer;
-        padding: var(--space-1);
-    }
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto minmax(4.5rem, max-content) auto;
     align-items: center;
