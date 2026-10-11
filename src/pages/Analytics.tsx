@@ -831,7 +831,7 @@ const Stat = styled.div<{ $lead?: boolean }>`
         display: block;
         margin-top: 2px;
         font-family: var(--font-family-data);
-        font-size: ${({ $lead }) => ($lead ? "var(--font-size-h4)" : "var(--font-size-h5)")};
+        font-size: ${({ $lead }) => ($lead ? "var(--font-size-h3)" : "var(--font-size-h5)")};
         font-weight: 500;
     }
 `;
