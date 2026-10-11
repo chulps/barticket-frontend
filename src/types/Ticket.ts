@@ -17,7 +17,10 @@ export type Ticket = {
     id: number;
     type: "cover" | "menu";
 
-    menu_item_id?: number;
+    menu_item_id?: number | null;
+    staff_drink?: boolean;
+    staff_name?: string;
+    drink_name?: string;
     price_key?: string;
 
     name: string;

@@ -574,12 +574,61 @@ export default function Analytics() {
                         </DayBento>
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
+                    {visible.length > 0 ? <StaffDrinksReport shifts={visible} context={copyPeriod(range, month, year, selected, locale)} /> : null}
                     {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} /> : null}
                 </>
             ) : null}
         </Page>
     );
 }
+
+function StaffDrinksReport({ shifts, context }: { shifts: ShiftReport[]; context: string }) {
+    const { locale } = useI18n();
+    const grouped = new Map<string, { staff: string; drink: string; unitPrice: number; quantity: number; revenue: number }>();
+    for (const shift of shifts) {
+        for (const line of shift.staff_drinks ?? []) {
+            const key = JSON.stringify([line.staff_id ?? line.staff_name, line.drink_name, line.unit_price]);
+            const current = grouped.get(key);
+            if (current) {
+                current.quantity += line.quantity;
+                current.revenue += line.revenue;
+            } else {
+                grouped.set(key, { staff: line.staff_name, drink: line.drink_name, unitPrice: line.unit_price, quantity: line.quantity, revenue: line.revenue });
+            }
+        }
+    }
+    const rows = [...grouped.values()].sort((a, b) => a.staff.localeCompare(b.staff) || a.drink.localeCompare(b.drink) || a.unitPrice - b.unitPrice);
+    const totalCount = rows.reduce((sum, row) => sum + row.quantity, 0);
+    const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
+    const heading = locale === "ja" ? "スタッフドリンク" : "Staff Drinks";
+    const text = [`${context} → ${heading}`, ...rows.map(row => `${row.staff} · ${row.drink} · ¥${row.unitPrice.toLocaleString()} × ${row.quantity} = ¥${row.revenue.toLocaleString()}`), `${locale === "ja" ? "合計" : "Total"}: ${totalCount} / ¥${totalRevenue.toLocaleString()}`].join("\\n");
+    return (
+        <StaffDrinkPanel>
+            <header><h2>{heading}</h2><CopyPanelButton locale={locale} text={text} /></header>
+            {rows.length === 0 ? <p>{locale === "ja" ? "記録はありません" : "No staff drinks recorded"}</p> : (
+                <div className="table-scroll">
+                    <table>
+                        <thead><tr><th>{locale === "ja" ? "スタッフ" : "Staff"}</th><th>{locale === "ja" ? "種類" : "Type"}</th><th>{locale === "ja" ? "単価" : "Unit Price"}</th><th>{locale === "ja" ? "数量" : "Quantity"}</th><th>{locale === "ja" ? "売上" : "Revenue"}</th></tr></thead>
+                        <tbody>{rows.map((row, index) => <tr key={index}><td>{row.staff}</td><td>{row.drink}</td><td>¥{row.unitPrice.toLocaleString()}</td><td>{row.quantity}</td><td>¥{row.revenue.toLocaleString()}</td></tr>)}</tbody>
+                        <tfoot><tr><th colSpan={3}>{locale === "ja" ? "合計" : "Total"}</th><th>{totalCount}</th><th>¥{totalRevenue.toLocaleString()}</th></tr></tfoot>
+                    </table>
+                </div>
+            )}
+        </StaffDrinkPanel>
+    );
+}
+
+const StaffDrinkPanel = styled.section`
+    background: var(--neutral-900);
+    border-radius: 12px;
+    padding: var(--space-2);
+    margin-top: var(--space-1);
+    header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-1); }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: var(--space-1); border-bottom: 1px solid var(--neutral-700); white-space: nowrap; }
+    td:nth-child(n+3), th:nth-child(n+3) { text-align: right; }
+`;
 
 function Stockouts({ shifts }: { shifts: ShiftReport[] }) {
     const { t, locale } = useI18n();

@@ -11,6 +11,7 @@ import type { MenuData, MenuItem, Prices } from "../types/Menu";
 
 // import UI components
 import SearchBar from "./MenuSearchBar";
+import AddStaffDrink from "./AddStaffDrink";
 
 // import hooks
 import { useModal } from "../hooks/useModal";
@@ -18,6 +19,7 @@ import { menuHaystack, menuLabel, useI18n } from "../i18n";
 
 type AddItemModalProps = {
     menu: MenuData;
+    onAddStaffDrink: (staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
 
     onAddItem: (
         item: MenuItem,
@@ -29,9 +31,11 @@ type AddItemModalProps = {
 export default function AddItemModal({
     menu,
     onAddItem,
+    onAddStaffDrink,
 }: AddItemModalProps) {
     const { t, locale } = useI18n();
     const [search, setSearch] = useState("");
+    const [showStaffDrink, setShowStaffDrink] = useState(false);
     const [selectedItems, setSelectedItems] = useState<
         { item: MenuItem; priceKey: keyof Prices }[]
     >([]);
@@ -118,6 +122,14 @@ export default function AddItemModal({
 
     return (
         <>
+            <ModeSwitch>
+                <button type="button" className={!showStaffDrink ? "selected" : ""} aria-pressed={!showStaffDrink} onClick={() => setShowStaffDrink(false)}>{locale === "ja" ? "メニュー" : "Menu"}</button>
+                <button type="button" className={showStaffDrink ? "selected" : ""} aria-pressed={showStaffDrink} onClick={() => setShowStaffDrink(true)}>{locale === "ja" ? "スタッフドリンク" : "Staff Drink"}</button>
+            </ModeSwitch>
+            {showStaffDrink ? <AddStaffDrink menu={menu} onAdd={(staffId, menuItemId, priceKey, quantity) => {
+                onAddStaffDrink(staffId, menuItemId, priceKey, quantity);
+                closeModal();
+            }} /> : <>
             <SearchBarContainer>
                 <SearchBar
                     value={search}
@@ -207,6 +219,7 @@ export default function AddItemModal({
                     </Footer>
                 )
             }
+            </>}
         </>
     );
 }
@@ -309,3 +322,11 @@ const CancelButton =styled.button `
     border: 1px solid var(--danger-500);
     flex: 1;
 `
+
+const ModeSwitch = styled.div`
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    button { flex: 1; padding: var(--space-1); background: transparent; border: 1px solid var(--neutral-700); border-radius: 6px; }
+    button.selected { background: var(--royal-500); color: white; }
+`;

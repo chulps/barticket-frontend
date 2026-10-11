@@ -8,7 +8,10 @@ export const COVER_ITEM_ID = 0;
 
 type ApiTicketItem = {
     id: number;
-    menu_item_id: number;
+    menu_item_id: number | null;
+    staff_drink?: boolean;
+    staff_name?: string;
+    drink_name?: string;
     name: string;
     price_key: string;
     quantity: number;
@@ -63,6 +66,9 @@ export function toTicket(api: ApiTicket): Ticket {
                 unit_price: item.unit_price,
                 quantity: item.quantity,
                 subtotal: item.subtotal,
+                staff_drink: item.staff_drink,
+                staff_name: item.staff_name,
+                drink_name: item.drink_name,
             })),
         ],
         created_at: api.created_at,
@@ -103,6 +109,12 @@ export const ticketsApi = {
         apiRequest<ApiTicket>(`/tickets/${ticketId}/items`, {
             method: "POST",
             body: { menu_item_id: menuItemId, price_key: priceKey, quantity },
+        }),
+
+    addStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number) =>
+        apiRequest<ApiTicket>(`/tickets/${ticketId}/staff-drinks`, {
+            method: "POST",
+            body: { staff_id: staffId, menu_item_id: menuItemId, price_key: priceKey, quantity },
         }),
 
     updateItem: (

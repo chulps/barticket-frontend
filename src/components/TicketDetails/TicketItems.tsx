@@ -44,6 +44,8 @@ type TicketItemsProps = {
         itemId: number
     ) => void;
 
+    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
+
     onAddItem: (
         ticketId: number,
         menuItem: MenuItem,
@@ -62,6 +64,7 @@ export default function TicketItems({
     onUpdatePrice,
     onRemoveItem,
     onAddItem,
+    onAddStaffDrink,
 }: TicketItemsProps) {
     const { openModal, closeModal } = useModal();
     const { t, locale } = useI18n();
@@ -86,6 +89,10 @@ export default function TicketItems({
                             content: (
                                 <AddItemPicker
                                     menu={menu}
+                                    onAddStaffDrink={(staffId, menuItemId, priceKey, quantity) => {
+                                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity);
+                                        closeModal();
+                                    }}
                                     onAddItem={(item, priceKey) => {
                                         const unitPrice = item.prices[priceKey];
 
@@ -116,7 +123,7 @@ export default function TicketItems({
                         key={item.id}
                         id={item.id}
                         name={
-                            item.type === "cover"
+                            item.staff_drink ? item.name : item.type === "cover"
                                 ? t("coverCharge")
                                 : menuLabel(
                                     locale,

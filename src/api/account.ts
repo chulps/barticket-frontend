@@ -33,6 +33,7 @@ export type ShiftReport = {
     paid_count: number;
     cancelled_count: number;
     staff_hours: { user_id: number; name: string; seconds: number }[];
+    staff_drinks?: { ticket_id: number; staff_id: number | null; staff_name: string; menu_item_id: number | null; drink_name: string; price_key: string; unit_price: number; quantity: number; revenue: number }[];
     stockouts?: { item: string; at: number; by: string }[];
     punches: ShiftPunch[];
 };
@@ -75,6 +76,8 @@ export const accountApi = {
         apiRequest<Account>("/auth/me", { method: "PATCH", body }),
 
     listUsers: () => apiRequest<Account[]>("/users"),
+
+    staffDrinkRecipients: () => apiRequest<{ id: number; name: string }[]>("/users/recipients"),
 
     createUser: (body: {
         name: string;
