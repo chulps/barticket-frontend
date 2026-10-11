@@ -181,11 +181,22 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           )}
         </NavLink>
 
-      </Nav> : (
-        <LanguageButton type="button" onClick={() => setLocale(locale === "ja" ? "en" : "ja")}>
-          {locale === "ja" ? "English" : "日本語"}
-        </LanguageButton>
-      )}
+      </Nav> : null}
+
+      <LanguageToggle
+        type="button"
+        role="switch"
+        aria-checked={locale === "ja"}
+        aria-label={locale === "ja" ? "Language: Japanese. Switch to English" : "Language: English. Switch to Japanese"}
+        title={locale === "ja" ? "日本語 → English" : "English → 日本語"}
+        onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
+      >
+        <Icon name="Translate" size="1.25em" />
+        <ToggleTrack $japanese={locale === "ja"} aria-hidden="true">
+          <ToggleFlag>{locale === "ja" ? "🇯🇵" : "🇺🇸"}</ToggleFlag>
+          <ToggleThumb />
+        </ToggleTrack>
+      </LanguageToggle>
     </Navbar>
   );
 }
@@ -279,17 +290,49 @@ const Nav = styled.nav<{ $isOpen: boolean }>`
   }
 `;
 
-const LanguageButton = styled.button`
+const LanguageToggle = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  flex-shrink: 0;
   background: none;
   border: none;
   color: var(--neutral-300);
   cursor: pointer;
   padding: var(--space-2);
-  text-align: left;
 
-  &:hover {
-    color: white;
-  }
+  &:hover { color: white; }
+  &:focus-visible { outline: 2px solid white; outline-offset: -2px; }
+`;
+
+const ToggleTrack = styled.span<{ $japanese: boolean }>`
+  display: flex;
+  align-items: center;
+  flex-direction: ${({ $japanese }) => $japanese ? "row" : "row-reverse"};
+  justify-content: space-between;
+  gap: 3px;
+  padding: 3px;
+  min-width: 64px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--neutral-800);
+  border: 1px solid var(--neutral-700);
+  box-sizing: border-box;
+`;
+
+const ToggleFlag = styled.span`
+  font-size: 19px;
+  line-height: 1;
+`;
+
+const ToggleThumb = styled.span`
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: white;
+  flex-shrink: 0;
 `;
 
 const AlertCount = styled.span`
