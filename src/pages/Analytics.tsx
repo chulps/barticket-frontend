@@ -183,6 +183,27 @@ function monthPoints(shifts: ShiftReport[], locale: Locale): Point[] {
     });
 }
 
+function yearPoints(shifts: ShiftReport[]): Point[] {
+    const groups = new Map<string, ShiftReport[]>();
+    chronological(shifts).forEach((shift) => {
+        const key = yearKey(shift.business_date);
+        groups.set(key, [...(groups.get(key) ?? []), shift]);
+    });
+    return [...groups.entries()].map(([key, rows]) => {
+        const totals = summarize(rows);
+        return {
+            id: key,
+            label: key,
+            detailLabel: key,
+            title: `${key} · ${yen(totals.revenue)} · ${totals.guests}`,
+            cash: totals.cash,
+            card: totals.card,
+            other: totals.other,
+            guests: totals.guests,
+        };
+    });
+}
+
 function paymentBars(points: Point[]): TimeBar[] {
     return points.map((point) => ({
         id: point.id,
@@ -259,7 +280,7 @@ function RangeCharts({
     range: Range;
 }) {
     const { t, locale } = useI18n();
-    const points = range === "all" || range === "year" ? monthPoints(shifts, locale) : nightPoints(shifts, locale);
+    const points = range === "all" ? yearPoints(shifts) : range === "year" ? monthPoints(shifts, locale) : nightPoints(shifts, locale);
     const averageRevenueSummary = {
         label: locale === "ja" ? "一晩の平均売上" : "Average Revenue / Night",
         value: yen(Math.round(totals.revenue / Math.max(totals.nights, 1))),
@@ -280,7 +301,7 @@ function RangeCharts({
         <Bento>
             <Cell $span={4}>
                 <BarChart
-                    title={range === "all" || range === "year" ? t("revenueByMonth") : t("revenueByNight")}
+                    title={range === "all" ? (locale === "ja" ? "年別売上" : "Revenue by Year") : range === "year" ? t("revenueByMonth") : t("revenueByNight")}
                     bars={paymentBars(points)}
                     summary={averageRevenueSummary}
                     formatTick={(value) => compactYen(value, locale)}
@@ -296,7 +317,7 @@ function RangeCharts({
             </Cell>
             <Cell $span={2}>
                 <BarChart
-                    title={range === "all" || range === "year" ? t("guestsByMonth") : t("guestsByNight")}
+                    title={range === "all" ? (locale === "ja" ? "年別客数" : "Guests by Year") : range === "year" ? t("guestsByMonth") : t("guestsByNight")}
                     bars={guestBars(points)}
                     summary={{
                         label: locale === "ja" ? "平均客数" : "Average Guests",
