@@ -70,13 +70,15 @@ export function BarChart({
 
     return (
         <Card aria-label={title}>
-            <h2>{title}</h2>
-            {summary ? (
-                <ChartSummary>
-                    <label>{summary.label}</label>
-                    <h3>{summary.value}</h3>
-                </ChartSummary>
-            ) : null}
+            <ChartHeading>
+                <h2>{title}</h2>
+                {summary ? (
+                    <ChartSummary>
+                        <label>{summary.label}</label>
+                        <h3>{summary.value}</h3>
+                    </ChartSummary>
+                ) : null}
+            </ChartHeading>
             <Scroll ref={ref}>
                 <svg viewBox={`0 0 ${width} ${height}`} role="img" width={width} height={height}>
                     {ticks.map((tick) => {
@@ -98,7 +100,7 @@ export function BarChart({
                         const total = bar.segments.reduce((sum, segment) => sum + segment.value, 0);
                         const heights = bar.segments.map((segment) => (max === 0 ? 0 : (segment.value / max) * innerHeight));
                         return (
-                            <g key={bar.id} tabIndex={0} role="button" aria-label={`${bar.detailLabel ?? bar.label}: ${formatFull(total)}`} onMouseEnter={() => show(bar.id)} onFocus={() => show(bar.id)} onClick={() => show(bar.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); show(bar.id); } }} style={{ cursor: "pointer", outlineOffset: 2 }}>
+                            <g key={bar.id} tabIndex={0} role="button" aria-label={`${bar.detailLabel ?? bar.label}: ${formatFull(total)}`} onClick={() => show(bar.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); show(bar.id); } }} style={{ cursor: "pointer", outlineOffset: 2 }}>
                                 <title>{bar.title}</title>
                                 {bar.segments.map((segment, segmentIndex) => {
                                     const barHeight = heights[segmentIndex];
@@ -411,7 +413,14 @@ const BarDetails = styled.div`
     button:hover { background: var(--neutral-700); }
 `;
 
-const ChartSummary = styled.div`
+const ChartHeading = styled.div`
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-1);
+`;
+
+const ChartSummary = styled.span`
     display: flex;
     flex-direction: column;
     gap: var(--space-0);
