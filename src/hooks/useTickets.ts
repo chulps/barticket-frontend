@@ -120,6 +120,12 @@ export function useTickets() {
     void enqueue(ticketId, () => ticketsApi.addItem(ticketId, menuItem.id, priceKey));
   };
 
+  const addStaffDrinkToTicket = (
+    ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number,
+  ) => {
+    void enqueue(ticketId, () => ticketsApi.addStaffDrink(ticketId, staffId, menuItemId, priceKey, quantity));
+  };
+
   const flushRename = (ticketId: number) => {
     const timer = renameTimers.current.get(ticketId);
     if (timer === undefined) return;
@@ -204,6 +210,7 @@ export function useTickets() {
     updateItemQuantity,
     updateItemPrice,
     addItemToTicket,
+    addStaffDrinkToTicket,
     updateTicketName,
     removeItemFromTicket,
     createTicket,
