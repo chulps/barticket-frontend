@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import styled from "styled-components";
+import { useNavigate } from "react-router-dom";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
@@ -8,6 +9,7 @@ import { localeTag, readLocale, translate, useI18n } from "../i18n";
 
 export default function Profile() {
     const { t, locale } = useI18n();
+    const navigate = useNavigate();
     const [account, setAccount] = useState<Account | null>(null);
     const [hasAccounts, setHasAccounts] = useState(true);
     const [shift, setShift] = useState<ShiftReport | null>(null);
@@ -114,6 +116,7 @@ export default function Profile() {
                                     : await accountApi.register(name, email, password);
                                 setPassword("");
                                 await refresh(user);
+                                navigate("/tickets", { replace: true });
                             })
                         }
                     >
@@ -229,6 +232,7 @@ export default function Profile() {
                                         await accountApi.logout();
                                         setPassword("");
                                         await refresh(null);
+                                        navigate("/", { replace: true });
                                     })
                                 }
                             >
