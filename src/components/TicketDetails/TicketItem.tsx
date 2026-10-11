@@ -158,7 +158,7 @@ export default function TicketDetailItem({
 
 const Container = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(4.5rem, max-content) auto;
+  grid-template-columns: minmax(0, 1fr) 3rem 4.5rem 2.75rem;
   align-items: center;
   gap: var(--space-1);
 
@@ -170,6 +170,7 @@ const Container = styled.div`
   }
   
   @media (min-width: 768px) {
+        grid-template-columns: minmax(0, 1fr) 5.5rem 5rem 7.5rem;
     gap: var(--space-2);
     padding: var(--space-1);
   }
