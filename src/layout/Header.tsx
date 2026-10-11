@@ -470,6 +470,9 @@ const ToggleTrack = styled.span<{ $japanese: boolean }>`
   /* The stripes fade away as the Japanese white field takes over. */
   &::before {
     content: "";
+    border-radius: inherit;
+    outline: 4px solid var(--background-color);
+    outline-offset: -2px;
     position: absolute;
     inset: 0;
     background: repeating-linear-gradient(
