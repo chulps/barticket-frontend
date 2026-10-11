@@ -15,6 +15,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
   const navRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [isManager, setIsManager] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
   const [clockedIn, setClockedIn] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
   const { t, locale, setLocale } = useI18n();
@@ -26,6 +27,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       if (!getToken()) {
         if (!cancelled) {
           setIsManager(false);
+          setUserName(null);
           setClockedIn(false);
         }
         return;
@@ -35,12 +37,14 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         const shift = await accountApi.currentShift();
         if (cancelled) return;
         setIsManager(me.role === "manager");
+        setUserName(me.name.trim() || null);
         setClockedIn(
           Boolean(shift?.punches.some((punch) => punch.user_id === me.id && punch.clock_out === null)),
         );
       } catch {
         if (!cancelled) {
           setIsManager(false);
+          setUserName(null);
           setClockedIn(false);
         }
       }
@@ -105,7 +109,8 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         {alertCount > 0 ? <MenuBadge>{alertCount}</MenuBadge> : null}
       </Hamburger> : null}
 
-      {authenticated ? <Nav ref={navRef} $isOpen={isOpen}>
+      <Nav ref={navRef} $isOpen={isOpen} $authenticated={authenticated}>
+        {authenticated ? <NavTabs>
         <NavLink
           onClick={() => setIsOpen(false)}
           to="/tickets">
@@ -176,20 +181,26 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
                 name="UserCircle"
                 weight={isActive ? "fill" : "regular"}
               />
-              {t("profile")}
+              {userName ?? t("profile")}
             </>
           )}
         </NavLink>
 
-      </Nav> : null}
+        </NavTabs> : null}
 
       <LanguageToggle
-        type="button"
+        tabIndex={0}
         role="switch"
         aria-checked={locale === "ja"}
         aria-label={locale === "ja" ? "Language: Japanese. Switch to English" : "Language: English. Switch to Japanese"}
         title={locale === "ja" ? "日本語 → English" : "English → 日本語"}
         onClick={() => setLocale(locale === "ja" ? "en" : "ja")}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setLocale(locale === "ja" ? "en" : "ja");
+          }
+        }}
       >
         <Icon name="Translate" size="1.25em" />
         <ToggleTrack $japanese={locale === "ja"} aria-hidden="true">
@@ -197,6 +208,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           <ToggleThumb />
         </ToggleTrack>
       </LanguageToggle>
+      </Nav>
     </Navbar>
   );
 }
@@ -260,37 +272,49 @@ const MenuBadge = styled.span`
   justify-content: center;
 `;
 
-const Nav = styled.nav<{ $isOpen: boolean }>`
+const Nav = styled.nav<{ $isOpen: boolean; $authenticated: boolean }>`
   display: flex;
-  gap: 0;
+  gap: var(--space-1);
+  align-items: center;
 
   @media (max-width: 768px) {
-    position: absolute;
+    position: ${({ $authenticated }) => $authenticated ? "absolute" : "static"};
     top: var(--space-4);
     left: 0;
 
-    background: var(--neutral-900);
-    border: 1px solid var(--neutral-700);
+    background: ${({ $authenticated }) => $authenticated ? "var(--neutral-900)" : "transparent"};
+    border: ${({ $authenticated }) => $authenticated ? "1px solid var(--neutral-700)" : "none"};
     border-radius: var(--space-2);
 
+    align-items: stretch;
     flex-direction: column;
     overflow: hidden;
     transform-origin: top;
-    transform: ${({ $isOpen }) =>
-    $isOpen ? "scaleY(1)" : "scaleY(0)"};
+    transform: ${({ $isOpen, $authenticated }) =>
+    !$authenticated || $isOpen ? "scaleY(1)" : "scaleY(0)"};
 
-    opacity: ${({ $isOpen }) => ($isOpen ? 1 : 0)};
+    opacity: ${({ $isOpen, $authenticated }) => (!$authenticated || $isOpen ? 1 : 0)};
 
     transition:
       transform 0.3s ease,
       opacity 0.2s ease;
 
-    pointer-events: ${({ $isOpen }) =>
-    $isOpen ? "auto" : "none"};
+    pointer-events: ${({ $isOpen, $authenticated }) =>
+    !$authenticated || $isOpen ? "auto" : "none"};
   }
 `;
 
-const LanguageToggle = styled.button`
+const NavTabs = styled.div`
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+`;
+
+const LanguageToggle = styled.div`
   display: inline-flex;
   align-items: center;
   justify-content: center;
