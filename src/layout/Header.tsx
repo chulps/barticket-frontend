@@ -12,6 +12,8 @@ import { useI18n } from "../i18n";
 
 export default function Header({ authenticated }: { authenticated: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [isManager, setIsManager] = useState(false);
@@ -72,6 +74,22 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    function dismiss(event: MouseEvent) {
+      if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape") setMoreOpen(false);
+    }
+    document.addEventListener("mousedown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", dismiss);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [moreOpen]);
 
   useEffect(() => {
     if (!canSeeNotices) return;
@@ -188,6 +206,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
 
         </NavTabs> : null}
 
+      <MobileTools>
       <LanguageToggle
         tabIndex={0}
         role="switch"
@@ -208,6 +227,38 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           <ToggleThumb />
         </ToggleTrack>
       </LanguageToggle>
+      {authenticated ? (
+        <MoreWrap ref={moreRef}>
+          <MoreButton
+            type="button"
+            aria-label="More navigation options"
+            aria-expanded={moreOpen}
+            aria-controls="mobile-more-menu"
+            onClick={() => setMoreOpen((open) => !open)}
+          >
+            <Icon name="DotsThreeOutlineVertical" />
+          </MoreButton>
+          {moreOpen ? (
+            <MoreDropdown id="mobile-more-menu">
+              <MoreLink to="/profile" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+                <Icon name="UserCircle" />{userName ?? t("profile")}
+              </MoreLink>
+              {canSeeNotices ? (
+                <MoreLink to="/notifications" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+                  <Icon name="Bell" />{t("notifications")}
+                  {alertCount > 0 ? <AlertCount>{alertCount}</AlertCount> : null}
+                </MoreLink>
+              ) : null}
+              {isManager ? (
+                <MoreLink to="/analytics" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+                  <Icon name="ChartDonut" />{t("analytics")}
+                </MoreLink>
+              ) : null}
+            </MoreDropdown>
+          ) : null}
+        </MoreWrap>
+      ) : null}
+      </MobileTools>
       </Nav>
     </Navbar>
   );
@@ -225,6 +276,10 @@ const Navbar = styled.header`
   z-index: 100;
   background: var(--neutral-950);
   flex-direction: row-reverse;
+
+  @media (max-width: 768px) {
+    padding-top: var(--space-1);
+  }
 
   @media (min-width: 768px) {
     padding: 0;
@@ -314,6 +369,59 @@ const NavTabs = styled.div`
   }
 `;
 
+const MobileTools = styled.div`
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  @media (max-width: 768px) {
+    width: 100%;
+  }
+`;
+
+const MoreWrap = styled.div`
+  display: none;
+  position: relative;
+  @media (max-width: 768px) {
+    display: block;
+    flex-shrink: 0;
+  }
+`;
+
+const MoreButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--neutral-300);
+  border: none;
+  padding: var(--space-2);
+  cursor: pointer;
+  &:focus-visible { outline: 2px solid white; }
+`;
+
+const MoreDropdown = styled.div`
+  position: absolute;
+  right: 0;
+  top: 100%;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  background: var(--neutral-900);
+  border: 1px solid var(--neutral-700);
+  border-radius: var(--space-2);
+  z-index: 200;
+`;
+
+const MoreLink = styled(RouterNavLink)`
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--neutral-300);
+  text-decoration: none;
+  padding: var(--space-2);
+  &:hover, &:focus-visible { color: white; background: var(--neutral-800); }
+`;
+
 const LanguageToggle = styled.div`
   display: inline-flex;
   align-items: center;
@@ -330,7 +438,8 @@ const LanguageToggle = styled.div`
   &:focus-visible { outline: 2px solid white; outline-offset: -2px; }
 
   @media (max-width: 768px) {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     box-sizing: border-box;
     justify-content: space-between;
     border-top: 1px solid var(--neutral-700);
