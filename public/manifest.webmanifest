@@ -3,7 +3,7 @@
   "name": "BarTicket",
   "short_name": "BarTicket",
   "description": "BarTicket bar POS and shift management",
-  "start_url": "/barticket-frontend/tickets",
+  "start_url": "/barticket-frontend/",
   "scope": "/barticket-frontend/",
   "display": "standalone",
   "background_color": "#000000",
