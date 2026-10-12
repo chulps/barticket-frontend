@@ -13,7 +13,7 @@ import { formatDuration, localeTag, menuLabel, readLocale, translate, useI18n, t
 import type { Ticket } from "../types/Ticket";
 import { topSellingItems } from "../components/topSellingItems";
 import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
-import { shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
+import { analyticsDrillDownTarget, shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
 import OpenShiftOverview from "./OpenShiftOverview";
 
@@ -289,13 +289,20 @@ function RangeCharts({
     totals,
     range,
     context,
+    onDrillDown,
 }: {
     shifts: ShiftReport[];
     totals: Totals;
     range: Range;
     context: string;
+    onDrillDown: (barId: string) => void;
 }) {
     const { t, locale } = useI18n();
+    const drillDownLabel = range === "all"
+        ? (locale === "ja" ? "年別レポートを見る" : "View year report")
+        : range === "year"
+          ? (locale === "ja" ? "月別レポートを見る" : "View monthly report")
+          : (locale === "ja" ? "日別レポートを見る" : "View daily report");
     const points = range === "all" ? yearPoints(shifts) : range === "year" ? monthPoints(shifts, locale) : nightPoints(shifts, locale);
     const averageRevenueSummary = {
         label: locale === "ja" ? "一晩の平均売上" : "Average Revenue / Night",
@@ -320,6 +327,8 @@ function RangeCharts({
                     title={range === "all" ? (locale === "ja" ? "年別売上" : "Revenue by Year") : range === "year" ? t("revenueByMonth") : t("revenueByNight")}
                     bars={paymentBars(points)}
                     copyContext={context}
+                    onDrillDown={onDrillDown}
+                    drillDownLabel={drillDownLabel}
                     summary={averageRevenueSummary}
                     formatTick={(value) => compactYen(value, locale)}
                     formatFull={(value) => yen(value)}
@@ -338,6 +347,8 @@ function RangeCharts({
                     title={range === "all" ? (locale === "ja" ? "年別客数" : "Guests by Year") : range === "year" ? t("guestsByMonth") : t("guestsByNight")}
                     bars={guestBars(points)}
                     copyContext={context}
+                    onDrillDown={onDrillDown}
+                    drillDownLabel={drillDownLabel}
                     summary={{
                         label: locale === "ja" ? "平均客数" : "Average Guests",
                         value: String(Math.round(totals.guests / Math.max(totals.nights, 1))),
@@ -598,6 +609,23 @@ export default function Analytics() {
         setDayId(match?.id ?? null);
     }
 
+    function drillIntoBar(barId: string) {
+        if (range === "day") return;
+        const target = analyticsDrillDownTarget(range, barId, shifts ?? []);
+        if (!target) return;
+        if (target.range === "year") {
+            setYear(target.key);
+        } else if (target.range === "month") {
+            showMonth(target.key);
+        } else {
+            pickDate(target.key);
+            // A daily bar represents a specific shift ID, even if multiple
+            // shifts happen to share one business date.
+            setDayId(target.shiftId);
+        }
+        setRange(target.range);
+    }
+
     return (
         <Page>
             <h1>{t("analytics")}</h1>
@@ -708,7 +736,7 @@ export default function Analytics() {
                         <>
                             {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} context={copyPeriod(range, month, year, selected, locale)} />}
                     {range !== "day" && visible.length > 0 ? (
-                        <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} />
+                        <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} onDrillDown={drillIntoBar} />
                     ) : null}
                     {range === "day" && selected ? (
                         <DayBento>
