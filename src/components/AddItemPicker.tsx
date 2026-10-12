@@ -12,7 +12,7 @@ import { addSelection, changeSelectionQuantity, type SelectedDrink } from "./qui
 type AddItemPickerProps = {
     menu: MenuData;
     tickets: Ticket[];
-    onAddStaffDrink: (staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
+    onAddStaffDrink: (staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => void;
     onAddItem: (item: MenuItem, priceKey: keyof Prices, quantity: number) => void;
 };
 
@@ -78,8 +78,8 @@ export default function AddItemPicker({ menu, tickets, onAddItem, onAddStaffDrin
                 <button type="button" className={showStaffDrink ? "selected" : ""} aria-pressed={showStaffDrink}
                     onClick={() => setShowStaffDrink(true)}>{locale === "ja" ? "スタッフドリンク" : "Staff Drink"}</button>
             </ModeSwitch>
-            {showStaffDrink ? <AddStaffDrink menu={menu} onAdd={(staffId, menuItemId, priceKey, quantity) => {
-                onAddStaffDrink(staffId, menuItemId, priceKey, quantity);
+            {showStaffDrink ? <AddStaffDrink menu={menu} onAdd={(staffId, menuItemId, priceKey, quantity, details) => {
+                onAddStaffDrink(staffId, menuItemId, priceKey, quantity, details);
                 closeModal();
             }} /> : <>
                 <SearchBarContainer><SearchBar value={search} onChange={setSearch} /></SearchBarContainer>
