@@ -11,6 +11,7 @@ import TabGroup from "../components/TabGroup";
 import { formatDuration, localeTag, menuLabel, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
 import type { Ticket } from "../types/Ticket";
 import { topSellingItems } from "../components/topSellingItems";
+import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 
 type Range = "all" | "year" | "month" | "day";
 
@@ -22,6 +23,8 @@ type Totals = {
     cash: number;
     card: number;
     other: number;
+    unknownPayment: number;
+    missingTicketNights: number;
     cover: number;
     guests: number;
     paid: number;
@@ -36,6 +39,8 @@ function emptyTotals(): Totals {
         cash: 0,
         card: 0,
         other: 0,
+        unknownPayment: 0,
+        missingTicketNights: 0,
         cover: 0,
         guests: 0,
         paid: 0,
@@ -47,9 +52,12 @@ function emptyTotals(): Totals {
 function addShift(totals: Totals, shift: ShiftReport) {
     totals.nights += 1;
     totals.revenue += shift.paid_total;
-    totals.cash += shift.cash_total;
-    totals.card += shift.card_total;
-    totals.other += shift.other_total;
+    const payment = paymentAllocation(shift);
+    totals.cash += payment.cash;
+    totals.card += payment.card;
+    totals.other += payment.other;
+    totals.unknownPayment += payment.unknown;
+    if (ticketCountsUnavailable(shift)) totals.missingTicketNights += 1;
     totals.cover += shift.cover_total;
     totals.guests += shift.guest_count;
     totals.paid += shift.paid_count;
@@ -127,6 +135,7 @@ function average(total: number, count: number) {
 const CASH = "var(--success-400)";
 const CARD = "var(--royal-400)";
 const OTHER = "var(--neutral-300)";
+const UNKNOWN = "var(--neutral-500)";
 
 type Point = {
     id: string;
@@ -136,6 +145,7 @@ type Point = {
     cash: number;
     card: number;
     other: number;
+    unknownPayment: number;
     guests: number;
 };
 
@@ -152,9 +162,8 @@ function nightPoints(shifts: ShiftReport[], locale: Locale): Point[] {
             day: "numeric",
         }),
         title: `${formatNight(shift.business_date, locale)} · ${yen(shift.paid_total)} · ${shift.guest_count}`,
-        cash: shift.cash_total,
-        card: shift.card_total,
-        other: shift.other_total,
+        ...paymentAllocation(shift),
+        unknownPayment: paymentAllocation(shift).unknown,
         guests: shift.guest_count,
     }));
 }
@@ -179,6 +188,7 @@ function monthPoints(shifts: ShiftReport[], locale: Locale): Point[] {
             cash: totals.cash,
             card: totals.card,
             other: totals.other,
+            unknownPayment: totals.unknownPayment,
             guests: totals.guests,
         };
     });
@@ -200,6 +210,7 @@ function yearPoints(shifts: ShiftReport[]): Point[] {
             cash: totals.cash,
             card: totals.card,
             other: totals.other,
+            unknownPayment: totals.unknownPayment,
             guests: totals.guests,
         };
     });
@@ -215,6 +226,7 @@ function paymentBars(points: Point[]): TimeBar[] {
             { value: point.cash, color: CASH },
             { value: point.card, color: CARD },
             { value: point.other, color: OTHER },
+            { value: point.unknownPayment, color: UNKNOWN },
         ],
     }));
 }
@@ -323,6 +335,7 @@ function RangeCharts({
                         { label: t("cash"), color: CASH },
                         { label: t("card"), color: CARD },
                         { label: t("other"), color: OTHER },
+                        { label: locale === "ja" ? "支払方法未記録" : "Payment type not recorded", color: UNKNOWN },
                     ]}
                 />
             </Cell>
@@ -351,11 +364,14 @@ function RangeCharts({
                         { id: "cash", label: t("cash"), value: totals.cash, display: yen(totals.cash), color: CASH },
                         { id: "card", label: t("card"), value: totals.card, display: yen(totals.card), color: CARD },
                         { id: "other", label: t("other"), value: totals.other, display: yen(totals.other), color: OTHER },
+                        { id: "unknown", label: locale === "ja" ? "未記録" : "Not recorded", value: totals.unknownPayment, display: yen(totals.unknownPayment), color: UNKNOWN },
                     ]}
                 />
             </Cell>
             <Cell>
-                <DonutChart
+                {totals.missingTicketNights === shifts.length ? (
+                    <MissingTicketsPanel context={context} missing={totals.missingTicketNights} />
+                ) : <DonutChart
                     title={t("tickets")}
                     center={String(totals.paid + totals.cancelled)}
                     copyContext={context}
@@ -370,7 +386,12 @@ function RangeCharts({
                             color: "var(--danger-400)",
                         },
                     ]}
-                />
+                    note={totals.missingTicketNights > 0
+                        ? (locale === "ja"
+                            ? `一部の夜（${totals.missingTicketNights}件）はチケット数が未記録です。表示は記録済みの夜のみ。`
+                            : `Ticket counts weren't recorded for ${totals.missingTicketNights} night(s). Showing recorded nights only.`)
+                        : undefined}
+                />}
             </Cell>
             <Cell $span={2}>
                 <BarChart title={t("byWeekday")} bars={weekdayBars} copyContext={context} summary={averageRevenueSummary} formatTick={(value) => compactYen(value, locale)} formatFull={(value) => yen(value)} locale={locale} chartHeight={168} />
@@ -381,6 +402,39 @@ function RangeCharts({
         </Bento>
     );
 }
+
+function MissingTicketsPanel({ context, missing }: { context: string; missing: number }) {
+    const { t, locale } = useI18n();
+    const note = locale === "ja"
+        ? `${missing}件の夜はチケット数（支払済み・キャンセル）が未記録です。`
+        : `Paid and cancelled ticket counts weren't recorded for these ${missing} night(s).`;
+    return (
+        <MissingTicketsCard>
+            <header>
+                <h2>{t("tickets")}</h2>
+                <CopyPanelButton locale={locale} text={`${context} → ${t("tickets")}: ${note}`} />
+            </header>
+            <strong>—</strong>
+            <DataCaveat>{note}</DataCaveat>
+        </MissingTicketsCard>
+    );
+}
+
+const DataCaveat = styled.p`
+    color: var(--neutral-400);
+    font-size: var(--font-size-small);
+    margin: var(--space-1) 0 0;
+`;
+
+const MissingTicketsCard = styled.section`
+    background: var(--neutral-900);
+    border-radius: 12px;
+    padding: var(--space-2);
+    min-height: 100%;
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-1); }
+    h2 { font-size: var(--font-size-h5); font-weight: 500; }
+    strong { display: block; font-size: var(--font-size-h3); margin-top: var(--space-2); }
+`;
 
 function StaffChart({ shifts, context }: { shifts: ShiftReport[]; context?: string }) {
     const { t, locale } = useI18n();
@@ -583,13 +637,13 @@ export default function Analytics() {
                     {range === "day" && selected ? (
                         <DayBento>
                             <Card>
-                                <CopyPanelButton locale={locale} text={`${formatNight(selected.business_date, locale)} → ${t("manager")}: ${selected.opened_by}; ${t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}`} />
+                                <CopyPanelButton locale={locale} text={`${formatNight(selected.business_date, locale)} → ${t("manager")}: ${selected.opened_by}; ${ticketCountsUnavailable(selected) ? (locale === "ja" ? "チケット数は未記録" : "Ticket counts not recorded") : t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}`} />
                                 <h2>{formatNight(selected.business_date, locale)}</h2>
                                 <p>
                                     {t("manager")} {selected.opened_by}
                                 </p>
                                 <p>
-                                    {t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}
+                                    {ticketCountsUnavailable(selected) ? (locale === "ja" ? "チケット数は未記録" : "Ticket counts not recorded") : t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}
                                 </p>
                             </Card>
                             <StaffChart shifts={[selected]} context={copyPeriod(range, month, year, selected, locale)} />
@@ -747,10 +801,16 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
             return byDate || a.id - b.id;
         });
 
+    const missingNights = shifts.filter(ticketCountsUnavailable).length;
     return (
         <TicketLog>
             <h2>{t("tickets")}</h2>
-            {rows.length === 0 ? <p>{t("noTicketsInRange")}</p> : null}
+            {missingNights > 0 ? (
+                <DataCaveat>{locale === "ja"
+                    ? `${missingNights}件の過去の夜は個別のチケット履歴が未記録です。`
+                    : `Individual ticket records weren't kept for ${missingNights} historical night(s).`}</DataCaveat>
+            ) : null}
+            {rows.length === 0 && missingNights === 0 ? <p>{t("noTicketsInRange")}</p> : null}
             {rows.map((ticket) => {
                 const date = dates.get(ticket.shiftId ?? 0);
                 const total = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
