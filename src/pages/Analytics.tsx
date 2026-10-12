@@ -4,6 +4,7 @@ import styled from "styled-components";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ticketsApi, toTicket } from "../api/tickets";
 import { ApiError, getToken } from "../api/client";
+import { listNotices, type NoticeList } from "../api/notices";
 import { BarChart, DonutChart, HorizontalBarChart, CopyPanelButton, type TimeBar } from "../components/AnalyticsCharts";
 import AnalyticsDatePicker from "../components/AnalyticsDatePicker";
 import Icon from "../components/Icon";
@@ -14,6 +15,7 @@ import { topSellingItems } from "../components/topSellingItems";
 import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 import { shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
+import OpenShiftOverview from "./OpenShiftOverview";
 
 type Range = "all" | "year" | "month" | "day";
 
@@ -471,6 +473,9 @@ export default function Analytics() {
     const [openShift, setOpenShift] = useState<ShiftReport | null>(null);
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [account, setAccount] = useState<Account | null>(null);
+    const [team, setTeam] = useState<Account[] | null>(null);
+    const [notices, setNotices] = useState<NoticeList | null>(null);
+    const [lastUpdated, setLastUpdated] = useState<number | null>(null);
     const [error, setError] = useState("");
     const [range, setRange] = useState<Range>("day");
     const [month, setMonth] = useState("");
@@ -481,16 +486,34 @@ export default function Analytics() {
 
     useEffect(() => {
         if (!signedIn) return;
-        accountApi
-            .me()
-            .then((me) => {
-                setAccount(me);
-                if (me.role !== "manager") return;
-                return Promise.all([accountApi.closedShifts(), accountApi.currentShift(), ticketsApi.list()]).then(([rows, current, ticketRows]) => {
-                    const ordered = [...rows].sort((a, b) => b.business_date.localeCompare(a.business_date));
-                    setShifts(ordered);
-                    setOpenShift(current);
-                    setTickets(ticketRows.map(toTicket));
+        let cancelled = false;
+        let initiallySelected = false;
+        let latestRequest = 0;
+        let timer: number | null = null;
+
+        async function refresh() {
+            const request = ++latestRequest;
+            try {
+                const [rows, current, ticketRows, stock] = await Promise.all([
+                    accountApi.closedShifts(),
+                    accountApi.currentShift(),
+                    ticketsApi.list(),
+                    listNotices().catch(() => null),
+                ]);
+                // Do not apply an old response after a more recent refresh.
+                if (cancelled || request !== latestRequest) return;
+                const ordered = [...rows].sort((a, b) => b.business_date.localeCompare(a.business_date));
+                setShifts(ordered);
+                setOpenShift(current);
+                setTickets(ticketRows.map(toTicket));
+                setNotices(stock);
+                setLastUpdated(Math.floor(Date.now() / 1000));
+                setError("");
+
+                // Set the default date only on the first successful response.
+                // Background refreshes must not interrupt the date the user is viewing.
+                if (!initiallySelected) {
+                    initiallySelected = true;
                     const initial = initialAnalyticsShift(current, ordered);
                     if (initial) {
                         setMonth(monthKey(initial.business_date));
@@ -498,11 +521,45 @@ export default function Analytics() {
                         setDayId(initial.id);
                         setPickedDate(initial.business_date);
                     }
-                });
-            })
-            .catch((err: unknown) => {
+                }
+            } catch (err: unknown) {
+                if (cancelled || request !== latestRequest) return;
                 setError(err instanceof ApiError ? err.message : translate(readLocale(), "couldNotLoadShifts"));
-            });
+            }
+        }
+
+        async function start() {
+            try {
+                const me = await accountApi.me();
+                if (cancelled) return;
+                setAccount(me);
+                if (me.role !== "manager") return;
+
+                void accountApi.listUsers()
+                    .then((members) => { if (!cancelled) setTeam(members); })
+                    .catch(() => { if (!cancelled) setTeam(null); });
+
+                // Refresh live totals, roster/punches and shift-close status
+                // without requiring the manager to leave the Analytics page.
+                window.addEventListener("focus", refresh);
+                window.addEventListener("barticket-push", refresh);
+                window.addEventListener("barticket-notices", refresh);
+                timer = window.setInterval(refresh, 20000);
+                await refresh();
+            } catch (err: unknown) {
+                if (cancelled) return;
+                setError(err instanceof ApiError ? err.message : translate(readLocale(), "couldNotLoadShifts"));
+            }
+        }
+
+        void start();
+        return () => {
+            cancelled = true;
+            if (timer !== null) window.clearInterval(timer);
+            window.removeEventListener("focus", refresh);
+            window.removeEventListener("barticket-push", refresh);
+            window.removeEventListener("barticket-notices", refresh);
+        };
     }, [signedIn]);
 
     const monthShifts = (shifts ?? []).filter((shift) => monthKey(shift.business_date) === month);
@@ -633,7 +690,23 @@ export default function Analytics() {
                             </StepButton>
                         </DayNavigator>
                     ) : null}
-                    {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} context={copyPeriod(range, month, year, selected, locale)} />}
+                    {range === "day" && selected?.status === "open" ? (
+                        <>
+                            <OpenShiftOverview
+                                shift={selected}
+                                tickets={tickets}
+                                members={team}
+                                notices={notices}
+                                updatedAt={lastUpdated}
+                                dateLabel={formatNight(selected.business_date, locale)}
+                            />
+                            {(selected.staff_drinks?.length ?? 0) > 0 ? (
+                                <StaffDrinksReport shifts={[selected]} context={copyPeriod(range, month, year, selected, locale)} />
+                            ) : null}
+                        </>
+                    ) : (
+                        <>
+                            {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} context={copyPeriod(range, month, year, selected, locale)} />}
                     {range !== "day" && visible.length > 0 ? (
                         <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} />
                     ) : null}
@@ -642,9 +715,6 @@ export default function Analytics() {
                             <Card>
                                 <CopyPanelButton locale={locale} text={`${formatNight(selected.business_date, locale)} → ${t("manager")}: ${selected.opened_by}; ${ticketCountsUnavailable(selected) ? (locale === "ja" ? "チケット数は未記録" : "Ticket counts not recorded") : t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}`} />
                                 <h2>{formatNight(selected.business_date, locale)}</h2>
-                                {selected.status === "open" ? (
-                                    <p role="status">{locale === "ja" ? "営業中 · この画面を開いた時点の集計" : "Open shift · snapshot as of page load"}</p>
-                                ) : null}
                                 <p>
                                     {t("manager")} {selected.opened_by}
                                 </p>
@@ -659,6 +729,8 @@ export default function Analytics() {
                     {visible.length > 0 ? <TopSellingPanel shifts={visible} tickets={tickets} context={copyPeriod(range, month, year, selected, locale)} /> : null}
                     {staffShifts.length > 0 ? <StaffDrinksReport shifts={staffShifts} context={copyPeriod(range, month, year, selected, locale)} /> : null}
                     {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} /> : null}
+                        </>
+                    )}
                 </>
             ) : null}
         </Page>
