@@ -8,7 +8,7 @@ const index = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 
 test("manifest is scoped to GitHub Pages repository and installable", () => {
   assert.equal(manifest.display, "standalone");
-  assert.equal(manifest.start_url, "/barticket-frontend/tickets");
+  assert.equal(manifest.start_url, "/barticket-frontend/");
   assert.equal(manifest.scope, "/barticket-frontend/");
   assert.ok(manifest.icons.length);
 });
