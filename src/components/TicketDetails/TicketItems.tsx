@@ -22,6 +22,7 @@ import { menuLabel, useI18n } from "../../i18n";
 type TicketItemsProps = {
     ticket: Ticket;
     menu: MenuData | null;
+    tickets: Ticket[];
     activeTab: "open" | "paid" | "cancelled";
 
     editingPriceItemId: number | null;
@@ -44,19 +45,21 @@ type TicketItemsProps = {
         itemId: number
     ) => void;
 
-    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
+    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => void;
 
     onAddItem: (
         ticketId: number,
         menuItem: MenuItem,
         priceKey: keyof Prices,
-        unitPrice: number
+        unitPrice: number,
+        quantity: number
     ) => void;
 };
 
 export default function TicketItems({
     ticket,
     menu,
+    tickets,
     activeTab,
     editingPriceItemId,
     setEditingPriceItemId,
@@ -89,11 +92,12 @@ export default function TicketItems({
                             content: (
                                 <AddItemPicker
                                     menu={menu}
-                                    onAddStaffDrink={(staffId, menuItemId, priceKey, quantity) => {
-                                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity);
+                                    tickets={tickets}
+                                    onAddStaffDrink={(staffId, menuItemId, priceKey, quantity, details) => {
+                                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity, details);
                                         closeModal();
                                     }}
-                                    onAddItem={(item, priceKey) => {
+                                    onAddItem={(item, priceKey, quantity) => {
                                         const unitPrice = item.prices[priceKey];
 
                                         if (unitPrice === undefined) return;
@@ -102,10 +106,9 @@ export default function TicketItems({
                                             ticket.id,
                                             item,
                                             priceKey,
-                                            unitPrice
+                                            unitPrice,
+                                            quantity
                                         );
-
-                                        closeModal();
                                     }}
                                 />
                             ),
@@ -122,6 +125,7 @@ export default function TicketItems({
                     <TicketDetailItem
                         key={item.id}
                         id={item.id}
+                        pending={item.id < 0}
                         name={
                             item.staff_drink
                                 ? [item.staff_name, item.drink_name].filter(Boolean).join(" · ") || item.name

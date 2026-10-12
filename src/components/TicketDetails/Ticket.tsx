@@ -20,6 +20,7 @@ import type { Ticket, PaymentType } from "../../types/Ticket";
 type TicketDetailsProps = {
     ticket: Ticket | null;
     menu: MenuData | null;
+    tickets: Ticket[];
 
     onUpdateQuantity: (
         ticketId: number,
@@ -42,10 +43,11 @@ type TicketDetailsProps = {
         ticketId: number,
         menuItem: MenuItem,
         priceKey: keyof Prices,
-        unitPrice: number
+        unitPrice: number,
+        quantity: number
     ) => void;
 
-    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
+    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => void;
 
     onCancelTicket: (ticketId: number) => void;
 
@@ -72,6 +74,7 @@ type TicketDetailsProps = {
 export default function TicketDetails({
     ticket,
     menu,
+    tickets,
     onUpdateQuantity,
     onUpdatePrice,
     onAddItem,
@@ -122,6 +125,7 @@ export default function TicketDetails({
             <TicketItems
                 ticket={ticket}
                 menu={menu}
+                tickets={tickets}
                 activeTab={activeTab}
                 editingPriceItemId={editingPriceItemId}
                 setEditingPriceItemId={setEditingPriceItemId}

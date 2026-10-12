@@ -1,7 +1,7 @@
 // src/pages/Dashboard.tsx
 
 // import react stuff
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // import npm packages
 import styled from "styled-components";
@@ -36,6 +36,9 @@ export default function Dashboard({
   const [activeTab, setActiveTab] = useState<"open" | "paid" | "cancelled">("open");
   const [selectedTicketId, setSelectedTicketId] = useState(1);
   const [showTicketDetails, setShowTicketDetails] = useState(false);
+  // Async create callbacks must respect any navigation that happened meanwhile.
+  const selectionRef = useRef(selectedTicketId);
+  useEffect(() => { selectionRef.current = selectedTicketId; }, [selectedTicketId]);
   const [openShiftId, setOpenShiftId] = useState<number | null | undefined>(undefined);
   const [me, setMe] = useState<Account | null>(null);
   const [shift, setShift] = useState<ShiftReport | null>(null);
@@ -134,17 +137,31 @@ export default function Dashboard({
   // calculate the ticket total for the frontend
   const getTicketTotal = (ticket: Ticket) => ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
 
-  // create a new ticket
-  // tab switches wait for the backend so a failed request doesn't move the ticket
+  // Navigate to the provisional ticket immediately, then replace the ID on confirmation.
+  // If creation fails, restore the previous selection only if it is still selected.
   const handleCreateTicket = async () => {
-
-    const newTicket = await createTicket();
-    if (!newTicket) return;
+    const started = createTicket();
+    if (!started) return; // An earlier ticket creation is still pending.
+    const previousTicketId = selectedTicketId;
+    const previousTab = activeTab;
+    const previousDetailsVisible = showTicketDetails;
 
     setActiveTab("open");
-    setSelectedTicketId(newTicket.id);
+    setSelectedTicketId(started.temporaryId);
     setShowTicketDetails(true);
 
+    const confirmed = await started.completion;
+    if (confirmed) {
+      setSelectedTicketId(current =>
+        current === started.temporaryId ? confirmed.id : current);
+      return;
+    }
+
+    // Do not interrupt navigation the user performed while the request was pending.
+    if (selectionRef.current !== started.temporaryId) return;
+    setSelectedTicketId(previousTicketId);
+    setActiveTab(previousTab);
+    setShowTicketDetails(previousDetailsVisible);
   };
 
   const handleCancelTicket = async (ticketId: number) => {
@@ -207,15 +224,18 @@ export default function Dashboard({
         lastSelectedTicket={lastSelectedTicket}
         setLastSelectedTicket={setLastSelectedTicket}
         nightOpen={openShiftId !== null}
-        canCreate={canCreate}
+        canCreate={canCreate && !tickets.some(ticket => ticket.id < 0)}
       />
 
       <Content $open={showTicketDetails}>
-        {selectedTicket ? (
+        {selectedTicket?.id && selectedTicket.id < 0 ? (
+          <EmptyTicketDetails role="status" aria-live="polite">Creating ticket…</EmptyTicketDetails>
+        ) : selectedTicket ? (
           <TicketDetails
             key={selectedTicket.id}
             ticket={selectedTicket}
             menu={menu}
+            tickets={tickets}
             onUpdateQuantity={updateItemQuantity}
             onUpdatePrice={updateItemPrice}
             onAddItem={addItemToTicket}

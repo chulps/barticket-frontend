@@ -10,6 +10,7 @@ import Icon from "../components/Icon";
 import TabGroup from "../components/TabGroup";
 import { formatDuration, localeTag, menuLabel, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
 import type { Ticket } from "../types/Ticket";
+import { topSellingItems } from "../components/topSellingItems";
 
 type Range = "all" | "year" | "month" | "day";
 
@@ -595,6 +596,7 @@ export default function Analytics() {
                         </DayBento>
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
+                    {visible.length > 0 ? <TopSellingPanel shifts={visible} tickets={tickets} context={copyPeriod(range, month, year, selected, locale)} /> : null}
                     {staffShifts.length > 0 ? <StaffDrinksReport shifts={staffShifts} context={copyPeriod(range, month, year, selected, locale)} /> : null}
                     {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} /> : null}
                 </>
@@ -602,6 +604,66 @@ export default function Analytics() {
         </Page>
     );
 }
+
+function TopSellingPanel({ shifts, tickets, context }: { shifts: ShiftReport[]; tickets: Ticket[]; context: string }) {
+    const { locale } = useI18n();
+    const heading = locale === "ja" ? "売上数量 TOP 3" : "Top 3 Selling Items";
+    const rows = topSellingItems(tickets, new Set(shifts.map(shift => shift.id)));
+    const quantityLabel = locale === "ja" ? "杯数" : "Units";
+    const revenueLabel = locale === "ja" ? "売上" : "Revenue";
+    const noItems = locale === "ja" ? "この期間に販売された商品はありません" : "No sold items for this period";
+    const copy = [`${context} → ${heading}`,
+        ...rows.map((row, i) => `${i + 1}. ${menuLabel(locale, row.name)} · ${row.quantity} · ${yen(row.revenue)}`),
+    ].join("\\n");
+    return (
+        <TopSellingCard>
+            <header>
+                <div><h2>{heading}</h2><small>{context} · {quantityLabel}</small></div>
+                <CopyPanelButton locale={locale} text={copy} />
+            </header>
+            {rows.length === 0 ? <p>{noItems}</p> : (
+                <TopSellingList>
+                    {rows.map((row, index) => (
+                        <li key={row.id}>
+                            <span className="rank">{index + 1}</span>
+                            <span className="drink">{menuLabel(locale, row.name)}</span>
+                            <span className="numbers"><strong>{row.quantity.toLocaleString(localeTag(locale))}</strong><small>{quantityLabel}</small></span>
+                            <span className="numbers"><strong>{yen(row.revenue)}</strong><small>{revenueLabel}</small></span>
+                        </li>
+                    ))}
+                </TopSellingList>
+            )}
+        </TopSellingCard>
+    );
+}
+
+const TopSellingCard = styled.section`
+    background: var(--neutral-900);
+    border-radius: 12px;
+    padding: var(--space-2);
+    margin-top: var(--space-2);
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2); margin-bottom: var(--space-2); }
+    header h2 { margin: 0; }
+    header small { color: var(--neutral-400); }
+`;
+
+const TopSellingList = styled.ol`
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    display: grid;
+    gap: var(--space-1);
+    li { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto auto; gap: var(--space-2); align-items: center;
+        padding: var(--space-2); border: 1px solid var(--neutral-700); border-radius: 8px; }
+    .rank { font-weight: 700; font-size: 1.25rem; color: var(--royal-300); }
+    .drink { min-width: 0; overflow-wrap: anywhere; }
+    .numbers { text-align: right; display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
+    .numbers small { color: var(--neutral-400); }
+    @media (max-width: 460px) {
+        li { grid-template-columns: 1.5rem minmax(0, 1fr) auto; gap: var(--space-1); }
+        li .numbers:last-child { grid-column: 2 / -1; text-align: left; flex-direction: row; gap: var(--space-1); align-items: baseline; }
+    }
+`;
 
 function StaffDrinksReport({ shifts, context }: { shifts: ShiftReport[]; context: string }) {
     const { locale } = useI18n();

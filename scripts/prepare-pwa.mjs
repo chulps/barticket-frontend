@@ -9,7 +9,7 @@ const manifest = {
   id: base,
   name: "BarTicket",
   short_name: "BarTicket",
-  description: "BarTicket bar POS and shift management",
+  description: "BarTicket shared bar tabs and shift notebook",
   start_url: base,
   scope: base,
   display: "standalone",

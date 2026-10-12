@@ -2,7 +2,7 @@
   "id": "/barticket-frontend/",
   "name": "BarTicket",
   "short_name": "BarTicket",
-  "description": "BarTicket bar POS and shift management",
+  "description": "BarTicket shared bar tabs and shift notebook",
   "start_url": "/barticket-frontend/",
   "scope": "/barticket-frontend/",
   "display": "standalone",
