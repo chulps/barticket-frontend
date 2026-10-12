@@ -23,6 +23,7 @@ import { getToken, setToken, ApiError } from "./api/client";
 
 import type { MenuData, MenuItem, Prices } from "./types/Menu";
 import { getMenu, setMenuPrices, setMenuStock } from "./api/menu";
+import { replaceMenuItem, optimisticStock, optimisticPrices, reconcileMenuSnapshot } from "./hooks/optimisticOperations";
 
 
 export default function App() {
@@ -67,8 +68,7 @@ export default function App() {
   const mergeMenuItem = (updated: MenuItem) => {
     const current = menuRef.current;
     if (!current) return;
-    updateMenu({ ...current, items: current.items.map(item => item.id === updated.id
-      ? { ...item, ...updated } : item) });
+    updateMenu(replaceMenuItem(current, updated));
   };
 
   // One active write per item prevents competing stock/price changes from
@@ -102,11 +102,11 @@ export default function App() {
   };
 
   const changeStock = (item: MenuItem) => mutateMenuItem(item.id,
-    current => ({ ...current, inStock: current.inStock === false }),
+    optimisticStock,
     () => setMenuStock(item.id, item.inStock === false));
 
   const changePrices = (item: MenuItem, prices: Prices) => mutateMenuItem(item.id,
-    current => ({ ...current, prices }),
+    current => optimisticPrices(current, prices),
     () => setMenuPrices(item.id, prices));
 
   useEffect(() => {
@@ -118,14 +118,7 @@ export default function App() {
         if (!cancelled && revision === menuRevision.current) {
           // While a write is pending, preserve the optimistic item from the
           // current view rather than replacing it with an older server snapshot.
-          const current = menuRef.current;
-          const merged = pendingMenuItems.current.size && current
-            ? { ...data, items: data.items.map(item =>
-                pendingMenuItems.current.has(item.id)
-                  ? current.items.find(existing => existing.id === item.id) ?? item
-                  : item) }
-            : data;
-          updateMenu(merged);
+          updateMenu(reconcileMenuSnapshot(data, menuRef.current, pendingMenuItems.current));
         }
       } catch (error) {
         console.error(error);
