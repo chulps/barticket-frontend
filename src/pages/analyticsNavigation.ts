@@ -40,10 +40,10 @@ export function analyticsDrillDownTarget(
     shifts: readonly { id: number; business_date: string }[],
 ): DrillDownTarget | null {
     if (source === "all") {
-        return /^\\d{4}$/.test(barId) ? { range: "year", key: barId } : null;
+        return /^\d{4}$/.test(barId) ? { range: "year", key: barId } : null;
     }
     if (source === "year") {
-        return /^\\d{4}-(0[1-9]|1[0-2])$/.test(barId) ? { range: "month", key: barId } : null;
+        return /^\d{4}-(0[1-9]|1[0-2])$/.test(barId) ? { range: "month", key: barId } : null;
     }
     const shift = shifts.find((entry) => String(entry.id) === barId);
     return shift ? { range: "day", key: shift.business_date, shiftId: shift.id } : null;
