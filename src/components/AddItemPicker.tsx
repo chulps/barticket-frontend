@@ -92,13 +92,6 @@ export default function AddItemPicker({ menu, onAddItem, onAddStaffDrink }: AddI
                     </SelectedItems>
                 )}
                 <ItemList>
-                    <section><SectionTitle>{locale === "ja" ? "お気に入り" : "Favorites"}</SectionTitle>
-                            {groups.favorites.map(renderItem)}</section>
-                    )}
-                    {!search.trim() && groups.recent.length > 0 && (
-                        <section><SectionTitle>{locale === "ja" ? "最近選択した商品" : "Recently selected"}</SectionTitle>
-                            {groups.recent.map(renderItem)}</section>
-                    )}
                     <section>
                         <SectionTitle>{search.trim() ? (locale === "ja" ? "検索結果" : "Search results") : (locale === "ja" ? "すべての商品" : "All drinks")}</SectionTitle>
                         {groups.map(renderItem)}
