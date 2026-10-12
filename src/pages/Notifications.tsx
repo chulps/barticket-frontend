@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import styled from "styled-components";
 
 import { accountApi } from "../api/account";
+import PushSettings from "../components/PushSettings";
 import { ApiError, getToken } from "../api/client";
 import { listNotices, restockNotice, type NoticeList } from "../api/notices";
 import { menuLabel, useI18n, type Locale } from "../i18n";
@@ -67,6 +68,7 @@ export default function Notifications() {
     return (
         <main>
             <Heading>{t("notifications")}</Heading>
+            <PushSettings />
             {denied ? <p>{t("clockInForNotices")}</p> : null}
             {!denied && notices && notices.notices.length === 0 ? <p>{t("noNotifications")}</p> : null}
             {!denied && notices
