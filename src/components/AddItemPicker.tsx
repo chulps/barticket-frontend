@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import type { MenuData, MenuItem, Prices } from "../types/Menu";
+import type { Ticket } from "../types/Ticket";
+import { topSellingDrinks } from "./topDrinks";
 import SearchBar from "./MenuSearchBar";
 import AddStaffDrink from "./AddStaffDrink";
 import { useModal } from "../hooks/useModal";
@@ -9,11 +11,12 @@ import { addSelection, changeSelectionQuantity, type SelectedDrink } from "./qui
 
 type AddItemPickerProps = {
     menu: MenuData;
+    tickets: Ticket[];
     onAddStaffDrink: (staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
     onAddItem: (item: MenuItem, priceKey: keyof Prices, quantity: number) => void;
 };
 
-export default function AddItemPicker({ menu, onAddItem, onAddStaffDrink }: AddItemPickerProps) {
+export default function AddItemPicker({ menu, tickets, onAddItem, onAddStaffDrink }: AddItemPickerProps) {
     const { t, locale } = useI18n();
     const { closeModal } = useModal();
     const [search, setSearch] = useState("");
@@ -40,6 +43,9 @@ export default function AddItemPicker({ menu, onAddItem, onAddStaffDrink }: AddI
         );
         return matches.filter((item) => item.category !== "Cocktail Ingredients");
     }, [menu, search]);
+
+    const topDrinks = useMemo(() => topSellingDrinks(tickets, menu.items), [tickets, menu]);
+    const topIds = new Set(topDrinks.map((item) => item.id));
 
     const renderItem = (item: MenuItem) => {
         const unavailable = item.inStock === false;
@@ -92,9 +98,15 @@ export default function AddItemPicker({ menu, onAddItem, onAddStaffDrink }: AddI
                     </SelectedItems>
                 )}
                 <ItemList>
+                    {!search.trim() && topDrinks.length > 0 && (
+                        <section>
+                            <SectionTitle>{locale === "ja" ? "人気のドリンク TOP 3 · 過去30日間" : "Top 3 drinks · Last 30 days"}</SectionTitle>
+                            {topDrinks.map(renderItem)}
+                        </section>
+                    )}
                     <section>
                         <SectionTitle>{search.trim() ? (locale === "ja" ? "検索結果" : "Search results") : (locale === "ja" ? "すべての商品" : "All drinks")}</SectionTitle>
-                        {groups.map(renderItem)}
+                        {groups.filter((item) => search.trim() || !topIds.has(item.id)).map(renderItem)}
                     </section>
                 </ItemList>
                 {selectedItems.length > 0 && (
