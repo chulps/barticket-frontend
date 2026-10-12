@@ -45,7 +45,7 @@ type TicketItemsProps = {
         itemId: number
     ) => void;
 
-    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
+    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => void;
 
     onAddItem: (
         ticketId: number,
@@ -93,8 +93,8 @@ export default function TicketItems({
                                 <AddItemPicker
                                     menu={menu}
                                     tickets={tickets}
-                                    onAddStaffDrink={(staffId, menuItemId, priceKey, quantity) => {
-                                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity);
+                                    onAddStaffDrink={(staffId, menuItemId, priceKey, quantity, details) => {
+                                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity, details);
                                         closeModal();
                                     }}
                                     onAddItem={(item, priceKey, quantity) => {
@@ -125,6 +125,7 @@ export default function TicketItems({
                     <TicketDetailItem
                         key={item.id}
                         id={item.id}
+                        pending={item.id < 0}
                         name={
                             item.staff_drink
                                 ? [item.staff_name, item.drink_name].filter(Boolean).join(" · ") || item.name

@@ -13,6 +13,7 @@ type TicketDetailItemProps = {
     quantity: number;
 
     isEditingPrice: boolean;
+    pending?: boolean;
 
     onIncrease: () => void;
     onDecrease: () => void;
@@ -28,6 +29,7 @@ export default function TicketDetailItem({
     unitPrice,
     quantity,
     isEditingPrice,
+    pending = false,
     onIncrease,
     onDecrease,
     onRemove,
@@ -40,12 +42,12 @@ export default function TicketDetailItem({
 
     const [priceInput, setPriceInput] = useState(unitPrice.toString());
 
-    const isEditable = activeTab === "open";
+    const isEditable = activeTab === "open" && !pending;
 
     return (
         <Container>
             <Info>
-                <Name>{name}</Name>
+                <Name>{name}{pending ? " · Saving…" : ""}</Name>
                 {isEditingPrice ? (
                     <PriceInput
                         autoFocus
@@ -70,6 +72,7 @@ export default function TicketDetailItem({
                 ) : (
                     <Price
                         onClick={() => {
+                            if (!isEditable) return;
                             setPriceInput(unitPrice.toString());
                             onAdjustPrice();
                         }}

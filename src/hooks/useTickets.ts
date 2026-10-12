@@ -9,6 +9,7 @@ import type { PaymentType, Ticket } from "../types/Ticket";
 import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
 import { useI18n } from "../i18n";
 import { ACTIVE_REFRESH_MS, isTicketRefreshDue } from "./ticketRefreshPolicy";
+import { projectTicket, type OptimisticEdit } from "./optimisticTickets";
 
 // the name input saves on every keystroke, so wait until typing pauses
 const RENAME_DELAY_MS = 500;
@@ -29,6 +30,42 @@ export function useTickets() {
   // names typed but not saved yet; server responses must not overwrite them
   const pendingNames = useRef(new Map<number, string>());
   const renameTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  // Server-confirmed data and pending projections are deliberately separate.
+  const confirmed = useRef(new Map<number, Ticket>());
+  const overlays = useRef(new Map<number, OptimisticEdit[]>());
+  const nextKey = useRef(1);
+  const nextTempId = useRef(-1);
+
+  const project = (ticket: Ticket) => {
+    const projected = projectTicket(ticket, overlays.current.get(ticket.id) ?? []);
+    const pendingName = pendingNames.current.get(ticket.id);
+    return pendingName === undefined ? projected : { ...projected, name: pendingName };
+  };
+
+  const display = (id: number) => {
+    const base = confirmed.current.get(id);
+    if (!base) return;
+    const shown = project(base);
+    commit(ticketsRef.current.some(ticket => ticket.id === id)
+      ? ticketsRef.current.map(ticket => ticket.id === id ? shown : ticket)
+      : [shown, ...ticketsRef.current]);
+  };
+
+  const addOverlay = (id: number, transform: (ticket: Ticket) => Ticket) => {
+    if (!confirmed.current.has(id)) return null;
+    const key = nextKey.current++;
+    overlays.current.set(id, [...(overlays.current.get(id) ?? []), { key, transform }]);
+    display(id);
+    return key;
+  };
+
+  const dropOverlay = (id: number, key: number | null) => {
+    if (key === null) return;
+    const remaining = (overlays.current.get(id) ?? []).filter(op => op.key !== key);
+    if (remaining.length) overlays.current.set(id, remaining);
+    else overlays.current.delete(id);
+  };
+
   // Protect local writes and in-flight edits from stale background snapshots.
   const pendingWrites = useRef(0);
   const localRevision = useRef(0);
@@ -41,32 +78,38 @@ export function useTickets() {
 
   const applyServerTicket = (api: ApiTicket): Ticket => {
     const fromServer = toTicket(api);
-    const pendingName = pendingNames.current.get(fromServer.id);
-    const ticket =
-      pendingName === undefined ? fromServer : { ...fromServer, name: pendingName };
-    const current = ticketsRef.current;
-    commit(
-      current.some((t) => t.id === ticket.id)
-        ? current.map((t) => (t.id === ticket.id ? ticket : t))
-        : [ticket, ...current],
-    );
-    return ticket;
+    confirmed.current.set(fromServer.id, fromServer);
+    display(fromServer.id);
+    return fromServer;
   };
 
   const enqueue = (
     ticketId: number,
     request: (current: Ticket | undefined) => Promise<ApiTicket> | null,
+    transform?: (ticket: Ticket) => Ticket,
   ): Promise<Ticket | null> => {
+    const key = transform ? addOverlay(ticketId, transform) : null;
     pendingWrites.current += 1;
     localRevision.current += 1;
     const previous = queues.current.get(ticketId) ?? Promise.resolve();
     const next = previous.then(async () => {
       try {
-        const pending = request(ticketsRef.current.find((t) => t.id === ticketId));
-        return pending === null ? null : applyServerTicket(await pending);
+        const pending = request(confirmed.current.get(ticketId));
+        if (pending === null) return null;
+        const response = await pending;
+        dropOverlay(ticketId, key);
+        return applyServerTicket(response);
       } catch (error) {
+        dropOverlay(ticketId, key);
+        display(ticketId);
         reportError(error);
+        // A timeout can still have committed: re-read before subsequent queued writes.
+        try { applyServerTicket(await ticketsApi.get(ticketId)); }
+        catch (readError) { console.warn("Ticket reconciliation failed", readError); }
         return null;
+      } finally {
+        dropOverlay(ticketId, key);
+        display(ticketId);
       }
     });
     const settled = next.finally(() => {
@@ -99,6 +142,7 @@ export function useTickets() {
           const pendingName = pendingNames.current.get(ticket.id);
           return pendingName === undefined ? ticket : { ...ticket, name: pendingName };
         });
+        confirmed.current = new Map(loaded.map(ticket => [ticket.id, ticket]));
         ticketsRef.current = next;
         setTickets(next);
       } catch (error) {
@@ -153,6 +197,7 @@ export function useTickets() {
     itemId: number,
     change: number,
   ) => {
+    if (itemId < 0) return; // Wait for a real server ID on newly added rows.
     void enqueue(ticketId, (current) => {
       const item = current?.items.find((i) => i.id === itemId);
       if (!item) return null;
@@ -163,7 +208,11 @@ export function useTickets() {
       return item.type === "cover"
         ? ticketsApi.setGuests(ticketId, quantity)
         : ticketsApi.updateItem(ticketId, itemId, { quantity });
-    });
+    }, ticket => ({ ...ticket, items: ticket.items.map(item => {
+      if (item.id !== itemId) return item;
+      const quantity = Math.max(1, item.quantity + change);
+      return { ...item, quantity, subtotal: quantity * item.unit_price };
+    }) }));
   };
 
   const updateItemPrice = (ticketId: number, itemId: number, price: number) => {
@@ -176,8 +225,12 @@ export function useTickets() {
       return;
     }
 
+    if (itemId < 0) return;
+    const rounded = Math.round(price);
     void enqueue(ticketId, () =>
-      ticketsApi.updateItem(ticketId, itemId, { unit_price: Math.round(price) }),
+      ticketsApi.updateItem(ticketId, itemId, { unit_price: rounded }),
+      ticket => ({ ...ticket, items: ticket.items.map(item => item.id === itemId
+        ? { ...item, unit_price: rounded, subtotal: item.quantity * rounded } : item) }),
     );
   };
 
@@ -188,13 +241,31 @@ export function useTickets() {
     _unitPrice?: number,
     quantity = 1,
   ) => {
-    void enqueue(ticketId, () => ticketsApi.addItem(ticketId, menuItem.id, priceKey, quantity));
+    if (menuItem.inStock === false || quantity < 1) return;
+    const price = menuItem.prices?.[priceKey];
+    if (typeof price !== "number") return;
+    const temporaryId = nextTempId.current--;
+    void enqueue(ticketId, () => ticketsApi.addItem(ticketId, menuItem.id, priceKey, quantity),
+      ticket => ({ ...ticket, items: [...ticket.items, {
+        id: temporaryId, type: "menu", menu_item_id: menuItem.id, price_key: priceKey,
+        name: menuItem.name, unit_price: price, quantity, subtotal: price * quantity,
+      }] }));
   };
 
   const addStaffDrinkToTicket = (
     ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number,
+    details?: { name: string; staffName: string; price: number },
   ) => {
-    void enqueue(ticketId, () => ticketsApi.addStaffDrink(ticketId, staffId, menuItemId, priceKey, quantity));
+    const temporaryId = nextTempId.current--;
+    void enqueue(ticketId, () => ticketsApi.addStaffDrink(ticketId, staffId, menuItemId, priceKey, quantity),
+      details && Number.isFinite(details.price)
+        ? ticket => ({ ...ticket, items: [...ticket.items, {
+            id: temporaryId, type: "menu", menu_item_id: menuItemId, price_key: priceKey,
+            staff_drink: true, staff_name: details.staffName, drink_name: details.name,
+            name: details.name, unit_price: details.price, quantity,
+            subtotal: details.price * quantity,
+          }] })
+        : undefined);
   };
 
   const flushRename = (ticketId: number) => {
@@ -249,7 +320,9 @@ export function useTickets() {
       return;
     }
 
-    void enqueue(ticketId, () => ticketsApi.removeItem(ticketId, itemId));
+    if (itemId < 0) return;
+    void enqueue(ticketId, () => ticketsApi.removeItem(ticketId, itemId),
+      ticket => ({ ...ticket, items: ticket.items.filter(item => item.id !== itemId) }));
   };
 
   const createTicket = async (): Promise<Ticket | null> => {

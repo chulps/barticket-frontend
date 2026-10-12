@@ -47,7 +47,7 @@ type TicketDetailsProps = {
         quantity: number
     ) => void;
 
-    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
+    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => void;
 
     onCancelTicket: (ticketId: number) => void;
 
