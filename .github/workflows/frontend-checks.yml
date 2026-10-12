@@ -18,9 +18,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Adaptive refresh policy tests
-        run: node --test tests/ticketRefreshPolicy.test.mjs
+      - name: Frontend unit tests
+        run: node --test tests/*.test.mjs
       - name: TypeScript and production build
         run: npm run build
-      - name: ESLint (ticket sync files)
-        run: npx eslint src/hooks/useTickets.ts src/hooks/ticketRefreshPolicy.ts
+      - name: ESLint (changed frontend files)
+        run: npx eslint src/hooks/useTickets.ts src/hooks/ticketRefreshPolicy.ts src/components/AddItemPicker.tsx src/components/quickEntry.ts src/components/topDrinks.ts src/pages/Dashboard.tsx src/components/TicketDetails/Ticket.tsx src/components/TicketDetails/TicketItems.tsx

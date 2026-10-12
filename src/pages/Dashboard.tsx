@@ -216,6 +216,7 @@ export default function Dashboard({
             key={selectedTicket.id}
             ticket={selectedTicket}
             menu={menu}
+            tickets={tickets}
             onUpdateQuantity={updateItemQuantity}
             onUpdatePrice={updateItemPrice}
             onAddItem={addItemToTicket}
