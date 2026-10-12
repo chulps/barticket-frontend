@@ -19,7 +19,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Adaptive refresh policy tests
-        run: node --test tests/ticketRefreshPolicy.test.mjs
+        run: node --test tests/*.test.mjs
       - name: TypeScript and production build
         run: npm run build
       - name: ESLint (ticket sync files)
