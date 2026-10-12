@@ -122,6 +122,9 @@ test("report preview and LINE sharing keep explicit user confirmation", () => {
     assert.match(actions, /navigator\.clipboard/);
     assert.match(actions, /target="_blank"/);
     assert.match(actions, /expanded && text/);
+    assert.match(actions, /background: rgb\(7, 181, 59\)/);
+    assert.match(actions, /<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="currentColor">/);
+    assert.match(actions, /"Share to LINE", "LINEで共有"/);
     assert.match(analytics, /createAnalyticsTextReport\(/);
     assert.match(analytics, /<AnalyticsReportActions/);
 });
