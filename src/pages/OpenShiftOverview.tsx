@@ -4,29 +4,7 @@ import type { Account, ShiftReport } from "../api/account";
 import type { NoticeList } from "../api/notices";
 import type { Ticket } from "../types/Ticket";
 import { localeTag, menuLabel, useI18n } from "../i18n";
-
-type OnDuty = { id: number; name: string; role: Account["role"] | null };
-
-export function clockedInTeam(shift: ShiftReport, members: readonly Account[] | null): OnDuty[] {
-    const roles = new Map(members?.map((member) => [member.id, member.role]) ?? []);
-    const onDuty = new Map<number, OnDuty>();
-    for (const punch of shift.punches) {
-        if (punch.clock_out !== null) {
-            onDuty.delete(punch.user_id);
-            continue;
-        }
-        onDuty.set(punch.user_id, {
-            id: punch.user_id,
-            name: punch.name,
-            role: roles.get(punch.user_id) ?? null,
-        });
-    }
-    return [...onDuty.values()].sort((a, b) =>
-        (a.role === "manager" ? 0 : a.role === "staff" ? 1 : 2) -
-        (b.role === "manager" ? 0 : b.role === "staff" ? 1 : 2) ||
-        a.name.localeCompare(b.name),
-    );
-}
+import { clockedInTeam, type OnDuty } from "./analyticsCurrentShift";
 
 function formatYen(amount: number): string {
     return `¥${amount.toLocaleString("ja-JP")}`;
