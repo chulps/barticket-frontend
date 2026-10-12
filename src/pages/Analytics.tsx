@@ -16,6 +16,8 @@ import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 import { analyticsDrillDownTarget, shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
 import OpenShiftOverview from "./OpenShiftOverview";
+import AnalyticsReportActions from "../components/AnalyticsReportActions";
+import { createAnalyticsTextReport } from "./analyticsTextReport";
 
 type Range = "all" | "year" | "month" | "day";
 
@@ -591,6 +593,21 @@ export default function Analytics() {
                   : [];
     const totals = summarize(visible);
     const staffShifts = staffDrinkShifts(visible, openShift, range, month, year, pickedDate);
+    const reportText = createAnalyticsTextReport({
+        range,
+        label: copyPeriod(range, month, year, selected, locale),
+        locale,
+        shifts: visible,
+        totals,
+        tickets,
+        topItems: range === "day" && selected?.status === "open" ? [] :
+            topSellingItems(tickets, new Set(visible.map((shift) => shift.id)))
+                .map((item) => ({ name: menuLabel(locale, item.name), quantity: item.quantity, revenue: item.revenue })),
+        staffShifts,
+        team,
+        notices,
+        updatedAt,
+    });
 
     function showMonth(next: string) {
         setMonth(next);
@@ -718,6 +735,11 @@ export default function Analytics() {
                             </StepButton>
                         </DayNavigator>
                     ) : null}
+                    <AnalyticsReportActions
+                        key={[range, month, year, range === "day" ? dayId : null].join(":")}
+                        text={reportText}
+                        locale={locale}
+                    />
                     {range === "day" && selected?.status === "open" ? (
                         <>
                             <OpenShiftOverview
