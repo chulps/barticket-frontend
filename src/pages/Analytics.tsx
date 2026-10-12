@@ -859,6 +859,9 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
 
 function Summary({ totals, context }: { totals: Totals; context: string }) {
     const { t, locale } = useI18n();
+    const allPaymentTypesMissing = totals.unknownPayment > 0 &&
+        totals.cash + totals.card + totals.other === 0;
+    const knownPayment = (amount: number) => allPaymentTypesMissing ? "—" : yen(amount);
     return (
         <Grid>
             <Stat $lead>
@@ -886,31 +889,40 @@ function Summary({ totals, context }: { totals: Totals; context: string }) {
 
                     <label>{t("cash")}</label>
 
-                    <CopyPanelButton locale={locale} text={`${context} → ${t("cash")}: ${yen(totals.cash)}`} />
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("cash")}: ${knownPayment(totals.cash)}`} />
 
                 </StatHeader>
-                <strong>{yen(totals.cash)}</strong>
+                <strong>{knownPayment(totals.cash)}</strong>
             </Stat>
             <Stat>
                 <StatHeader>
 
                     <label>{t("card")}</label>
 
-                    <CopyPanelButton locale={locale} text={`${context} → ${t("card")}: ${yen(totals.card)}`} />
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("card")}: ${knownPayment(totals.card)}`} />
 
                 </StatHeader>
-                <strong>{yen(totals.card)}</strong>
+                <strong>{knownPayment(totals.card)}</strong>
             </Stat>
             <Stat>
                 <StatHeader>
 
                     <label>{t("other")}</label>
 
-                    <CopyPanelButton locale={locale} text={`${context} → ${t("other")}: ${yen(totals.other)}`} />
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("other")}: ${knownPayment(totals.other)}`} />
 
                 </StatHeader>
-                <strong>{yen(totals.other)}</strong>
+                <strong>{knownPayment(totals.other)}</strong>
             </Stat>
+            {totals.unknownPayment > 0 ? (
+                <Stat>
+                    <StatHeader>
+                        <label>{locale === "ja" ? "支払方法未記録" : "Payment type not recorded"}</label>
+                        <CopyPanelButton locale={locale} text={`${context} → ${locale === "ja" ? "支払方法未記録" : "Payment type not recorded"}: ${yen(totals.unknownPayment)}`} />
+                    </StatHeader>
+                    <strong>{yen(totals.unknownPayment)}</strong>
+                </Stat>
+            ) : null}
             <Stat>
                 <StatHeader>
 
