@@ -16,8 +16,7 @@ const manifest = {
   background_color: "#000000",
   theme_color: "#000000",
   icons: [
-    { src: "icon192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-    { src: "icon512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+    { src: "favicon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
   ],
 };
 writeFileSync("public/manifest.webmanifest", JSON.stringify(manifest, null, 2) + "\n");
