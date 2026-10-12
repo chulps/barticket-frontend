@@ -266,12 +266,14 @@ export function DonutChart({
     center,
     copyContext,
     locale = "en",
+    note,
 }: {
     title: string;
     slices: DonutSlice[];
     center: string;
     copyContext?: string;
     locale?: "en" | "ja";
+    note?: string;
 }) {
     const total = slices.reduce((sum, slice) => sum + slice.value, 0);
     const radius = 42;
@@ -324,6 +326,7 @@ export function DonutChart({
                     ))}
                 </Legend>
             </DonutLayout>
+            {note ? <DonutNote>{note}</DonutNote> : null}
         </Card>
     );
 }
@@ -438,6 +441,12 @@ const DonutLayout = styled.div`
 const DonutRing = styled.svg`
     width: min(220px, 100%);
     height: auto;
+`;
+
+const DonutNote = styled.p`
+    margin: var(--space-1) 0 0;
+    color: var(--neutral-400);
+    font-size: var(--font-size-small);
 `;
 
 const InlineLegend = styled.ul`
