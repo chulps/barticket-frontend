@@ -13,6 +13,7 @@ import type { Ticket } from "../types/Ticket";
 import { topSellingItems } from "../components/topSellingItems";
 import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 import { shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
+import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
 
 type Range = "all" | "year" | "month" | "day";
 
@@ -471,7 +472,7 @@ export default function Analytics() {
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [account, setAccount] = useState<Account | null>(null);
     const [error, setError] = useState("");
-    const [range, setRange] = useState<Range>("month");
+    const [range, setRange] = useState<Range>("day");
     const [month, setMonth] = useState("");
     const [year, setYear] = useState("");
     const [dayId, setDayId] = useState<number | null>(null);
@@ -490,12 +491,12 @@ export default function Analytics() {
                     setShifts(ordered);
                     setOpenShift(current);
                     setTickets(ticketRows.map(toTicket));
-                    const latest = ordered[0];
-                    if (latest) {
-                        setMonth(monthKey(latest.business_date));
-                        setYear(yearKey(latest.business_date));
-                        setDayId(latest.id);
-                        setPickedDate(latest.business_date);
+                    const initial = initialAnalyticsShift(current, ordered);
+                    if (initial) {
+                        setMonth(monthKey(initial.business_date));
+                        setYear(yearKey(initial.business_date));
+                        setDayId(initial.id);
+                        setPickedDate(initial.business_date);
                     }
                 });
             })
@@ -506,7 +507,10 @@ export default function Analytics() {
 
     const monthShifts = (shifts ?? []).filter((shift) => monthKey(shift.business_date) === month);
     const yearShifts = (shifts ?? []).filter((shift) => yearKey(shift.business_date) === year);
-    const selected = (shifts ?? []).find((shift) => shift.id === dayId) ?? null;
+    const currentReport = liveAnalyticsShift(openShift, tickets);
+    const selected = currentReport?.id === dayId
+        ? currentReport
+        : (shifts ?? []).find((shift) => shift.id === dayId) ?? null;
     const visible =
         range === "all"
             ? (shifts ?? [])
@@ -524,7 +528,7 @@ export default function Analytics() {
         setMonth(next);
         setYear(next.slice(0, 4));
         const inMonth = (shifts ?? []).filter((shift) => monthKey(shift.business_date) === next);
-        const first = inMonth[0];
+        const first = openShift && monthKey(openShift.business_date) === next ? openShift : inMonth[0];
         setDayId(first?.id ?? null);
         setPickedDate(first?.business_date ?? `${next}-01`);
     }
@@ -533,7 +537,7 @@ export default function Analytics() {
         setPickedDate(iso);
         setMonth(monthKey(iso));
         setYear(yearKey(iso));
-        const match = (shifts ?? []).find((shift) => shift.business_date === iso);
+        const match = analyticsShiftOnDate(iso, openShift, shifts ?? []);
         setDayId(match?.id ?? null);
     }
 
@@ -615,7 +619,7 @@ export default function Analytics() {
                             <AnalyticsDatePicker
                                 label={pickedDate ? formatNight(pickedDate, locale) : t("noNightsYet")}
                                 value={pickedDate}
-                                shiftDates={(shifts ?? []).map((shift) => shift.business_date)}
+                                shiftDates={[...(shifts ?? []).map((shift) => shift.business_date), ...(openShift ? [openShift.business_date] : [])]}
                                 onChange={pickDate}
                             />
                             <StepButton
@@ -638,6 +642,9 @@ export default function Analytics() {
                             <Card>
                                 <CopyPanelButton locale={locale} text={`${formatNight(selected.business_date, locale)} → ${t("manager")}: ${selected.opened_by}; ${ticketCountsUnavailable(selected) ? (locale === "ja" ? "チケット数は未記録" : "Ticket counts not recorded") : t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}`} />
                                 <h2>{formatNight(selected.business_date, locale)}</h2>
+                                {selected.status === "open" ? (
+                                    <p role="status">{locale === "ja" ? "営業中 · この画面を開いた時点の集計" : "Open shift · snapshot as of page load"}</p>
+                                ) : null}
                                 <p>
                                     {t("manager")} {selected.opened_by}
                                 </p>
