@@ -189,6 +189,23 @@ export function createAnalyticsTextReport(input: AnalyticsTextReportInput): stri
         }
     }
 
+    if (range !== "day") {
+        const weekdays = ja ? ["月", "火", "水", "木", "金", "土", "日"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        const byWeekday = Array.from({ length: 7 }, () => ({ revenue: 0, guests: 0, nights: 0 }));
+        for (const shift of shifts) {
+            const index = (new Date(shift.business_date + "T12:00:00Z").getUTCDay() + 6) % 7;
+            const row = byWeekday[index];
+            row.revenue += shift.paid_total;
+            row.guests += shift.guest_count;
+            row.nights += 1;
+        }
+        result.push(...section(tr("By weekday", "曜日別")));
+        for (let index = 0; index < 7; index++) {
+            const row = byWeekday[index];
+            result.push(weekdays[index] + ": " + yen(row.revenue) + " · " + row.guests + " " + tr("guests", "名") + " · " + row.nights + " " + tr("shifts", "回"));
+        }
+    }
+
     if (!current) {
         result.push(...section(tr("Top 3 selling items", "販売数 TOP 3")));
         if (topItems.length) {
