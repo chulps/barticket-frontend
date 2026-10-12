@@ -2,7 +2,7 @@ name: Frontend checks
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feat/optimistic-ticket-edits, feat/optimistic-ticket-management]
   workflow_dispatch:
 
 permissions:
