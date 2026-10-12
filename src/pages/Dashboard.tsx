@@ -134,17 +134,32 @@ export default function Dashboard({
   // calculate the ticket total for the frontend
   const getTicketTotal = (ticket: Ticket) => ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
 
-  // create a new ticket
-  // tab switches wait for the backend so a failed request doesn't move the ticket
+  // Navigate to the provisional ticket immediately, then replace the ID on confirmation.
+  // If creation fails, restore the previous selection only if it is still selected.
   const handleCreateTicket = async () => {
-
-    const newTicket = await createTicket();
-    if (!newTicket) return;
+    const started = createTicket();
+    if (!started) return; // An earlier ticket creation is still pending.
+    const previousTicketId = selectedTicketId;
+    const previousTab = activeTab;
+    const previousDetailsVisible = showTicketDetails;
 
     setActiveTab("open");
-    setSelectedTicketId(newTicket.id);
+    setSelectedTicketId(started.temporaryId);
     setShowTicketDetails(true);
 
+    const confirmed = await started.completion;
+    if (confirmed) {
+      setSelectedTicketId(current =>
+        current === started.temporaryId ? confirmed.id : current);
+      return;
+    }
+
+    setSelectedTicketId(current =>
+      current === started.temporaryId ? previousTicketId : current);
+    // Do not interrupt navigation the user performed while the request was pending.
+    if (selectedTicketId === started.temporaryId) return;
+    setActiveTab(current => current === "open" && previousTab !== "open" ? previousTab : current);
+    setShowTicketDetails(previousDetailsVisible);
   };
 
   const handleCancelTicket = async (ticketId: number) => {
@@ -207,11 +222,13 @@ export default function Dashboard({
         lastSelectedTicket={lastSelectedTicket}
         setLastSelectedTicket={setLastSelectedTicket}
         nightOpen={openShiftId !== null}
-        canCreate={canCreate}
+        canCreate={canCreate && !tickets.some(ticket => ticket.id < 0)}
       />
 
       <Content $open={showTicketDetails}>
-        {selectedTicket ? (
+        {selectedTicket?.id && selectedTicket.id < 0 ? (
+          <EmptyTicketDetails role="status" aria-live="polite">Creating ticket…</EmptyTicketDetails>
+        ) : selectedTicket ? (
           <TicketDetails
             key={selectedTicket.id}
             ticket={selectedTicket}
