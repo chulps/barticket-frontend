@@ -74,7 +74,9 @@ export type OnDuty = { id: number; name: string; role: Account["role"] | null };
 
 /** Compute who is actively clocked in using shift punches, without guessing roles. */
 export function clockedInTeam(shift: ShiftReport, members: readonly Account[] | null): OnDuty[] {
-    const roles = new Map(members?.map((member) => [member.id, member.role]) ?? []);
+    const roles = new Map<number, Account["role"]>(
+        members?.map((member): [number, Account["role"]] => [member.id, member.role]) ?? [],
+    );
     const onDuty = new Map<number, OnDuty>();
     for (const punch of shift.punches) {
         if (punch.clock_out !== null) {
