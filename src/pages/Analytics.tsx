@@ -323,10 +323,10 @@ function RangeCharts({
                     locale={locale}
                     chartHeight={220}
                     legend={[
-                        { label: t("cash"), color: CASH },
-                        { label: t("card"), color: CARD },
-                        { label: t("other"), color: OTHER },
-                        { label: locale === "ja" ? "支払方法未記録" : "Payment type not recorded", color: UNKNOWN },
+                        { label: t("cash"), color: CASH, value: totals.cash },
+                        { label: t("card"), color: CARD, value: totals.card },
+                        { label: t("other"), color: OTHER, value: totals.other },
+                        { label: locale === "ja" ? "支払方法未記録" : "Payment type not recorded", color: UNKNOWN, value: totals.unknownPayment },
                     ]}
                 />
             </Cell>
