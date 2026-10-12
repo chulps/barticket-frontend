@@ -103,6 +103,8 @@ export function BarChart({
     legend,
     summary,
     copyContext,
+    onDrillDown,
+    drillDownLabel,
     chartHeight = 200,
 }: {
     title: string;
@@ -113,6 +115,8 @@ export function BarChart({
     legend?: { label: string; color: string; value: number }[];
     summary?: { label: string; value: string };
     copyContext?: string;
+    onDrillDown?: (barId: string) => void;
+    drillDownLabel?: string;
     chartHeight?: number;
 }) {
     const { ref, width: container } = useWidth();
@@ -238,6 +242,19 @@ export function BarChart({
                 <BarDetails role="group" aria-label={locale === "ja" ? "棒グラフの詳細" : "Bar details"}>
                     <div><strong>{activeLabel}</strong><strong>{formatFull(activeTotal)}</strong></div>
                     <div>
+                        {onDrillDown && drillDownLabel ? (
+                            <button
+                                className="drill-down"
+                                type="button"
+                                onClick={() => {
+                                    onDrillDown(active.id);
+                                    setSelected(null);
+                                    setCopied(false);
+                                }}
+                            >
+                                {drillDownLabel}<span aria-hidden="true"> →</span>
+                            </button>
+                        ) : null}
                         <button type="button" onClick={() => void copy(activeLabel)}>{locale === "ja" ? "日付をコピー" : "Copy date"}</button>
                         <button type="button" onClick={() => void copy(formatFull(activeTotal))}>{locale === "ja" ? "金額・人数をコピー" : "Copy value"}</button>
                         <button type="button" onClick={() => void copy(`${activeLabel}\t${formatFull(activeTotal)}`)}>{locale === "ja" ? "両方コピー" : "Copy both"}</button>
@@ -571,6 +588,15 @@ const BarDetails = styled.div`
         font-size: inherit;
     }
     button:hover { background: var(--neutral-700); }
+    button.drill-down {
+        background: var(--royal-600);
+        color: white;
+        border-color: var(--royal-500);
+        font-weight: 600;
+        padding-inline: var(--space-2);
+    }
+    button.drill-down:hover { background: var(--royal-500); }
+    button.drill-down:focus-visible { outline: 2px solid var(--royal-200); outline-offset: 2px; }
 `;
 
 const ChartHeading = styled.div`
