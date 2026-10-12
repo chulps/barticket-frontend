@@ -1,7 +1,7 @@
 // src/pages/Dashboard.tsx
 
 // import react stuff
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // import npm packages
 import styled from "styled-components";
@@ -36,6 +36,9 @@ export default function Dashboard({
   const [activeTab, setActiveTab] = useState<"open" | "paid" | "cancelled">("open");
   const [selectedTicketId, setSelectedTicketId] = useState(1);
   const [showTicketDetails, setShowTicketDetails] = useState(false);
+  // Async create callbacks must respect any navigation that happened meanwhile.
+  const selectionRef = useRef(selectedTicketId);
+  selectionRef.current = selectedTicketId;
   const [openShiftId, setOpenShiftId] = useState<number | null | undefined>(undefined);
   const [me, setMe] = useState<Account | null>(null);
   const [shift, setShift] = useState<ShiftReport | null>(null);
@@ -154,11 +157,10 @@ export default function Dashboard({
       return;
     }
 
-    setSelectedTicketId(current =>
-      current === started.temporaryId ? previousTicketId : current);
     // Do not interrupt navigation the user performed while the request was pending.
-    if (selectedTicketId === started.temporaryId) return;
-    setActiveTab(current => current === "open" && previousTab !== "open" ? previousTab : current);
+    if (selectionRef.current !== started.temporaryId) return;
+    setSelectedTicketId(previousTicketId);
+    setActiveTab(previousTab);
     setShowTicketDetails(previousDetailsVisible);
   };
 
