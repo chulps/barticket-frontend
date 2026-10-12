@@ -609,7 +609,7 @@ export default function Analytics() {
             staffShifts,
             team,
             notices,
-            updatedAt,
+            updatedAt: lastUpdated,
         });
     }
 
