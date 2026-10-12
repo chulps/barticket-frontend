@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 
 import { accountApi } from "../api/account";
@@ -18,13 +18,19 @@ export default function Notifications() {
     const [notices, setNotices] = useState<NoticeList | null>(null);
     const [denied, setDenied] = useState(false);
     const [isManager, setIsManager] = useState(false);
+    // Serialize restocks and reject responses from refreshes started before a write.
+    const pendingRestock = useRef(false);
+    const revision = useRef(0);
+    const [pendingNoticeId, setPendingNoticeId] = useState<number | null>(null);
 
     useEffect(() => {
         let cancelled = false;
         async function load() {
+            if (pendingRestock.current) return;
+            const startedAt = revision.current;
             try {
                 const data = await listNotices();
-                if (cancelled) return;
+                if (cancelled || pendingRestock.current || revision.current !== startedAt) return;
                 setDenied(false);
                 setNotices(data);
             } catch (error) {
@@ -55,12 +61,33 @@ export default function Notifications() {
     }, []);
 
     async function restock(noticeId: number) {
+        if (pendingRestock.current || !notices) return;
+        pendingRestock.current = true;
+        revision.current++;
+        setPendingNoticeId(noticeId);
+        const previous = notices;
+        // Immediately dismiss the notice; the server is still authoritative.
+        setNotices({ ...previous, notices: previous.notices.filter(notice => notice.id !== noticeId) });
         try {
             const data = await restockNotice(noticeId);
+            revision.current++;
             setNotices(data);
             window.dispatchEvent(new Event("barticket-notices"));
         } catch (error) {
+            revision.current++;
+            setNotices(previous);
             window.alert(error instanceof ApiError ? error.message : t("stockUpdateFailed"));
+            // Reconcile after ambiguous network failures; do not retry the POST.
+            try {
+                const latest = await listNotices();
+                setNotices(latest);
+            } catch (readError) {
+                console.warn("Could not reconcile notifications", readError);
+            }
+        } finally {
+            revision.current++;
+            pendingRestock.current = false;
+            setPendingNoticeId(null);
         }
     }
 
@@ -82,6 +109,7 @@ export default function Notifications() {
                                 type="button"
                                 className="small hollow"
                                 onClick={() => restock(notice.id)}
+                                disabled={pendingNoticeId !== null}
                             >
                                 {t("markInStock")}
                             </RestockButton>
