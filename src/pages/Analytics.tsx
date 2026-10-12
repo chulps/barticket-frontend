@@ -135,7 +135,7 @@ function average(total: number, count: number) {
 const CASH = "var(--success-400)";
 const CARD = "var(--royal-400)";
 const OTHER = "var(--neutral-300)";
-const UNKNOWN = "var(--neutral-500)";
+const UNKNOWN = "#f59e0b"; // Warm orange for historical revenue with an unrecorded payment type.
 
 type Point = {
     id: string;
