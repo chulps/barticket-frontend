@@ -12,6 +12,7 @@ import { formatDuration, localeTag, menuLabel, readLocale, translate, useI18n, t
 import type { Ticket } from "../types/Ticket";
 import { topSellingItems } from "../components/topSellingItems";
 import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
+import { shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 
 type Range = "all" | "year" | "month" | "day";
 
@@ -86,16 +87,6 @@ function monthKey(iso: string) {
 
 function yearKey(iso: string) {
     return iso.slice(0, 4);
-}
-
-function shiftYear(year: string, delta: number) {
-    return String(Number(year) + delta);
-}
-
-function shiftMonth(key: string, delta: number) {
-    const [year, month] = key.split("-").map(Number);
-    const next = new Date(year, month - 1 + delta, 1);
-    return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function formatMonth(key: string, locale: Locale) {
@@ -531,6 +522,7 @@ export default function Analytics() {
 
     function showMonth(next: string) {
         setMonth(next);
+        setYear(next.slice(0, 4));
         const inMonth = (shifts ?? []).filter((shift) => monthKey(shift.business_date) === next);
         const first = inMonth[0];
         setDayId(first?.id ?? null);
@@ -540,6 +532,7 @@ export default function Analytics() {
     function pickDate(iso: string) {
         setPickedDate(iso);
         setMonth(monthKey(iso));
+        setYear(yearKey(iso));
         const match = (shifts ?? []).find((shift) => shift.business_date === iso);
         setDayId(match?.id ?? null);
     }
@@ -568,6 +561,7 @@ export default function Analytics() {
                                 type="button"
                                 className="hollow secondary"
                                 aria-label={t("prev")}
+                                disabled={!year}
                                 onClick={() => year && setYear(shiftYear(year, -1))}
                             >
                                 <Icon name="CaretLeft" size="var(--font-size-h4)" />
@@ -577,6 +571,7 @@ export default function Analytics() {
                                 type="button"
                                 className="hollow secondary"
                                 aria-label={t("next")}
+                                disabled={!year}
                                 onClick={() => year && setYear(shiftYear(year, 1))}
                             >
                                 <Icon name="CaretRight" size="var(--font-size-h4)" />
@@ -589,7 +584,8 @@ export default function Analytics() {
                                 type="button"
                                 className="hollow secondary"
                                 aria-label={t("prev")}
-                                onClick={() => showMonth(shiftMonth(month, -1))}
+                                disabled={!month}
+                                onClick={() => month && showMonth(shiftMonth(month, -1))}
                             >
                                 <Icon name="CaretLeft" size="var(--font-size-h4)" />
                             </StepButton>
@@ -598,7 +594,8 @@ export default function Analytics() {
                                 type="button"
                                 className="hollow secondary"
                                 aria-label={t("next")}
-                                onClick={() => showMonth(shiftMonth(month, 1))}
+                                disabled={!month}
+                                onClick={() => month && showMonth(shiftMonth(month, 1))}
                             >
                                 <Icon name="CaretRight" size="var(--font-size-h4)" />
                             </StepButton>
@@ -610,7 +607,8 @@ export default function Analytics() {
                                 type="button"
                                 className="hollow secondary"
                                 aria-label={t("prev")}
-                                onClick={() => showMonth(shiftMonth(month, -1))}
+                                disabled={!pickedDate}
+                                onClick={() => pickedDate && pickDate(shiftDay(pickedDate, -1))}
                             >
                                 <Icon name="CaretLeft" size="var(--font-size-h4)" />
                             </StepButton>
@@ -624,7 +622,8 @@ export default function Analytics() {
                                 type="button"
                                 className="hollow secondary"
                                 aria-label={t("next")}
-                                onClick={() => showMonth(shiftMonth(month, 1))}
+                                disabled={!pickedDate}
+                                onClick={() => pickedDate && pickDate(shiftDay(pickedDate, 1))}
                             >
                                 <Icon name="CaretRight" size="var(--font-size-h4)" />
                             </StepButton>
