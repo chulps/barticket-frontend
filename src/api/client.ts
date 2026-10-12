@@ -20,7 +20,26 @@ export function getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
 }
 
+async function revokePushForSession(previousToken: string): Promise<void> {
+    if (!("serviceWorker" in navigator)) return;
+    const registration = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL);
+    const subscription = await registration?.pushManager.getSubscription();
+    if (!subscription) return;
+    const response = await fetch(`${API_URL}/push/subscriptions`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${previousToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+    });
+    if (response.ok) await subscription.unsubscribe();
+}
+
 export function setToken(token: string | null) {
+    const previousToken = localStorage.getItem(TOKEN_KEY);
+    if (previousToken && previousToken !== token) {
+        void revokePushForSession(previousToken).catch((error) =>
+            console.warn("Unable to revoke push subscription on sign out", error),
+        );
+    }
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
     window.dispatchEvent(new Event("barticket-auth"));
