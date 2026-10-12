@@ -325,17 +325,52 @@ export function useTickets() {
       ticket => ({ ...ticket, items: ticket.items.filter(item => item.id !== itemId) }));
   };
 
-  const createTicket = async (): Promise<Ticket | null> => {
+  // Creating a ticket is optimistic only until the server assigns an ID.
+  // No item editing, payment, or other writes are allowed on temporary IDs.
+  const creating = useRef(false);
+  const createTicket = (): { temporaryId: number; completion: Promise<Ticket | null> } | null => {
+    if (creating.current) return null; // Guard double clicks synchronously.
+    creating.current = true;
+    const temporaryId = nextTempId.current--;
+    const now = Date.now() / 1000;
+    const placeholder: Ticket = {
+      id: temporaryId,
+      name: "Creating ticket…",
+      status: "open",
+      items: [],
+      created_at: now,
+      updated_at: now,
+      cancelled_at: null,
+      created_by: null,
+      shiftId: null,
+      payment: null,
+    };
+
     pendingWrites.current += 1;
-    localRevision.current += 1;
-    try {
-      return applyServerTicket(await ticketsApi.create());
-    } catch (error) {
-      reportError(error);
-      return null;
-    } finally {
-      pendingWrites.current -= 1;
-    }
+    commit([placeholder, ...ticketsRef.current]);
+    const completion = (async (): Promise<Ticket | null> => {
+      try {
+        const response = await ticketsApi.create();
+        // Replace the temporary row atomically, avoiding duplicate tickets.
+        const saved = toTicket(response);
+        confirmed.current.set(saved.id, saved);
+        commit(ticketsRef.current.map(ticket =>
+          ticket.id === temporaryId ? project(saved) : ticket,
+        ));
+        return saved;
+      } catch (error) {
+        // Remove only the temporary row; leave other tickets and navigation alone.
+        commit(ticketsRef.current.filter(ticket => ticket.id !== temporaryId));
+        reportError(error);
+        // An ambiguous network failure might still have created the ticket:
+        // never retry POST automatically, and require user reconciliation.
+        return null;
+      } finally {
+        creating.current = false;
+        pendingWrites.current -= 1;
+      }
+    })();
+    return { temporaryId, completion };
   };
 
   const cancelTicket = (ticketId: number) => {
