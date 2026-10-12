@@ -5,6 +5,7 @@ import { accountApi } from "../api/account";
 import { ApiError, getToken } from "../api/client";
 import { listNotices, restockNotice, type NoticeList } from "../api/notices";
 import { menuLabel, useI18n, type Locale } from "../i18n";
+import { dismissRestockNotice } from "../hooks/optimisticOperations";
 
 function formatWhen(unix: number, locale: Locale) {
     return new Date(unix * 1000).toLocaleTimeString(locale === "ja" ? "ja-JP" : "en-US", {
@@ -67,7 +68,7 @@ export default function Notifications() {
         setPendingNoticeId(noticeId);
         const previous = notices;
         // Immediately dismiss the notice; the server is still authoritative.
-        setNotices({ ...previous, notices: previous.notices.filter(notice => notice.id !== noticeId) });
+        setNotices(dismissRestockNotice(previous, noticeId));
         try {
             const data = await restockNotice(noticeId);
             revision.current++;
