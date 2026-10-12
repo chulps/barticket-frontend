@@ -38,7 +38,7 @@ export default function Dashboard({
   const [showTicketDetails, setShowTicketDetails] = useState(false);
   // Async create callbacks must respect any navigation that happened meanwhile.
   const selectionRef = useRef(selectedTicketId);
-  selectionRef.current = selectedTicketId;
+  useEffect(() => { selectionRef.current = selectedTicketId; }, [selectedTicketId]);
   const [openShiftId, setOpenShiftId] = useState<number | null | undefined>(undefined);
   const [me, setMe] = useState<Account | null>(null);
   const [shift, setShift] = useState<ShiftReport | null>(null);
