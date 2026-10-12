@@ -10,6 +10,7 @@ import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tick
 import { useI18n } from "../i18n";
 import { ACTIVE_REFRESH_MS, isTicketRefreshDue } from "./ticketRefreshPolicy";
 import { projectTicket, type OptimisticEdit } from "./optimisticTickets";
+import { acceptBackgroundSnapshot } from "./refreshSafety";
 import { provisionalTicket, resolveProvisionalTicket, removeProvisionalTicket } from "./optimisticOperations";
 
 // the name input saves on every keystroke, so wait until typing pauses
@@ -136,8 +137,13 @@ export function useTickets() {
       const revision = localRevision.current;
       try {
         const list = await ticketsApi.list();
-        if (cancelled || pendingWrites.current > 0 || revision !== localRevision.current) return;
-        const loaded = list.map(toTicket).sort((a, b) => b.id - a.id);
+        const loaded = acceptBackgroundSnapshot(list.map(toTicket).sort((a, b) => b.id - a.id), {
+          startedRevision: revision,
+          currentRevision: localRevision.current,
+          pendingWrite: pendingWrites.current > 0,
+          cancelled,
+        });
+        if (loaded === null) return;
         // Never overwrite a name being edited or awaiting its debounced save.
         const next = loaded.map((ticket) => {
           const pendingName = pendingNames.current.get(ticket.id);
