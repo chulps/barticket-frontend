@@ -16,6 +16,8 @@ import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 import { analyticsDrillDownTarget, shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
 import OpenShiftOverview from "./OpenShiftOverview";
+import AnalyticsReportActions from "../components/AnalyticsReportActions";
+import { createAnalyticsTextReport } from "./analyticsTextReport";
 
 type Range = "all" | "year" | "month" | "day";
 
@@ -591,6 +593,25 @@ export default function Analytics() {
                   : [];
     const totals = summarize(visible);
     const staffShifts = staffDrinkShifts(visible, openShift, range, month, year, pickedDate);
+    const soldItems = range === "day" && selected?.status === "open" ? [] :
+        topSellingItems(tickets, new Set(visible.map((shift) => shift.id)));
+    function reportText(reportLocale: Locale) {
+        return createAnalyticsTextReport({
+            range,
+            label: copyPeriod(range, month, year, selected, reportLocale),
+            locale: reportLocale,
+            shifts: visible,
+            totals,
+            tickets,
+            topItems: soldItems.map((item) => ({
+                name: menuLabel(reportLocale, item.name), quantity: item.quantity, revenue: item.revenue,
+            })),
+            staffShifts,
+            team,
+            notices,
+            updatedAt: lastUpdated,
+        });
+    }
 
     function showMonth(next: string) {
         setMonth(next);
@@ -718,6 +739,12 @@ export default function Analytics() {
                             </StepButton>
                         </DayNavigator>
                     ) : null}
+                    <AnalyticsReportActions
+                        key={[range, month, year, range === "day" ? dayId : null].join(":")}
+                        textEn={reportText("en")}
+                        textJa={reportText("ja")}
+                        locale={locale}
+                    />
                     {range === "day" && selected?.status === "open" ? (
                         <>
                             <OpenShiftOverview
