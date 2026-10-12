@@ -5,6 +5,16 @@ export const API_URL = (
 ).replace(/\/$/, "");
 
 const TOKEN_KEY = "barticket_token";
+const DEVICE_KEY = "barticket_device_id";
+
+export function getDeviceId(): string {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+}
 
 export function getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
@@ -29,7 +39,7 @@ export async function apiRequest<T>(
     path: string,
     options: { method?: string; body?: unknown } = {},
 ): Promise<T> {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { "X-BarTicket-Device": getDeviceId() };
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
     if (options.body !== undefined) headers["Content-Type"] = "application/json";
