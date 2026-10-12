@@ -20,6 +20,7 @@ import type { Ticket, PaymentType } from "../../types/Ticket";
 type TicketDetailsProps = {
     ticket: Ticket | null;
     menu: MenuData | null;
+    tickets: Ticket[];
 
     onUpdateQuantity: (
         ticketId: number,
@@ -73,6 +74,7 @@ type TicketDetailsProps = {
 export default function TicketDetails({
     ticket,
     menu,
+    tickets,
     onUpdateQuantity,
     onUpdatePrice,
     onAddItem,
@@ -123,6 +125,7 @@ export default function TicketDetails({
             <TicketItems
                 ticket={ticket}
                 menu={menu}
+                tickets={tickets}
                 activeTab={activeTab}
                 editingPriceItemId={editingPriceItemId}
                 setEditingPriceItemId={setEditingPriceItemId}
