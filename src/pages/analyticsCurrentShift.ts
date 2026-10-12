@@ -1,4 +1,4 @@
-import type { ShiftReport } from "../api/account";
+import type { Account, ShiftReport } from "../api/account";
 import type { Ticket } from "../types/Ticket";
 
 /** Default to the active business night, otherwise the most recently closed night. */
@@ -68,4 +68,28 @@ export function liveAnalyticsShift(
         paid_count: paid.length,
         cancelled_count: cancelledCount,
     };
+}
+
+export type OnDuty = { id: number; name: string; role: Account["role"] | null };
+
+/** Compute who is actively clocked in using shift punches, without guessing roles. */
+export function clockedInTeam(shift: ShiftReport, members: readonly Account[] | null): OnDuty[] {
+    const roles = new Map(members?.map((member) => [member.id, member.role]) ?? []);
+    const onDuty = new Map<number, OnDuty>();
+    for (const punch of shift.punches) {
+        if (punch.clock_out !== null) {
+            onDuty.delete(punch.user_id);
+            continue;
+        }
+        onDuty.set(punch.user_id, {
+            id: punch.user_id,
+            name: punch.name,
+            role: roles.get(punch.user_id) ?? null,
+        });
+    }
+    return [...onDuty.values()].sort((a, b) =>
+        (a.role === "manager" ? 0 : a.role === "staff" ? 1 : 2) -
+        (b.role === "manager" ? 0 : b.role === "staff" ? 1 : 2) ||
+        a.name.localeCompare(b.name),
+    );
 }
