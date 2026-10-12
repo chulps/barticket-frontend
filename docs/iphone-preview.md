@@ -21,6 +21,9 @@ before enabling the preview. Use separate VAPID keys for preview and production.
   - `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT`: a dedicated
     preview VAPID key pair (see backend `docs/web-push.md`)
   - `CORS_ORIGINS`: the HTTPS origin of the frontend preview deployment
+  - `BARTICKET_PREVIEW_DB_ISOLATED=true`: set **only after** verifying both
+    database URLs point to the isolated test database; the backend preview
+    build intentionally fails without this safety acknowledgement
 - Confirm the preview backend's build runs Alembic against the **test** DB.
 - Find the preview API URL on Vercel's Deployments tab and verify `/docs`
   loads. **Do not use the production API URL.**
