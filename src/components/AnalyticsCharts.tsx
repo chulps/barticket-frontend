@@ -110,7 +110,7 @@ export function BarChart({
     formatTick: (value: number) => string;
     formatFull: (value: number) => string;
     locale: "en" | "ja";
-    legend?: { label: string; color: string }[];
+    legend?: { label: string; color: string; value: number }[];
     summary?: { label: string; value: string };
     copyContext?: string;
     chartHeight?: number;
@@ -249,10 +249,13 @@ export function BarChart({
             {legend ? (
                 <InlineLegend>
                     {legend.map((item) => (
-                        <LegendItem key={item.label}>
-                            <Swatch $color={item.color} />
-                            {item.label}
-                        </LegendItem>
+                        <RevenueLegendItem key={item.label}>
+                            <RevenueSwatch $color={item.color} aria-hidden="true" />
+                            <RevenueLegendText>
+                                <RevenueLegendLabel>{item.label}</RevenueLegendLabel>
+                                <RevenueLegendValue>{formatFull(item.value)}</RevenueLegendValue>
+                            </RevenueLegendText>
+                        </RevenueLegendItem>
                     ))}
                 </InlineLegend>
             ) : null}
@@ -453,9 +456,62 @@ const InlineLegend = styled.ul`
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-1);
+
+    @media (min-width: 640px) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (min-width: 1024px) {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+`;
+
+const RevenueLegendItem = styled.li`
+    display: grid;
+    grid-template-columns: 0.75rem minmax(0, 1fr);
+    align-items: start;
+    gap: 0.625rem;
+    padding: var(--space-1);
+    min-width: 0;
+    border: 1px solid var(--neutral-700);
+    border-radius: 8px;
+    background: var(--neutral-800);
+`;
+
+const RevenueSwatch = styled.span<{ $color: string }>`
+    width: 0.75rem;
+    height: 0.75rem;
+    margin-top: 0.2rem;
+    border-radius: 3px;
+    background: ${({ $color }) => $color};
+`;
+
+const RevenueLegendText = styled.div`
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+`;
+
+const RevenueLegendLabel = styled.label`
+    display: block;
+    color: var(--neutral-300);
+    font-size: var(--font-size-small);
+    line-height: 1.25;
+`;
+
+const RevenueLegendValue = styled.strong`
+    display: block;
+    color: var(--neutral-100);
+    font-family: var(--font-family-data);
+    font-size: var(--font-size-h5);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
 `;
 
 const Legend = styled.ul`
