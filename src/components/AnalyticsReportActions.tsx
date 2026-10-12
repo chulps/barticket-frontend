@@ -6,13 +6,17 @@ import styled from "styled-components";
  * conversation and confirms the send; no bot or server credentials needed.
  */
 export default function AnalyticsReportActions({
-    text,
+    textEn,
+    textJa,
     locale,
 }: {
-    text: string;
+    textEn: string;
+    textJa: string;
     locale: "en" | "ja";
 }) {
     const [expanded, setExpanded] = useState(false);
+    const [reportLocale, setReportLocale] = useState<"en" | "ja">(locale);
+    const text = reportLocale === "ja" ? textJa : textEn;
     const [copyStatus, setCopyStatus] = useState("");
     const textarea = useRef<HTMLTextAreaElement>(null);
     const ja = locale === "ja";
@@ -58,6 +62,13 @@ export default function AnalyticsReportActions({
                             "送信前に内容を確認してください。LINEでグループを選択し、送信を確定できます。",
                         )}</p>
                     </header>
+                    <LanguagePicker>
+                        <span>{tr("Report language", "レポートの言語")}</span>
+                        <select aria-label={tr("Report language", "レポートの言語")} value={reportLocale} onChange={(event) => { setReportLocale(event.target.value as "en" | "ja"); setCopyStatus(""); }}>
+                            <option value="en">English</option>
+                            <option value="ja">日本語</option>
+                        </select>
+                    </LanguagePicker>
                     <ReportText ref={textarea} readOnly value={text} aria-label={tr("Generated report", "作成したレポート")} />
                     <Actions>
                         <button type="button" className="hollow secondary" onClick={() => void copyText()}>
@@ -96,6 +107,16 @@ const ReportCard = styled.div`
     border: 1px solid var(--neutral-700);
     h2 { font-size: var(--font-size-h5); font-weight: 600; }
     p { margin-top: var(--space-0); color: var(--neutral-300); font-size: var(--font-size-small); }
+`;
+
+const LanguagePicker = styled.label`
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    align-items: center;
+    font-size: var(--font-size-small);
+    color: var(--neutral-300);
+    select { background: var(--neutral-800); color: var(--neutral-100); padding: 0.5em; border-radius: 6px; }
 `;
 
 const ReportText = styled.textarea`
