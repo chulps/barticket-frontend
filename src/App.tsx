@@ -17,12 +17,13 @@ import Analytics from "./pages/Analytics";
 import Notifications from "./pages/Notifications";
 import ModalHost from "./components/ModalHost"
 import { ModalProvider } from "./context/ModalProvider";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { accountApi } from "./api/account";
 import { getToken, setToken, ApiError } from "./api/client";
 
-import type { MenuData, MenuItem } from "./types/Menu";
-import { getMenu } from "./api/menu";
+import type { MenuData, MenuItem, Prices } from "./types/Menu";
+import { getMenu, setMenuPrices, setMenuStock } from "./api/menu";
+import { replaceMenuItem, optimisticStock, optimisticPrices, reconcileMenuSnapshot } from "./hooks/optimisticOperations";
 
 
 export default function App() {
@@ -54,13 +55,71 @@ export default function App() {
 
   const [menu, setMenu] = useState<MenuData | null>(null);
   const [loadingMenu, setLoadingMenu] = useState(true);
+  const menuRef = useRef<MenuData | null>(null);
+  const menuRevision = useRef(0);
+  const pendingMenuItems = useRef(new Set<number>());
+  const [pendingMenuIds, setPendingMenuIds] = useState<number[]>([]);
+
+  const updateMenu = (next: MenuData | null) => {
+    menuRef.current = next;
+    setMenu(next);
+  };
+
+  const mergeMenuItem = (updated: MenuItem) => {
+    const current = menuRef.current;
+    if (!current) return;
+    updateMenu(replaceMenuItem(current, updated));
+  };
+
+  // One active write per item prevents competing stock/price changes from
+  // rolling each other back. Poll results cannot erase unacknowledged changes.
+  const mutateMenuItem = async (
+    id: number,
+    optimistic: (item: MenuItem) => MenuItem,
+    send: () => Promise<MenuItem>,
+  ): Promise<boolean> => {
+    if (pendingMenuItems.current.has(id)) return false;
+    const before = menuRef.current?.items.find(item => item.id === id);
+    if (!before) return false;
+    menuRevision.current++;
+    pendingMenuItems.current.add(id);
+    setPendingMenuIds([...pendingMenuItems.current]);
+    mergeMenuItem(optimistic(before));
+    try {
+      const result = await send();
+      menuRevision.current++;
+      mergeMenuItem(result);
+      return true;
+    } catch (error) {
+      menuRevision.current++;
+      mergeMenuItem(before);
+      throw error;
+    } finally {
+      menuRevision.current++;
+      pendingMenuItems.current.delete(id);
+      setPendingMenuIds([...pendingMenuItems.current]);
+    }
+  };
+
+  const changeStock = (item: MenuItem) => mutateMenuItem(item.id,
+    optimisticStock,
+    () => setMenuStock(item.id, item.inStock === false));
+
+  const changePrices = (item: MenuItem, prices: Prices) => mutateMenuItem(item.id,
+    current => optimisticPrices(current, prices),
+    () => setMenuPrices(item.id, prices));
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
+      const revision = menuRevision.current;
       try {
         const data = await getMenu();
-        if (!cancelled) setMenu(data);
+        if (!cancelled && revision === menuRevision.current) {
+          // While a write is pending, preserve the optimistic item from the
+          // current view rather than replacing it with an older server snapshot.
+          updateMenu(reconcileMenuSnapshot(data, menuRef.current, pendingMenuItems.current));
+        }
       } catch (error) {
         console.error(error);
       } finally {
@@ -78,31 +137,13 @@ export default function App() {
   }, []);
 
   function addMenuItem(created: MenuItem) {
-    setMenu((current) => {
-      if (!current) return current;
-      if (current.items.some((item) => item.id === created.id)) return current;
-      return {
-        ...current,
-        items: [...current.items, { ...created, prices: created.prices ?? {} }].sort(
-          (a, b) => a.id - b.id,
-        ),
-      };
-    });
+    const current = menuRef.current;
+    if (!current || current.items.some(item => item.id === created.id)) return;
+    menuRevision.current++;
+    updateMenu({ ...current, items: [...current.items, { ...created, prices: created.prices ?? {} }]
+      .sort((a, b) => a.id - b.id) });
   }
 
-  function applyMenuItem(updated: MenuItem) {
-    setMenu((current) => {
-      if (!current) return current;
-      return {
-        ...current,
-        items: current.items.map((item) =>
-          item.id === updated.id
-            ? { ...item, inStock: updated.inStock, prices: updated.prices ?? item.prices }
-            : item,
-        ),
-      };
-    });
-  }
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
 
@@ -121,7 +162,9 @@ export default function App() {
           <Route path="/menu" element={authenticated === null ? null : authenticated ? <Menu
             menu={menu}
             loadingMenu={loadingMenu}
-            onItemChange={applyMenuItem}
+            onToggleStock={changeStock}
+            onSavePrices={changePrices}
+            pendingMenuIds={pendingMenuIds}
             onItemAdded={addMenuItem} /> : <Navigate to="/" replace />} />
 
           <Route path="/analytics" element={authenticated === null ? null : authenticated ? <Analytics /> : <Navigate to="/" replace />} />

@@ -13,21 +13,24 @@ import type { MenuData, MenuItem, Prices } from "../types/Menu";
 import { useFilteredMenu } from "../hooks/useFilteredMenu";
 import { useModal } from "../hooks/useModal";
 import { useI18n } from "../i18n";
-import { setMenuPrices, setMenuStock } from "../api/menu";
 import { ApiError, getToken } from "../api/client";
 
 
 type MenuProps = {
   menu: MenuData | null;
   loadingMenu: boolean;
-  onItemChange: (item: MenuItem) => void;
+  onToggleStock: (item: MenuItem) => Promise<boolean>;
+  onSavePrices: (item: MenuItem, prices: Prices) => Promise<boolean>;
+  pendingMenuIds: number[];
   onItemAdded: (item: MenuItem) => void;
 };
 
 export default function Menu({
   menu,
   loadingMenu,
-  onItemChange,
+  onToggleStock,
+  onSavePrices,
+  pendingMenuIds,
   onItemAdded,
 }: MenuProps) {
   const { t } = useI18n();
@@ -43,9 +46,8 @@ export default function Menu({
 
   async function toggleStock(item: MenuItem) {
     try {
-      const updated = await setMenuStock(item.id, item.inStock === false);
-      onItemChange(updated);
-      window.dispatchEvent(new Event("barticket-notices"));
+      const saved = await onToggleStock(item);
+      if (saved) window.dispatchEvent(new Event("barticket-notices"));
     } catch (error) {
       window.alert(error instanceof ApiError ? error.message : t("stockUpdateFailed"));
     }
@@ -53,8 +55,8 @@ export default function Menu({
 
   async function savePrices(item: MenuItem, prices: Prices) {
     try {
-      const updated = await setMenuPrices(item.id, prices);
-      onItemChange(updated);
+      const saved = await onSavePrices(item, prices);
+      if (!saved) throw new Error("Menu item is already being updated");
     } catch (error) {
       window.alert(error instanceof ApiError ? error.message : t("priceUpdateFailed"));
       throw error;
@@ -121,6 +123,7 @@ export default function Menu({
             subcategories={subcategories}
             onToggleStock={signedIn ? toggleStock : undefined}
             onSavePrices={signedIn ? savePrices : undefined}
+            pendingMenuIds={pendingMenuIds}
           />
         ))}
       </MenuGridContainer>

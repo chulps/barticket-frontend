@@ -56,3 +56,34 @@ test("removal applies immediately and restores server row on failure", () => {
   assert.equal(total(projectTicket(ticket(), [remove])), 0);
   assert.equal(total(projectTicket(ticket(), [])), 700);
 });
+
+test("Phase 1: a price change recalculates the subtotal immediately", () => {
+  const price = { key: 12, transform: current => ({
+    ...current,
+    items: current.items.map(item => ({ ...item, unit_price: 950, subtotal: item.quantity * 950 })),
+  }) };
+  assert.equal(total(projectTicket(ticket(), [price])), 950);
+  assert.equal(total(projectTicket(ticket(), [])), 700);
+});
+
+test("Phase 1: two pending additions maintain distinct temporary item IDs", () => {
+  const add = (key, id) => ({ key, transform: current => ({
+    ...current, items: [...current.items, { id, type: "menu", name: "Beer", quantity: 1, unit_price: 800, subtotal: 800 }],
+  }) });
+  const projected = projectTicket(ticket(), [add(6, -1), add(7, -2)]);
+  assert.deepEqual(projected.items.map(item => item.id), [10, -1, -2]);
+  assert.equal(total(projected), 2300);
+  const server = { ...ticket(), items: [...ticket().items, { id: 22, type: "menu", name: "Beer", quantity: 1, unit_price: 800, subtotal: 800 }] };
+  assert.deepEqual(projectTicket(server, [add(7, -2)]).items.map(item => item.id), [10, 22, -2]);
+});
+
+test("Phase 1: staff drink projection immediately affects totals and restores on failure", () => {
+  const addStaff = { key: 9, transform: current => ({
+    ...current, items: [...current.items, {
+      id: -4, type: "menu", staff_drink: true, name: "Staff Drink",
+      staff_name: "Haruka", quantity: 1, unit_price: 500, subtotal: 500,
+    }],
+  }) };
+  assert.equal(total(projectTicket(ticket(), [addStaff])), 1200);
+  assert.equal(total(projectTicket(ticket(), [])), 700);
+});

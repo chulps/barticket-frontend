@@ -14,12 +14,14 @@ const PRICE_KEYS = ["standard", "15ml", "30ml"] as const;
 
 type MenuItemRowProps = {
     item: MenuItem;
+    pending?: boolean;
     onToggle?: (item: MenuItem) => void;
     onSavePrices?: (item: MenuItem, prices: Prices) => Promise<void>;
 };
 
 export default function MenuItemRow({
     item,
+    pending = false,
     onToggle,
     onSavePrices,
 }: MenuItemRowProps) {
@@ -29,7 +31,7 @@ export default function MenuItemRow({
     const canEditPrice = PRICE_KEYS.some((key) => item.prices?.[key] !== undefined);
 
     function openPriceEditor() {
-        if (!onSavePrices) return;
+        if (!onSavePrices || pending) return;
         openModal({
             title: menuLabel(locale, item.name),
             maxWidth: "420px",
@@ -50,6 +52,7 @@ export default function MenuItemRow({
                     <NameLine>
                         <ItemName>{menuLabel(locale, item.name)}</ItemName>
                         {unavailable ? <OutOfStock>{t("outOfStock")}</OutOfStock> : null}
+                        {pending ? <Pending role="status">Saving…</Pending> : null}
                     </NameLine>
                     {item.brand || item.volume ? (
                         <Meta>
@@ -68,7 +71,7 @@ export default function MenuItemRow({
                 <Spacer />
                 <MenuPrice item={item} />
             </ItemInfo>
-            {onToggle ? (
+            {onToggle && !pending ? (
                 <DropdownMenu
                     trigger={(isOpen) => (
                         <Icon name={isOpen ? "X" : "DotsThreeOutlineVerticalIcon"} />
@@ -129,6 +132,11 @@ const NameLine = styled.div`
 
 const ItemName = styled.p`
   font-weight: 300;
+`;
+
+const Pending = styled.span`
+  color: var(--neutral-400);
+  font-size: 12px;
 `;
 
 const OutOfStock = styled.span`

@@ -10,6 +10,7 @@ import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tick
 import { useI18n } from "../i18n";
 import { ACTIVE_REFRESH_MS, isTicketRefreshDue } from "./ticketRefreshPolicy";
 import { projectTicket, type OptimisticEdit } from "./optimisticTickets";
+import { provisionalTicket, resolveProvisionalTicket, removeProvisionalTicket } from "./optimisticOperations";
 
 // the name input saves on every keystroke, so wait until typing pauses
 const RENAME_DELAY_MS = 500;
@@ -333,18 +334,7 @@ export function useTickets() {
     creating.current = true;
     const temporaryId = nextTempId.current--;
     const now = Date.now() / 1000;
-    const placeholder: Ticket = {
-      id: temporaryId,
-      name: "Creating ticket…",
-      status: "open",
-      items: [],
-      created_at: now,
-      updated_at: now,
-      cancelled_at: null,
-      created_by: null,
-      shiftId: null,
-      payment: null,
-    };
+    const placeholder = provisionalTicket(temporaryId, now);
 
     pendingWrites.current += 1;
     commit([placeholder, ...ticketsRef.current]);
@@ -354,13 +344,11 @@ export function useTickets() {
         // Replace the temporary row atomically, avoiding duplicate tickets.
         const saved = toTicket(response);
         confirmed.current.set(saved.id, saved);
-        commit(ticketsRef.current.map(ticket =>
-          ticket.id === temporaryId ? project(saved) : ticket,
-        ));
+        commit(resolveProvisionalTicket(ticketsRef.current, temporaryId, project(saved)));
         return saved;
       } catch (error) {
         // Remove only the temporary row; leave other tickets and navigation alone.
-        commit(ticketsRef.current.filter(ticket => ticket.id !== temporaryId));
+        commit(removeProvisionalTicket(ticketsRef.current, temporaryId));
         reportError(error);
         // An ambiguous network failure might still have created the ticket:
         // never retry POST automatically, and require user reconciliation.
