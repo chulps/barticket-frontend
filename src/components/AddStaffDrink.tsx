@@ -6,7 +6,7 @@ import { menuHaystack, menuLabel, useI18n } from "../i18n";
 
 type Props = {
     menu: MenuData;
-    onAdd: (staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
+    onAdd: (staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => void;
 };
 
 function numericPrices(prices: object | null | undefined): [string, number][] {
@@ -51,7 +51,11 @@ export default function AddStaffDrink({ menu, onAdd }: Props) {
                 setError(t("selectStaffFirst"));
                 return;
             }
-            onAdd(Number(staffId), item?.id ?? null, item ? selectedKey : "standard", 1);
+            onAdd(Number(staffId), item?.id ?? null, item ? selectedKey : "standard", 1, {
+                name: item?.name ?? "Staff Drink",
+                staffName: people.find(person => String(person.id) === staffId)?.name ?? "Staff",
+                price,
+            });
         }}>
             <div className="people-field">
                 <span>{locale === "ja" ? "スタッフ" : "Staff recipient"}</span>
