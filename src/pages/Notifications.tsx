@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 
 import { accountApi } from "../api/account";
+import PushSettings from "../components/PushSettings";
 import { ApiError, getToken } from "../api/client";
 import { listNotices, restockNotice, type NoticeList } from "../api/notices";
 import { menuLabel, useI18n, type Locale } from "../i18n";
 import { dismissRestockNotice } from "../hooks/optimisticOperations";
+import { acceptBackgroundSnapshot } from "../hooks/refreshSafety";
 
 function formatWhen(unix: number, locale: Locale) {
     return new Date(unix * 1000).toLocaleTimeString(locale === "ja" ? "ja-JP" : "en-US", {
@@ -31,9 +33,15 @@ export default function Notifications() {
             const startedAt = revision.current;
             try {
                 const data = await listNotices();
-                if (cancelled || pendingRestock.current || revision.current !== startedAt) return;
+                const safe = acceptBackgroundSnapshot(data, {
+                    startedRevision: startedAt,
+                    currentRevision: revision.current,
+                    pendingWrite: pendingRestock.current,
+                    cancelled,
+                });
+                if (safe === null) return;
                 setDenied(false);
-                setNotices(data);
+                setNotices(safe);
             } catch (error) {
                 if (cancelled) return;
                 if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
@@ -95,6 +103,7 @@ export default function Notifications() {
     return (
         <main>
             <Heading>{t("notifications")}</Heading>
+            <PushSettings />
             {denied ? <p>{t("clockInForNotices")}</p> : null}
             {!denied && notices && notices.notices.length === 0 ? <p>{t("noNotifications")}</p> : null}
             {!denied && notices

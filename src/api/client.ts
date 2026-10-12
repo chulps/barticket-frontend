@@ -5,12 +5,41 @@ export const API_URL = (
 ).replace(/\/$/, "");
 
 const TOKEN_KEY = "barticket_token";
+const DEVICE_KEY = "barticket_device_id";
+
+export function getDeviceId(): string {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+}
 
 export function getToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
 }
 
+async function revokePushForSession(previousToken: string): Promise<void> {
+    if (!("serviceWorker" in navigator)) return;
+    const registration = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL);
+    const subscription = await registration?.pushManager.getSubscription();
+    if (!subscription) return;
+    const response = await fetch(`${API_URL}/push/subscriptions`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${previousToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+    });
+    if (response.ok) await subscription.unsubscribe();
+}
+
 export function setToken(token: string | null) {
+    const previousToken = localStorage.getItem(TOKEN_KEY);
+    if (previousToken && previousToken !== token) {
+        void revokePushForSession(previousToken).catch((error) =>
+            console.warn("Unable to revoke push subscription on sign out", error),
+        );
+    }
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
     window.dispatchEvent(new Event("barticket-auth"));
@@ -29,7 +58,7 @@ export async function apiRequest<T>(
     path: string,
     options: { method?: string; body?: unknown } = {},
 ): Promise<T> {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { "X-BarTicket-Device": getDeviceId() };
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
     if (options.body !== undefined) headers["Content-Type"] = "application/json";
