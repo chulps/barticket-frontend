@@ -42,7 +42,8 @@ type TicketDetailsProps = {
         ticketId: number,
         menuItem: MenuItem,
         priceKey: keyof Prices,
-        unitPrice: number
+        unitPrice: number,
+        quantity: number
     ) => void;
 
     onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number) => void;
