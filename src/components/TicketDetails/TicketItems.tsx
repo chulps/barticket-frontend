@@ -22,6 +22,7 @@ import { menuLabel, useI18n } from "../../i18n";
 type TicketItemsProps = {
     ticket: Ticket;
     menu: MenuData | null;
+    tickets: Ticket[];
     activeTab: "open" | "paid" | "cancelled";
 
     editingPriceItemId: number | null;
@@ -58,6 +59,7 @@ type TicketItemsProps = {
 export default function TicketItems({
     ticket,
     menu,
+    tickets,
     activeTab,
     editingPriceItemId,
     setEditingPriceItemId,
@@ -90,6 +92,7 @@ export default function TicketItems({
                             content: (
                                 <AddItemPicker
                                     menu={menu}
+                                    tickets={tickets}
                                     onAddStaffDrink={(staffId, menuItemId, priceKey, quantity) => {
                                         onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity);
                                         closeModal();
