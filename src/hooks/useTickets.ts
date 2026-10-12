@@ -9,6 +9,7 @@ import type { PaymentType, Ticket } from "../types/Ticket";
 import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
 import { useI18n } from "../i18n";
 import { ACTIVE_REFRESH_MS, isTicketRefreshDue } from "./ticketRefreshPolicy";
+import { projectTicket, type OptimisticEdit } from "./optimisticTickets";
 
 // the name input saves on every keystroke, so wait until typing pauses
 const RENAME_DELAY_MS = 500;
@@ -31,13 +32,12 @@ export function useTickets() {
   const renameTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   // Server-confirmed data and pending projections are deliberately separate.
   const confirmed = useRef(new Map<number, Ticket>());
-  const overlays = useRef(new Map<number, { key: number; transform: (ticket: Ticket) => Ticket }[]>());
+  const overlays = useRef(new Map<number, OptimisticEdit[]>());
   const nextKey = useRef(1);
   const nextTempId = useRef(-1);
 
   const project = (ticket: Ticket) => {
-    const projected = (overlays.current.get(ticket.id) ?? []).reduce(
-      (value, operation) => operation.transform(value), ticket);
+    const projected = projectTicket(ticket, overlays.current.get(ticket.id) ?? []);
     const pendingName = pendingNames.current.get(ticket.id);
     return pendingName === undefined ? projected : { ...projected, name: pendingName };
   };
