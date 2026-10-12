@@ -1,4 +1,4 @@
-import { API_URL, getToken } from "./client";
+import { API_URL, getDeviceId, getToken } from "./client";
 
 type PushKeys = { p256dh: string; auth: string };
 type PushSubscriptionPayload = { endpoint: string; keys: PushKeys };
@@ -29,6 +29,7 @@ async function pushRequest<T>(path: string, method = "GET", body?: unknown): Pro
     method,
     headers: {
       Authorization: `Bearer ${token}`,
+      "X-BarTicket-Device": getDeviceId(),
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
