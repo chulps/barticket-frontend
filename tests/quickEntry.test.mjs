@@ -55,7 +55,7 @@ test("favorite toggles are stable and do not duplicate IDs", () => {
 test("recent selections are unique, newest first, and bounded", () => {
     const previous = Array.from({ length: MAX_RECENT }, (_, i) => i + 1);
     const updated = recordRecent(previous, [2, 20, 2, 21]);
-    assert.deepEqual(updated.slice(0, 3), [2, 20, 21]);
+    assert.deepEqual(updated.slice(0, 3), [21, 2, 20]);
     assert.equal(updated.length, MAX_RECENT);
 });
 
