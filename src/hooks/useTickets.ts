@@ -185,8 +185,10 @@ export function useTickets() {
     ticketId: number,
     menuItem: MenuItem,
     priceKey: keyof Prices,
+    _unitPrice?: number,
+    quantity = 1,
   ) => {
-    void enqueue(ticketId, () => ticketsApi.addItem(ticketId, menuItem.id, priceKey));
+    void enqueue(ticketId, () => ticketsApi.addItem(ticketId, menuItem.id, priceKey, quantity));
   };
 
   const addStaffDrinkToTicket = (
