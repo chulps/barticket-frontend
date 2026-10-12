@@ -50,7 +50,8 @@ type TicketItemsProps = {
         ticketId: number,
         menuItem: MenuItem,
         priceKey: keyof Prices,
-        unitPrice: number
+        unitPrice: number,
+        quantity: number
     ) => void;
 };
 
@@ -93,7 +94,7 @@ export default function TicketItems({
                                         onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity);
                                         closeModal();
                                     }}
-                                    onAddItem={(item, priceKey) => {
+                                    onAddItem={(item, priceKey, quantity) => {
                                         const unitPrice = item.prices[priceKey];
 
                                         if (unitPrice === undefined) return;
@@ -102,10 +103,9 @@ export default function TicketItems({
                                             ticket.id,
                                             item,
                                             priceKey,
-                                            unitPrice
+                                            unitPrice,
+                                            quantity
                                         );
-
-                                        closeModal();
                                     }}
                                 />
                             ),
