@@ -5,11 +5,7 @@ import SearchBar from "./MenuSearchBar";
 import AddStaffDrink from "./AddStaffDrink";
 import { useModal } from "../hooks/useModal";
 import { menuHaystack, menuLabel, useI18n } from "../i18n";
-import {
-    FAVORITES_KEY, RECENT_KEY, addSelection, changeSelectionQuantity,
-    quickEntryGroups, readStoredIds, recordRecent, toggleFavorite,
-    type SelectedDrink,
-} from "./quickEntry";
+import { addSelection, changeSelectionQuantity, type SelectedDrink } from "./quickEntry";
 
 type AddItemPickerProps = {
     menu: MenuData;
@@ -17,31 +13,13 @@ type AddItemPickerProps = {
     onAddItem: (item: MenuItem, priceKey: keyof Prices, quantity: number) => void;
 };
 
-function loadIds(key: string): number[] {
-    try { return readStoredIds(localStorage.getItem(key)); }
-    catch { return []; }
-}
-
-function saveIds(key: string, ids: number[]) {
-    try { localStorage.setItem(key, JSON.stringify(ids)); }
-    catch { /* Private browsing or storage disabled: keep in-memory state. */ }
-}
-
 export default function AddItemPicker({ menu, onAddItem, onAddStaffDrink }: AddItemPickerProps) {
     const { t, locale } = useI18n();
     const { closeModal } = useModal();
     const [search, setSearch] = useState("");
     const [showStaffDrink, setShowStaffDrink] = useState(false);
     const [selectedItems, setSelectedItems] = useState<SelectedDrink[]>([]);
-    const [favorites, setFavorites] = useState(() => loadIds(FAVORITES_KEY));
-    const [recent, setRecent] = useState(() => loadIds(RECENT_KEY));
     const submitting = useRef(false);
-
-    const toggle = (id: number) => {
-        const next = toggleFavorite(favorites, id);
-        setFavorites(next);
-        saveIds(FAVORITES_KEY, next);
-    };
 
     const handleSave = () => {
         if (submitting.current || selectedItems.length === 0) return;
@@ -49,9 +27,6 @@ export default function AddItemPicker({ menu, onAddItem, onAddStaffDrink }: AddI
         for (const { item, priceKey, quantity } of selectedItems) {
             onAddItem(item, priceKey, quantity);
         }
-        const next = recordRecent(recent, selectedItems.map(({ item }) => item.id));
-        setRecent(next);
-        saveIds(RECENT_KEY, next);
         closeModal();
     };
 
@@ -63,12 +38,8 @@ export default function AddItemPicker({ menu, onAddItem, onAddStaffDrink }: AddI
                 item.description, item.notes, item.tags?.join(" "),
             ].map(menuHaystack).filter(Boolean).some((field) => field.toLowerCase().includes(term)),
         );
-        return quickEntryGroups(matches, favorites, recent);
-    }, [menu, search, favorites, recent]);
-
-    const favoriteIds = new Set(favorites);
-    const quickIds = new Set([...groups.favorites, ...groups.recent].map((item) => item.id));
-    const allItems = search.trim() ? groups.all : groups.all.filter((item) => !quickIds.has(item.id));
+        return matches.filter((item) => item.category !== "Cocktail Ingredients");
+    }, [menu, search]);
 
     const renderItem = (item: MenuItem) => {
         const unavailable = item.inStock === false;
@@ -77,12 +48,6 @@ export default function AddItemPicker({ menu, onAddItem, onAddStaffDrink }: AddI
         if (options.length === 0 && !unavailable) return null;
         return (
             <ItemRow key={item.id} $available={!unavailable}>
-                <FavoriteButton type="button" aria-label={favoriteIds.has(item.id)
-                    ? (locale === "ja" ? "お気に入りから削除" : "Remove favorite")
-                    : (locale === "ja" ? "お気に入りに追加" : "Add favorite")}
-                    aria-pressed={favoriteIds.has(item.id)}
-                    onClick={() => toggle(item.id)}
-                >{favoriteIds.has(item.id) ? "★" : "☆"}</FavoriteButton>
                 <ItemName>{menuLabel(locale, item.name)}</ItemName>
                 {unavailable ? <OutOfStock>{t("outOfStock")}</OutOfStock> : (
                     <PriceButtons>
@@ -127,8 +92,7 @@ export default function AddItemPicker({ menu, onAddItem, onAddStaffDrink }: AddI
                     </SelectedItems>
                 )}
                 <ItemList>
-                    {!search.trim() && groups.favorites.length > 0 && (
-                        <section><SectionTitle>{locale === "ja" ? "お気に入り" : "Favorites"}</SectionTitle>
+                    <section><SectionTitle>{locale === "ja" ? "お気に入り" : "Favorites"}</SectionTitle>
                             {groups.favorites.map(renderItem)}</section>
                     )}
                     {!search.trim() && groups.recent.length > 0 && (
@@ -137,7 +101,7 @@ export default function AddItemPicker({ menu, onAddItem, onAddStaffDrink }: AddI
                     )}
                     <section>
                         <SectionTitle>{search.trim() ? (locale === "ja" ? "検索結果" : "Search results") : (locale === "ja" ? "すべての商品" : "All drinks")}</SectionTitle>
-                        {allItems.map(renderItem)}
+                        {groups.map(renderItem)}
                     </section>
                 </ItemList>
                 {selectedItems.length > 0 && (
@@ -167,11 +131,6 @@ const ItemRow = styled.div<{ $available: boolean }>`
     padding: var(--space-1) var(--space-2);
     border-bottom: 1px solid var(--neutral-800);
     opacity: ${({ $available }) => $available ? 1 : 0.65};
-`;
-const FavoriteButton = styled.button`
-    flex: none; width: 40px; min-height: 44px; padding: 0;
-    background: transparent; border: none; color: var(--royal-300);
-    font-size: 1.5rem;
 `;
 const ItemName = styled.p`font-weight: normal; flex: 1; min-width: 0; margin: 0;`;
 const OutOfStock = styled.span`color: var(--danger-400); font-size: 12px; white-space: nowrap;`;
