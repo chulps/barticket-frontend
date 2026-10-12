@@ -256,7 +256,16 @@ export function useTickets() {
     ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number,
     details?: { name: string; staffName: string; price: number },
   ) => {
-    void enqueue(ticketId, () => ticketsApi.addStaffDrink(ticketId, staffId, menuItemId, priceKey, quantity));
+    const temporaryId = nextTempId.current--;
+    void enqueue(ticketId, () => ticketsApi.addStaffDrink(ticketId, staffId, menuItemId, priceKey, quantity),
+      details && Number.isFinite(details.price)
+        ? ticket => ({ ...ticket, items: [...ticket.items, {
+            id: temporaryId, type: "menu", menu_item_id: menuItemId, price_key: priceKey,
+            staff_drink: true, staff_name: details.staffName, drink_name: details.name,
+            name: details.name, unit_price: details.price, quantity,
+            subtotal: details.price * quantity,
+          }] })
+        : undefined);
   };
 
   const flushRename = (ticketId: number) => {
