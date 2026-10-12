@@ -136,6 +136,7 @@ export function useTickets() {
     window.addEventListener("pointerdown", markActivity, { passive: true });
     window.addEventListener("keydown", markActivity);
     window.addEventListener("focus", onFocus);
+    window.addEventListener("barticket-push", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
@@ -143,6 +144,7 @@ export function useTickets() {
       window.removeEventListener("pointerdown", markActivity);
       window.removeEventListener("keydown", markActivity);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("barticket-push", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
