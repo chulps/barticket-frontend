@@ -39,10 +39,10 @@ export default function Reconciliation({ shifts, locale, error }: { shifts: Shif
     const open = (shift: ShiftReport) => { setSelectedId(shift.id); setDraft(fresh(shift)); };
     const mapField = (key: string, header: string) => setMapping(previous => ({ ...previous, [key]: header }));
     const mapOption = (key: string, name: string) => <label key={key}>{name}
-        <select value={mapping[key] ?? ""} onChange={event => mapField(key, event.target.value)}>
+        <SelectBox><select value={mapping[key] ?? ""} onChange={event => mapField(key, event.target.value)}>
             <option value="">{ja ? "選択なし" : "Not mapped"}</option>
             {csv?.headers.map(header => <option key={header} value={header}>{header}</option>)}
-        </select>
+        </select><Caret aria-hidden="true">▾</Caret></SelectBox>
     </label>;
 
     async function readCsv(file?: File) {
@@ -150,8 +150,8 @@ export default function Reconciliation({ shifts, locale, error }: { shifts: Shif
                 <Fields>{(["date", "manager", "revenue", "guests", "event"] as const).map(key => mapOption(key, text[key]))}</Fields>
                 <h4>{text.hours}</h4>
                 <p>{ja ? "オプション: スタッフ勤務時間の列を追加できます。" : "Optional: map spreadsheet staff-hours columns."}</p>
-                <Actions><select value={extraHourKey} onChange={e => setExtraHourKey(e.target.value)}><option value="">{ja ? "スタッフを選択" : "Choose staff"}</option>
-                    {["Chuck", "Nori", "Haruka", "Kanata"].filter(name => !includeHours.includes(name)).map(name => <option key={name}>{name}</option>)}</select>
+                <Actions><SelectBox><select value={extraHourKey} onChange={e => setExtraHourKey(e.target.value)}><option value="">{ja ? "スタッフを選択" : "Choose staff"}</option>
+                    {["Chuck", "Nori", "Haruka", "Kanata"].filter(name => !includeHours.includes(name)).map(name => <option key={name}>{name}</option>)}</select><Caret aria-hidden="true">▾</Caret></SelectBox>
                     <button type="button" className="secondary" disabled={!extraHourKey} onClick={() => { setIncludeHours([...includeHours, extraHourKey]); setExtraHourKey(""); }}>{ja ? "追加" : "Add mapping"}</button></Actions>
                 <Fields>{includeHours.map(name => mapOption("hours:" + name, name + " hours"))}</Fields>
                 {preview?.errors.length ? <Notice role="alert">{preview.errors.slice(0, 20).map(message => <p key={message}>{message}</p>)}{preview.errors.length > 20 ? <p>+ {preview.errors.length - 20}</p> : null}</Notice> : null}
