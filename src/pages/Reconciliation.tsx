@@ -17,11 +17,11 @@ const labels = (ja: boolean) => ({
     hours: ja ? "勤務時間（合計）" : "Total hours worked"
 });
 
-export default function Reconciliation({ shifts, locale, error }: { shifts: ShiftReport[]; locale: string; error: string }) {
+export default function Reconciliation({ shifts, locale, error, initialShiftId }: { shifts: ShiftReport[]; locale: string; error: string; initialShiftId?: number | null }) {
     const ja = locale === "ja", text = labels(ja);
     const [search, setSearch] = useState("");
-    const [selectedId, setSelectedId] = useState<number | null>(null);
-    const [draft, setDraft] = useState<Draft | null>(null);
+    const [selectedId, setSelectedId] = useState<number | null>(initialShiftId ?? null);
+    const [draft, setDraft] = useState<Draft | null>(() => { const shift = shifts.find(row => row.id === initialShiftId); return shift ? fresh(shift) : null; });
     const [csv, setCsv] = useState<CsvData | null>(null);
     const [csvError, setCsvError] = useState("");
     const [mapping, setMapping] = useState<Record<string, string>>({});
