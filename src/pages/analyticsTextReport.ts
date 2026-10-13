@@ -100,7 +100,7 @@ export function createAnalyticsTextReport(input: AnalyticsTextReportInput): stri
     const line = (name: string, value: string | number) => name + ": " + value;
     const section = (name: string) => ["", "— " + name + " —"];
     const result: string[] = [
-        "ROCK BAR FXXKUP",
+        tr("ROCK BAR FXXKUP", "ロックバー Fxxkup"),
         tr("Analytics Report", "分析レポート") + " · " + label,
     ];
     const current = range === "day" && shifts.length === 1 && shifts[0].status === "open" ? shifts[0] : null;

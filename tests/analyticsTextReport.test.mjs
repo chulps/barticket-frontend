@@ -102,6 +102,8 @@ test("Japanese report and missing historical payment breakdown are labeled clear
         totals: { ...totals([row]), cash: 0, card: 0, unknownPayment: 10000, missingTicketNights: 1 },
     });
     assert.match(text, /分析レポート/);
+    assert.match(text, /^ロックバー Fxxkup\n/);
+    assert.doesNotMatch(text, /セックス|ロックバーとセックス/);
     assert.match(text, /支払方法未記録: ¥10,000/);
     assert.match(text, /現金: —/);
     assert.match(text, /チケット件数未記録のシフト: 1/);
