@@ -265,7 +265,9 @@ export default function Dashboard({
 //styling
 const DashboardContainer = styled.main`
   display: grid;
-  grid-template-columns: var(--space-6) 1fr;
+  grid-template-columns: var(--space-6) minmax(0, 1fr);
+  min-width: 0;
+  width: 100%;
   gap: var(--space-1);
   height: calc(100vh - var(--space-4));
   padding: var(--space-2) 0;
