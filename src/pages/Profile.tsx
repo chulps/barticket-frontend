@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
-import Icon from "../components/Icon";
 import { localeTag, readLocale, translate, useI18n } from "../i18n";
 
 export default function Profile() {
@@ -17,11 +16,6 @@ export default function Profile() {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [staffName, setStaffName] = useState("");
-    const [staffEmail, setStaffEmail] = useState("");
-    const [staffPassword, setStaffPassword] = useState("");
-    const [staffRole, setStaffRole] = useState<"staff" | "manager">("staff");
-    const [team, setTeam] = useState<Account[]>([]);
 
     async function refresh(next?: Account | null) {
         const current = next === undefined ? account : next;
@@ -35,8 +29,6 @@ export default function Profile() {
         const me = current ?? (await accountApi.me());
         setAccount(me);
         setShift(await accountApi.currentShift());
-        if (me.role === "manager") setTeam(await accountApi.listUsers());
-        else setTeam([]);
     }
 
     useEffect(() => {
@@ -50,11 +42,9 @@ export default function Profile() {
                 }
                 const me = await accountApi.me();
                 const current = await accountApi.currentShift();
-                const people = me.role === "manager" ? await accountApi.listUsers() : [];
                 if (!cancelled) {
                     setAccount(me);
                     setShift(current);
-                    setTeam(people);
                 }
             } catch (err) {
                 if (!cancelled) {
@@ -241,89 +231,6 @@ export default function Profile() {
                         </Row>
                     </Section>
 
-                    {account.role === "manager" ? (
-                        <>
-                            <Section>
-                                <h2>{t("team")}</h2>
-                                {team.map((person) => (
-                                    <Person key={person.id}>
-                                        <Who>
-                                            <strong>{person.name}</strong>
-                                            <span>{person.email}</span>
-                                            <span>{t(person.role)}</span>
-                                        </Who>
-                                        {person.id === account.id ? null : (
-                                            <RemoveButton
-                                                type="button"
-                                                className="small hollow danger"
-                                                onClick={() => {
-                                                    if (!window.confirm(t("removePersonConfirm", { name: person.name }))) return;
-                                                    run(async () => {
-                                                        setTeam(await accountApi.removeUser(person.id));
-                                                    });
-                                                }}
-                                            >
-                                                {t("removePerson")}
-                                            </RemoveButton>
-                                        )}
-                                    </Person>
-                                ))}
-                            </Section>
-                            <Section>
-                            <h2>{t("addPerson")}</h2>
-                            <label>
-                                {t("name")}
-                                <input value={staffName} onChange={(event) => setStaffName(event.target.value)} />
-                            </label>
-                            <label>
-                                {t("email")}
-                                <input value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} />
-                            </label>
-                            <label>
-                                {t("password")}
-                                <input
-                                    type="password"
-                                    value={staffPassword}
-                                    onChange={(event) => setStaffPassword(event.target.value)}
-                                />
-                            </label>
-                            <label>
-                                {t("role")}
-                                <RoleField>
-                                    <select
-                                        value={staffRole}
-                                        onChange={(event) => setStaffRole(event.target.value as "staff" | "manager")}
-                                    >
-                                        <option value="staff">{t("staff")}</option>
-                                        <option value="manager">{t("manager")}</option>
-                                    </select>
-                                    <RoleCaret>
-                                        <Icon name="CaretDown" size="1em" />
-                                    </RoleCaret>
-                                </RoleField>
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    run(async () => {
-                                        await accountApi.createUser({
-                                            name: staffName,
-                                            email: staffEmail,
-                                            password: staffPassword,
-                                            role: staffRole,
-                                        });
-                                        setStaffName("");
-                                        setStaffEmail("");
-                                        setStaffPassword("");
-                                        setTeam(await accountApi.listUsers());
-                                    })
-                                }
-                            >
-                                {t("addAccount")}
-                            </button>
-                            </Section>
-                        </>
-                    ) : null}
                 </>
             )}
         </Page>
@@ -385,39 +292,6 @@ const SignOutButton = styled.button`
         outline: 1px solid var(--danger-500);
         outline-offset: -1px;
     }
-`;
-
-const RoleField = styled.span`
-    position: relative;
-    display: block;
-    width: 100%;
-
-    select {
-        padding-right: 2.5em;
-    }
-`;
-
-const RoleCaret = styled.span`
-    position: absolute;
-    top: 50%;
-    right: 1em;
-    display: flex;
-    transform: translateY(-50%);
-    pointer-events: none;
-    color: var(--neutral-300);
-    font-size: var(--font-size-default);
-`;
-
-const Person = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-`;
-
-const RemoveButton = styled.button`
-    width: auto;
-    flex-shrink: 0;
 `;
 
 const Who = styled.div`
