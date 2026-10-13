@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import styled from "styled-components";
 
 import type { Prices } from "../types/Menu";
@@ -20,11 +20,18 @@ export default function MenuItemForm({
     subcategories,
     onCreated,
 }: MenuItemFormProps) {
-    const { t } = useI18n();
+    const { t, locale } = useI18n();
+    const id = useId().replace(/:/g, "");
+    const help = (en: string, jp: string) => locale === "ja" ? jp : en;
     const { closeModal } = useModal();
     const [name, setName] = useState("");
-    const [category, setCategory] = useState("");
-    const [subcategory, setSubcategory] = useState("");
+    const [categoryChoice, setCategoryChoice] = useState("");
+    const [customCategory, setCustomCategory] = useState("");
+    const [subcategoryChoice, setSubcategoryChoice] = useState("");
+    const [customSubcategory, setCustomSubcategory] = useState("");
+    const category = categoryChoice === "__new__" ? customCategory : categoryChoice;
+    const subcategory = subcategoryChoice === "__new__" ? customSubcategory : subcategoryChoice;
+    const isBeer = category.trim().toLowerCase() === "beer";
     const [brand, setBrand] = useState("");
     const [volume, setVolume] = useState("");
     const [description, setDescription] = useState("");
@@ -53,6 +60,7 @@ export default function MenuItemForm({
 
     async function save(event: FormEvent) {
         event.preventDefault();
+        if (saving) return;
         const trimmedName = name.trim();
         const trimmedCategory = category.trim();
         if (!trimmedName) {
@@ -71,14 +79,14 @@ export default function MenuItemForm({
             const raw = prices[key] ?? "";
             if (raw === "") continue;
             const amount = Number(raw);
-            if (!Number.isInteger(amount) || amount < 0) {
+            if (!/^\d+$/.test(raw) || !Number.isSafeInteger(amount) || amount < 0) {
                 setError(t("priceMinimum"));
                 return;
             }
             nextPrices[key] = amount;
         }
-        if (!cocktailIngredient && Object.keys(nextPrices).length === 0) {
-            setError(t("menuItemPriceRequired"));
+        if (!cocktailIngredient && nextPrices.standard === undefined) {
+            setError(help("Enter a standard price in yen.", "通常価格（円）を入力してください。"));
             return;
         }
         setError("");
@@ -91,7 +99,7 @@ export default function MenuItemForm({
                 description: description.trim() || undefined,
                 notes: notes.trim() || undefined,
                 brand: brand.trim() || undefined,
-                volume: volume.trim() || undefined,
+                volume: isBeer ? volume.trim() || undefined : undefined,
                 tags: nextTags,
                 prices: nextPrices,
                 in_stock: inStock,
@@ -106,350 +114,229 @@ export default function MenuItemForm({
         }
     }
 
-    const priceLabel = {
-        standard: t("price"),
-        "15ml": "15ml",
-        "30ml": "30ml",
-    };
 
     return (
         <Form onSubmit={save}>
             <Field>
-                <Caption>{t("name")}</Caption>
-                <TextInput value={name} onChange={(event) => setName(event.target.value)} />
-            </Field>
-            <Row>
-                <Field>
-                    <Caption>{t("category")}</Caption>
-                    <TextInput
-                        list="menu-item-categories"
-                        value={category}
-                        onChange={(event) => setCategory(event.target.value)}
-                    />
-                    <datalist id="menu-item-categories">
-                        {categories.map((option) => (
-                            <option key={option} value={option} />
-                        ))}
-                    </datalist>
-                </Field>
-                <Field>
-                    <Caption>{t("subcategory")}</Caption>
-                    <TextInput
-                        list="menu-item-subcategories"
-                        value={subcategory}
-                        onChange={(event) => setSubcategory(event.target.value)}
-                    />
-                    <datalist id="menu-item-subcategories">
-                        {subcategories.map((option) => (
-                            <option key={option} value={option} />
-                        ))}
-                    </datalist>
-                </Field>
-            </Row>
-            <Row>
-                <Field>
-                    <Caption>{t("brand")}</Caption>
-                    <TextInput value={brand} onChange={(event) => setBrand(event.target.value)} />
-                </Field>
-                <Field>
-                    <Caption>{t("volume")}</Caption>
-                    <TextInput value={volume} onChange={(event) => setVolume(event.target.value)} />
-                </Field>
-            </Row>
-            <Field>
-                <Caption>{t("description")}</Caption>
-                <Area value={description} onChange={(event) => setDescription(event.target.value)} />
+                <Caption htmlFor={id + "-name"}>{t("name")} *</Caption>
+                <TextInput id={id + "-name"} value={name} onChange={(e) => setName(e.target.value)}
+                    placeholder={help("e.g. Nikka From the Barrel", "例：ニッカ フロム・ザ・バレル")} required />
+                <Hint>{help("The name staff and customers see on the menu.", "スタッフとお客様に表示される商品名です。")}</Hint>
             </Field>
             <Field>
-                <Caption>{t("notes")}</Caption>
-                <Area value={notes} onChange={(event) => setNotes(event.target.value)} />
+                <Caption htmlFor={id + "-category"}>{t("category")} *</Caption>
+                <SelectWrap>
+                    <SelectInput id={id + "-category"} value={categoryChoice}
+                        onChange={(e) => { setCategoryChoice(e.target.value); setSubcategoryChoice(""); setCustomSubcategory(""); }}>
+                        <option value="">{help("Choose a category", "カテゴリーを選択")}</option>
+                        {Array.from(new Set(categories)).filter(Boolean).map((option) => <option key={option} value={option}>{option}</option>)}
+                        <option value="__new__">{help("+ New category…", "＋新しいカテゴリー…")}</option>
+                    </SelectInput>
+                    <Caret aria-hidden="true">⌄</Caret>
+                </SelectWrap>
+                {categoryChoice === "__new__" ? <TextInput aria-label={help("New category", "新しいカテゴリー")}
+                    value={customCategory} onChange={(e) => setCustomCategory(e.target.value)}
+                    placeholder={help("e.g. Whisky", "例：ウイスキー")} /> : null}
+                <Hint>{help("The main menu section where this drink belongs.", "ドリンクが属するメニューの大分類です。")}</Hint>
             </Field>
             <Field>
-                <Caption>{t("tags")}</Caption>
+                <Caption htmlFor={id + "-subcategory"}>{t("subcategory")}</Caption>
+                <SelectWrap>
+                    <SelectInput id={id + "-subcategory"} value={subcategoryChoice}
+                        onChange={(e) => setSubcategoryChoice(e.target.value)}>
+                        <option value="">{help("None / Choose a subcategory", "なし／サブカテゴリーを選択")}</option>
+                        {Array.from(new Set(subcategories)).filter(Boolean).map((option) => <option key={option} value={option}>{option}</option>)}
+                        <option value="__new__">{help("+ New subcategory…", "＋新しいサブカテゴリー…")}</option>
+                    </SelectInput>
+                    <Caret aria-hidden="true">⌄</Caret>
+                </SelectWrap>
+                {subcategoryChoice === "__new__" ? <TextInput aria-label={help("New subcategory", "新しいサブカテゴリー")}
+                    value={customSubcategory} onChange={(e) => setCustomSubcategory(e.target.value)}
+                    placeholder={help("e.g. Japanese Whisky", "例：ジャパニーズウイスキー")} /> : null}
+                <Hint>{help("Optional. A smaller group such as Japanese Whisky or Scotch.", "任意。ジャパニーズウイスキーやスコッチなどの小分類です。")}</Hint>
+            </Field>
+            <Field>
+                <Caption htmlFor={id + "-brand"}>{t("brand")}</Caption>
+                <TextInput id={id + "-brand"} value={brand} onChange={(e) => setBrand(e.target.value)}
+                    placeholder={help("e.g. Nikka", "例：ニッカ")} />
+                <Hint>{help("The producer or brand. Leave blank if not applicable.", "メーカー・ブランド名です。該当しない場合は空欄で構いません。")}</Hint>
+            </Field>
+            {isBeer ? <Field>
+                <Caption htmlFor={id + "-volume"}>{t("volume")}</Caption>
+                <TextInput id={id + "-volume"} value={volume} onChange={(e) => setVolume(e.target.value)}
+                    placeholder={help("e.g. 330ml or 500ml", "例：330ml、500ml")} />
+                <Hint>{help("Bottle or can size. Only used for beer.", "瓶・缶の容量です。ビールの場合のみ入力します。")}</Hint>
+            </Field> : null}
+            <Field>
+                <Caption htmlFor={id + "-description"}>{t("description")}</Caption>
+                <Area id={id + "-description"} value={description} onChange={(e) => setDescription(e.target.value)}
+                    placeholder={help("e.g. Rich, fruity Japanese whisky", "例：フルーティーでコクのあるウイスキー")} />
+                <Hint>{help("Optional. A short description for staff and customers.", "任意。スタッフとお客様向けの短い説明です。")}</Hint>
+            </Field>
+            <Field>
+                <Caption htmlFor={id + "-notes"}>{t("notes")}</Caption>
+                <Area id={id + "-notes"} value={notes} onChange={(e) => setNotes(e.target.value)}
+                    placeholder={help("e.g. Limited stock, serve chilled", "例：数量限定、冷やして提供")} />
+                <Hint>{help("Optional. Internal notes for bar staff.", "任意。スタッフ向けの内部メモです。")}</Hint>
+            </Field>
+            <Field>
+                <Caption htmlFor={id + "-tags"}>{t("tags")}</Caption>
                 <TagBox>
-                    {tags.map((tag) => (
-                        <Tag
-                            key={tag}
-                            type="button"
-                            onClick={() => setTags((current) => current.filter((item) => item !== tag))}
-                        >
-                            {tag} ✕
-                        </Tag>
-                    ))}
-                    <TagInput
-                        value={tagDraft}
-                        placeholder={t("tagHint")}
-                        onChange={(event) => setTagDraft(event.target.value)}
-                        onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === ",") {
-                                event.preventDefault();
-                                addTag();
-                            }
-                        }}
-                        onBlur={addTag}
-                    />
+                    {tags.map((tag) => <Tag key={tag} type="button"
+                        aria-label={help("Remove tag", "タグを削除") + ": " + tag}
+                        onClick={() => setTags((current) => current.filter((item) => item !== tag))}>{tag} ×</Tag>)}
+                    <TagInput id={id + "-tags"} value={tagDraft}
+                        placeholder={help("e.g. Smoky, Peaty, Sweet", "例：スモーキー、ピーティー、甘口")}
+                        onChange={(e) => setTagDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); }
+                        }} />
+                    <TagAdd type="button" disabled={!tagDraft.trim()} onClick={addTag}>{help("Add", "追加")}</TagAdd>
                 </TagBox>
+                <Hint>{help("Optional search keywords. Add one at a time.", "任意。検索に使う特徴のキーワードです。1つずつ追加してください。")}</Hint>
+            </Field>
+            <SectionHeading>{help("Pricing", "価格")}</SectionHeading>
+            <Field>
+                <Caption htmlFor={id + "-standard"}>{help("Standard price", "通常価格")}{cocktailIngredient ? "" : " *"}</Caption>
+                <Amount><Yen>¥</Yen><PriceInput id={id + "-standard"} type="text" inputMode="numeric" pattern="[0-9]*"
+                    placeholder="1200" value={prices.standard}
+                    onChange={(e) => setPrices((current) => ({ ...current, standard: e.target.value.replace(/\D/g, "") }))} /></Amount>
+                <Hint>{help("Price in yen for a normal serving.", "通常の1杯分の価格を円で入力します。")}</Hint>
             </Field>
             <PriceGrid>
-                {PRICE_KEYS.map((key) => (
-                    <Field key={key}>
-                        <Caption>{priceLabel[key]}</Caption>
-                        <Amount>
-                            <Yen>¥</Yen>
-                            <PriceInput
-                                inputMode="numeric"
-                                value={prices[key]}
-                                onChange={(event) =>
-                                    setPrices((current) => ({
-                                        ...current,
-                                        [key]: event.target.value.replace(/\D/g, ""),
-                                    }))
-                                }
-                            />
-                        </Amount>
-                    </Field>
-                ))}
+                {(["15ml", "30ml"] as const).map((key) => <Field key={key}>
+                    <Caption htmlFor={id + "-" + key}>{key}</Caption>
+                    <Amount><Yen>¥</Yen><PriceInput id={id + "-" + key} type="text" inputMode="numeric" pattern="[0-9]*"
+                        placeholder="¥" value={prices[key]}
+                        onChange={(e) => setPrices((current) => ({ ...current, [key]: e.target.value.replace(/\D/g, "") }))} /></Amount>
+                </Field>)}
             </PriceGrid>
+            <Hint>{help("Optional smaller pours, mainly for premium whiskies. Leave blank if not offered.", "任意。主に高級ウイスキーの少量提供用です。販売しない場合は空欄にしてください。")}</Hint>
             <Checks>
-                <Check>
-                    <input
-                        type="checkbox"
-                        checked={inStock}
-                        onChange={(event) => setInStock(event.target.checked)}
-                    />
-                    {t("inStockLabel")}
-                </Check>
-                <Check>
-                    <input
-                        type="checkbox"
-                        checked={cocktailIngredient}
-                        onChange={(event) => setCocktailIngredient(event.target.checked)}
-                    />
-                    {t("cocktailIngredient")}
-                </Check>
+                <Check><input type="checkbox" checked={inStock} onChange={(e) => setInStock(e.target.checked)} />
+                    <span>{t("inStockLabel")}</span></Check>
+                <Hint>{help("Turn off if the drink is not currently available.", "現在販売できない場合はオフにしてください。")}</Hint>
+                <Check><input type="checkbox" checked={cocktailIngredient}
+                    onChange={(e) => setCocktailIngredient(e.target.checked)} />
+                    <span>{t("cocktailIngredient")}</span></Check>
+                <Hint>{help("Use for a cocktail ingredient rather than a standalone drink.", "単品ドリンクではなくカクテルの材料として登録する場合に選択します。")}</Hint>
             </Checks>
-            {error ? <ErrorText>{error}</ErrorText> : null}
+            {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             <Actions>
-                <button type="button" className="hollow" onClick={closeModal}>
-                    {t("cancel")}
-                </button>
-                <button type="submit" disabled={saving}>
-                    {t("addDrink")}
-                </button>
+                <button type="button" className="hollow" onClick={closeModal}>{t("cancel")}</button>
+                <button type="submit" disabled={saving}>{saving ? help("Saving…", "保存中…") : t("addDrink")}</button>
             </Actions>
         </Form>
     );
+
 }
 
 const Form = styled.form`
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+    display: flex; flex-direction: column; gap: var(--space-2);
     padding: 0 var(--space-2) var(--space-2);
-    box-sizing: border-box;
-    width: 100%;
+    width: 100%; min-width: 0; box-sizing: border-box;
 `;
-
-const Row = styled.div`
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-2);
-
-    @media (max-width: 520px) {
-        grid-template-columns: 1fr;
-    }
-`;
-
-const PriceGrid = styled.div`
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--space-1);
-
-    @media (max-width: 520px) {
-        grid-template-columns: 1fr;
-    }
-`;
-
 const Field = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-0);
-    min-width: 0;
+    display: flex; flex-direction: column; gap: var(--space-0); min-width: 0;
 `;
-
-const Caption = styled.span`
-    font-size: var(--font-size-small);
-    color: var(--neutral-400);
+const Caption = styled.label`
+    color: var(--neutral-200); font-size: 13px;
+    letter-spacing: 0; text-transform: none; line-height: 1.4;
 `;
-
+const Hint = styled.small`
+    color: var(--neutral-400); font-size: 12px; line-height: 1.5;
+    overflow-wrap: anywhere;
+`;
 const TextInput = styled.input`
     && {
-        width: 100%;
-        margin: 0;
-        border: 1px solid var(--neutral-700);
-        border-radius: var(--space-1);
-        background: var(--neutral-800);
-        padding: var(--space-1);
-        transform: none;
+        width: 100%; min-width: 0; min-height: 44px;
+        margin: 0; padding: var(--space-1);
+        border: 1px solid var(--neutral-600); border-radius: var(--space-1);
+        background: var(--neutral-800); color: var(--white);
+        font-size: 16px; transform: none; -webkit-transform: none;
+        pointer-events: auto; touch-action: manipulation;
     }
-
-    &&:focus {
-        outline: none;
-        border-color: var(--royal-400);
-        background: var(--neutral-800);
-        transform: none;
-    }
+    &&:focus { outline: 2px solid var(--royal-400); outline-offset: 1px; transform: none; }
 `;
-
 const Area = styled.textarea`
-    width: 100%;
-    min-height: 4.5rem;
-    resize: vertical;
-    border: 1px solid var(--neutral-700);
-    border-radius: var(--space-1);
-    background: var(--neutral-800);
-    color: inherit;
-    font: inherit;
-    padding: var(--space-1);
-    box-sizing: border-box;
-
-    &:focus {
-        outline: none;
-        border-color: var(--royal-400);
-    }
+    width: 100%; min-height: 76px; padding: var(--space-1);
+    border: 1px solid var(--neutral-600); border-radius: var(--space-1);
+    background: var(--neutral-800); color: var(--white);
+    font-size: 16px; resize: vertical; pointer-events: auto;
+    &:focus { outline: 2px solid var(--royal-400); outline-offset: 1px; }
 `;
-
+const SelectWrap = styled.div`position: relative; min-width: 0;`;
+const SelectInput = styled.select`
+    width: 100%; min-width: 0; min-height: 44px;
+    padding: var(--space-1) 44px var(--space-1) var(--space-1);
+    border: 1px solid var(--neutral-600); border-radius: var(--space-1);
+    background: var(--neutral-800); color: var(--white);
+    font-size: 16px; appearance: none; -webkit-appearance: none;
+    position: relative; z-index: 1; cursor: pointer;
+    pointer-events: auto; touch-action: manipulation;
+    &:focus { outline: 2px solid var(--royal-400); outline-offset: 1px; }
+`;
+const Caret = styled.span`
+    position: absolute; z-index: 2; right: 15px; top: 50%;
+    transform: translateY(-58%); font-size: 30px; font-weight: bold;
+    line-height: 1; color: var(--neutral-100); pointer-events: none;
+`;
 const TagBox = styled.div`
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-0);
-    border: 1px solid var(--neutral-700);
-    border-radius: var(--space-1);
-    background: var(--neutral-800);
-    padding: var(--space-0);
-
-    &:focus-within {
-        border-color: var(--royal-400);
-    }
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1);
+    border: 1px solid var(--neutral-600); border-radius: var(--space-1);
+    background: var(--neutral-800); padding: var(--space-0);
+    &:focus-within { outline: 2px solid var(--royal-400); }
 `;
-
 const Tag = styled.button`
-    width: auto;
-    padding: 0.25em 0.7em;
-    border-radius: 999px;
-    background: var(--neutral-700);
-    font-size: var(--font-size-small);
-
-    &:hover {
-        background: var(--neutral-600);
-        transform: none;
-    }
+    width: auto; min-height: 34px; padding: 0.3em 0.65em;
+    border-radius: 999px; background: var(--neutral-700); font-size: 12px;
 `;
-
 const TagInput = styled.input`
     && {
-        flex: 1;
-        min-width: 8rem;
-        width: auto;
-        margin: 0;
-        border: none;
-        background: transparent;
-        padding: var(--space-0);
-        transform: none;
+        flex: 1 1 130px; width: auto; min-width: 0; min-height: 44px;
+        padding: var(--space-0); font-size: 16px; color: var(--white);
+        background: transparent; border: 0; transform: none; pointer-events: auto;
     }
-
-    &&:focus {
-        outline: none;
-        border: none;
-        background: transparent;
-        transform: none;
-    }
+    &&:focus { outline: 2px solid var(--royal-400); transform: none; }
 `;
-
+const TagAdd = styled.button`
+    width: auto; min-height: 38px; padding: 0.5em 0.75em; font-size: 14px;
+`;
+const SectionHeading = styled.h4`
+    font-size: var(--font-size-h5); padding-top: var(--space-1);
+    border-top: 1px solid var(--neutral-700);
+`;
+const PriceGrid = styled.div`
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1);
+`;
 const Amount = styled.div`
-    display: flex;
-    align-items: center;
-    gap: var(--space-0);
-    background: var(--neutral-800);
-    border: 1px solid var(--neutral-700);
-    border-radius: var(--space-1);
-    padding: 0 var(--space-1);
-
-    &:focus-within {
-        border-color: var(--royal-400);
-    }
+    display: flex; align-items: center; gap: var(--space-0); min-width: 0;
+    background: var(--neutral-800); border: 1px solid var(--neutral-600);
+    border-radius: var(--space-1); padding-left: var(--space-1);
+    &:focus-within { outline: 2px solid var(--royal-400); outline-offset: 1px; }
 `;
-
-const Yen = styled.span`
-    color: var(--neutral-400);
-    font-family: var(--font-family-data);
-`;
-
+const Yen = styled.span`color: var(--neutral-200); font-family: var(--font-family-data);`;
 const PriceInput = styled.input`
     && {
-        width: 8rem;
-        margin: 0;
-        border: none;
-        background: transparent;
-        padding: var(--space-1) 0;
-        text-align: left;
-        font-family: var(--font-family-data);
-        transform: none;
+        flex: 1; width: 100%; min-width: 0; min-height: 44px;
+        margin: 0; padding: var(--space-1) var(--space-1) var(--space-1) 0;
+        font-size: 16px; color: var(--white); border: 0;
+        background: transparent; font-family: var(--font-family-data);
+        transform: none; -webkit-transform: none;
+        pointer-events: auto; touch-action: manipulation;
     }
-
-    &&:focus {
-        outline: none;
-        border: none;
-        background: transparent;
-        transform: none;
-    }
+    &&:focus { outline: 0; background: transparent; transform: none; }
 `;
-
-const Checks = styled.div`
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-`;
-
+const Checks = styled.div`display: flex; flex-direction: column; gap: var(--space-0);`;
 const Check = styled.label`
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    text-transform: none;
-    letter-spacing: 0;
-    line-height: 1.2;
-    color: var(--neutral-100);
-    font-size: var(--font-size-default);
-
-    input {
-        width: auto;
-        margin: 0;
-        padding: 0;
-        border: none;
-        background: transparent;
-        transform: none;
-    }
-
-    input:focus {
-        outline: none;
-        transform: none;
-        background: transparent;
-    }
+    display: flex; align-items: center; gap: var(--space-1);
+    color: var(--neutral-100); font-size: 16px; line-height: 1.3;
+    letter-spacing: 0; text-transform: none;
+    input { width: 20px; height: 20px; margin: 0; padding: 0; transform: none; }
 `;
-
-const ErrorText = styled.p`
-    margin: 0;
-    color: var(--danger-400);
-    font-size: var(--font-size-small);
-`;
-
+const ErrorText = styled.p`color: var(--danger-400); font-size: 14px;`;
 const Actions = styled.div`
-    display: flex;
-    gap: var(--space-1);
-
-    button {
-        flex: 1;
-        width: auto;
-    }
+    position: sticky; bottom: 0; z-index: 3; display: flex; gap: var(--space-1);
+    padding: var(--space-1) 0; background: var(--neutral-900);
+    button { flex: 1; min-width: 0; }
 `;
