@@ -5,6 +5,7 @@ import styled from "styled-components";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError } from "../api/client";
 import { useI18n } from "../i18n";
+import Reconciliation from "./Reconciliation";
 
 /** Access is checked again by manager-only backend endpoints. */
 export default function Admin() {
@@ -241,14 +242,7 @@ export default function Admin() {
                     {!shifts.length && !shiftError ? <p>{locale === "ja" ? "記録がありません" : "No shift records yet."}</p> : null}
                 </Section>
             ) : null}
-            {section === "history" ? (
-                <Section>
-                    <h2>{locale === "ja" ? "過去データの照合" : "Historical reconciliation"}</h2>
-                    <p>{locale === "ja" ? "2026年9月から2025年5月までの表計算データと照合する予定です。未確認のデータはインポートしません。" : "Planned: compare spreadsheet records against database shifts, starting with September 2026 and working back to May 2025."}</p>
-                    <p>{locale === "ja" ? "過去の勤務記録は出退勤時刻ではなく合計勤務時間です。出退勤時刻は作成しません。" : "Historic staffing records contain total hours, not punch times. Do not invent clock-in or clock-out events."}</p>
-                    <p>{locale === "ja" ? "照合・修正 API はまだありません。現在は読み取り専用です。" : "Matching, discrepancy review and verified import tools require backend support. No records can be changed here yet."}</p>
-                </Section>
-            ) : null}
+            {section === "history" ? <Reconciliation shifts={shifts} locale={locale} error={shiftError} /> : null}
             {section === "payroll" ? (
                 <Section>
                     <h2>{locale === "ja" ? "給与・控除" : "Payroll & deductions"}</h2>
