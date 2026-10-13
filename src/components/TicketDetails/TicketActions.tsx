@@ -32,15 +32,34 @@ export default function TicketActions({
     onPayTicket,
     onReopenTicket,
 }: TicketActionsProps) {
-    const { openModal } = useModal();
-    const { t } = useI18n();
+    const { openModal, closeModal } = useModal();
+    const { t, locale } = useI18n();
+
+    const confirmCancellation = () => {
+        openModal({
+            title: locale === "ja" ? "チケットのキャンセル確認" : "Cancel ticket?",
+            content: (
+                <ConfirmCancellation>
+                    <p>{locale === "ja" ? "本当にこのチケットをキャンセルしますか？" : "Are you sure you want to cancel this ticket?"}</p>
+                    <ConfirmActions>
+                        <button type="button" className="hollow secondary" onClick={closeModal} autoFocus>
+                            {locale === "ja" ? "いいえ" : "No"}
+                        </button>
+                        <button type="button" className="danger" onClick={() => { closeModal(); onCancelTicket(ticket.id); }}>
+                            {locale === "ja" ? "はい、キャンセルする" : "Yes, cancel ticket"}
+                        </button>
+                    </ConfirmActions>
+                </ConfirmCancellation>
+            ),
+        });
+    };
 
     if (activeTab === "open") {
         return (
             <ButtonActions $row>
                 <ActionButton
                     className="hollow danger"
-                    onClick={() => onCancelTicket(ticket.id)}
+                    onClick={confirmCancellation}
                 >
                     <Icon name="X" />
                     {t("cancelTicket")}
@@ -136,3 +155,23 @@ const ActionButton = styled.button`
         width: auto;
     }
 `
+const ConfirmCancellation = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    min-width: 0;
+
+    p { margin: 0; }
+`;
+
+const ConfirmActions = styled.div`
+    display: flex;
+    gap: var(--space-2);
+
+    button { flex: 1; min-width: 0; }
+
+    @media (max-width: 479px) {
+        flex-direction: column;
+    }
+`;
