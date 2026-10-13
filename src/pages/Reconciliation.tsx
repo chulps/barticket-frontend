@@ -4,16 +4,16 @@ import type { ShiftReport } from "../api/account";
 import { importPreview, parseCsv, type CsvData } from "./reconciliationCsv";
 
 type Field = "manager" | "revenue" | "guests" | "event";
-type Draft = { manager: string; revenue: string; guests: string; event: string; notes: string; staffHours: Record<string, string> };
+type Draft = { manager: string; revenue: string; guests: string; event: string; notes: string; staff: string; guestName: string; staffHours: Record<string, string> };
 const fresh = (shift: ShiftReport): Draft => ({
     manager: shift.opened_by ?? "", revenue: String(shift.paid_total), guests: String(shift.guest_count),
-    event: "", notes: "", staffHours: Object.fromEntries(shift.staff_hours.map(row => [row.name, String(row.seconds / 3600)]))
+    event: "", notes: "", staff: "none", guestName: "", staffHours: Object.fromEntries(shift.staff_hours.map(row => [row.name, String(row.seconds / 3600)]))
 });
 const validNumber = (value: string) => value.trim() !== "" && /^\d+$/.test(value.trim());
 const labels = (ja: boolean) => ({
     date: ja ? "日付" : "Date", manager: ja ? "マネージャー" : "Manager",
     revenue: ja ? "売上 (円)" : "Revenue (JPY)", guests: ja ? "来客数" : "Guests",
-    event: ja ? "イベント" : "Event", notes: ja ? "修正理由・メモ" : "Correction notes",
+    event: ja ? "営業区分" : "Shift type", notes: ja ? "修正理由・メモ" : "Correction notes",
     hours: ja ? "勤務時間（合計）" : "Total hours worked"
 });
 
@@ -29,10 +29,10 @@ export default function Reconciliation({ shifts, locale, error }: { shifts: Shif
     const [includeHours, setIncludeHours] = useState<string[]>([]);
     const selected = shifts.find(shift => shift.id === selectedId) ?? null;
     const filtered = useMemo(() => shifts.filter(shift => [shift.business_date, shift.opened_by].join(" ").toLowerCase().includes(search.toLowerCase())).sort((a, b) => b.business_date.localeCompare(a.business_date)), [shifts, search]);
-    const invalidDraft = Boolean(draft && (!draft.manager.trim() || !validNumber(draft.revenue) || !validNumber(draft.guests) ||
+    const invalidDraft = Boolean(draft && (!["Chuck", "Nori"].includes(draft.manager) || (draft.staff === "guest" && !draft.guestName.trim()) || !validNumber(draft.revenue) || !validNumber(draft.guests) ||
         Object.values(draft.staffHours).some(value => value !== "" && (!Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 24))));
     const changed = Boolean(draft && selected && (draft.manager !== selected.opened_by || draft.revenue !== String(selected.paid_total) ||
-        draft.guests !== String(selected.guest_count) || draft.event || draft.notes ||
+        draft.guests !== String(selected.guest_count) || draft.event || draft.notes || draft.staff !== "none" || draft.guestName ||
         Object.entries(draft.staffHours).some(([name, value]) => value !== String((selected.staff_hours.find(row => row.name === name)?.seconds ?? 0) / 3600))));
     const preview = useMemo(() => csv ? importPreview(csv, mapping, shifts) : null, [csv, mapping, shifts]);
     const update = (field: Field | "notes", value: string) => setDraft(previous => previous ? { ...previous, [field]: value } : previous);
@@ -90,17 +90,48 @@ export default function Reconciliation({ shifts, locale, error }: { shifts: Shif
                 <h3>{selected.business_date} — {ja ? "修正案" : "Proposed changes"}</h3>
                 <p>{ja ? "元の値: " : "Original: "}{selected.opened_by} · ¥{selected.paid_total.toLocaleString()} · {selected.guest_count} {ja ? "名" : "guests"}</p>
                 <Fields>
-                    {(["manager", "revenue", "guests", "event", "notes"] as const).map(key =>
-                        <label key={key}>{text[key]}
-                            <input value={draft[key]} onChange={e => update(key, e.target.value)} type={key === "revenue" || key === "guests" ? "number" : "text"} min={key === "revenue" || key === "guests" ? 0 : undefined} />
-                        </label>)}
+                    <fieldset>
+                        <legend>{text.manager}</legend>
+                        <RadioRow>{(["Chuck", "Nori"] as const).map(name => <label key={name}>
+                            <input type="radio" name="reconciliation-manager" checked={draft.manager === name}
+                                onChange={() => update("manager", name)} />{name}
+                        </label>)}</RadioRow>
+                    </fieldset>
+                    {(["revenue", "guests"] as const).map(key => <label key={key}>{text[key]}
+                        <input type="number" min="0" step="1" value={draft[key]} onChange={e => update(key, e.target.value)} />
+                    </label>)}
+                    <label>{ja ? "スタッフ" : "Staff"}
+                        <SelectBox><select value={draft.staff} onChange={e => setDraft(current => current ? { ...current, staff: e.target.value, guestName: "" } : current)}>
+                            <option value="none">{ja ? "なし" : "None"}</option>
+                            <option value="Kanata">{ja ? "カナタ" : "Kanata"}</option>
+                            <option value="Haruka">{ja ? "ハルカ" : "Haruka"}</option>
+                            <option value="guest">{ja ? "ゲスト・その他" : "Guest / Other"}</option>
+                        </select><Caret aria-hidden="true">▾</Caret></SelectBox>
+                    </label>
+                    {draft.staff === "guest" ? <label>{ja ? "ゲスト・その他の名前" : "Guest / Other name"}
+                        <input value={draft.guestName} onChange={e => setDraft(current => current ? { ...current, guestName: e.target.value } : current)} />
+                    </label> : null}
+                    <label>{text.event}
+                        <SelectBox><select value={draft.event} onChange={e => update("event", e.target.value)}>
+                            <option value="">{ja ? "未設定" : "Not recorded"}</option>
+                            <option value="open">{ja ? "営業" : "Open"}</option>
+                            <option value="closed">{ja ? "休業" : "Closed"}</option>
+                            <option value="event">{ja ? "イベント" : "Event"}</option>
+                        </select><Caret aria-hidden="true">▾</Caret></SelectBox>
+                    </label>
+                    <label>{text.notes}<input value={draft.notes} onChange={e => update("notes", e.target.value)} /></label>
                 </Fields>
                 <h3>{text.hours}</h3>
                 <p>{ja ? "時間は合計で記録します。出勤・退勤の時刻は作成しません。" : "Record total hours only. Do not fabricate clock-in/out timestamps."}</p>
                 {Object.entries(draft.staffHours).map(([name, value]) => <label key={name}>{name} <input type="number" min="0" max="24" step="0.25" value={value}
                     onChange={e => setDraft(current => current ? { ...current, staffHours: { ...current.staffHours, [name]: e.target.value } } : current)} /></label>)}
-                <label>{ja ? "スタッフ名を追加（下書きのみ）" : "Add staff name (draft only)"}<input value={extraHourKey} onChange={e => setExtraHourKey(e.target.value)} /></label>
-                <button type="button" className="small secondary" onClick={() => { const name = extraHourKey.trim(); if (name && !Object.hasOwn(draft.staffHours, name)) setDraft({ ...draft, staffHours: { ...draft.staffHours, [name]: "" } }); setExtraHourKey(""); }}>{ja ? "追加" : "Add staff"}</button>
+                <label>{ja ? "勤務時間を追加するスタッフ" : "Add staff hours for"}
+                    <SelectBox><select value={extraHourKey} onChange={e => setExtraHourKey(e.target.value)}>
+                        <option value="">{ja ? "選択してください" : "Select staff"}</option>
+                        {["Kanata", "Haruka", ...(draft.guestName.trim() ? [draft.guestName.trim()] : [])].filter(name => !Object.hasOwn(draft.staffHours, name)).map(name => <option key={name} value={name}>{name}</option>)}
+                    </select><Caret aria-hidden="true">▾</Caret></SelectBox>
+                </label>
+                <button type="button" className="small secondary" disabled={!extraHourKey} onClick={() => { if (!Object.hasOwn(draft.staffHours, extraHourKey)) setDraft({ ...draft, staffHours: { ...draft.staffHours, [extraHourKey]: "" } }); setExtraHourKey(""); }}>{ja ? "追加" : "Add staff"}</button>
                 {invalidDraft ? <p role="alert">{ja ? "担当者・売上・来客数・勤務時間を確認してください。" : "Check manager, revenue, guests and hours for invalid values."}</p> : null}
                 <p>{changed ? (ja ? "変更あり（未保存）" : "Unsaved changes") : (ja ? "変更なし" : "No changes")}</p>
                 <Actions><button type="button" className="secondary" disabled={!changed || invalidDraft} onClick={copyDraft}>{ja ? "修正案をコピー" : "Copy draft JSON"}</button>
@@ -146,3 +177,17 @@ const TableWrap = styled.div`overflow-x: auto; width: 100%; table { border-colla
 const Editor = styled.div`display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2); border: 1px solid var(--neutral-600); border-radius: 8px;`;
 const Fields = styled.div`display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); @media (min-width: 700px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }`;
 const Actions = styled.div`display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; button,select { width: auto; }`;
+
+const SelectBox = styled.span`
+    position: relative; display: block;
+    select { appearance: none; -webkit-appearance: none; padding-right: 2.5em; background: var(--dark); }
+`;
+const Caret = styled.span`
+    position: absolute; right: 1em; top: 50%; transform: translateY(-50%);
+    pointer-events: none; color: var(--neutral-300); font-size: 1.15em;
+`;
+const RadioRow = styled.div`
+    display: flex; gap: var(--space-2); flex-wrap: wrap;
+    label { display: inline-flex; flex-direction: row; align-items: center; gap: var(--space-1); cursor: pointer; }
+    input { width: auto; }
+`;
