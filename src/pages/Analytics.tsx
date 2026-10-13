@@ -537,7 +537,13 @@ export default function Analytics() {
                 }
             } catch (err: unknown) {
                 if (cancelled || request !== latestRequest) return;
-                setError(err instanceof ApiError ? err.message : translate(readLocale(), "couldNotLoadShifts"));
+                if (err instanceof ApiError && err.status === 403) {
+                    setError(readLocale() === "ja"
+                        ? "分析データへのアクセスが許可されていません。バックエンドの閲覧権限を確認してください。"
+                        : "Analytics access is not yet enabled by the backend. Please ask an administrator to check read permissions.");
+                } else {
+                    setError(err instanceof ApiError ? err.message : translate(readLocale(), "couldNotLoadShifts"));
+                }
             }
         }
 
@@ -546,11 +552,12 @@ export default function Analytics() {
                 const me = await accountApi.me();
                 if (cancelled) return;
                 setAccount(me);
-                if (me.role !== "manager") return;
-
-                void accountApi.listUsers()
-                    .then((members) => { if (!cancelled) setTeam(members); })
-                    .catch(() => { if (!cancelled) setTeam(null); });
+                // Staff can view analytics, but the user directory remains manager-only.
+                if (me.role === "manager") {
+                    void accountApi.listUsers()
+                        .then((members) => { if (!cancelled) setTeam(members); })
+                        .catch(() => { if (!cancelled) setTeam(null); });
+                }
 
                 // Refresh live totals, roster/punches and shift-close status
                 // without requiring the manager to leave the Analytics page.
@@ -561,7 +568,13 @@ export default function Analytics() {
                 await refresh();
             } catch (err: unknown) {
                 if (cancelled) return;
-                setError(err instanceof ApiError ? err.message : translate(readLocale(), "couldNotLoadShifts"));
+                if (err instanceof ApiError && err.status === 403) {
+                    setError(readLocale() === "ja"
+                        ? "分析データへのアクセスが許可されていません。バックエンドの閲覧権限を確認してください。"
+                        : "Analytics access is not yet enabled by the backend. Please ask an administrator to check read permissions.");
+                } else {
+                    setError(err instanceof ApiError ? err.message : translate(readLocale(), "couldNotLoadShifts"));
+                }
             }
         }
 
@@ -651,9 +664,8 @@ export default function Analytics() {
         <Page>
             <h1>{t("analytics")}</h1>
             {!signedIn ? <p>{t("signInForShifts")}</p> : null}
-            {account && account.role !== "manager" ? <p>{t("managersOnly")}</p> : null}
-            {error ? <p>{error}</p> : null}
-            {account?.role === "manager" && shifts ? (
+            {error ? <p role="alert">{error}</p> : null}
+            {account && shifts ? (
                 <>
                     <TabGroup
                         tabs={[

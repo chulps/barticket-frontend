@@ -157,21 +157,19 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           )}
         </NavLink>
 
-        {isManager ? (
-          <SecondaryNavLink
-            onClick={() => setIsOpen(false)}
-            to="/analytics">
-            {({ isActive }) => (
-              <>
-                <Icon
-                  name="ChartDonut"
-                  weight={isActive ? "fill" : "regular"}
-                />
-                {t("analytics")}
-              </>
-            )}
-          </SecondaryNavLink>
-        ) : null}
+        <SecondaryNavLink
+          onClick={() => setIsOpen(false)}
+          to="/analytics">
+          {({ isActive }) => (
+            <>
+              <Icon
+                name="ChartDonut"
+                weight={isActive ? "fill" : "regular"}
+              />
+              {t("analytics")}
+            </>
+          )}
+        </SecondaryNavLink>
 
         {canSeeNotices ? (
           <SecondaryNavLink
@@ -248,11 +246,9 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
                   {alertCount > 0 ? <AlertCount>{alertCount}</AlertCount> : null}
                 </MoreLink>
               ) : null}
-              {isManager ? (
-                <MoreLink to="/analytics" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
-                  <Icon name="ChartDonut" />{t("analytics")}
-                </MoreLink>
-              ) : null}
+              <MoreLink to="/analytics" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+                <Icon name="ChartDonut" />{t("analytics")}
+              </MoreLink>
             </MoreDropdown>
           ) : null}
         </MoreWrap>
