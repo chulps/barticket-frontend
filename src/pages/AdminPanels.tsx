@@ -7,6 +7,7 @@ export function StaffDetails({ people, shifts, locale }: { people: Account[]; sh
     const [personId, setPersonId] = useState<number | null>(null);
     const [search, setSearch] = useState("");
     const [role, setRole] = useState("all");
+    const isGuest = (name: string) => ["Yuchan", "Mii-chan"].includes(name);
     const person = people.find(p => p.id === personId);
     const punches = shifts.flatMap(shift => shift.staff_hours.filter(row => row.user_id === personId).map(row => ({ shift, hours: row.seconds / 3600 })));
     const drinks = shifts.flatMap(shift => (shift.staff_drinks ?? []).filter(row => row.staff_id === personId).map(row => ({ shift, row })));
@@ -14,14 +15,15 @@ export function StaffDetails({ people, shifts, locale }: { people: Account[]; sh
         <h2>{ja ? "スタッフディレクトリ" : "Staff directory"}</h2>
         <p>{ja ? "現在有効なアカウントと、APIで確認できる勤務記録のみ表示します。" : "Active accounts and recorded shift activity only. Historical staffing data may be incomplete."}</p>
         <Controls><input aria-label="Search staff" placeholder={ja ? "名前・メールで検索" : "Search name or email"} value={search} onChange={e => setSearch(e.target.value)} />
-        <Select><select aria-label="Filter role" value={role} onChange={e => setRole(e.target.value)}><option value="all">{ja ? "すべて" : "All roles"}</option><option value="staff">{ja ? "スタッフ" : "Staff"}</option><option value="manager">{ja ? "マネージャー" : "Manager"}</option></select><i aria-hidden="true">▾</i></Select></Controls>
-        <Directory>{people.filter(p => (role === "all" || p.role === role) && (p.name + " " + p.email).toLowerCase().includes(search.toLowerCase())).map(p =>
+        <Select><select aria-label="Filter role" value={role} onChange={e => setRole(e.target.value)}><option value="all">{ja ? "すべて" : "All roles"}</option><option value="staff">{ja ? "スタッフ" : "Staff"}</option><option value="manager">{ja ? "マネージャー" : "Manager"}</option><option value="guest">{ja ? "ゲスト" : "Guest bartenders"}</option></select><i aria-hidden="true">▾</i></Select></Controls>
+        <Directory>{people.filter(p => (role === "all" || (role === "guest" ? isGuest(p.name) : p.role === role && (role !== "staff" || !isGuest(p.name)))) && (p.name + " " + p.email).toLowerCase().includes(search.toLowerCase())).map(p =>
             <button key={p.id} type="button" className={p.id === personId ? "secondary" : "hollow secondary"} onClick={() => setPersonId(p.id)}>
-                <strong>{p.name}</strong><small>{p.role} · {p.email}</small>
+                <strong>{p.name}</strong><small>{isGuest(p.name) ? (ja ? "ゲスト（都度契約）" : "Guest · per-shift agreement") : p.role} · {p.email}</small>
             </button>)}</Directory>
         {person ? <Detail>
             <h3>{person.name}</h3>
-            <p>{person.email} · {person.role}</p>
+            <p>{person.email} · {isGuest(person.name) ? (ja ? "ゲストバーテンダー" : "Guest bartender") : person.role}</p>
+            {isGuest(person.name) ? <p>{ja ? "契約・時給・ドリンクバックは出演ごとに異なります。ここでは給与を推測しません。" : "Contract, hourly pay and drinkback vary by appearance. No default guest compensation is assumed."}</p> : null}
             <Stats><div><span>{ja ? "勤務記録のあるシフト" : "Recorded shifts"}</span><strong>{punches.length || "—"}</strong></div>
                 <div><span>{ja ? "打刻記録の勤務時間" : "Hours from punches"}</span><strong>{punches.length ? punches.reduce((sum,p) => sum + p.hours,0).toFixed(1) + "h" : "—"}</strong></div>
                 <div><span>{ja ? "スタッフドリンク" : "Staff drinks"}</span><strong>{drinks.reduce((sum,p) => sum + p.row.quantity,0)}</strong></div></Stats>
