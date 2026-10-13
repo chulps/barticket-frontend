@@ -55,6 +55,18 @@ export default function Admin() {
         return () => { cancelled = true; };
     }, []);
 
+    function exportShifts() {
+        const displayed = shifts.filter(shift => (selectedMonth === "all" || shift.business_date.startsWith(selectedMonth)) && (managerFilter === "all" || shift.opened_by === managerFilter));
+        const rows = [["Date", "Status", "Recorded manager", "Revenue JPY", "Guests", "Cash JPY", "Card JPY", "Other JPY"], ...displayed.map(shift => [shift.business_date, shift.status, shift.opened_by, shift.paid_total, shift.guest_count, shift.cash_total, shift.card_total, shift.other_total])];
+        const csv = rows.map(row => row.map(cell => '"' + String(cell ?? "").replaceAll('"', '""') + '"').join(",")).join("\r\n");
+        const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "barticket-shift-history.csv";
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+
     async function perform(action: () => Promise<void>) {
         if (busy) return;
         setBusy(true);
@@ -75,7 +87,7 @@ export default function Admin() {
         <Page>
             <header>
                 <h1>{locale === "ja" ? "管理" : "Admin"}</h1>
-                <p>{locale === "ja" ? "マネージャー専用の管理画面です。" : "Manager-only account management."}</p>
+                <p>{locale === "ja" ? "マネージャー専用の管理画面です。" : "Manager-only operations and record review."}</p>
             </header>
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             <Tabs role="tablist" aria-label={locale === "ja" ? "管理メニュー" : "Admin sections"}>
@@ -197,7 +209,7 @@ export default function Admin() {
                             {[...new Set(shifts.map(shift => shift.business_date.slice(0, 7)))].sort().reverse().map(month => <option key={month} value={month}>{month}</option>)}
                         </select>
                     </label>
-                    <Filters><label>{locale === "ja" ? "マネージャー" : "Manager"}<select value={managerFilter} onChange={event => setManagerFilter(event.target.value)}><option value="all">{locale === "ja" ? "すべて" : "All"}</option>{[...new Set(shifts.map(shift => shift.opened_by))].filter(Boolean).sort().map(name => <option key={name} value={name}>{name}</option>)}</select></label><label>{locale === "ja" ? "並び順" : "Sort"}<select value={sort} onChange={event => setSort(event.target.value as typeof sort)}><option value="date">{locale === "ja" ? "日付" : "Date"}</option><option value="revenue">{locale === "ja" ? "売上" : "Revenue"}</option><option value="guests">{locale === "ja" ? "来客数" : "Guests"}</option></select></label></Filters>
+                    <Filters><label>{locale === "ja" ? "マネージャー" : "Manager"}<select value={managerFilter} onChange={event => setManagerFilter(event.target.value)}><option value="all">{locale === "ja" ? "すべて" : "All"}</option>{[...new Set(shifts.map(shift => shift.opened_by))].filter(Boolean).sort().map(name => <option key={name} value={name}>{name}</option>)}</select></label><label>{locale === "ja" ? "並び順" : "Sort"}<select value={sort} onChange={event => setSort(event.target.value as typeof sort)}><option value="date">{locale === "ja" ? "日付" : "Date"}</option><option value="revenue">{locale === "ja" ? "売上" : "Revenue"}</option><option value="guests">{locale === "ja" ? "来客数" : "Guests"}</option></select></label><button type="button" className="secondary" onClick={exportShifts}>{locale === "ja" ? "CSV出力" : "Export CSV"}</button></Filters>
                     {shifts.filter(shift => (selectedMonth === "all" || shift.business_date.startsWith(selectedMonth)) && (managerFilter === "all" || shift.opened_by === managerFilter)).sort((a,b) => sort === "date" ? b.business_date.localeCompare(a.business_date) : sort === "revenue" ? b.paid_total - a.paid_total : b.guest_count - a.guest_count).map(shift => (
                         <ShiftRow key={shift.id}>
                             <Who>
@@ -297,7 +309,7 @@ const Tabs = styled.div`
     gap: var(--space-1);
     button { min-width: 0; width: 100%; }
     @media (min-width: 680px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    @media (min-width: 1050px) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    @media (min-width: 1050px) { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 `;
 
 const SummaryGrid = styled.div`display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); @media (min-width: 900px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }`;
