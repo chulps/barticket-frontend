@@ -33,8 +33,11 @@ export default function ModalHost() {
     if (!modal) return null;
 
     return createPortal(
-  <Overlay onClick={closeModal}>
+  <Overlay onClick={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
     <Dialog
+      role="dialog"
+      aria-modal="true"
+      aria-label={typeof modal.title === "string" ? modal.title : t("addDrink")}
       onClick={(e) => e.stopPropagation()}
       $maxWidth={modal.maxWidth ?? "600px"}
       $fit={modal.fitContent === true}
@@ -82,6 +85,7 @@ const Overlay = styled.div`
   align-items: center;
 
   z-index: 1000;
+  overscroll-behavior: contain;
 `;
 
 const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
@@ -90,6 +94,9 @@ const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
     height: ${({ $fit }) => ($fit ? "auto" : "100dvh")};
     overflow-x: hidden;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
@@ -100,6 +107,7 @@ const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
         `
         width: min(100% - var(--space-3), ${$maxWidth});
         max-height: 90dvh;
+        min-height: 0;
         border: 1px solid var(--neutral-700);
         border-radius: var(--space-2);
     `}
