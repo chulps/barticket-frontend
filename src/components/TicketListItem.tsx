@@ -66,7 +66,9 @@ export default function TicketListItem({
 
 const Container = styled(motion.button) <{ $selected: boolean }>`  
   width: 100%;
+  max-width: 100%;
   min-width: 0;
+  white-space: normal;
 
   display: flex;
   justify-content: space-between;
@@ -142,5 +144,7 @@ const RightInfoText = styled.span`
     display: block;
     min-width: 0;
     flex: 1 1 0;
+    max-width: 100%;
+    overflow: hidden;
     text-align: right;
 `
