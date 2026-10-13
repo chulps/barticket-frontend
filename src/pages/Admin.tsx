@@ -18,7 +18,12 @@ export default function Admin() {
     const [password, setPassword] = useState("");
     const [role, setRole] = useState<"staff" | "manager">("staff");
     const [busy, setBusy] = useState(false);
-    const [section, setSection] = useState<"accounts" | "staff" | "shifts" | "history" | "payroll" | "settings">("accounts");
+    const [section, setSection] = useState<"overview" | "accounts" | "staff" | "shifts" | "history" | "payroll" | "settings">("overview");
+    const [search, setSearch] = useState("");
+    const [roleFilter, setRoleFilter] = useState("all");
+    const [managerFilter, setManagerFilter] = useState("all");
+    const [sort, setSort] = useState<"date" | "revenue" | "guests">("date");
+    const [expandedShift, setExpandedShift] = useState<number | null>(null);
     const [shifts, setShifts] = useState<ShiftReport[]>([]);
     const [shiftError, setShiftError] = useState("");
     const [selectedMonth, setSelectedMonth] = useState("all");
@@ -74,11 +79,11 @@ export default function Admin() {
             </header>
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             <Tabs role="tablist" aria-label={locale === "ja" ? "管理メニュー" : "Admin sections"}>
-                {(["accounts", "staff", "shifts", "history", "payroll", "settings"] as const).map((key) => (
+                {(["overview", "accounts", "staff", "shifts", "history", "payroll", "settings"] as const).map((key) => (
                     <button type="button" role="tab" aria-selected={section === key} key={key}
                         className={section === key ? "secondary" : "hollow secondary"}
                         onClick={() => setSection(key)}>
-                        {{ accounts: locale === "ja" ? "アカウント" : "Accounts",
+                        {{ overview: locale === "ja" ? "概要" : "Overview", accounts: locale === "ja" ? "アカウント" : "Accounts",
                             staff: locale === "ja" ? "スタッフ" : "Staff",
                             shifts: locale === "ja" ? "シフト" : "Shifts",
                             history: locale === "ja" ? "履歴照合" : "Reconciliation",
@@ -87,6 +92,31 @@ export default function Admin() {
                     </button>
                 ))}
             </Tabs>
+            {section === "overview" ? (
+                <>
+                    <SummaryGrid>
+                        {[
+                            [locale === "ja" ? "アカウント数" : "Accounts", team.length],
+                            [locale === "ja" ? "記録済みシフト" : "Recorded shifts", shifts.length],
+                            [locale === "ja" ? "記録済み売上" : "Recorded revenue", "¥" + shifts.reduce((sum, shift) => sum + shift.paid_total, 0).toLocaleString()],
+                            [locale === "ja" ? "記録済み来客数" : "Recorded guests", shifts.reduce((sum, shift) => sum + shift.guest_count, 0).toLocaleString()],
+                            [locale === "ja" ? "営業状況" : "Current shift", shifts.some(shift => shift.status === "open") ? (locale === "ja" ? "営業中" : "Open") : (locale === "ja" ? "終了" : "Closed")],
+                            [locale === "ja" ? "勤務中" : "Clocked in", shifts.filter(shift => shift.status === "open").flatMap(shift => shift.punches).filter(p => p.clock_out === null).length]
+                        ].map(([label, value]) => <Section key={String(label)}><span>{label}</span><h2>{value}</h2></Section>)}
+                    </SummaryGrid>
+                    {shiftError ? <ErrorText role="alert">{shiftError}</ErrorText> : null}
+                    <Section>
+                        <h2>{locale === "ja" ? "管理メニュー" : "Quick access"}</h2>
+                        <QuickLinks>{(["accounts", "staff", "shifts", "history", "payroll", "settings"] as const).map(key =>
+                            <button key={key} type="button" className="secondary" onClick={() => setSection(key)}>
+                                {{ accounts: "Accounts", staff: "Staff", shifts: "Shifts", history: "Reconciliation", payroll: "Payroll", settings: "Settings" }[key]}
+                            </button>)}</QuickLinks>
+                    </Section>
+                    <Section><h2>{locale === "ja" ? "データについて" : "Data coverage"}</h2>
+                        <p>{locale === "ja" ? "APIの記録のみを表示しています。過去の記録や担当者名は未確認の場合があります。" : "Totals include only shifts returned by the API. Historical months and recorded manager names may be incomplete until reconciliation."}</p>
+                    </Section>
+                </>
+            ) : null}
             {section === "accounts" ? <Grid>
                 <Section>
                     <h2>{t("team")}</h2>
@@ -260,3 +290,6 @@ const Tabs = styled.div`
     @media (min-width: 680px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     @media (min-width: 1050px) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 `;
+
+const SummaryGrid = styled.div`display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); @media (min-width: 900px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }`;
+const QuickLinks = styled.div`display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1); @media (min-width: 850px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }`;
