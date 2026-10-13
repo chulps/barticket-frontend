@@ -87,7 +87,7 @@ export default function Admin() {
                     </button>
                 ))}
             </Tabs>
-            {section === "accounts" ? <Grid>      <Grid>
+            {section === "accounts" ? <Grid>
                 <Section>
                     <h2>{t("team")}</h2>
                     {team.map((person) => (
