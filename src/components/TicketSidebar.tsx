@@ -200,6 +200,8 @@ export default function TicketSidebar({
 
 const SidebarContainer = styled.aside`
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -232,6 +234,8 @@ const SidebarHeader = styled.div`
 
 const TicketList = styled.div`
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
