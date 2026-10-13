@@ -229,6 +229,9 @@ body {
   background: var(--background-color);
   color: var(--white);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
   font-family: var(--font-family-default); /* Duplicate declaration */
   font-size: var(--font-size-default);
   font-style: normal;
@@ -254,6 +257,12 @@ body {
     padding: 0 0 var(--space-3) 0;
     overflow-x: visible;
   }
+}
+
+/* Prevent the app grid item from using wide ticket text as its minimum width. */
+#root {
+  min-width: 0;
+  width: 100%;
 }
 
 /* scrollbar width */
