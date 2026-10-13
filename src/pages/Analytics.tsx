@@ -462,6 +462,24 @@ function StaffChart({ shifts, context }: { shifts: ShiftReport[]; context?: stri
     );
 }
 
+function staffDrinkShifts(
+    visible: ShiftReport[],
+    openShift: ShiftReport | null,
+    range: Range,
+    month: string,
+    year: string,
+    pickedDate: string,
+): ShiftReport[] {
+    if (!openShift) return visible;
+    const inRange =
+        range === "all" ||
+        (range === "year" && yearKey(openShift.business_date) === year) ||
+        (range === "month" && monthKey(openShift.business_date) === month) ||
+        (range === "day" && openShift.business_date === pickedDate);
+    if (!inRange) return visible;
+    return [openShift, ...visible.filter((shift) => shift.id !== openShift.id)];
+}
+
 export default function Analytics() {
     const { t, locale } = useI18n();
     const [shifts, setShifts] = useState<ShiftReport[] | null>(null);
@@ -587,6 +605,8 @@ export default function Analytics() {
                   ? [selected]
                   : [];
     const totals = summarize(visible);
+    // Keep staff drink data in generated text reports; remove only the on-screen panel.
+    const staffShifts = staffDrinkShifts(visible, openShift, range, month, year, pickedDate);
     const soldItems = range === "day" && selected?.status === "open" ? [] :
         topSellingItems(tickets, new Set(visible.map((shift) => shift.id)));
     function reportText(reportLocale: Locale) {
