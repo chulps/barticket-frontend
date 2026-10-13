@@ -174,13 +174,14 @@ export default function Admin() {
                     <h2>{locale === "ja" ? "スタッフ勤務実績" : "Staff activity"}</h2>
                     <p>{locale === "ja" ? "保存済みシフトの勤務時間とドリンクを表示します。打刻のない過去の勤務時間は未記録の場合があります。" : "Read-only totals from recorded shifts. Historical hours may be missing where no punches were recorded."}</p>
                     {shiftError ? <ErrorText role="alert">{shiftError}</ErrorText> : null}
-                    {team.map((person) => {
+                    <Filters><input aria-label="Search staff" placeholder={locale === "ja" ? "スタッフ検索" : "Search staff"} value={search} onChange={event => setSearch(event.target.value)} /><select aria-label="Role filter" value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="all">{locale === "ja" ? "すべて" : "All roles"}</option><option value="staff">{t("staff")}</option><option value="manager">{t("manager")}</option></select></Filters>
+                    {team.filter(person => (roleFilter === "all" || person.role === roleFilter) && (person.name + " " + person.email).toLowerCase().includes(search.toLowerCase())).map((person) => {
                         const rows = shifts.flatMap(shift => shift.staff_hours.filter(row => row.user_id === person.id));
                         const seconds = rows.reduce((sum, row) => sum + row.seconds, 0);
                         const drinks = shifts.reduce((sum, shift) => sum + (shift.staff_drinks ?? []).filter(row => row.staff_id === person.id).reduce((n, row) => n + row.quantity, 0), 0);
                         return <Person key={person.id}>
                             <Who><strong>{person.name}</strong><span>{t(person.role)} · {person.email}</span></Who>
-                            <strong>{(seconds / 3600).toFixed(1)} {locale === "ja" ? "時間" : "hours"} · {drinks} {locale === "ja" ? "杯" : "drinks"}</strong>
+                            <strong>{rows.length ? (seconds / 3600).toFixed(1) : "—"} {locale === "ja" ? "時間" : "hours"} · {drinks} {locale === "ja" ? "杯" : "drinks"}</strong>
                         </Person>;
                     })}
                 </Section>
@@ -196,15 +197,23 @@ export default function Admin() {
                             {[...new Set(shifts.map(shift => shift.business_date.slice(0, 7)))].sort().reverse().map(month => <option key={month} value={month}>{month}</option>)}
                         </select>
                     </label>
-                    {shifts.filter(shift => selectedMonth === "all" || shift.business_date.startsWith(selectedMonth)).map(shift => (
-                        <Person key={shift.id}>
+                    <Filters><label>{locale === "ja" ? "マネージャー" : "Manager"}<select value={managerFilter} onChange={event => setManagerFilter(event.target.value)}><option value="all">{locale === "ja" ? "すべて" : "All"}</option>{[...new Set(shifts.map(shift => shift.opened_by))].filter(Boolean).sort().map(name => <option key={name} value={name}>{name}</option>)}</select></label><label>{locale === "ja" ? "並び順" : "Sort"}<select value={sort} onChange={event => setSort(event.target.value as typeof sort)}><option value="date">{locale === "ja" ? "日付" : "Date"}</option><option value="revenue">{locale === "ja" ? "売上" : "Revenue"}</option><option value="guests">{locale === "ja" ? "来客数" : "Guests"}</option></select></label></Filters>
+                    {shifts.filter(shift => (selectedMonth === "all" || shift.business_date.startsWith(selectedMonth)) && (managerFilter === "all" || shift.opened_by === managerFilter)).sort((a,b) => sort === "date" ? b.business_date.localeCompare(a.business_date) : sort === "revenue" ? b.paid_total - a.paid_total : b.guest_count - a.guest_count).map(shift => (
+                        <ShiftRow key={shift.id}>
                             <Who>
                                 <strong>{shift.business_date} · {shift.opened_by}</strong>
                                 <span>{shift.status === "open" ? (locale === "ja" ? "営業中" : "Open") : (locale === "ja" ? "終了" : "Closed")} · {shift.guest_count} {locale === "ja" ? "名" : "guests"}</span>
                                 <span>{shift.staff_hours.map(person => person.name + " " + (person.seconds / 3600).toFixed(1) + "h").join(", ") || (locale === "ja" ? "勤務時間未記録" : "No hours recorded")}</span>
                             </Who>
-                            <strong>¥{shift.paid_total.toLocaleString()}</strong>
-                        </Person>
+                            <button type="button" className="small hollow secondary" aria-expanded={expandedShift === shift.id} onClick={() => setExpandedShift(expandedShift === shift.id ? null : shift.id)}>¥{shift.paid_total.toLocaleString()} ▾</button>
+                            {expandedShift === shift.id ? <ShiftDetails>
+                                <p>{locale === "ja" ? "API登録担当者" : "Recorded manager"}: {shift.opened_by || "—"}</p>
+                                <p>{locale === "ja" ? "現金" : "Cash"}: ¥{shift.cash_total.toLocaleString()} · {locale === "ja" ? "カード" : "Card"}: ¥{shift.card_total.toLocaleString()} · {locale === "ja" ? "その他" : "Other"}: ¥{shift.other_total.toLocaleString()}</p>
+                                <p>{locale === "ja" ? "勤務時間" : "Recorded hours"}: {shift.staff_hours.length ? shift.staff_hours.map(row => row.name + " " + (row.seconds / 3600).toFixed(1) + "h").join(", ") : (locale === "ja" ? "未記録" : "Not recorded")}</p>
+                                <p>{locale === "ja" ? "スタッフドリンク" : "Staff drinks"}: {(shift.staff_drinks ?? []).reduce((n, row) => n + row.quantity, 0)}</p>
+                                <p>{locale === "ja" ? "品切れ" : "Stockouts"}: {(shift.stockouts ?? []).length}</p>
+                            </ShiftDetails> : null}
+                        </ShiftRow>
                     ))}
                     {!shifts.length && !shiftError ? <p>{locale === "ja" ? "記録がありません" : "No shift records yet."}</p> : null}
                 </Section>
@@ -293,3 +302,7 @@ const Tabs = styled.div`
 
 const SummaryGrid = styled.div`display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); @media (min-width: 900px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }`;
 const QuickLinks = styled.div`display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1); @media (min-width: 850px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }`;
+
+const Filters = styled.div`display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-1); input, select { min-width: 140px; flex: 1; }`;
+const ShiftRow = styled(Person)`flex-wrap: wrap; border-top: 1px solid var(--neutral-800); padding-top: var(--space-1);`;
+const ShiftDetails = styled.div`width: 100%; padding: var(--space-1); background: var(--neutral-800); border-radius: 8px;`;
