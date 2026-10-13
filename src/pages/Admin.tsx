@@ -6,6 +6,7 @@ import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError } from "../api/client";
 import { useI18n } from "../i18n";
 import Reconciliation from "./Reconciliation";
+import { StaffDetails, PayrollPlanner, AdminSettings } from "./AdminPanels";
 
 /** Access is checked again by manager-only backend endpoints. */
 export default function Admin() {
@@ -193,23 +194,7 @@ export default function Admin() {
                     </form>
                 </Section>
             </Grid> : null}
-            {section === "staff" ? (
-                <Section>
-                    <h2>{locale === "ja" ? "スタッフ勤務実績" : "Staff activity"}</h2>
-                    <p>{locale === "ja" ? "保存済みシフトの勤務時間とドリンクを表示します。打刻のない過去の勤務時間は未記録の場合があります。" : "Read-only totals from recorded shifts. Historical hours may be missing where no punches were recorded."}</p>
-                    {shiftError ? <ErrorText role="alert">{shiftError}</ErrorText> : null}
-                    <Filters><input aria-label="Search staff" placeholder={locale === "ja" ? "スタッフ検索" : "Search staff"} value={search} onChange={event => setSearch(event.target.value)} /><select aria-label="Role filter" value={roleFilter} onChange={event => setRoleFilter(event.target.value)}><option value="all">{locale === "ja" ? "すべて" : "All roles"}</option><option value="staff">{t("staff")}</option><option value="manager">{t("manager")}</option></select></Filters>
-                    {team.filter(person => (roleFilter === "all" || person.role === roleFilter) && (person.name + " " + person.email).toLowerCase().includes(search.toLowerCase())).map((person) => {
-                        const rows = shifts.flatMap(shift => shift.staff_hours.filter(row => row.user_id === person.id));
-                        const seconds = rows.reduce((sum, row) => sum + row.seconds, 0);
-                        const drinks = shifts.reduce((sum, shift) => sum + (shift.staff_drinks ?? []).filter(row => row.staff_id === person.id).reduce((n, row) => n + row.quantity, 0), 0);
-                        return <Person key={person.id}>
-                            <Who><strong>{person.name}</strong><span>{t(person.role)} · {person.email}</span></Who>
-                            <strong>{rows.length ? (seconds / 3600).toFixed(1) : "—"} {locale === "ja" ? "時間" : "hours"} · {drinks} {locale === "ja" ? "杯" : "drinks"}</strong>
-                        </Person>;
-                    })}
-                </Section>
-            ) : null}
+            {section === "staff" ? <StaffDetails people={team} shifts={shifts} locale={locale} /> : null}
             {section === "shifts" ? (
                 <Section>
                     <h2>{locale === "ja" ? "シフト履歴" : "Shift history"}</h2>
@@ -243,20 +228,8 @@ export default function Admin() {
                 </Section>
             ) : null}
             {section === "history" ? <Reconciliation shifts={shifts} locale={locale} error={shiftError} /> : null}
-            {section === "payroll" ? (
-                <Section>
-                    <h2>{locale === "ja" ? "給与・控除" : "Payroll & deductions"}</h2>
-                    <p>{locale === "ja" ? "時給、給与前払い、イベント費用、ゲストバーテンダーへの支払い、払い戻しを管理する予定です。" : "Planned: historical hourly rates, compensation, advances, event expenses, guest bartenders and reimbursements."}</p>
-                    <p>{locale === "ja" ? "給与・控除の保存先と計算ルールが未定です。金額は計算・保存されません。" : "The required payroll records and deduction rules are not available in the API. No amounts are calculated or saved."}</p>
-                </Section>
-            ) : null}
-            {section === "settings" ? (
-                <Section>
-                    <h2>{locale === "ja" ? "システム設定" : "System settings"}</h2>
-                    <p>{locale === "ja" ? "全体設定の管理 API は未実装です。現在の設定に変更はありません。" : "Shared configuration APIs are not yet available. No settings are changed from this screen."}</p>
-                    <p>{locale === "ja" ? "各ユーザーの言語設定は既存の切替ボタンで変更できます。" : "Personal language preferences remain available from the existing language switcher."}</p>
-                </Section>
-            ) : null}
+            {section === "payroll" ? <PayrollPlanner locale={locale} /> : null}
+            {section === "settings" ? <AdminSettings locale={locale} /> : null}
         </Page>
     );
 }
