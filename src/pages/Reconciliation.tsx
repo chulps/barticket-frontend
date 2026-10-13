@@ -4,10 +4,10 @@ import type { ShiftReport } from "../api/account";
 import { importPreview, parseCsv, type CsvData } from "./reconciliationCsv";
 
 type Field = "manager" | "revenue" | "guests" | "event";
-type Draft = { manager: string; revenue: string; guests: string; event: string; notes: string; staff: string; guestName: string; staffHours: Record<string, string> };
+type Draft = { manager: string; revenue: string; guests: string; event: string; notes: string; staff: string; guestName: string; guestPayType: string; guestPayAmount: string; guestDrinkback: string; staffHours: Record<string, string> };
 const fresh = (shift: ShiftReport): Draft => ({
     manager: shift.opened_by ?? "", revenue: String(shift.paid_total), guests: String(shift.guest_count),
-    event: "", notes: "", staff: "none", guestName: "", staffHours: Object.fromEntries(shift.staff_hours.map(row => [row.name, String(row.seconds / 3600)]))
+    event: "", notes: "", staff: "none", guestName: "", guestPayType: "", guestPayAmount: "", guestDrinkback: "", staffHours: Object.fromEntries(shift.staff_hours.map(row => [row.name, String(row.seconds / 3600)]))
 });
 const validNumber = (value: string) => value.trim() !== "" && /^\d+$/.test(value.trim());
 const labels = (ja: boolean) => ({
@@ -29,10 +29,10 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
     const [includeHours, setIncludeHours] = useState<string[]>([]);
     const selected = shifts.find(shift => shift.id === selectedId) ?? null;
     const filtered = useMemo(() => shifts.filter(shift => [shift.business_date, shift.opened_by].join(" ").toLowerCase().includes(search.toLowerCase())).sort((a, b) => b.business_date.localeCompare(a.business_date)), [shifts, search]);
-    const invalidDraft = Boolean(draft && (!["Chuck", "Nori"].includes(draft.manager) || (draft.staff === "guest" && !draft.guestName.trim()) || !validNumber(draft.revenue) || !validNumber(draft.guests) ||
+    const invalidDraft = Boolean(draft && (!["Chuck", "Nori"].includes(draft.manager) || (draft.staff === "guest" && (!draft.guestName.trim() || (draft.guestPayType !== "" && !["hourly", "flat", "revenue", "custom"].includes(draft.guestPayType)) || (draft.guestPayAmount !== "" && (!validNumber(draft.guestPayAmount) || (draft.guestPayType === "revenue" && Number(draft.guestPayAmount) > 100))) || (draft.guestDrinkback !== "" && (!validNumber(draft.guestDrinkback) || Number(draft.guestDrinkback) > 100)))) || !validNumber(draft.revenue) || !validNumber(draft.guests) ||
         Object.values(draft.staffHours).some(value => value !== "" && (!Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 24))));
     const changed = Boolean(draft && selected && (draft.manager !== selected.opened_by || draft.revenue !== String(selected.paid_total) ||
-        draft.guests !== String(selected.guest_count) || draft.event || draft.notes || draft.staff !== "none" || draft.guestName ||
+        draft.guests !== String(selected.guest_count) || draft.event || draft.notes || draft.staff !== "none" || draft.guestName || draft.guestPayType || draft.guestPayAmount || draft.guestDrinkback ||
         Object.entries(draft.staffHours).some(([name, value]) => value !== String((selected.staff_hours.find(row => row.name === name)?.seconds ?? 0) / 3600))));
     const preview = useMemo(() => csv ? importPreview(csv, mapping, shifts) : null, [csv, mapping, shifts]);
     const update = (field: Field | "notes", value: string) => setDraft(previous => previous ? { ...previous, [field]: value } : previous);
@@ -101,16 +101,45 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
                         <input type="number" min="0" step="1" value={draft[key]} onChange={e => update(key, e.target.value)} />
                     </label>)}
                     <label>{ja ? "スタッフ" : "Staff"}
-                        <SelectBox><select value={draft.staff} onChange={e => setDraft(current => current ? { ...current, staff: e.target.value, guestName: "" } : current)}>
+                        <SelectBox><select value={draft.staff} onChange={e => setDraft(current => current ? { ...current, staff: e.target.value, guestName: "", guestPayType: "", guestPayAmount: "", guestDrinkback: "" } : current)}>
                             <option value="none">{ja ? "なし" : "None"}</option>
                             <option value="Kanata">{ja ? "カナタ" : "Kanata"}</option>
                             <option value="Haruka">{ja ? "ハルカ" : "Haruka"}</option>
                             <option value="guest">{ja ? "ゲスト・その他" : "Guest / Other"}</option>
                         </select><Caret aria-hidden="true">▾</Caret></SelectBox>
                     </label>
-                    {draft.staff === "guest" ? <label>{ja ? "ゲスト・その他の名前" : "Guest / Other name"}
-                        <input value={draft.guestName} onChange={e => setDraft(current => current ? { ...current, guestName: e.target.value } : current)} />
-                    </label> : null}
+                    {draft.staff === "guest" ? <>
+                        <label>{ja ? "ゲスト名" : "Guest bartender"}
+                            <SelectBox><select value={["Yuchan", "Mii-chan"].includes(draft.guestName) ? draft.guestName : "other"}
+                                onChange={e => setDraft(current => current ? { ...current, guestName: e.target.value === "other" ? "" : e.target.value } : current)}>
+                                <option value="other">{ja ? "その他・新規" : "Other / new guest"}</option>
+                                <option value="Yuchan">Yuchan</option>
+                                <option value="Mii-chan">Mii-chan</option>
+                            </select><Caret aria-hidden="true">▾</Caret></SelectBox>
+                        </label>
+                        <label>{ja ? "名前（確認・編集）" : "Guest name (confirm / edit)"}
+                            <input value={draft.guestName} placeholder={ja ? "ゲストの名前" : "Enter guest name"}
+                                onChange={e => setDraft(current => current ? { ...current, guestName: e.target.value } : current)} />
+                        </label>
+                        <label>{ja ? "契約タイプ（シフトごと）" : "Agreement type (this shift only)"}
+                            <SelectBox><select value={draft.guestPayType} onChange={e => setDraft(current => current ? { ...current, guestPayType: e.target.value, guestPayAmount: "" } : current)}>
+                                <option value="">{ja ? "未設定・不明" : "Not specified / unknown"}</option>
+                                <option value="hourly">{ja ? "時給" : "Hourly"}</option>
+                                <option value="flat">{ja ? "固定報酬" : "Flat fee"}</option>
+                                <option value="revenue">{ja ? "売上歩合" : "Revenue percentage"}</option>
+                                <option value="custom">{ja ? "その他" : "Custom"}</option>
+                            </select><Caret aria-hidden="true">▾</Caret></SelectBox>
+                        </label>
+                        {draft.guestPayType && draft.guestPayType !== "custom" ? <label>{draft.guestPayType === "revenue" ? (ja ? "売上歩合 (%)" : "Revenue share (%)") : (ja ? "契約金額 (円)" : "Agreed amount (JPY)")}
+                            <input type="number" min="0" max={draft.guestPayType === "revenue" ? 100 : undefined} step="any" value={draft.guestPayAmount}
+                                onChange={e => setDraft(current => current ? { ...current, guestPayAmount: e.target.value } : current)} />
+                        </label> : null}
+                        <label>{ja ? "スタッフドリンクバック (%)" : "Staff drinkback (%) — if agreed"}
+                            <input type="number" min="0" max="100" step="any" value={draft.guestDrinkback} placeholder={ja ? "未設定" : "Not specified"}
+                                onChange={e => setDraft(current => current ? { ...current, guestDrinkback: e.target.value } : current)} />
+                        </label>
+                        <p>{ja ? "ゲストの契約条件はシフトごとに異なります。未入力は不明として扱い、給与を推測しません。すべて未保存です。" : "Guest contracts vary by appearance. Blank means unknown, not zero. No guest pay is assumed or saved."}</p>
+                    </> : null}
                     <label>{text.event}
                         <SelectBox><select value={draft.event} onChange={e => update("event", e.target.value)}>
                             <option value="">{ja ? "未設定" : "Not recorded"}</option>
@@ -128,7 +157,7 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
                 <label>{ja ? "勤務時間を追加するスタッフ" : "Add staff hours for"}
                     <SelectBox><select value={extraHourKey} onChange={e => setExtraHourKey(e.target.value)}>
                         <option value="">{ja ? "選択してください" : "Select staff"}</option>
-                        {["Kanata", "Haruka", ...(draft.guestName.trim() ? [draft.guestName.trim()] : [])].filter(name => !Object.hasOwn(draft.staffHours, name)).map(name => <option key={name} value={name}>{name}</option>)}
+                        {["Kanata", "Haruka", "Yuchan", "Mii-chan", ...(draft.guestName.trim() ? [draft.guestName.trim()] : [])].filter(name => !Object.hasOwn(draft.staffHours, name)).map(name => <option key={name} value={name}>{name}</option>)}
                     </select><Caret aria-hidden="true">▾</Caret></SelectBox>
                 </label>
                 <button type="button" className="small secondary" disabled={!extraHourKey} onClick={() => { if (!Object.hasOwn(draft.staffHours, extraHourKey)) setDraft({ ...draft, staffHours: { ...draft.staffHours, [extraHourKey]: "" } }); setExtraHourKey(""); }}>{ja ? "追加" : "Add staff"}</button>
