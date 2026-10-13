@@ -85,8 +85,8 @@ export default function MenuItemForm({
             }
             nextPrices[key] = amount;
         }
-        if (!cocktailIngredient && nextPrices.standard === undefined) {
-            setError(help("Enter a standard price in yen.", "通常価格（円）を入力してください。"));
+        if (!cocktailIngredient && nextPrices.standard === undefined && (nextPrices["15ml"] === undefined || nextPrices["30ml"] === undefined)) {
+            setError(help("Enter a standard price, or both 15ml and 30ml prices.", "通常価格、または15mlと30mlの両方の価格を入力してください。"));
             return;
         }
         setError("");
@@ -197,11 +197,11 @@ export default function MenuItemForm({
             </Field>
             <SectionHeading>{help("Pricing", "価格")}</SectionHeading>
             <Field>
-                <Caption htmlFor={id + "-standard"}>{help("Standard price", "通常価格")}{cocktailIngredient ? "" : " *"}</Caption>
+                <Caption htmlFor={id + "-standard"}>{help("Standard price", "通常価格")}</Caption>
                 <Amount><Yen>¥</Yen><PriceInput id={id + "-standard"} type="text" inputMode="numeric" pattern="[0-9]*"
                     placeholder="1200" value={prices.standard}
                     onChange={(e) => setPrices((current) => ({ ...current, standard: e.target.value.replace(/\D/g, "") }))} /></Amount>
-                <Hint>{help("Price in yen for a normal serving.", "通常の1杯分の価格を円で入力します。")}</Hint>
+                <Hint>{help("Price for a normal serving. Otherwise enter both 15ml and 30ml prices.", "通常の1杯分の価格です。設定しない場合は15mlと30mlの両方を入力してください。")}</Hint>
             </Field>
             <PriceGrid>
                 {(["15ml", "30ml"] as const).map((key) => <Field key={key}>
@@ -211,7 +211,7 @@ export default function MenuItemForm({
                         onChange={(e) => setPrices((current) => ({ ...current, [key]: e.target.value.replace(/\D/g, "") }))} /></Amount>
                 </Field>)}
             </PriceGrid>
-            <Hint>{help("Optional smaller pours, mainly for premium whiskies. Leave blank if not offered.", "任意。主に高級ウイスキーの少量提供用です。販売しない場合は空欄にしてください。")}</Hint>
+            <Hint>{help("For premium whiskies, enter both 15ml and 30ml instead of a standard price.", "高級ウイスキーは通常価格の代わりに15mlと30mlの両方を設定できます。")}</Hint>
             <Checks>
                 <Check><input type="checkbox" checked={inStock} onChange={(e) => setInStock(e.target.checked)} />
                     <span>{t("inStockLabel")}</span></Check>
