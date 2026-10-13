@@ -19,7 +19,7 @@ test("Admin is restricted to manager role and manager-only API", () => {
     assert.match(admin, /me\?\.role !== "manager"/);
     assert.match(admin, /<Navigate to="\/profile" replace/);
     assert.match(admin, /accountApi\.listUsers\(\)/);
-    assert.match(header, /\{isManager \? \(\s*<SecondaryNavLink[^>]*to="\/admin"/);
+    assert.match(header, /\{isManager \? \(\s*<SecondaryNavLink[^\n]*to="\/admin"/);
     assert.match(header, /\{isManager \? \(\s*<MoreLink to="\/admin"/);
     assert.match(app, /<Route path="\/admin"/);
 });
