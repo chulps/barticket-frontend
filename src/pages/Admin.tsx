@@ -11,6 +11,8 @@ export default function Admin() {
     const { t, locale } = useI18n();
     const [me, setMe] = useState<Account | null>(null);
     const [team, setTeam] = useState<Account[]>([]);
+    const [accountsError, setAccountsError] = useState("");
+    const [accountsLoading, setAccountsLoading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [name, setName] = useState("");
@@ -36,8 +38,12 @@ export default function Admin() {
                 if (cancelled) return;
                 setMe(account);
                 if (account.role === "manager") {
-                    const members = await accountApi.listUsers();
-                    if (!cancelled) setTeam(members);
+                    try {
+                        const members = await accountApi.listUsers();
+                        if (!cancelled) setTeam(members);
+                    } catch (err) {
+                        if (!cancelled) setAccountsError(err instanceof ApiError ? err.message : String(err));
+                    }
                     try {
                         const [closed, active] = await Promise.all([accountApi.closedShifts(), accountApi.currentShift()]);
                         if (!cancelled) setShifts([...(active?.status === "open" ? [active] : []), ...closed]);
@@ -54,6 +60,14 @@ export default function Admin() {
         void load();
         return () => { cancelled = true; };
     }, []);
+
+    async function refreshAccounts() {
+        setAccountsLoading(true);
+        setAccountsError("");
+        try { setTeam(await accountApi.listUsers()); }
+        catch (err) { setAccountsError(err instanceof ApiError ? err.message : String(err)); }
+        finally { setAccountsLoading(false); }
+    }
 
     function exportShifts() {
         const displayed = shifts.filter(shift => (selectedMonth === "all" || shift.business_date.startsWith(selectedMonth)) && (managerFilter === "all" || shift.opened_by === managerFilter));
@@ -124,7 +138,11 @@ export default function Admin() {
             ) : null}
             {section === "accounts" ? <Grid>
                 <Section>
-                    <h2>{t("team")}</h2>
+                    <h2>{t("team")} ({team.length})</h2>
+                    <p>{locale === "ja" ? "現在有効な登録アカウントのみ表示します。過去のスタッフ記録や無効なアカウントは含みません。" : "Only active registered accounts returned by the backend appear here. Historical staff names and deactivated accounts are not included."}</p>
+                    {accountsError ? <ErrorText role="alert">{accountsError}</ErrorText> : null}
+                    <button type="button" className="small hollow secondary" disabled={accountsLoading} onClick={() => void refreshAccounts()}>{locale === "ja" ? "一覧を更新" : "Refresh accounts"}</button>
+                    {!team.length && !accountsError ? <p>{locale === "ja" ? "有効なアカウントが返されませんでした。" : "No active accounts were returned by the API."}</p> : null}
                     {team.map((person) => (
                         <Person key={person.id}>
                             <Who>
