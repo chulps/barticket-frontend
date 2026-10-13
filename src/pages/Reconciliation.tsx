@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import styled from "styled-components";
 import type { ShiftReport } from "../api/account";
-import { importPreview, parseCsv, type CsvData, type ImportRow } from "./reconciliationCsv";
+import { importPreview, parseCsv, type CsvData } from "./reconciliationCsv";
 
 type Field = "manager" | "revenue" | "guests" | "event";
 type Draft = { manager: string; revenue: string; guests: string; event: string; notes: string; staffHours: Record<string, string> };
