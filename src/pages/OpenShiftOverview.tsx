@@ -171,7 +171,9 @@ const LiveHeader = styled.header`
     align-items: flex-end;
     justify-content: space-between;
     gap: var(--space-1);
-    h2 { font-size: var(--font-size-h4); font-weight: 500; margin-top: var(--space-1); }
+    min-width: 0;
+    > div:first-child { min-width: 0; max-width: 100%; }
+    h2 { font-size: var(--font-size-h4); font-weight: 500; margin-top: var(--space-1); overflow-wrap: anywhere; }
 `;
 
 const LiveStatus = styled.div`
@@ -197,8 +199,11 @@ const HeaderMeta = styled.p`
     align-items: center;
     gap: 0.5rem;
     margin-top: var(--space-1);
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     color: var(--neutral-300);
-    strong { color: var(--neutral-100); font-weight: 500; }
+    strong { color: var(--neutral-100); font-weight: 500; min-width: 0; overflow-wrap: anywhere; }
 `;
 
 const LastUpdated = styled.div`

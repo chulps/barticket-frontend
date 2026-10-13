@@ -199,6 +199,7 @@ export default function TicketSidebar({
 // styling
 
 const SidebarContainer = styled.aside`
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -230,11 +231,14 @@ const SidebarHeader = styled.div`
 `;
 
 const TicketList = styled.div`
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   overflow: auto;
   height: 100%;
+
+  > div { min-width: 0; }
   padding: var(--space-1);
   margin-bottom: var(--space-1);
   border: 1px solid var(--neutral-700);

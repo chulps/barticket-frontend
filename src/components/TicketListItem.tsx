@@ -44,7 +44,7 @@ export default function TicketListItem({
 
             <RightInfo>
                 <RightInfoText>
-                    <CreatedAt>
+                    <CreatedAt title={createdBy ?? undefined}>
                         {createdAt
                             ? new Date(createdAt * 1000).toLocaleString(localeTag(locale), {
                                   month: "short",
@@ -66,6 +66,7 @@ export default function TicketListItem({
 
 const Container = styled(motion.button) <{ $selected: boolean }>`  
   width: 100%;
+  min-width: 0;
 
   display: flex;
   justify-content: space-between;
@@ -96,29 +97,50 @@ const LeftInfo = styled.div`
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  max-width: 6ch;
+  min-width: 0;
+  max-width: 45%;
+  flex: 0 1 auto;
 `;
 
 const RightInfo = styled.div`
     display: flex;
     align-items: center;
     gap: var(--space-1);
+    min-width: 0;
+    flex: 1 1 0;
+    justify-content: flex-end;
+
+    > svg { flex-shrink: 0; }
 `
 
 const TicketNumber = styled.small`
   color: var(--neutral-500);
 `;
 
-const CustomerName = styled.strong``;
+const CustomerName = styled.strong`
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+`;
 
 const Total = styled.data`
     font-weight: bold;
 `;
 
 const CreatedAt = styled.small`
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: var(--neutral-500);
 `
 
 const RightInfoText = styled.span`
+    display: block;
+    min-width: 0;
+    flex: 1 1 0;
     text-align: right;
 `
