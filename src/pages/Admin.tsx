@@ -117,13 +117,6 @@ export default function Admin() {
                         ].map(([label, value]) => <Section key={String(label)}><span>{label}</span><h2>{value}</h2></Section>)}
                     </SummaryGrid>
                     {shiftError ? <ErrorText role="alert">{shiftError}</ErrorText> : null}
-                    <Section>
-                        <h2>{locale === "ja" ? "管理メニュー" : "Quick access"}</h2>
-                        <QuickLinks>{(["accounts", "staff", "shifts", "history", "payroll", "settings"] as const).map(key =>
-                            <button key={key} type="button" className="secondary" onClick={() => setSection(key)}>
-                                {{ accounts: "Accounts", staff: "Staff", shifts: "Shifts", history: "Reconciliation", payroll: "Payroll", settings: "Settings" }[key]}
-                            </button>)}</QuickLinks>
-                    </Section>
                     <Section><h2>{locale === "ja" ? "データについて" : "Data coverage"}</h2>
                         <p>{locale === "ja" ? "APIの記録のみを表示しています。過去の記録や担当者名は未確認の場合があります。" : "Totals include only shifts returned by the API. Historical months and recorded manager names may be incomplete until reconciliation."}</p>
                     </Section>
@@ -313,7 +306,6 @@ const Tabs = styled.div`
 `;
 
 const SummaryGrid = styled.div`display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); @media (min-width: 900px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }`;
-const QuickLinks = styled.div`display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1); @media (min-width: 850px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }`;
 
 const Filters = styled.div`display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-1); input, select { min-width: 140px; flex: 1; }`;
 const ShiftRow = styled(Person)`flex-wrap: wrap; border-top: 1px solid var(--neutral-800); padding-top: var(--space-1);`;
