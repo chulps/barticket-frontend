@@ -5,6 +5,7 @@ import type { NoticeList } from "../api/notices";
 import type { Ticket } from "../types/Ticket";
 import { localeTag, menuLabel, useI18n } from "../i18n";
 import { clockedInTeam, type OnDuty } from "./analyticsCurrentShift";
+import { creatorDisplayName } from "../utils/creatorDisplayName";
 
 function formatYen(amount: number): string {
     return `¥${amount.toLocaleString("ja-JP")}`;
@@ -64,7 +65,7 @@ export default function OpenShiftOverview({
                     <HeaderMeta>
                         {locale === "ja" ? "開始" : "Started"} <strong>{shiftTime(shift.opened_at, locale)} JST</strong>
                         <span aria-hidden="true">·</span>
-                        {locale === "ja" ? "開始した人" : "Opened by"} <strong>{shift.opened_by}</strong>
+                        {locale === "ja" ? "開始した人" : "Opened by"} <strong title={shift.opened_by}>{creatorDisplayName(shift.opened_by)}</strong>
                     </HeaderMeta>
                 </div>
                 {updatedAt !== null ? (
