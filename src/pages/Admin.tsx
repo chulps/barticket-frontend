@@ -28,6 +28,7 @@ export default function Admin() {
     const [managerFilter, setManagerFilter] = useState("all");
     const [sort, setSort] = useState<"date" | "revenue" | "guests">("date");
     const [expandedShift, setExpandedShift] = useState<number | null>(null);
+    const [editShiftId, setEditShiftId] = useState<number | null>(null);
     const [shifts, setShifts] = useState<ShiftReport[]>([]);
     const [shiftError, setShiftError] = useState("");
     const [selectedMonth, setSelectedMonth] = useState("all");
@@ -221,13 +222,14 @@ export default function Admin() {
                                 <p>{locale === "ja" ? "勤務時間" : "Recorded hours"}: {shift.staff_hours.length ? shift.staff_hours.map(row => row.name + " " + (row.seconds / 3600).toFixed(1) + "h").join(", ") : (locale === "ja" ? "未記録" : "Not recorded")}</p>
                                 <p>{locale === "ja" ? "スタッフドリンク" : "Staff drinks"}: {(shift.staff_drinks ?? []).reduce((n, row) => n + row.quantity, 0)}</p>
                                 <p>{locale === "ja" ? "品切れ" : "Stockouts"}: {(shift.stockouts ?? []).length}</p>
+                                <button type="button" className="small secondary" onClick={() => { setEditShiftId(shift.id); setSection("history"); }}>{locale === "ja" ? "修正案を作成" : "Open in Reconciliation"}</button>
                             </ShiftDetails> : null}
                         </ShiftRow>
                     ))}
                     {!shifts.length && !shiftError ? <p>{locale === "ja" ? "記録がありません" : "No shift records yet."}</p> : null}
                 </Section>
             ) : null}
-            {section === "history" ? <Reconciliation shifts={shifts} locale={locale} error={shiftError} /> : null}
+            {section === "history" ? <Reconciliation key={editShiftId ?? "reconciliation"} initialShiftId={editShiftId} shifts={shifts} locale={locale} error={shiftError} /> : null}
             {section === "payroll" ? <PayrollPlanner locale={locale} /> : null}
             {section === "settings" ? <AdminSettings locale={locale} /> : null}
         </Page>
