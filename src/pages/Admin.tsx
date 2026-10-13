@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import styled from "styled-components";
 
-import { accountApi, type Account } from "../api/account";
+import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError } from "../api/client";
 import { useI18n } from "../i18n";
 
@@ -18,6 +18,10 @@ export default function Admin() {
     const [password, setPassword] = useState("");
     const [role, setRole] = useState<"staff" | "manager">("staff");
     const [busy, setBusy] = useState(false);
+    const [section, setSection] = useState<"accounts" | "staff" | "shifts" | "history" | "payroll" | "settings">("accounts");
+    const [shifts, setShifts] = useState<ShiftReport[]>([]);
+    const [shiftError, setShiftError] = useState("");
+    const [selectedMonth, setSelectedMonth] = useState("all");
 
     useEffect(() => {
         let cancelled = false;
@@ -29,6 +33,12 @@ export default function Admin() {
                 if (account.role === "manager") {
                     const members = await accountApi.listUsers();
                     if (!cancelled) setTeam(members);
+                    try {
+                        const [closed, active] = await Promise.all([accountApi.closedShifts(), accountApi.currentShift()]);
+                        if (!cancelled) setShifts([...(active?.status === "open" ? [active] : []), ...closed]);
+                    } catch (err) {
+                        if (!cancelled) setShiftError(err instanceof ApiError ? err.message : String(err));
+                    }
                 }
             } catch (err) {
                 if (!cancelled) setError(err instanceof ApiError ? err.message : String(err));
@@ -63,7 +73,21 @@ export default function Admin() {
                 <p>{locale === "ja" ? "マネージャー専用の管理画面です。" : "Manager-only account management."}</p>
             </header>
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
-            <Grid>
+            <Tabs role="tablist" aria-label={locale === "ja" ? "管理メニュー" : "Admin sections"}>
+                {(["accounts", "staff", "shifts", "history", "payroll", "settings"] as const).map((key) => (
+                    <button type="button" role="tab" aria-selected={section === key} key={key}
+                        className={section === key ? "secondary" : "hollow secondary"}
+                        onClick={() => setSection(key)}>
+                        {{ accounts: locale === "ja" ? "アカウント" : "Accounts",
+                            staff: locale === "ja" ? "スタッフ" : "Staff",
+                            shifts: locale === "ja" ? "シフト" : "Shifts",
+                            history: locale === "ja" ? "履歴照合" : "Reconciliation",
+                            payroll: locale === "ja" ? "給与・控除" : "Payroll",
+                            settings: locale === "ja" ? "設定" : "Settings" }[key]}
+                    </button>
+                ))}
+            </Tabs>
+            {section === "accounts" ? <Grid>      <Grid>
                 <Section>
                     <h2>{t("team")}</h2>
                     {team.map((person) => (
@@ -114,7 +138,69 @@ export default function Admin() {
                         <button type="submit" disabled={busy}>{t("addAccount")}</button>
                     </form>
                 </Section>
-            </Grid>
+            </Grid> : null}
+            {section === "staff" ? (
+                <Section>
+                    <h2>{locale === "ja" ? "スタッフ勤務実績" : "Staff activity"}</h2>
+                    <p>{locale === "ja" ? "保存済みシフトの勤務時間とドリンクを表示します。打刻のない過去の勤務時間は未記録の場合があります。" : "Read-only totals from recorded shifts. Historical hours may be missing where no punches were recorded."}</p>
+                    {shiftError ? <ErrorText role="alert">{shiftError}</ErrorText> : null}
+                    {team.map((person) => {
+                        const rows = shifts.flatMap(shift => shift.staff_hours.filter(row => row.user_id === person.id));
+                        const seconds = rows.reduce((sum, row) => sum + row.seconds, 0);
+                        const drinks = shifts.reduce((sum, shift) => sum + (shift.staff_drinks ?? []).filter(row => row.staff_id === person.id).reduce((n, row) => n + row.quantity, 0), 0);
+                        return <Person key={person.id}>
+                            <Who><strong>{person.name}</strong><span>{t(person.role)} · {person.email}</span></Who>
+                            <strong>{(seconds / 3600).toFixed(1)} {locale === "ja" ? "時間" : "hours"} · {drinks} {locale === "ja" ? "杯" : "drinks"}</strong>
+                        </Person>;
+                    })}
+                </Section>
+            ) : null}
+            {section === "shifts" ? (
+                <Section>
+                    <h2>{locale === "ja" ? "シフト履歴" : "Shift history"}</h2>
+                    <p>{locale === "ja" ? "記録済みのシフトを表示します。修正機能はバックエンド対応後に追加します。" : "Read-only shift records. Editing managers, events and staffing requires backend support."}</p>
+                    {shiftError ? <ErrorText role="alert">{shiftError}</ErrorText> : null}
+                    <label>{locale === "ja" ? "月" : "Month"}
+                        <select value={selectedMonth} onChange={event => setSelectedMonth(event.target.value)}>
+                            <option value="all">{locale === "ja" ? "すべて" : "All months"}</option>
+                            {[...new Set(shifts.map(shift => shift.business_date.slice(0, 7)))].sort().reverse().map(month => <option key={month} value={month}>{month}</option>)}
+                        </select>
+                    </label>
+                    {shifts.filter(shift => selectedMonth === "all" || shift.business_date.startsWith(selectedMonth)).map(shift => (
+                        <Person key={shift.id}>
+                            <Who>
+                                <strong>{shift.business_date} · {shift.opened_by}</strong>
+                                <span>{shift.status === "open" ? (locale === "ja" ? "営業中" : "Open") : (locale === "ja" ? "終了" : "Closed")} · {shift.guest_count} {locale === "ja" ? "名" : "guests"}</span>
+                                <span>{shift.staff_hours.map(person => person.name + " " + (person.seconds / 3600).toFixed(1) + "h").join(", ") || (locale === "ja" ? "勤務時間未記録" : "No hours recorded")}</span>
+                            </Who>
+                            <strong>¥{shift.paid_total.toLocaleString()}</strong>
+                        </Person>
+                    ))}
+                    {!shifts.length && !shiftError ? <p>{locale === "ja" ? "記録がありません" : "No shift records yet."}</p> : null}
+                </Section>
+            ) : null}
+            {section === "history" ? (
+                <Section>
+                    <h2>{locale === "ja" ? "過去データの照合" : "Historical reconciliation"}</h2>
+                    <p>{locale === "ja" ? "2026年9月から2025年5月までの表計算データと照合する予定です。未確認のデータはインポートしません。" : "Planned: compare spreadsheet records against database shifts, starting with September 2026 and working back to May 2025."}</p>
+                    <p>{locale === "ja" ? "過去の勤務記録は出退勤時刻ではなく合計勤務時間です。出退勤時刻は作成しません。" : "Historic staffing records contain total hours, not punch times. Do not invent clock-in or clock-out events."}</p>
+                    <p>{locale === "ja" ? "照合・修正 API はまだありません。現在は読み取り専用です。" : "Matching, discrepancy review and verified import tools require backend support. No records can be changed here yet."}</p>
+                </Section>
+            ) : null}
+            {section === "payroll" ? (
+                <Section>
+                    <h2>{locale === "ja" ? "給与・控除" : "Payroll & deductions"}</h2>
+                    <p>{locale === "ja" ? "時給、給与前払い、イベント費用、ゲストバーテンダーへの支払い、払い戻しを管理する予定です。" : "Planned: historical hourly rates, compensation, advances, event expenses, guest bartenders and reimbursements."}</p>
+                    <p>{locale === "ja" ? "給与・控除の保存先と計算ルールが未定です。金額は計算・保存されません。" : "The required payroll records and deduction rules are not available in the API. No amounts are calculated or saved."}</p>
+                </Section>
+            ) : null}
+            {section === "settings" ? (
+                <Section>
+                    <h2>{locale === "ja" ? "システム設定" : "System settings"}</h2>
+                    <p>{locale === "ja" ? "全体設定の管理 API は未実装です。現在の設定に変更はありません。" : "Shared configuration APIs are not yet available. No settings are changed from this screen."}</p>
+                    <p>{locale === "ja" ? "各ユーザーの言語設定は既存の切替ボタンで変更できます。" : "Personal language preferences remain available from the existing language switcher."}</p>
+                </Section>
+            ) : null}
         </Page>
     );
 }
@@ -165,3 +251,12 @@ const Who = styled.div`
     span { color: var(--neutral-300); overflow-wrap: anywhere; }
 `;
 const ErrorText = styled.p`color: var(--danger, #e06c75);`;
+
+const Tabs = styled.div`
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-1);
+    button { min-width: 0; width: 100%; }
+    @media (min-width: 680px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    @media (min-width: 1050px) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+`;
