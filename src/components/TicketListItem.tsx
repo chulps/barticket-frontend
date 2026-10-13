@@ -9,6 +9,7 @@ import type { HTMLMotionProps } from "motion/react";
 // UI components
 import Icon from "../components/Icon";
 import { localeTag, useI18n } from "../i18n";
+import { creatorDisplayName } from "../utils/creatorDisplayName";
 
 type TicketListItemProps = HTMLMotionProps<"button"> & {
     ticketId: number;
@@ -53,7 +54,7 @@ export default function TicketListItem({
                                   minute: "2-digit",
                               })
                             : t("created")}
-                        {createdBy ? ` ${t("byName", { name: createdBy })}` : ""}
+                        {createdBy ? ` ${t("byName", { name: creatorDisplayName(createdBy) })}` : ""}
                     </CreatedAt>
                     <Total>¥{total.toLocaleString()}</Total>
                 </RightInfoText>
