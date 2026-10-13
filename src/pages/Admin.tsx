@@ -23,8 +23,6 @@ export default function Admin() {
     const [role, setRole] = useState<"staff" | "manager">("staff");
     const [busy, setBusy] = useState(false);
     const [section, setSection] = useState<"overview" | "accounts" | "staff" | "shifts" | "history" | "payroll" | "settings">("overview");
-    const [search, setSearch] = useState("");
-    const [roleFilter, setRoleFilter] = useState("all");
     const [managerFilter, setManagerFilter] = useState("all");
     const [sort, setSort] = useState<"date" | "revenue" | "guests">("date");
     const [expandedShift, setExpandedShift] = useState<number | null>(null);
