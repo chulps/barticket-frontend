@@ -5,7 +5,8 @@ import { localeTag, type Locale } from "../i18n";
 import {
     blankShareCosts, distinctShareShifts, flatShareScenario, marginalShareScenario,
     netShareScenario, parseDraftYen, shareBrackets, shareMonths, shareSelection,
-    SHARE_CAP_THRESHOLD_YEN, SHARE_PROPOSED_CAP, type DraftShareCosts,
+    defaultSharePolicyDraft, parseSharePolicy,
+    type DraftShareCosts, type SharePolicyDraft,
 } from "./managerRevenueShare";
 
 type Props = { person: Account; locale: Locale; shifts: ShiftReport[] };
@@ -35,21 +36,25 @@ export default function AdminManagerShare({ person, locale, shifts }: Props) {
     const selectedMonth = months.includes(month) ? month : months[0] ?? "";
     const [eligibleIds, setEligibleIds] = useState<Set<number>>(() => new Set());
     const [costs, setCosts] = useState<DraftShareCosts>(() => ({ ...blankShareCosts }));
+    const [policyDraft, setPolicyDraft] = useState<SharePolicyDraft>(() => ({ ...defaultSharePolicyDraft }));
+    const policy = useMemo(() => parseSharePolicy(policyDraft), [policyDraft]);
     const [showTiers, setShowTiers] = useState(false);
 
     const monthShifts = useMemo(() => allShifts.filter(shift =>
         shift.business_date.startsWith(selectedMonth),
     ), [allShifts, selectedMonth]);
-    const scenario = useMemo(() => shareSelection(monthShifts, selectedMonth, eligibleIds),
-        [monthShifts, selectedMonth, eligibleIds]);
-    const flat = flatShareScenario(scenario.eligibleRevenue);
-    const marginal = marginalShareScenario(scenario.eligibleRevenue);
+    const scenario = useMemo(() => shareSelection(monthShifts, selectedMonth, eligibleIds, policy),
+        [monthShifts, selectedMonth, eligibleIds, policy]);
+    const flat = policy ? flatShareScenario(scenario.eligibleRevenue, policy) : null;
+    const marginal = policy ? marginalShareScenario(scenario.eligibleRevenue, policy) : null;
     const flatNet = netShareScenario(flat, costs);
     const marginalNet = netShareScenario(marginal, costs);
     const hasCosts = Object.values(costs).every(value => parseDraftYen(value) !== null);
-    const progressTarget = scenario.next?.atYen ?? SHARE_CAP_THRESHOLD_YEN;
+    const brackets = policy ? shareBrackets(policy) : [];
+    const capThreshold = brackets[brackets.length - 1]?.from ?? 0;
+    const progressTarget = scenario.next?.atYen ?? capThreshold;
     const progress = Math.max(0, Math.min(100,
-        (scenario.eligibleRevenue ?? 0) / progressTarget * 100));
+        progressTarget > 0 ? (scenario.eligibleRevenue ?? 0) / progressTarget * 100 : 0));
 
     function selectMonth(value: string) {
         setMonth(value);
@@ -67,6 +72,7 @@ export default function AdminManagerShare({ person, locale, shifts }: Props) {
     function reset() {
         setEligibleIds(new Set());
         setCosts({ ...blankShareCosts });
+        setPolicyDraft({ ...defaultSharePolicyDraft });
     }
 
     return (
@@ -84,9 +90,44 @@ export default function AdminManagerShare({ person, locale, shifts }: Props) {
                 : "Not a payslip. The API does not yet provide a revenue-share plan or verified shift-manager assignments. Manually select candidate shifts for a temporary scenario. Nothing is saved or used for payroll."}</Notice>
 
             <Card>
+                <h5>{ja ? "1. 歩合給ルールの編集案" : "1. Adjust revenue-share rule (unsaved draft)"}</h5>
+                <Muted>{ja
+                    ? "ChuckさんとNoriさんだけがこの編集画面を利用できます。これらの条件は試算用で、サーバーには保存されません。"
+                    : "Chuck and Nori can adjust this proposed policy here. Changes affect the local preview only and are NOT saved to the server."}</Muted>
+                <CostFields>
+                    {([
+                        ["baseRate", ja ? "開始歩合率（%）" : "Starting share (%)"],
+                        ["firstThresholdYen", ja ? "最初の昇格売上（円）" : "First tier threshold (JPY)"],
+                        ["stepYen", ja ? "昇格ごとの売上幅（円）" : "Revenue per tier step (JPY)"],
+                        ["incrementPoints", ja ? "1段階の上昇率（%）" : "Increase per step (percentage points)"],
+                        ["capRate", ja ? "歩合率の上限（%・暫定）" : "Maximum share (% — proposed cap)"],
+                    ] as const).map(([key, label]) => (
+                        <label key={key}>{label}
+                            <input type="number" min={key === "baseRate" ? "0" : "1"}
+                                max={key === "firstThresholdYen" || key === "stepYen" ? "1000000000" : "100"}
+                                step="1" value={policyDraft[key]}
+                                onChange={event => setPolicyDraft(previous => ({
+                                    ...previous, [key]: event.target.value,
+                                }))} />
+                        </label>
+                    ))}
+                </CostFields>
+                {policy ? <Tiny role="status">{ja
+                    ? `試算ルール：${policy.baseRate}%から開始、${yen(policy.firstThresholdYen, locale)}で初回昇格、以後${yen(policy.stepYen, locale)}ごとに+${policy.incrementPoints}ポイント。上限${policy.capRate}%（すべて未保存）。`
+                    : `Draft: start at ${policy.baseRate}%, first increase at ${yen(policy.firstThresholdYen, locale)}, then +${policy.incrementPoints} points per ${yen(policy.stepYen, locale)}, up to ${policy.capRate}%. Not saved.`}</Tiny>
+                    : <Notice role="alert">{ja ? "有効な数値を入力してください。上限は開始率以上、最大100%です。" : "Enter valid whole numbers. The cap must be at least the starting rate and no greater than 100%."}</Notice>}
+                <Actions>
+                    <button type="button" className="small hollow secondary"
+                        onClick={() => setPolicyDraft({ ...defaultSharePolicyDraft })}>
+                        {ja ? "40〜60%の初期案に戻す" : "Restore proposed 40–60% tiers"}
+                    </button>
+                    <button type="button" disabled>{ja ? "ルールを保存（未対応）" : "Save pay rule — unavailable"}</button>
+                </Actions>
+            </Card>
+            <Card>
                 <CardHeader>
                     <div>
-                        <h5>{ja ? "1. 対象月と担当シフト" : "1. Month and qualifying shifts"}</h5>
+                        <h5>{ja ? "2. 対象月と担当シフト" : "2. Month and qualifying shifts"}</h5>
                         <Muted>{ja
                             ? "Chuckさんが実際にマネージャーを担当した夜だけを選択。Noriさんの夜は含めないでください。"
                             : "Select only nights when Chuck was the designated manager. Exclude Nori's shifts. This is not an official assignment."}</Muted>
@@ -125,7 +166,7 @@ export default function AdminManagerShare({ person, locale, shifts }: Props) {
             </Card>
 
             <Card>
-                <h5>{ja ? "2. 月間売上とレート" : "2. Monthly qualifying revenue and tiers"}</h5>
+                <h5>{ja ? "3. 月間売上とレート" : "3. Monthly qualifying revenue and tiers"}</h5>
                 <Metrics>
                     <Metric><span>{ja ? "選択したシフト" : "Selected shifts"}</span><strong>{scenario.selected.length}</strong></Metric>
                     <Metric><span>{ja ? "対象売上（仮）" : "Qualifying revenue (preview)"}</span>
@@ -137,8 +178,8 @@ export default function AdminManagerShare({ person, locale, shifts }: Props) {
                     <Metric><span>{ja ? "次のレート" : "Next tier"}</span>
                         <strong>{scenario.next
                             ? scenario.next.rate + "% · " + yen(scenario.next.remainingYen, locale)
-                            : scenario.tierRate === SHARE_PROPOSED_CAP
-                                ? (ja ? "上限 60%（暫定）" : "Proposed cap: 60%")
+                            : policy !== null && scenario.tierRate === policy.capRate
+                                ? (ja ? `上限 ${policy.capRate}%（暫定）` : `Proposed cap: ${policy.capRate}%`)
                                 : "—"}</strong>
                     </Metric>
                 </Metrics>
@@ -150,7 +191,7 @@ export default function AdminManagerShare({ person, locale, shifts }: Props) {
                         </Bar>
                         <Tiny>{scenario.next
                             ? (ja ? "次の条件 " : "Next threshold: ") + yen(scenario.next.atYen, locale)
-                            : (ja ? "暫定上限：60%" : "Proposed rate ceiling: 60%")}</Tiny>
+                            : (ja ? `暫定上限：${policy?.capRate ?? "—"}%` : `Proposed rate ceiling: ${policy?.capRate ?? "—"}%`)}</Tiny>
                     </div>
                 ) : <Muted>{ja ? "担当シフトを確認・選択してください。" : "Select a verified-by-you qualifying shift to preview a tier."}</Muted>}
                 {scenario.selectedOpen > 0 ? <Notice role="note">{ja
@@ -164,19 +205,19 @@ export default function AdminManagerShare({ person, locale, shifts }: Props) {
                     {showTiers ? (ja ? "レート表を閉じる" : "Hide tier schedule")
                         : (ja ? "レート表を見る" : "View tier schedule")}
                 </button>
-                {showTiers ? (
+                {showTiers && policy ? (
                     <TierScroll>
                         <TierTable>
                             <thead><tr>
                                 <th>{ja ? "対象月間売上" : "Monthly eligible revenue"}</th>
                                 <th>{ja ? "レート" : "Rate"}</th>
                             </tr></thead>
-                            <tbody>{shareBrackets().map(tier => (
+                            <tbody>{brackets.map(tier => (
                                 <tr key={tier.rate} aria-current={scenario.tierRate === tier.rate ? "true" : undefined}>
                                     <td>{yen(tier.from, locale)}{tier.to === null
                                         ? " +"
                                         : " – " + yen(tier.to, locale)}</td>
-                                    <td>{tier.rate}%{tier.rate === SHARE_PROPOSED_CAP ? (ja ? "（暫定上限）" : " (proposed cap)") : ""}</td>
+                                    <td>{tier.rate}%{tier.rate === policy.capRate ? (ja ? "（暫定上限）" : " (proposed cap)") : ""}</td>
                                 </tr>
                             ))}</tbody>
                         </TierTable>
@@ -185,7 +226,7 @@ export default function AdminManagerShare({ person, locale, shifts }: Props) {
             </Card>
 
             <Card>
-                <h5>{ja ? "3. 売上配分の計算例" : "3. Illustrative gross-share calculations"}</h5>
+                <h5>{ja ? "4. 売上配分の計算例" : "4. Illustrative gross-share calculations"}</h5>
                 <Notice role="note">{ja
                     ? "料率を月間対象売上全体に適用する方式と、各段階にのみ適用する方式のどちらが正しいか未確認です。両方とも実際の給与額ではありません。"
                     : "The actual policy has NOT established whether a new tier reprices the entire month's eligible revenue or only the marginal slice. Neither scenario is an approved salary."}</Notice>
@@ -198,7 +239,7 @@ export default function AdminManagerShare({ person, locale, shifts }: Props) {
             </Card>
 
             <Card>
-                <h5>{ja ? "4. スタッフ費用・調整額（試算入力）" : "4. Staff costs and adjustments (temporary inputs)"}</h5>
+                <h5>{ja ? "5. スタッフ費用・調整額（試算入力）" : "5. Staff costs and adjustments (temporary inputs)"}</h5>
                 <Muted>{ja
                     ? "未取得の費用を0円とみなさないため、初期値は空欄です。入力しても保存されません。"
                     : "Unknown amounts start blank, never zero. Enter verified amounts only; these values are not stored."}</Muted>
