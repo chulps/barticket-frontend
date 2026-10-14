@@ -3,7 +3,7 @@ import styled from "styled-components";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError } from "../api/client";
-import { localeTag, type Locale } from "../i18n";
+import { type Locale } from "../i18n";
 import { buildStaffActivity, recordedStaffTotals } from "./staffProfileData";
 import AdminTeamEditors, { type AdminDrinkLine } from "./AdminTeamEditors";
 import AdminManagerShare from "./AdminManagerShare";
