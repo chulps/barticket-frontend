@@ -1,19 +1,23 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 
 import { accountApi, type Account } from "../api/account";
 import { ApiError } from "../api/client";
 import { useI18n } from "../i18n";
 import { confirmAccountRole } from "./adminAccountRole";
+import AdminTeam from "./AdminTeam";
 
 /**
- * Phase 1: manager-only dashboard and account administration.
- * Other Admin features remain behind their later-phase backend milestones.
- * Permission checks are also enforced by the manager-only backend /users APIs.
+ * Manager-only dashboard: Phase 1 accounts plus frontend-only Team editor previews.
+ * Role access is checked via /auth/me before rendering any team view.
+ * All privileged account writes are additionally enforced by backend /users APIs.
+ * Team rate/time/drinkback controls never write to the backend.
  */
 export default function Admin() {
     const { t, locale } = useI18n();
+    const navigate = useNavigate();
+    const { staffId } = useParams<{ staffId: string }>();
     const [me, setMe] = useState<Account | null>(null);
     const [team, setTeam] = useState<Account[]>([]);
     const [loading, setLoading] = useState(true);
@@ -21,7 +25,23 @@ export default function Admin() {
     const [accountsError, setAccountsError] = useState("");
     const [accountsLoading, setAccountsLoading] = useState(false);
     const [busy, setBusy] = useState(false);
-    const [section, setSection] = useState<"overview" | "accounts">("overview");
+    const [section, setSection] = useState<"overview" | "accounts" | "team">(
+        () => staffId === undefined ? "overview" : "team",
+    );
+    const activeSection = staffId === undefined ? section : "team";
+    const selectedId = staffId === undefined ? null
+        : /^[1-9][0-9]*$/.test(staffId) && Number.isSafeInteger(Number(staffId))
+            ? Number(staffId) : -1;
+
+    function chooseSection(next: "overview" | "accounts" | "team") {
+        setSection(next);
+        if (staffId !== undefined) navigate("/admin");
+    }
+
+    function chooseMember(id: number | null) {
+        setSection("team");
+        navigate(id === null ? "/admin" : `/admin/staff/${id}`);
+    }
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -114,22 +134,23 @@ export default function Admin() {
             </header>
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             <Tabs role="tablist" aria-label={locale === "ja" ? "管理メニュー" : "Admin sections"}>
-                {(["overview", "accounts"] as const).map((key) => (
+                {(["overview", "accounts", "team"] as const).map((key) => (
                     <button
                         key={key}
                         type="button"
                         role="tab"
-                        aria-selected={section === key}
-                        className={section === key ? "secondary" : "hollow secondary"}
-                        onClick={() => setSection(key)}
+                        aria-selected={activeSection === key}
+                        className={activeSection === key ? "secondary" : "hollow secondary"}
+                        onClick={() => chooseSection(key)}
                     >
                         {key === "overview"
                             ? (locale === "ja" ? "概要" : "Overview")
-                            : (locale === "ja" ? "アカウント" : "Accounts")}
+                            : key === "accounts" ? (locale === "ja" ? "アカウント" : "Accounts")
+                                : (locale === "ja" ? "チーム" : "Team")}
                     </button>
                 ))}
             </Tabs>
-            {section === "overview" ? (
+            {activeSection === "overview" ? (
                 <>
                     <SummaryGrid>
                         <Section>
@@ -149,14 +170,14 @@ export default function Admin() {
                     <Section>
                         <h2>{locale === "ja" ? "アカウント管理" : "Manage accounts"}</h2>
                         <p>{locale === "ja"
-                            ? "アカウントタブでメンバーを追加・削除できます。スタッフ管理、シフト管理、給与、設定は今後のフェーズで追加します。"
-                            : "Create and remove team accounts in the Accounts tab. Staff records, shift management, payroll and settings will be added in later phases."}</p>
-                        <button type="button" className="small secondary" onClick={() => setSection("accounts")}>
+                            ? "アカウントタブでメンバーを追加・削除できます。チームタブでは記録の確認と未保存の編集プレビューができます。実際の給与や修正の保存にはバックエンドが必要です。"
+                            : "Create and remove accounts in Accounts. Team lets you review recorded activity and draft unsaved pay/time/bonus changes; saving requires future backend APIs."}</p>
+                        <button type="button" className="small secondary" onClick={() => chooseSection("accounts")}>
                             {locale === "ja" ? "アカウントを表示" : "View accounts"}
                         </button>
                     </Section>
                 </>
-            ) : (
+            ) : activeSection === "accounts" ? (
                 <Grid>
                     <Section>
                         <h2>{t("team")} ({accountsError ? "—" : team.length})</h2>
@@ -214,6 +235,14 @@ export default function Admin() {
                         </form>
                     </Section>
                 </Grid>
+            ) : (
+                <AdminTeam
+                    people={team}
+                    accountsError={accountsError}
+                    locale={locale}
+                    selectedId={selectedId}
+                    onSelect={chooseMember}
+                />
             )}
         </Page>
     );
@@ -267,7 +296,7 @@ const Who = styled.div`
 `;
 const Tabs = styled.div`
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--space-1);
     button { min-width: 0; width: 100%; }
 `;
