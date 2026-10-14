@@ -11,7 +11,13 @@ const transpiled = ts.transpileModule(policy, {
 const { confirmAccountRole } = await import("data:text/javascript," + encodeURIComponent(transpiled));
 
 test("Admin renders Overview, Accounts and frontend-only Team, not unfinished phase tabs", () => {
-    assert.match(admin, /\["overview", "accounts", "team"\] as const/);
+    assert.match(admin, /import TabGroup from "\.\.\/components\/TabGroup"/);
+    assert.match(admin, /<TabGroup\b/);
+    assert.match(admin, /activeTab=\{activeSection\}/);
+    assert.match(admin, /onChange=\{chooseSection\}/);
+    for (const section of ["overview", "accounts", "team"]) {
+        assert.match(admin, new RegExp(`\\{ id: "${section}", label:`));
+    }
     for (const later of ["shifts", "history", "payroll", "settings"]) {
         assert.doesNotMatch(admin, new RegExp(`section === "${later}"`));
     }
