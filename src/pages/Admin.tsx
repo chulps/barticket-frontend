@@ -237,6 +237,7 @@ export default function Admin() {
                 </Grid>
             ) : (
                 <AdminTeam
+                    viewer={me}
                     people={team}
                     accountsError={accountsError}
                     locale={locale}
