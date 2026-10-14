@@ -140,7 +140,7 @@ export default function TicketItems({
                             item.staff_drink
                                 ? [item.staff_name, item.drink_name].filter(Boolean).join(" · ") || item.name
                                 : item.type === "cover"
-                                    ? t("coverCharge")
+                                    ? `${t("coverCharge")}${(ticket.returningGuestCount ?? 0) ? ` · ${ticket.returningGuestCount} returning` : ""}${(ticket.waivedCoverCount ?? 0) ? ` · ${ticket.waivedCoverCount} waived` : ""}`
                                     : menuLabel(
                                         locale,
                                         menu?.items.find((row) => row.id === item.menu_item_id)?.name ?? item.name,

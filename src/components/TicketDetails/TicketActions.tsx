@@ -20,7 +20,7 @@ type TicketActionsProps = {
     onPayTicket: (
         ticketId: number,
         paymentType: PaymentType,
-    ) => void;
+    ) => Promise<boolean>;
 
     onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => void;
 };

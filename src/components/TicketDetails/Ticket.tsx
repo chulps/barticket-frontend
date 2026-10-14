@@ -56,7 +56,7 @@ type TicketDetailsProps = {
     onPayTicket: (
         ticketId: number,
         paymentType: PaymentType,
-    ) => void;
+    ) => Promise<boolean>;
 
     onClose: () => void;
     onPrevious: () => void;

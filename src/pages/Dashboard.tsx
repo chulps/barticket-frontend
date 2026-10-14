@@ -176,11 +176,12 @@ export default function Dashboard({
     ticketId: number,
     paymentType: PaymentType,
   ) => {
-    if (!(await payTicket(ticketId, paymentType))) return;
+    if (!(await payTicket(ticketId, paymentType))) return false;
 
     setActiveTab("paid");
     setSelectedTicketId(ticketId);
     setShowTicketDetails(true);
+    return true;
   };
 
   const handleReopenTicket = async (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => {

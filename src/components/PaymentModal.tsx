@@ -13,7 +13,7 @@ type IconName = React.ComponentProps<typeof Icon>["name"];type PaymentType = "ca
 
 type PaymentModalProps = {
     ticket: Ticket;
-    onConfirm: (paymentType: PaymentType) => void;
+    onConfirm: (paymentType: PaymentType) => Promise<boolean>;
 };
 
 
@@ -49,15 +49,21 @@ export default function PaymentModal({
     const [paymentType, setPaymentType] =
         useState<PaymentType>("cash");
 
+    const [submitting, setSubmitting] = useState(false);
     const [step, setStep] =
         useState<"select" | "success">("select");
 
     const ticketTotal = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
     const total = ticket.balanceDue ?? Math.max(0, ticketTotal - (ticket.amountPaid ?? 0));
 
-    const handleConfirm = () => {
-        onConfirm(paymentType);
-        setStep("success");
+    const handleConfirm = async () => {
+        if (submitting) return;
+        setSubmitting(true);
+        try {
+            if (await onConfirm(paymentType)) setStep("success");
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     if (step === "success") {
@@ -109,7 +115,7 @@ export default function PaymentModal({
                     {t("cancel")}
                 </button>
 
-                <button onClick={handleConfirm}>
+                <button onClick={handleConfirm} disabled={submitting}>
                     {t("confirmPayment")}
                 </button>
             </Footer>

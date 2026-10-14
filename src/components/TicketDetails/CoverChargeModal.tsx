@@ -12,7 +12,7 @@ export default function CoverChargeModal({ ticket, tickets, mode, onCancel, onSa
     const [waived, setWaived] = useState(ticket.waivedCoverCount ?? 0);
     const [source, setSource] = useState<number | null>(ticket.returningFromTicketId ?? null);
     const [reason, setReason] = useState(ticket.coverAdjustmentReason ?? "");
-    const candidates = tickets.filter(row => row.id !== ticket.id && row.shiftId === ticket.shiftId && row.status === "paid" && ((row.guestCount ?? 0) - (row.returningGuestCount ?? 0) - (row.waivedCoverCount ?? 0)) > 0 && (row.amountPaid ?? 0) > 0);
+    const candidates = tickets.filter(row => row.id !== ticket.id && row.shiftId === ticket.shiftId && row.status === "paid" && ((row.guestCount ?? 0) - (row.returningGuestCount ?? 0) - (row.waivedCoverCount ?? 0)) > 0 && (row.amountPaid ?? 0) > 0 && (row.items.find(item => item.type === "cover")?.subtotal ?? 0) > 0);
     const sourceTicket = candidates.find(row => row.id === source);
     const availableOnSource = sourceTicket ? (sourceTicket.guestCount ?? 0) - (sourceTicket.returningGuestCount ?? 0) - (sourceTicket.waivedCoverCount ?? 0) : 0;
     const valid = guestCount > 0 && returning >= 0 && waived >= 0 && returning + waived <= guestCount && (returning === 0 || (source !== null && availableOnSource >= returning));
