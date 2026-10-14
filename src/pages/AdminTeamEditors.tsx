@@ -1,6 +1,7 @@
 import { useState } from "react";
 import styled from "styled-components";
 import type { Account } from "../api/account";
+import TabGroup from "../components/TabGroup";
 import { localeTag, type Locale } from "../i18n";
 import type { StaffActivityRow } from "./staffProfileData";
 import {
@@ -66,19 +67,15 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                     ? "現在のAPIには給与・ドリンクバック設定や修正を保存する機能がありません。入力内容は保存・送信されず、画面を離れると消えます。実際の給与にも反映されません。"
                     : "The current API cannot save pay terms, drinkback rules or corrections. Drafts are not submitted or stored and are lost when you leave this profile. No payroll or ticket amounts are changed."}
             </Notice>
-            <EditorTabs role="tablist" aria-label={ja ? "スタッフ管理タブ" : "Staff management tabs"}>
-                {(["terms", "time", "drinks"] as const).map(key => (
-                    <button
-                        key={key} type="button" role="tab"
-                        className={tab === key ? "secondary" : "hollow secondary"}
-                        aria-selected={tab === key}
-                        onClick={() => setTab(key)}>
-                        {key === "terms" ? (ja ? "給与・レート" : "Pay & rates")
-                            : key === "time" ? (ja ? "勤務時間" : "Time corrections")
-                                : (ja ? "ドリンク手当" : "Drink bonuses")}
-                    </button>
-                ))}
-            </EditorTabs>
+            <TabGroup
+                tabs={[
+                    { id: "terms", label: ja ? "給与・レート" : "Pay & rates" },
+                    { id: "time", label: ja ? "勤務時間" : "Time corrections" },
+                    { id: "drinks", label: ja ? "ドリンク手当" : "Drink bonuses" },
+                ]}
+                activeTab={tab}
+                onChange={setTab}
+            />
 
             {tab === "terms" ? (
                 <Content role="tabpanel">
@@ -283,11 +280,7 @@ const Notice = styled.p`
     padding:var(--space-2); border:1px solid var(--neutral-600); border-radius:8px;
     color:var(--neutral-300); line-height:1.5;
 `;
-const EditorTabs = styled.div`
-    display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-1);
-    @media(min-width:860px){grid-template-columns:repeat(3,minmax(0,1fr));}
-    button {min-width:0; width:100%;}
-`;
+
 const Content = styled.div`display:flex; flex-direction:column; gap:var(--space-2); min-width:0;`;
 const Intro = styled.div`display:flex; flex-direction:column; gap:4px; p{color:var(--neutral-300);}`;
 const Card = styled.section`
