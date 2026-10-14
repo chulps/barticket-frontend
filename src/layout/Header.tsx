@@ -188,6 +188,17 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           </SecondaryNavLink>
         ) : null}
 
+        {isManager ? (
+          <SecondaryNavLink onClick={() => setIsOpen(false)} to="/admin">
+            {({ isActive }) => (
+              <>
+                <Icon name="GearSix" weight={isActive ? "fill" : "regular"} />
+                {locale === "ja" ? "管理" : "Admin"}
+              </>
+            )}
+          </SecondaryNavLink>
+        ) : null}
+
         <SecondaryNavLink
           onClick={() => setIsOpen(false)}
           to="/profile">
@@ -237,6 +248,11 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           </MoreButton>
           {moreOpen ? (
             <MoreDropdown id="desktop-more-menu">
+              {isManager ? (
+                <MoreLink to="/admin" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+                  <Icon name="GearSix" />{locale === "ja" ? "管理" : "Admin"}
+                </MoreLink>
+              ) : null}
               <MoreLink to="/profile" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
                 <Icon name="UserCircle" />{userName ?? t("profile")}
               </MoreLink>

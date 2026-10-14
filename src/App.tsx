@@ -12,6 +12,7 @@ import {
 import Header from "./layout/Header";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
+import Admin from "./pages/Admin";
 import Menu from "./pages/Menu";
 import Analytics from "./pages/Analytics";
 import Notifications from "./pages/Notifications";
@@ -157,6 +158,7 @@ export default function App() {
             menu={menu}
             loadingMenu={loadingMenu} /> : <Navigate to="/" replace />} />
 
+          <Route path="/admin" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
           <Route path="/profile" element={authenticated === null ? null : authenticated ? <Profile /> : <Navigate to="/" replace />} />
 
           <Route path="/menu" element={authenticated === null ? null : authenticated ? <Menu
