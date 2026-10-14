@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useMatch, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 
 import { accountApi, type Account } from "../api/account";
@@ -8,6 +8,7 @@ import TabGroup from "../components/TabGroup";
 import { useI18n } from "../i18n";
 import { confirmAccountRole } from "./adminAccountRole";
 import AdminTeam from "./AdminTeam";
+import AdminAuditHistory from "./AdminAuditHistory";
 
 /**
  * Manager-only dashboard: Phase 1 accounts plus frontend-only Team editor previews.
@@ -19,6 +20,7 @@ export default function Admin() {
     const { t, locale } = useI18n();
     const navigate = useNavigate();
     const { staffId } = useParams<{ staffId: string }>();
+    const auditRoute = useMatch("/admin/staff/:staffId/audit");
     const [me, setMe] = useState<Account | null>(null);
     const [team, setTeam] = useState<Account[]>([]);
     const [loading, setLoading] = useState(true);
@@ -126,6 +128,21 @@ export default function Admin() {
         </Page>
     );
     if (me?.role !== "manager") return <Navigate to="/profile" replace />;
+
+    if (auditRoute) {
+        const person = team.find(member => member.id === selectedId);
+        if (!person) return (
+            <Page>
+                <h1>{locale === "ja" ? "変更履歴" : "Audit history"}</h1>
+                <ErrorText role="alert">{accountsError || (locale === "ja" ? "メンバーが見つかりません" : "Team member not found")}</ErrorText>
+                <button type="button" className="small secondary" onClick={() => navigate("/admin")}>
+                    {locale === "ja" ? "チームに戻る" : "Back to Admin"}
+                </button>
+            </Page>
+        );
+        return <AdminAuditHistory person={person} locale={locale}
+            onBack={() => navigate("/admin/staff/" + person.id)} />;
+    }
 
     return (
         <Page>
@@ -236,6 +253,7 @@ export default function Admin() {
                     locale={locale}
                     selectedId={selectedId}
                     onSelect={chooseMember}
+                    onAudit={(id) => navigate("/admin/staff/" + id + "/audit")}
                 />
             )}
         </Page>
