@@ -33,6 +33,11 @@ jobs:
           BASE_PATH: /${{ github.event.repository.name }}/
           # Set under Settings > Secrets and variables > Actions > Variables.
           VITE_API_URL: ${{ vars.VITE_API_URL }}
+          # UI allowlist IDs are public client-side values, not authorization.
+          # Leave unset until real user IDs are verified. Private pay APIs must
+          # enforce a separate server-side Chuck/Nori manager policy.
+          VITE_REVENUE_SHARE_CHUCK_USER_ID: ${{ vars.VITE_REVENUE_SHARE_CHUCK_USER_ID }}
+          VITE_REVENUE_SHARE_NORI_USER_ID: ${{ vars.VITE_REVENUE_SHARE_NORI_USER_ID }}
 
       # GitHub Pages has no SPA rewrites; serve the app for deep links like /menu.
       - run: cp dist/index.html dist/404.html
