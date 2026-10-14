@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
 import { localeTag, readLocale, translate, useI18n } from "../i18n";
+import StaffWorkHistory from "./StaffWorkHistory";
 
 export default function Profile() {
     const { t, locale } = useI18n();
@@ -72,7 +73,7 @@ export default function Profile() {
     );
 
     return (
-        <Page>
+        <Page $signedIn={Boolean(account)}>
             <h1>{t("account")}</h1>
             {error ? <ErrorText>{error}</ErrorText> : null}
 
@@ -172,6 +173,8 @@ export default function Profile() {
                         ) : null}
                     </Section>
 
+                    <StaffWorkHistory key={account.id} userId={account.id} locale={locale} />
+
                     <Section>
                         <Who>
                             <strong>{account.name}</strong>
@@ -237,9 +240,9 @@ export default function Profile() {
     );
 }
 
-const Page = styled.main`
+const Page = styled.main<{ $signedIn: boolean }>`
     width: 100%;
-    max-width: 480px;
+    max-width: ${({ $signedIn }) => $signedIn ? "960px" : "480px"};
     padding: var(--space-2) 0;
     display: flex;
     flex-direction: column;
@@ -256,6 +259,8 @@ const Page = styled.main`
 `;
 
 const Section = styled.section`
+    width: 100%;
+    max-width: 580px;
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
