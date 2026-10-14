@@ -10,9 +10,9 @@ const transpiled = ts.transpileModule(policy, {
 }).outputText;
 const { confirmAccountRole } = await import("data:text/javascript," + encodeURIComponent(transpiled));
 
-test("Phase 1 renders only Overview and Accounts, not the unfinished Admin phases", () => {
-    assert.match(admin, /\["overview", "accounts"\] as const/);
-    for (const later of ["staff", "shifts", "history", "payroll", "settings"]) {
+test("Admin renders Overview, Accounts and frontend-only Team, not unfinished phase tabs", () => {
+    assert.match(admin, /\["overview", "accounts", "team"\] as const/);
+    for (const later of ["shifts", "history", "payroll", "settings"]) {
         assert.doesNotMatch(admin, new RegExp(`section === "${later}"`));
     }
     assert.doesNotMatch(admin, /accountApi\.closedShifts\(/);
