@@ -55,7 +55,8 @@ export default function Dashboard({
     createTicket,
     cancelTicket,
     payTicket,
-    reopenTicket
+    reopenTicket,
+    adjustCover
   } = useTickets();
 
   useEffect(() => {
@@ -182,8 +183,8 @@ export default function Dashboard({
     setShowTicketDetails(true);
   };
 
-  const handleReopenTicket = async (ticketId: number) => {
-    if (!(await reopenTicket(ticketId))) return;
+  const handleReopenTicket = async (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => {
+    if (!(await reopenTicket(ticketId, reason))) return;
 
     setActiveTab("open");
     setSelectedTicketId(ticketId);
@@ -251,6 +252,7 @@ export default function Dashboard({
             activeTab={activeTab}
             onPayTicket={handlePayTicket}
             onReopenTicket={handleReopenTicket}
+            onAdjustCover={adjustCover}
           />
         ) : (
           <EmptyTicketDetails>

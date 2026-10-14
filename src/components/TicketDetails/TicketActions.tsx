@@ -22,7 +22,7 @@ type TicketActionsProps = {
         paymentType: PaymentType,
     ) => void;
 
-    onReopenTicket: (ticketId: number) => void;
+    onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => void;
 };
 
 export default function TicketActions({
@@ -34,6 +34,23 @@ export default function TicketActions({
 }: TicketActionsProps) {
     const { openModal, closeModal } = useModal();
     const { t, locale } = useI18n();
+
+    const confirmReopen = () => {
+        openModal({ title: locale === "ja" ? "チケットを再開" : "Reopen ticket?",
+            content: <ConfirmCancellation>
+                <p>{locale === "ja" ? "再開する理由を選択してください。" : "Why are you reopening this paid ticket?"}</p>
+                <button type="button" onClick={() => { closeModal(); onReopenTicket(ticket.id, "customer_returned"); }}>
+                    Customer returned / 再来店<br/><small>Keep the original payment; charge only new orders.</small>
+                </button>
+                <button type="button" className="hollow danger" onClick={() => {
+                    if (!window.confirm("Manager correction: void the recorded payment? Only use if payment was recorded by mistake.")) return;
+                    closeModal(); onReopenTicket(ticket.id, "closed_by_mistake");
+                }}>
+                    Closed by mistake / 誤って会計済<br/><small>Manager only · voids previous payment in the audit history.</small>
+                </button>
+                <button type="button" className="hollow secondary" onClick={closeModal}>Cancel</button>
+            </ConfirmCancellation> });
+    };
 
     const confirmCancellation = () => {
         openModal({
@@ -98,7 +115,7 @@ export default function TicketActions({
 
                 <ActionButton
                     className="hollow"
-                    onClick={() => onReopenTicket(ticket.id)}
+                    onClick={confirmReopen}
                 >
                     <Icon name="ArrowCounterClockwise" />
                     {t("reopenTicket")}

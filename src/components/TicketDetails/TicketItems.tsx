@@ -8,6 +8,7 @@ import styled from "styled-components";
 
 // UI components
 import TicketDetailItem from "./TicketItem";
+import CoverChargeModal from "./CoverChargeModal";
 import Icon from "../Icon";
 import AddItemPicker from "../AddItemPicker";
 
@@ -47,6 +48,8 @@ type TicketItemsProps = {
 
     onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => void;
 
+    onAdjustCover: (ticketId: number, adjustment: { returning_guest_count: number; waived_cover_count: number; returning_from_ticket_id: number | null; reason: string }) => void;
+
     onAddItem: (
         ticketId: number,
         menuItem: MenuItem,
@@ -68,11 +71,18 @@ export default function TicketItems({
     onRemoveItem,
     onAddItem,
     onAddStaffDrink,
+    onAdjustCover,
 }: TicketItemsProps) {
     const { openModal, closeModal } = useModal();
     const { t, locale } = useI18n();
 
     const isEditable = activeTab === "open";
+    const openCoverModal = (mode: "returning" | "waiver") => {
+        openModal({ title: mode === "returning" ? "Returning Customer / 再来店" : "Waive Cover Charge / チャージ免除",
+            content: <CoverChargeModal ticket={ticket} tickets={tickets} mode={mode}
+                onCancel={closeModal}
+                onSave={(adjustment) => { onAdjustCover(ticket.id, adjustment); closeModal(); }} /> });
+    };
 
     return (
         <Items>
@@ -138,6 +148,10 @@ export default function TicketItems({
                         }
                         unitPrice={item.unit_price}
                         quantity={item.quantity}
+                        subtotal={item.subtotal}
+                        isCover={item.type === "cover"}
+                        onReturningCustomer={() => openCoverModal("returning")}
+                        onWaiveCover={() => openCoverModal("waiver")}
                         activeTab={activeTab}
                         isEditingPrice={editingPriceItemId === item.id}
                         onIncrease={() =>

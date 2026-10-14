@@ -52,10 +52,8 @@ export default function PaymentModal({
     const [step, setStep] =
         useState<"select" | "success">("select");
 
-    const total = ticket.items.reduce(
-        (sum, item) => sum + item.subtotal,
-        0
-    );
+    const ticketTotal = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
+    const total = ticket.balanceDue ?? Math.max(0, ticketTotal - (ticket.amountPaid ?? 0));
 
     const handleConfirm = () => {
         onConfirm(paymentType);
@@ -81,6 +79,7 @@ export default function PaymentModal({
     return (
         <Container>
             <TotalContainer>
+                {(ticket.amountPaid ?? 0) > 0 && <small>Previously paid: ¥{ticket.amountPaid?.toLocaleString()}</small>}
                 <Amount>
                     ¥{total.toLocaleString()}
                 </Amount>

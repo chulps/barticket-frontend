@@ -11,6 +11,10 @@ type TicketDetailItemProps = {
     name: string;
     unitPrice: number;
     quantity: number;
+    subtotal?: number;
+    isCover?: boolean;
+    onReturningCustomer?: () => void;
+    onWaiveCover?: () => void;
 
     isEditingPrice: boolean;
     pending?: boolean;
@@ -28,6 +32,10 @@ export default function TicketDetailItem({
     name,
     unitPrice,
     quantity,
+    subtotal: lineSubtotal,
+    isCover = false,
+    onReturningCustomer,
+    onWaiveCover,
     isEditingPrice,
     pending = false,
     onIncrease,
@@ -38,7 +46,7 @@ export default function TicketDetailItem({
     activeTab
 }: TicketDetailItemProps) {
     const { t } = useI18n();
-    const subtotal = unitPrice * quantity;
+    const subtotal = lineSubtotal ?? unitPrice * quantity;
 
     const [priceInput, setPriceInput] = useState(unitPrice.toString());
 
@@ -72,7 +80,7 @@ export default function TicketDetailItem({
                 ) : (
                     <Price
                         onClick={() => {
-                            if (!isEditable) return;
+                            if (isCover || !isEditable) return;
                             setPriceInput(unitPrice.toString());
                             onAdjustPrice();
                         }}
@@ -84,7 +92,7 @@ export default function TicketDetailItem({
 
             <Controls>
                 <QuantityButton 
-                    disabled={!isEditable}
+                    disabled={!isEditable || isCover}
                     onClick={onIncrease}>
                     <PlusWrapper>
                         <Icon name="Plus" />
@@ -98,7 +106,7 @@ export default function TicketDetailItem({
                 <Quantity>{quantity}</Quantity>
 
                 <QuantityButton 
-                    disabled={!isEditable}
+                    disabled={!isEditable || isCover}
                     onClick={onDecrease}>
 
                     <MinusWrapper>
@@ -131,7 +139,16 @@ export default function TicketDetailItem({
                 >
                     {(closeMenu) => (
                         <>
-                            <DropdownMenuItem
+                            {isCover ? (
+                                <>
+                                    <DropdownMenuItem onClick={() => { closeMenu(); onReturningCustomer?.(); }}>
+                                        <Icon name="ArrowCounterClockwise" /> Returning Customer / 再来店
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => { closeMenu(); onWaiveCover?.(); }}>
+                                        <Icon name="CurrencyCircleDollar" /> Waive Cover Charge / チャージ免除
+                                    </DropdownMenuItem>
+                                </>
+                            ) : <><DropdownMenuItem
                                 onClick={() => {
                                     closeMenu();
                                     onAdjustPrice();
@@ -150,7 +167,7 @@ export default function TicketDetailItem({
                             >
                                 <Icon name="Trash" />
                                 {t("removeItem")}
-                            </DropdownMenuItem>
+                            </DropdownMenuItem></>}
                         </>
                     )}
                 </DropdownMenu>

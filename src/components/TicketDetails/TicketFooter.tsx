@@ -21,7 +21,7 @@ type TicketFooterProps = {
         paymentType: PaymentType,
     ) => void;
 
-    onReopenTicket: (ticketId: number) => void;
+    onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => void;
 };
 
 export default function TicketFooter({
@@ -41,6 +41,12 @@ export default function TicketFooter({
                     <label>{t("total")}</label>
                     <data>¥{total.toLocaleString()}</data>
                 </Row>
+                {(ticket.amountPaid ?? 0) > 0 && (
+                    <Row><label>Already paid / 支払済</label><data>−¥{ticket.amountPaid?.toLocaleString()}</data></Row>
+                )}
+                {ticket.status === "open" && (
+                    <Row><strong>Balance due / 残額</strong><strong>¥{(ticket.balanceDue ?? Math.max(0, total - (ticket.amountPaid ?? 0))).toLocaleString()}</strong></Row>
+                )}
             </Totals>
 
             <Actions>

@@ -379,9 +379,14 @@ export function useTickets() {
     return enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType));
   };
 
-  const reopenTicket = (ticketId: number) => {
+  const reopenTicket = (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => {
     flushRename(ticketId);
-    return enqueue(ticketId, () => ticketsApi.reopen(ticketId));
+    return enqueue(ticketId, () => ticketsApi.reopen(ticketId, reason));
+  };
+
+  const adjustCover = (ticketId: number, adjustment: { returning_guest_count: number; waived_cover_count: number; returning_from_ticket_id: number | null; reason: string }) => {
+    flushRename(ticketId);
+    return enqueue(ticketId, () => ticketsApi.adjustCover(ticketId, adjustment));
   };
 
   return {
@@ -396,5 +401,6 @@ export function useTickets() {
     cancelTicket,
     payTicket,
     reopenTicket,
+    adjustCover,
   };
 }

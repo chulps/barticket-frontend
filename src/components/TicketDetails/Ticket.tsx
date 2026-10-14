@@ -67,7 +67,8 @@ type TicketDetailsProps = {
 
     onUpdateName: (ticketId: number, name: string) => void;
 
-    onReopenTicket: (ticketId: number) => void;
+    onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => void;
+    onAdjustCover: (ticketId: number, adjustment: { returning_guest_count: number; waived_cover_count: number; returning_from_ticket_id: number | null; reason: string }) => void;
 };
 
 // component
@@ -90,6 +91,7 @@ export default function TicketDetails({
     hasNext,
     onUpdateName,
     onReopenTicket,
+    onAdjustCover,
 }: TicketDetailsProps) {
 
     const [editingPriceItemId, setEditingPriceItemId] = useState<number | null>(null);
@@ -134,6 +136,7 @@ export default function TicketDetails({
                 onRemoveItem={onRemoveItem}
                 onAddItem={onAddItem}
                 onAddStaffDrink={onAddStaffDrink}
+                onAdjustCover={onAdjustCover}
             />
 
             <TicketFooter

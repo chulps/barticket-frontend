@@ -3,6 +3,7 @@ export type PaymentType = "cash" | "card" | "other";
 export type Payment = {
   type: PaymentType;
   paid_at: number;
+  amount?: number;
   reference?: string;
   refunded_at?: number | null;
 };
@@ -36,4 +37,14 @@ export type Ticket = {
   shiftId: number | null;
 
   payment: Payment | null;
+  payments?: Payment[];
+  amountPaid?: number;
+  balanceDue?: number;
+  guestCount?: number;
+  returningGuestCount?: number;
+  waivedCoverCount?: number;
+  returningFromTicketId?: number | null;
+  coverChargePerPerson?: number;
+  coverAdjustedBy?: string | null;
+  coverAdjustmentReason?: string | null;
 };
