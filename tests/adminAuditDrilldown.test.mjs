@@ -11,10 +11,10 @@ const activity = read("src/pages/AdminShiftActivity.tsx");
 const audit = read("src/pages/AdminAuditHistory.tsx");
 const app = read("src/App.tsx");
 
-test("Chuck's manager salary profile omits staff pay, time, and bonus editors", () => {
-    assert.match(team, /person\.id === revenueShareViewers\.chuckUserId/);
-    assert.match(team, /revenueShareViewers\.chuckUserId !== null/);
-    assert.match(team, /!loading && !loadError && !isChuckProfile/);
+test("Manager profiles including Chuck and Nori omit staff pay, time, and bonus editors", () => {
+    assert.match(team, /const isStaffProfile = person\?\.role === "staff"/);
+    assert.match(team, /!loading && !loadError && isStaffProfile/);
+    assert.match(team, /\{isStaffProfile \? <Metric>/);
     assert.match(team, /<AdminManagerShare/);
     assert.match(team, /canSeeChuckRevenueShare\(viewer, person\.id, revenueShareViewers\)/);
     assert.doesNotMatch(team, /person\.name === ["']Chuck/);
