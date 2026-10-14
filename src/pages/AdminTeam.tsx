@@ -7,6 +7,7 @@ import { localeTag, type Locale } from "../i18n";
 import { buildStaffActivity, recordedStaffTotals } from "./staffProfileData";
 import AdminTeamEditors, { type AdminDrinkLine } from "./AdminTeamEditors";
 import AdminManagerShare from "./AdminManagerShare";
+import AdminShiftActivity from "./AdminShiftActivity";
 import { canSeeChuckRevenueShare, readRevenueShareViewers } from "./managerRevenueShareAccess";
 
 const revenueShareViewers = readRevenueShareViewers();
@@ -18,20 +19,9 @@ type Props = {
     locale: Locale;
     selectedId: number | null;
     onSelect: (id: number | null) => void;
+    onAudit: (id: number) => void;
 };
 
-function displayDate(value: string, locale: Locale) {
-    const [year, month, day] = value.split("-").map(Number);
-    return new Date(year, month - 1, day).toLocaleDateString(localeTag(locale), {
-        year: "numeric", month: "short", day: "numeric",
-    });
-}
-function formatMonth(value: string, locale: Locale) {
-    const [year, month] = value.split("-").map(Number);
-    return new Date(year, month - 1, 1).toLocaleDateString(localeTag(locale), {
-        year: "numeric", month: "long",
-    });
-}
 function hoursLabel(seconds: number) {
     return (seconds / 3600).toLocaleString(undefined, {
         minimumFractionDigits: 1, maximumFractionDigits: 1,
@@ -42,7 +32,7 @@ function hoursLabel(seconds: number) {
  * Nested under Admin's manager-only role guard; uses existing READ endpoints.
  * This panel NEVER posts time, pay or bonus changes to the API.
  */
-export default function AdminTeam({ viewer, people, accountsError, locale, selectedId, onSelect }: Props) {
+export default function AdminTeam({ viewer, people, accountsError, locale, selectedId, onSelect, onAudit }: Props) {
     const ja = locale === "ja";
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<"all" | "staff" | "manager">("all");
@@ -87,6 +77,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
     ), [people, filter, query]);
 
     const person = selectedId === null ? null : people.find(member => member.id === selectedId) ?? null;
+    const isChuckProfile = person !== null && revenueShareViewers.chuckUserId !== null && person.id === revenueShareViewers.chuckUserId;
     const shifts = useMemo(() => {
         const unique = new Map<number, ShiftReport>();
         closed.filter(shift => shift.status === "closed").forEach(shift => unique.set(shift.id, shift));
@@ -97,9 +88,6 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
     const activity = useMemo(() =>
         person ? buildStaffActivity(person.id, closed, current) : [],
     [person, closed, current]);
-    const months = useMemo(() =>
-        [...new Set(activity.map(row => row.businessDate.slice(0, 7)))].sort().reverse(),
-    [activity]);
     const filteredActivity = useMemo(() =>
         activity.filter(row => month === "all" || row.businessDate.startsWith(month)),
     [activity, month]);
@@ -186,6 +174,9 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                 <button type="button" className="small hollow secondary" onClick={() => onSelect(null)}>
                                     {ja ? "← チーム一覧" : "← Team directory"}
                                 </button>
+                                <button type="button" className="small hollow secondary" onClick={() => onAudit(person.id)}>
+                                    {ja ? "変更履歴を見る" : "View audit history"}
+                                </button>
                                 <PersonTitle>
                                     <Badge $large aria-hidden="true">{person.name.trim().slice(0, 1).toUpperCase() || "•"}</Badge>
                                     <div>
@@ -209,19 +200,11 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     <span>{ja ? "記録されたスタッフドリンク" : "Recorded drinks"}</span>
                                     <strong>{loading || loadError || totals.drinkCount === null ? "—" : totals.drinkCount}</strong>
                                 </Metric>
-                                <Metric>
+                                {!isChuckProfile ? <Metric>
                                     <span>{ja ? "現在の時給・手当" : "Current pay / bonuses"}</span>
                                     <strong>—</strong>
-                                </Metric>
+                                </Metric> : null}
                             </Summary>
-                            <Filter>
-                                <label>{ja ? "記録された期間" : "Recorded period"}
-                                    <select value={month} onChange={e => setMonth(e.target.value)}>
-                                        <option value="all">{ja ? "全期間" : "All recorded months"}</option>
-                                        {months.map(value => <option value={value} key={value}>{formatMonth(value, locale)}</option>)}
-                                    </select>
-                                </label>
-                            </Filter>
                             {loading ? <Muted role="status">{ja ? "勤務記録を読み込み中…" : "Loading recorded activity…"}</Muted> : null}
                             {loadError ? (
                                 <Error role="alert">
@@ -231,29 +214,14 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     </button>
                                 </Error>
                             ) : null}
-                            {!loading && !loadError && filteredActivity.length ? (
-                                <Activity>
-                                    <h4>{ja ? "記録されたシフト別勤務状況" : "Recorded shift activity"}</h4>
-                                    {filteredActivity.slice(0, 20).map(row => (
-                                        <ShiftRow key={row.shiftId}>
-                                            <div>
-                                                <strong>{displayDate(row.businessDate, locale)}</strong>
-                                                <Muted>{row.status === "open" ? (ja ? "営業中" : "Open shift") : (ja ? "終了" : "Closed shift")}
-                                                    {row.clockedIn ? (ja ? " · 勤務中" : " · Clocked in") : ""}
-                                                </Muted>
-                                            </div>
-                                            <div>
-                                                <strong>{row.hoursSeconds === null ? "—" : hoursLabel(row.hoursSeconds)}</strong>
-                                                <Muted>{row.drinks.length
-                                                    ? row.drinks.reduce((n, drink) => n + drink.quantity, 0) + (ja ? " 杯" : " drinks")
-                                                    : (ja ? "ドリンク未記録" : "No recorded drinks")}</Muted>
-                                            </div>
-                                        </ShiftRow>
-                                    ))}
-                                    {filteredActivity.length > 20 ? <Muted>{ja ? "最新20シフトを表示" : "Showing latest 20 shifts"}</Muted> : null}
-                                </Activity>
-                            ) : !loading && !loadError ? (
-                                <Muted>{ja ? "この期間の本人IDに紐づいた記録はありません。0時間を意味しません。" : "No records linked to this user ID for this period. That does not mean zero hours."}</Muted>
+                            {!loading && !loadError ? (
+                                <AdminShiftActivity
+                                    key={person.id}
+                                    rows={activity}
+                                    locale={locale}
+                                    selectedMonth={month}
+                                    onMonthChange={setMonth}
+                                />
                             ) : null}
                             <Coverage>
                                 {ja
@@ -268,7 +236,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     shifts={shifts}
                                 />
                             ) : null}
-                            {!loading && !loadError ? (
+                            {!loading && !loadError && !isChuckProfile ? (
                                 <AdminTeamEditors
                                     key={person.id + ":" + month}
                                     person={person}
@@ -276,7 +244,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     rows={filteredActivity}
                                     drinkLines={drinkLines}
                                 />
-                            ) : <Muted>{ja ? "記録読み込み後に調整フォームを表示します。" : "Draft editor controls are available after activity loads."}</Muted>}
+                            ) : null}
                         </>
                     )}
                 </Detail>
@@ -344,20 +312,6 @@ const Metric = styled.div`
     padding:var(--space-1);background:var(--neutral-900);border-radius:8px;
     span{color:var(--neutral-300);font-size:var(--font-size-small);}
     strong{font-size:var(--font-size-h4);font-weight:600;overflow-wrap:anywhere;}
-`;
-const Filter = styled.div`
-    display:flex;justify-content:flex-end;
-    label{display:flex;flex-direction:column;gap:var(--space-0);width:min(100%,260px);}
-    select{width:100%;background:var(--dark);}
-`;
-const Activity = styled.section`
-    display:flex;flex-direction:column;gap:var(--space-1);
-    h4{font-size:var(--font-size-h4);font-weight:500;}
-`;
-const ShiftRow = styled.div`
-    display:flex;justify-content:space-between;gap:var(--space-2);
-    border-bottom:1px solid var(--neutral-700);padding:var(--space-1) 0;
-    strong{font-weight:500;}
 `;
 const Muted = styled.p`color:var(--neutral-300);overflow-wrap:anywhere;`;
 const Coverage = styled.p`
