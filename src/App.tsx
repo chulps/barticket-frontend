@@ -160,6 +160,7 @@ export default function App() {
 
           <Route path="/admin" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
           <Route path="/admin/staff/:staffId" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
+          <Route path="/admin/staff/:staffId/audit" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
           <Route path="/profile" element={authenticated === null ? null : authenticated ? <Profile /> : <Navigate to="/" replace />} />
 
           <Route path="/menu" element={authenticated === null ? null : authenticated ? <Menu
