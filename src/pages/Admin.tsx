@@ -4,6 +4,7 @@ import styled from "styled-components";
 
 import { accountApi, type Account } from "../api/account";
 import { ApiError } from "../api/client";
+import TabGroup from "../components/TabGroup";
 import { useI18n } from "../i18n";
 import { confirmAccountRole } from "./adminAccountRole";
 import AdminTeam from "./AdminTeam";
@@ -133,23 +134,15 @@ export default function Admin() {
                 <p>{locale === "ja" ? "管理者向けのアカウント管理画面です。" : "Manager-only account management."}</p>
             </header>
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
-            <Tabs role="tablist" aria-label={locale === "ja" ? "管理メニュー" : "Admin sections"}>
-                {(["overview", "accounts", "team"] as const).map((key) => (
-                    <button
-                        key={key}
-                        type="button"
-                        role="tab"
-                        aria-selected={activeSection === key}
-                        className={activeSection === key ? "secondary" : "hollow secondary"}
-                        onClick={() => chooseSection(key)}
-                    >
-                        {key === "overview"
-                            ? (locale === "ja" ? "概要" : "Overview")
-                            : key === "accounts" ? (locale === "ja" ? "アカウント" : "Accounts")
-                                : (locale === "ja" ? "チーム" : "Team")}
-                    </button>
-                ))}
-            </Tabs>
+            <TabGroup
+                tabs={[
+                    { id: "overview", label: locale === "ja" ? "概要" : "Overview" },
+                    { id: "accounts", label: locale === "ja" ? "アカウント" : "Accounts" },
+                    { id: "team", label: locale === "ja" ? "チーム" : "Team" },
+                ]}
+                activeTab={activeSection}
+                onChange={chooseSection}
+            />
             {activeSection === "overview" ? (
                 <>
                     <SummaryGrid>
@@ -294,12 +287,6 @@ const Who = styled.div`
     gap: 2px;
     strong { font-size: var(--font-size-h4); font-weight: 500; }
     span { color: var(--neutral-300); overflow-wrap: anywhere; }
-`;
-const Tabs = styled.div`
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-1);
-    button { min-width: 0; width: 100%; }
 `;
 const SummaryGrid = styled.div`
     display: grid;
