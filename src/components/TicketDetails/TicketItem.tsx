@@ -92,7 +92,7 @@ export default function TicketDetailItem({
 
             <Controls>
                 <QuantityButton 
-                    disabled={!isEditable || isCover}
+                    disabled={!isEditable}
                     onClick={onIncrease}>
                     <PlusWrapper>
                         <Icon name="Plus" />
@@ -106,7 +106,7 @@ export default function TicketDetailItem({
                 <Quantity>{quantity}</Quantity>
 
                 <QuantityButton 
-                    disabled={!isEditable || isCover}
+                    disabled={!isEditable}
                     onClick={onDecrease}>
 
                     <MinusWrapper>

@@ -214,13 +214,17 @@ export function useTickets() {
       const quantity = Math.max(1, item.quantity + change);
       if (quantity === item.quantity) return null;
 
+      if (item.type === "cover" && quantity < (current?.returningGuestCount ?? 0) + (current?.waivedCoverCount ?? 0)) return null;
       return item.type === "cover"
         ? ticketsApi.setGuests(ticketId, quantity)
         : ticketsApi.updateItem(ticketId, itemId, { quantity });
     }, ticket => ({ ...ticket, items: ticket.items.map(item => {
       if (item.id !== itemId) return item;
       const quantity = Math.max(1, item.quantity + change);
-      return { ...item, quantity, subtotal: quantity * item.unit_price };
+      const subtotal = item.type === "cover"
+        ? Math.max(0, quantity - (ticket.returningGuestCount ?? 0) - (ticket.waivedCoverCount ?? 0)) * item.unit_price
+        : quantity * item.unit_price;
+      return { ...item, quantity, subtotal };
     }) }));
   };
 
