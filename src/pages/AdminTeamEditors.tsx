@@ -68,16 +68,15 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                     : "The current API cannot save pay terms, drinkback rules or corrections. Drafts are not submitted or stored and are lost when you leave this profile. No payroll or ticket amounts are changed."}
             </Notice>
             <StaffTabSurface>
-            <TabGroup
-                tabs={[
-                    { id: "terms", label: ja ? "給与・レート" : "Pay & rates" },
-                    { id: "time", label: ja ? "勤務時間" : "Time corrections" },
-                    { id: "drinks", label: ja ? "ドリンク手当" : "Drink bonuses" },
-                ]}
-                activeTab={tab}
-                onChange={setTab}
-            />
-
+                <TabGroup
+                    tabs={[
+                        { id: "terms", label: ja ? "給与・レート" : "Pay & rates" },
+                        { id: "time", label: ja ? "勤務時間" : "Time corrections" },
+                        { id: "drinks", label: ja ? "ドリンク手当" : "Drink bonuses" },
+                    ]}
+                    activeTab={tab}
+                    onChange={setTab}
+                />
             </StaffTabSurface>
             {tab === "terms" ? (
                 <Content role="tabpanel">
