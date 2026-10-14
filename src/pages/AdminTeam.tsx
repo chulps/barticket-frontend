@@ -77,7 +77,9 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
     ), [people, filter, query]);
 
     const person = selectedId === null ? null : people.find(member => member.id === selectedId) ?? null;
-    const isChuckProfile = person !== null && revenueShareViewers.chuckUserId !== null && person.id === revenueShareViewers.chuckUserId;
+    // Generic hourly-pay, time-correction and drinkback drafts apply to staff, not managers.
+    // Keep manager profiles (including Chuck and Nori) focused on history and their own policies.
+    const isStaffProfile = person?.role === "staff";
     const shifts = useMemo(() => {
         const unique = new Map<number, ShiftReport>();
         closed.filter(shift => shift.status === "closed").forEach(shift => unique.set(shift.id, shift));
@@ -200,7 +202,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     <span>{ja ? "記録されたスタッフドリンク" : "Recorded drinks"}</span>
                                     <strong>{loading || loadError || totals.drinkCount === null ? "—" : totals.drinkCount}</strong>
                                 </Metric>
-                                {!isChuckProfile ? <Metric>
+                                {isStaffProfile ? <Metric>
                                     <span>{ja ? "現在の時給・手当" : "Current pay / bonuses"}</span>
                                     <strong>—</strong>
                                 </Metric> : null}
@@ -236,7 +238,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     shifts={shifts}
                                 />
                             ) : null}
-                            {!loading && !loadError && !isChuckProfile ? (
+                            {!loading && !loadError && isStaffProfile ? (
                                 <AdminTeamEditors
                                     key={person.id + ":" + month}
                                     person={person}
