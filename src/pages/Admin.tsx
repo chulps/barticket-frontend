@@ -1,35 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import styled from "styled-components";
 
-import { accountApi, type Account, type ShiftReport } from "../api/account";
+import { accountApi, type Account } from "../api/account";
 import { ApiError } from "../api/client";
 import { useI18n } from "../i18n";
-import Reconciliation from "./Reconciliation";
-import { StaffDetails, PayrollPlanner, AdminSettings } from "./AdminPanels";
+import { confirmAccountRole } from "./adminAccountRole";
 
-/** Access is checked again by manager-only backend endpoints. */
+/**
+ * Phase 1: manager-only dashboard and account administration.
+ * Other Admin features remain behind their later-phase backend milestones.
+ * Permission checks are also enforced by the manager-only backend /users APIs.
+ */
 export default function Admin() {
     const { t, locale } = useI18n();
     const [me, setMe] = useState<Account | null>(null);
     const [team, setTeam] = useState<Account[]>([]);
-    const [accountsError, setAccountsError] = useState("");
-    const [accountsLoading, setAccountsLoading] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [accountsError, setAccountsError] = useState("");
+    const [accountsLoading, setAccountsLoading] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [section, setSection] = useState<"overview" | "accounts">("overview");
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [role, setRole] = useState<"staff" | "manager">("staff");
-    const [busy, setBusy] = useState(false);
-    const [section, setSection] = useState<"overview" | "accounts" | "staff" | "shifts" | "history" | "payroll" | "settings">("overview");
-    const [managerFilter, setManagerFilter] = useState("all");
-    const [sort, setSort] = useState<"date" | "revenue" | "guests">("date");
-    const [expandedShift, setExpandedShift] = useState<number | null>(null);
-    const [editShiftId, setEditShiftId] = useState<number | null>(null);
-    const [shifts, setShifts] = useState<ShiftReport[]>([]);
-    const [shiftError, setShiftError] = useState("");
-    const [selectedMonth, setSelectedMonth] = useState("all");
 
     useEffect(() => {
         let cancelled = false;
@@ -45,12 +41,6 @@ export default function Admin() {
                     } catch (err) {
                         if (!cancelled) setAccountsError(err instanceof ApiError ? err.message : String(err));
                     }
-                    try {
-                        const [closed, active] = await Promise.all([accountApi.closedShifts(), accountApi.currentShift()]);
-                        if (!cancelled) setShifts([...(active?.status === "open" ? [active] : []), ...closed]);
-                    } catch (err) {
-                        if (!cancelled) setShiftError(err instanceof ApiError ? err.message : String(err));
-                    }
                 }
             } catch (err) {
                 if (!cancelled) setError(err instanceof ApiError ? err.message : String(err));
@@ -63,23 +53,16 @@ export default function Admin() {
     }, []);
 
     async function refreshAccounts() {
+        if (accountsLoading) return;
         setAccountsLoading(true);
         setAccountsError("");
-        try { setTeam(await accountApi.listUsers()); }
-        catch (err) { setAccountsError(err instanceof ApiError ? err.message : String(err)); }
-        finally { setAccountsLoading(false); }
-    }
-
-    function exportShifts() {
-        const displayed = shifts.filter(shift => (selectedMonth === "all" || shift.business_date.startsWith(selectedMonth)) && (managerFilter === "all" || shift.opened_by === managerFilter));
-        const rows = [["Date", "Status", "Recorded manager", "Revenue JPY", "Guests", "Cash JPY", "Card JPY", "Other JPY"], ...displayed.map(shift => [shift.business_date, shift.status, shift.opened_by, shift.paid_total, shift.guest_count, shift.cash_total, shift.card_total, shift.other_total])];
-        const csv = rows.map(row => row.map(cell => '"' + String(cell ?? "").replaceAll('"', '""') + '"').join(",")).join("\r\n");
-        const url = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "barticket-shift-history.csv";
-        link.click();
-        URL.revokeObjectURL(url);
+        try {
+            setTeam(await accountApi.listUsers());
+        } catch (err) {
+            setAccountsError(err instanceof ApiError ? err.message : String(err));
+        } finally {
+            setAccountsLoading(false);
+        }
     }
 
     async function perform(action: () => Promise<void>) {
@@ -95,141 +78,143 @@ export default function Admin() {
         }
     }
 
-    if (loading) return <Page><h1>{locale === "ja" ? "管理" : "Admin"}</h1><p>{locale === "ja" ? "読み込み中…" : "Loading…"}</p></Page>;
+    function createAccount(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (busy) return;
+        // Existing backend policy allows managers to create more managers.
+        // Require an explicit acknowledgement before granting Admin privileges.
+        if (!confirmAccountRole(role, locale, (message) => window.confirm(message))) return;
+        void perform(async () => {
+            await accountApi.createUser({ name: name.trim(), email: email.trim(), password, role });
+            setName("");
+            setEmail("");
+            setPassword("");
+            setRole("staff");
+            setTeam(await accountApi.listUsers());
+        });
+    }
+
+    if (loading) return <Page><h1>{locale === "ja" ? "管理" : "Admin"}</h1><p>{t("loading")}</p></Page>;
+    if (!me && error) return (
+        <Page>
+            <h1>{locale === "ja" ? "管理" : "Admin"}</h1>
+            <ErrorText role="alert">{error}</ErrorText>
+            <button type="button" className="small secondary" onClick={() => window.location.reload()}>
+                {locale === "ja" ? "再試行" : "Retry"}
+            </button>
+        </Page>
+    );
     if (me?.role !== "manager") return <Navigate to="/profile" replace />;
 
     return (
         <Page>
             <header>
                 <h1>{locale === "ja" ? "管理" : "Admin"}</h1>
-                <p>{locale === "ja" ? "マネージャー専用の管理画面です。" : "Manager-only operations and record review."}</p>
+                <p>{locale === "ja" ? "管理者向けのアカウント管理画面です。" : "Manager-only account management."}</p>
             </header>
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             <Tabs role="tablist" aria-label={locale === "ja" ? "管理メニュー" : "Admin sections"}>
-                {(["overview", "accounts", "staff", "shifts", "history", "payroll", "settings"] as const).map((key) => (
-                    <button type="button" role="tab" aria-selected={section === key} key={key}
+                {(["overview", "accounts"] as const).map((key) => (
+                    <button
+                        key={key}
+                        type="button"
+                        role="tab"
+                        aria-selected={section === key}
                         className={section === key ? "secondary" : "hollow secondary"}
-                        onClick={() => setSection(key)}>
-                        {{ overview: locale === "ja" ? "概要" : "Overview", accounts: locale === "ja" ? "アカウント" : "Accounts",
-                            staff: locale === "ja" ? "スタッフ" : "Staff",
-                            shifts: locale === "ja" ? "シフト" : "Shifts",
-                            history: locale === "ja" ? "履歴照合" : "Reconciliation",
-                            payroll: locale === "ja" ? "給与・控除" : "Payroll",
-                            settings: locale === "ja" ? "設定" : "Settings" }[key]}
+                        onClick={() => setSection(key)}
+                    >
+                        {key === "overview"
+                            ? (locale === "ja" ? "概要" : "Overview")
+                            : (locale === "ja" ? "アカウント" : "Accounts")}
                     </button>
                 ))}
             </Tabs>
             {section === "overview" ? (
                 <>
                     <SummaryGrid>
-                        {[
-                            [locale === "ja" ? "アカウント数" : "Accounts", team.length],
-                            [locale === "ja" ? "記録済みシフト" : "Recorded shifts", shifts.length],
-                            [locale === "ja" ? "記録済み売上" : "Recorded revenue", "¥" + shifts.reduce((sum, shift) => sum + shift.paid_total, 0).toLocaleString()],
-                            [locale === "ja" ? "記録済み来客数" : "Recorded guests", shifts.reduce((sum, shift) => sum + shift.guest_count, 0).toLocaleString()],
-                            [locale === "ja" ? "営業状況" : "Current shift", shifts.some(shift => shift.status === "open") ? (locale === "ja" ? "営業中" : "Open") : (locale === "ja" ? "終了" : "Closed")],
-                            [locale === "ja" ? "勤務中" : "Clocked in", shifts.filter(shift => shift.status === "open").flatMap(shift => shift.punches).filter(p => p.clock_out === null).length]
-                        ].map(([label, value]) => <Section key={String(label)}><span>{label}</span><h2>{value}</h2></Section>)}
+                        <Section>
+                            <span>{locale === "ja" ? "登録アカウント数" : "Active accounts"}</span>
+                            <strong>{accountsError ? "—" : team.length}</strong>
+                        </Section>
+                        <Section>
+                            <span>{locale === "ja" ? "スタッフ" : "Staff"}</span>
+                            <strong>{accountsError ? "—" : team.filter(person => person.role === "staff").length}</strong>
+                        </Section>
+                        <Section>
+                            <span>{locale === "ja" ? "マネージャー" : "Managers"}</span>
+                            <strong>{accountsError ? "—" : team.filter(person => person.role === "manager").length}</strong>
+                        </Section>
                     </SummaryGrid>
-                    {shiftError ? <ErrorText role="alert">{shiftError}</ErrorText> : null}
-                    <Section><h2>{locale === "ja" ? "データについて" : "Data coverage"}</h2>
-                        <p>{locale === "ja" ? "APIの記録のみを表示しています。過去の記録や担当者名は未確認の場合があります。" : "Totals include only shifts returned by the API. Historical months and recorded manager names may be incomplete until reconciliation."}</p>
+                    {accountsError ? <ErrorText role="alert">{accountsError}</ErrorText> : null}
+                    <Section>
+                        <h2>{locale === "ja" ? "アカウント管理" : "Manage accounts"}</h2>
+                        <p>{locale === "ja"
+                            ? "アカウントタブでメンバーを追加・削除できます。スタッフ管理、シフト管理、給与、設定は今後のフェーズで追加します。"
+                            : "Create and remove team accounts in the Accounts tab. Staff records, shift management, payroll and settings will be added in later phases."}</p>
+                        <button type="button" className="small secondary" onClick={() => setSection("accounts")}>
+                            {locale === "ja" ? "アカウントを表示" : "View accounts"}
+                        </button>
                     </Section>
                 </>
-            ) : null}
-            {section === "accounts" ? <Grid>
-                <Section>
-                    <h2>{t("team")} ({team.length})</h2>
-                    <p>{locale === "ja" ? "現在有効な登録アカウントのみ表示します。過去のスタッフ記録や無効なアカウントは含みません。" : "Only active registered accounts returned by the backend appear here. Historical staff names and deactivated accounts are not included."}</p>
-                    {accountsError ? <ErrorText role="alert">{accountsError}</ErrorText> : null}
-                    <button type="button" className="small hollow secondary" disabled={accountsLoading} onClick={() => void refreshAccounts()}>{locale === "ja" ? "一覧を更新" : "Refresh accounts"}</button>
-                    {!team.length && !accountsError ? <p>{locale === "ja" ? "有効なアカウントが返されませんでした。" : "No active accounts were returned by the API."}</p> : null}
-                    {team.map((person) => (
-                        <Person key={person.id}>
-                            <Who>
-                                <strong>{person.name}</strong>
-                                <span>{person.email}</span>
-                                <span>{t(person.role)}</span>
-                            </Who>
-                            {person.id !== me.id ? (
-                                <button
-                                    type="button"
-                                    className="small hollow danger"
-                                    disabled={busy}
-                                    onClick={() => {
-                                        if (!window.confirm(t("removePersonConfirm", { name: person.name }))) return;
-                                        void perform(async () => setTeam(await accountApi.removeUser(person.id)));
-                                    }}
-                                >
-                                    {t("removePerson")}
-                                </button>
+            ) : (
+                <Grid>
+                    <Section>
+                        <h2>{t("team")} ({accountsError ? "—" : team.length})</h2>
+                        <p>{locale === "ja"
+                            ? "現在の登録アカウントを表示します。過去のスタッフ記録や無効化されたアカウントは含まれません。"
+                            : "Only accounts currently returned by the API are shown. Historical and deactivated accounts are not included."}</p>
+                        {accountsError ? <ErrorText role="alert">{accountsError}</ErrorText> : null}
+                        <button type="button" className="small hollow secondary" disabled={accountsLoading || busy} onClick={() => void refreshAccounts()}>
+                            {locale === "ja" ? "一覧を更新" : "Refresh accounts"}
+                        </button>
+                        {!team.length && !accountsError ? <p>{locale === "ja" ? "登録アカウントがありません。" : "No accounts were returned."}</p> : null}
+                        {team.map(person => (
+                            <Person key={person.id}>
+                                <Who>
+                                    <strong>{person.name}</strong>
+                                    <span>{person.email}</span>
+                                    <span>{t(person.role)}</span>
+                                </Who>
+                                {person.id !== me.id ? (
+                                    <button
+                                        type="button"
+                                        className="small hollow danger"
+                                        disabled={busy}
+                                        onClick={() => {
+                                            if (!window.confirm(t("removePersonConfirm", { name: person.name }))) return;
+                                            void perform(async () => setTeam(await accountApi.removeUser(person.id)));
+                                        }}
+                                    >
+                                        {t("removePerson")}
+                                    </button>
+                                ) : null}
+                            </Person>
+                        ))}
+                    </Section>
+                    <Section>
+                        <h2>{t("addPerson")}</h2>
+                        <form onSubmit={createAccount}>
+                            <label>{t("name")}<input required maxLength={255} value={name} onChange={event => setName(event.target.value)} /></label>
+                            <label>{t("email")}<input required maxLength={255} type="email" value={email} onChange={event => setEmail(event.target.value)} /></label>
+                            <label>{t("password")}<input type="password" value={password} onChange={event => setPassword(event.target.value)} /></label>
+                            <label>{t("role")}
+                                <select value={role} onChange={event => setRole(event.target.value as "staff" | "manager")}>
+                                    <option value="staff">{t("staff")}</option>
+                                    <option value="manager">{t("manager")}</option>
+                                </select>
+                            </label>
+                            {role === "manager" ? (
+                                <Warning role="status">
+                                    {locale === "ja"
+                                        ? "マネージャーにはアカウント管理を含むすべての管理者権限が付与されます。信頼できる人にのみ付与してください。"
+                                        : "Managers can access Admin and manage other accounts. Assign this role only to trusted people."}
+                                </Warning>
                             ) : null}
-                        </Person>
-                    ))}
-                </Section>
-                <Section>
-                    <h2>{t("addPerson")}</h2>
-                    <form onSubmit={(event) => {
-                        event.preventDefault();
-                        void perform(async () => {
-                            await accountApi.createUser({ name, email, password, role });
-                            setName("");
-                            setEmail("");
-                            setPassword("");
-                            setRole("staff");
-                            setTeam(await accountApi.listUsers());
-                        });
-                    }}>
-                        <label>{t("name")}<input required value={name} onChange={(event) => setName(event.target.value)} /></label>
-                        <label>{t("email")}<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-                        <label>{t("password")}<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-                        <label>{t("role")}
-                            <select value={role} onChange={(event) => setRole(event.target.value as "staff" | "manager")}>
-                                <option value="staff">{t("staff")}</option>
-                                <option value="manager">{t("manager")}</option>
-                            </select>
-                        </label>
-                        <button type="submit" disabled={busy}>{t("addAccount")}</button>
-                    </form>
-                </Section>
-            </Grid> : null}
-            {section === "staff" ? <StaffDetails people={team} shifts={shifts} locale={locale} /> : null}
-            {section === "shifts" ? (
-                <Section>
-                    <h2>{locale === "ja" ? "シフト履歴" : "Shift history"}</h2>
-                    <p>{locale === "ja" ? "記録済みのシフトを表示します。修正機能はバックエンド対応後に追加します。" : "Read-only shift records. Editing managers, events and staffing requires backend support."}</p>
-                    {shiftError ? <ErrorText role="alert">{shiftError}</ErrorText> : null}
-                    <label>{locale === "ja" ? "月" : "Month"}
-                        <select value={selectedMonth} onChange={event => setSelectedMonth(event.target.value)}>
-                            <option value="all">{locale === "ja" ? "すべて" : "All months"}</option>
-                            {[...new Set(shifts.map(shift => shift.business_date.slice(0, 7)))].sort().reverse().map(month => <option key={month} value={month}>{month}</option>)}
-                        </select>
-                    </label>
-                    <Filters><label>{locale === "ja" ? "マネージャー" : "Manager"}<select value={managerFilter} onChange={event => setManagerFilter(event.target.value)}><option value="all">{locale === "ja" ? "すべて" : "All"}</option>{[...new Set(shifts.map(shift => shift.opened_by))].filter(Boolean).sort().map(name => <option key={name} value={name}>{name}</option>)}</select></label><label>{locale === "ja" ? "並び順" : "Sort"}<select value={sort} onChange={event => setSort(event.target.value as typeof sort)}><option value="date">{locale === "ja" ? "日付" : "Date"}</option><option value="revenue">{locale === "ja" ? "売上" : "Revenue"}</option><option value="guests">{locale === "ja" ? "来客数" : "Guests"}</option></select></label><button type="button" className="secondary" onClick={exportShifts}>{locale === "ja" ? "CSV出力" : "Export CSV"}</button></Filters>
-                    {shifts.filter(shift => (selectedMonth === "all" || shift.business_date.startsWith(selectedMonth)) && (managerFilter === "all" || shift.opened_by === managerFilter)).sort((a,b) => sort === "date" ? b.business_date.localeCompare(a.business_date) : sort === "revenue" ? b.paid_total - a.paid_total : b.guest_count - a.guest_count).map(shift => (
-                        <ShiftRow key={shift.id}>
-                            <Who>
-                                <strong>{shift.business_date} · {shift.opened_by}</strong>
-                                <span>{shift.status === "open" ? (locale === "ja" ? "営業中" : "Open") : (locale === "ja" ? "終了" : "Closed")} · {shift.guest_count} {locale === "ja" ? "名" : "guests"}</span>
-                                <span>{shift.staff_hours.map(person => person.name + " " + (person.seconds / 3600).toFixed(1) + "h").join(", ") || (locale === "ja" ? "勤務時間未記録" : "No hours recorded")}</span>
-                            </Who>
-                            <button type="button" className="small hollow secondary" aria-expanded={expandedShift === shift.id} onClick={() => setExpandedShift(expandedShift === shift.id ? null : shift.id)}>¥{shift.paid_total.toLocaleString()} ▾</button>
-                            {expandedShift === shift.id ? <ShiftDetails>
-                                <p>{locale === "ja" ? "API登録担当者" : "Recorded manager"}: {shift.opened_by || "—"}</p>
-                                <p>{locale === "ja" ? "現金" : "Cash"}: ¥{shift.cash_total.toLocaleString()} · {locale === "ja" ? "カード" : "Card"}: ¥{shift.card_total.toLocaleString()} · {locale === "ja" ? "その他" : "Other"}: ¥{shift.other_total.toLocaleString()}</p>
-                                <p>{locale === "ja" ? "勤務時間" : "Recorded hours"}: {shift.staff_hours.length ? shift.staff_hours.map(row => row.name + " " + (row.seconds / 3600).toFixed(1) + "h").join(", ") : (locale === "ja" ? "未記録" : "Not recorded")}</p>
-                                <p>{locale === "ja" ? "スタッフドリンク" : "Staff drinks"}: {(shift.staff_drinks ?? []).reduce((n, row) => n + row.quantity, 0)}</p>
-                                <p>{locale === "ja" ? "品切れ" : "Stockouts"}: {(shift.stockouts ?? []).length}</p>
-                                <button type="button" className="small secondary" onClick={() => { setEditShiftId(shift.id); setSection("history"); }}>{locale === "ja" ? "修正案を作成" : "Open in Reconciliation"}</button>
-                            </ShiftDetails> : null}
-                        </ShiftRow>
-                    ))}
-                    {!shifts.length && !shiftError ? <p>{locale === "ja" ? "記録がありません" : "No shift records yet."}</p> : null}
-                </Section>
-            ) : null}
-            {section === "history" ? <Reconciliation key={editShiftId ?? "reconciliation"} initialShiftId={editShiftId} shifts={shifts} locale={locale} error={shiftError} /> : null}
-            {section === "payroll" ? <PayrollPlanner locale={locale} /> : null}
-            {section === "settings" ? <AdminSettings locale={locale} /> : null}
+                            <button type="submit" disabled={busy}>{t("addAccount")}</button>
+                        </form>
+                    </Section>
+                </Grid>
+            )}
         </Page>
     );
 }
@@ -263,6 +248,7 @@ const Section = styled.section`
     input, select { width: 100%; box-sizing: border-box; }
     input:focus, select:focus { transform: none; }
     select { background: var(--dark); }
+    strong { font-family: var(--font-family-data); }
 `;
 const Person = styled.div`
     display: flex;
@@ -279,19 +265,18 @@ const Who = styled.div`
     strong { font-size: var(--font-size-h4); font-weight: 500; }
     span { color: var(--neutral-300); overflow-wrap: anywhere; }
 `;
-const ErrorText = styled.p`color: var(--danger, #e06c75);`;
-
 const Tabs = styled.div`
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-1);
     button { min-width: 0; width: 100%; }
-    @media (min-width: 680px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    @media (min-width: 1050px) { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 `;
-
-const SummaryGrid = styled.div`display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); @media (min-width: 900px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }`;
-
-const Filters = styled.div`display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-1); input, select { min-width: 140px; flex: 1; }`;
-const ShiftRow = styled(Person)`flex-wrap: wrap; border-top: 1px solid var(--neutral-800); padding-top: var(--space-1);`;
-const ShiftDetails = styled.div`width: 100%; padding: var(--space-1); background: var(--neutral-800); border-radius: 8px;`;
+const SummaryGrid = styled.div`
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: var(--space-2);
+    @media (min-width: 720px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    strong { display: block; font-size: var(--font-size-h4); }
+`;
+const ErrorText = styled.p`color: var(--danger, #e06c75);`;
+const Warning = styled.p`color: var(--danger-400); font-size: var(--font-size-small);`;
