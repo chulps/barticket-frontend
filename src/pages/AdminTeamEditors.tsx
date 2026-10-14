@@ -285,7 +285,7 @@ const Notice = styled.p`
 `;
 const EditorTabs = styled.div`
     display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-1);
-    @media(min-width:860px){grid-template-columns:repeat(4,minmax(0,1fr));}
+    @media(min-width:860px){grid-template-columns:repeat(3,minmax(0,1fr));}
     button {min-width:0; width:100%;}
 `;
 const Content = styled.div`display:flex; flex-direction:column; gap:var(--space-2); min-width:0;`;
