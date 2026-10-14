@@ -19,6 +19,9 @@ test("Staff settings reuse the Admin shared three-tab control", () => {
     assert.match(editors, /onChange=\{setTab\}/);
     assert.doesNotMatch(editors, /EditorTabs/);
     assert.match(shared, /transition: transform/);
+    assert.match(editors, /<StaffTabSurface>[\s\S]*<TabGroup[\s\S]*<\/StaffTabSurface>/);
+    assert.match(editors, /const StaffTabSurface = styled\.div`[\s\S]*background: var\(--neutral-900\)/);
+    assert.doesNotMatch(shared, /background: var\(--neutral-900\)/);
 });
 
 test("Staff editor keeps its existing three draft panels and parses as TSX", () => {
