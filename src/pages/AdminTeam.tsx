@@ -6,8 +6,13 @@ import { ApiError } from "../api/client";
 import { localeTag, type Locale } from "../i18n";
 import { buildStaffActivity, recordedStaffTotals } from "./staffProfileData";
 import AdminTeamEditors, { type AdminDrinkLine } from "./AdminTeamEditors";
+import AdminManagerShare from "./AdminManagerShare";
+import { canSeeChuckRevenueShare, readRevenueShareViewers } from "./managerRevenueShareAccess";
+
+const revenueShareViewers = readRevenueShareViewers();
 
 type Props = {
+    viewer: Account;
     people: Account[];
     accountsError: string;
     locale: Locale;
@@ -37,7 +42,7 @@ function hoursLabel(seconds: number) {
  * Nested under Admin's manager-only role guard; uses existing READ endpoints.
  * This panel NEVER posts time, pay or bonus changes to the API.
  */
-export default function AdminTeam({ people, accountsError, locale, selectedId, onSelect }: Props) {
+export default function AdminTeam({ viewer, people, accountsError, locale, selectedId, onSelect }: Props) {
     const ja = locale === "ja";
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<"all" | "staff" | "manager">("all");
@@ -255,6 +260,14 @@ export default function AdminTeam({ people, accountsError, locale, selectedId, o
                                     ? "表示される時間・ドリンクは現在のAPIにある記録だけです。未照合の過去データや名前だけのドリンク記録は含まれません。売上・給与は推測しません。"
                                     : "Hours and drinks include only current API records linked by user ID. Unverified historical hours and name-only drink records are excluded. Pay is never inferred."}
                             </Coverage>
+                            {!loading && !loadError && canSeeChuckRevenueShare(viewer, person.id, revenueShareViewers) ? (
+                                <AdminManagerShare
+                                    key={person.id}
+                                    person={person}
+                                    locale={locale}
+                                    shifts={shifts}
+                                />
+                            ) : null}
                             {!loading && !loadError ? (
                                 <AdminTeamEditors
                                     key={person.id + ":" + month}
