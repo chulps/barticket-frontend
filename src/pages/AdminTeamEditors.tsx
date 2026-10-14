@@ -18,7 +18,7 @@ export type AdminDrinkLine = {
     revenue: number;
 };
 
-type EditorTab = "terms" | "time" | "drinks" | "audit";
+type EditorTab = "terms" | "time" | "drinks";
 type Props = {
     person: Account;
     locale: Locale;
@@ -67,7 +67,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                     : "The current API cannot save pay terms, drinkback rules or corrections. Drafts are not submitted or stored and are lost when you leave this profile. No payroll or ticket amounts are changed."}
             </Notice>
             <EditorTabs role="tablist" aria-label={ja ? "スタッフ管理タブ" : "Staff management tabs"}>
-                {(["terms", "time", "drinks", "audit"] as const).map(key => (
+                {(["terms", "time", "drinks"] as const).map(key => (
                     <button
                         key={key} type="button" role="tab"
                         className={tab === key ? "secondary" : "hollow secondary"}
@@ -75,8 +75,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                         onClick={() => setTab(key)}>
                         {key === "terms" ? (ja ? "給与・レート" : "Pay & rates")
                             : key === "time" ? (ja ? "勤務時間" : "Time corrections")
-                                : key === "drinks" ? (ja ? "ドリンク手当" : "Drink bonuses")
-                                    : (ja ? "変更履歴" : "Audit history")}
+                                : (ja ? "ドリンク手当" : "Drink bonuses")}
                     </button>
                 ))}
             </EditorTabs>
@@ -263,17 +262,6 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                 </Content>
             ) : null}
 
-            {tab === "audit" ? (
-                <Content role="tabpanel">
-                    <Card>
-                        <h4>{ja ? "変更履歴" : "Administrative change history"}</h4>
-                        <p>{ja
-                            ? "修正者・日時・変更前後の値・理由を記録するAPIの実装待ちです。まだ操作履歴を取得できません。"
-                            : "Awaiting an audit API with actor, timestamp, before/after values and reason. No change history is available yet."}</p>
-                        <Muted>{ja ? "現在は利用できません" : "Not available yet"}</Muted>
-                    </Card>
-                </Content>
-            ) : null}
         </Area>
     );
 }
