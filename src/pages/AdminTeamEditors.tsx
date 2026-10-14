@@ -67,6 +67,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                     ? "現在のAPIには給与・ドリンクバック設定や修正を保存する機能がありません。入力内容は保存・送信されず、画面を離れると消えます。実際の給与にも反映されません。"
                     : "The current API cannot save pay terms, drinkback rules or corrections. Drafts are not submitted or stored and are lost when you leave this profile. No payroll or ticket amounts are changed."}
             </Notice>
+            <StaffTabSurface>
             <TabGroup
                 tabs={[
                     { id: "terms", label: ja ? "給与・レート" : "Pay & rates" },
@@ -77,6 +78,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                 onChange={setTab}
             />
 
+            </StaffTabSurface>
             {tab === "terms" ? (
                 <Content role="tabpanel">
                     <Intro>
@@ -281,6 +283,11 @@ const Notice = styled.p`
     color:var(--neutral-300); line-height:1.5;
 `;
 
+const StaffTabSurface = styled.div`
+    background: var(--neutral-900);
+    border-radius: var(--space-1);
+    min-width: 0;
+`;
 const Content = styled.div`display:flex; flex-direction:column; gap:var(--space-2); min-width:0;`;
 const Intro = styled.div`display:flex; flex-direction:column; gap:4px; p{color:var(--neutral-300);}`;
 const Card = styled.section`
