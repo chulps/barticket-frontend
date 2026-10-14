@@ -28,3 +28,7 @@ Chuck and Nori can locally change the proposed base percentage, threshold, reven
 - This is **not a payslip or settled compensation**. Real manager attribution, rate histories, cost detail, approvals, audit and settlement require backend #79 and #78.
 
 Manual acceptance before merge: confirm ID vars configured in deployment settings only after verifying Chuck/Nori IDs; test Chuck/Nori visibility in their own accounts, block a third manager, block staff and other profile URLs, verify Japanese copy, mobile layout, tier boundaries and clearing/reset.
+
+## Reproducible CI and deployment builds
+
+`npm run build` uses the **committed English/Japanese catalogs** and does not call external translation services. `npm run i18n:sync` is an **explicit, optional development command** that may contact MyMemory and must be reviewed and committed by a developer separately. This avoids CI/deployment failures when the free translation service returns HTTP 429 and prevents a production build from unexpectedly rewriting translation files.

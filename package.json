@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "i18n:sync": "node scripts/sync-translations.mjs",
-    "build": "node scripts/prepare-pwa.mjs && node scripts/sync-translations.mjs && tsc -b && vite build",
+    "build": "node scripts/prepare-pwa.mjs && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
