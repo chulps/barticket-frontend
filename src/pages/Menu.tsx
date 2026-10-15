@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import styled from "styled-components";
 
 // imported components
@@ -13,10 +13,11 @@ import type { MenuData, MenuItem, Prices } from "../types/Menu";
 import { useFilteredMenu } from "../hooks/useFilteredMenu";
 import { useModal } from "../hooks/useModal";
 import { useI18n } from "../i18n";
-import { ApiError, getToken } from "../api/client";
+import { ApiError } from "../api/client";
 
 
 type MenuProps = {
+  authenticated: boolean;
   menu: MenuData | null;
   loadingMenu: boolean;
   onToggleStock: (item: MenuItem) => Promise<boolean>;
@@ -26,6 +27,7 @@ type MenuProps = {
 };
 
 export default function Menu({
+  authenticated,
   menu,
   loadingMenu,
   onToggleStock,
@@ -36,14 +38,6 @@ export default function Menu({
   const { t } = useI18n();
   const { openModal } = useModal();
   const [searchTerm, setSearchTerm] = useState("");
-  const [signedIn, setSignedIn] = useState(() => Boolean(getToken()));
-
-  useEffect(() => {
-    const sync = () => setSignedIn(Boolean(getToken()));
-    window.addEventListener("barticket-auth", sync);
-    return () => window.removeEventListener("barticket-auth", sync);
-  }, []);
-
   async function toggleStock(item: MenuItem) {
     try {
       const saved = await onToggleStock(item);
@@ -102,7 +96,7 @@ export default function Menu({
     <main>
       <MenuHeader>
         <h2>{t("drinkMenu")}</h2>
-        {signedIn ? (
+        {authenticated ? (
           <AddButton type="button" className="small" onClick={openAddDrink}>
             <Icon name="Plus" />
             {t("addDrink")}
@@ -121,8 +115,8 @@ export default function Menu({
             key={category}
             category={category}
             subcategories={subcategories}
-            onToggleStock={signedIn ? toggleStock : undefined}
-            onSavePrices={signedIn ? savePrices : undefined}
+            onToggleStock={authenticated ? toggleStock : undefined}
+            onSavePrices={authenticated ? savePrices : undefined}
             pendingMenuIds={pendingMenuIds}
           />
         ))}
