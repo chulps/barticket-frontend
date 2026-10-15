@@ -13,7 +13,8 @@ const api = read("src/api/menu.ts");
 test("Public menu route renders for both guest and authenticated viewers", () => {
     assert.match(app, /path="\/menu" element=\{authenticated === null \? null : <Menu/);
     assert.match(app, /authenticated=\{authenticated\}/);
-    assert.doesNotMatch(app, /path="\/menu"[^]*<Navigate to="\/" replace/);
+    const menuRoute = app.slice(app.indexOf('<Route path="/menu"'), app.indexOf('<Route path="/analytics"'));
+    assert.doesNotMatch(menuRoute, /<Navigate to="\/" replace/);
     assert.match(header, /<PublicMenuLink to="\/menu"/);
 });
 
