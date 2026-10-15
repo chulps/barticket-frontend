@@ -163,13 +163,14 @@ export default function App() {
           <Route path="/admin/staff/:staffId/audit" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
           <Route path="/profile" element={authenticated === null ? null : authenticated ? <Profile /> : <Navigate to="/" replace />} />
 
-          <Route path="/menu" element={authenticated === null ? null : authenticated ? <Menu
+          <Route path="/menu" element={authenticated === null ? null : <Menu
+            authenticated={authenticated}
             menu={menu}
             loadingMenu={loadingMenu}
             onToggleStock={changeStock}
             onSavePrices={changePrices}
             pendingMenuIds={pendingMenuIds}
-            onItemAdded={addMenuItem} /> : <Navigate to="/" replace />} />
+            onItemAdded={addMenuItem} />} />
 
           <Route path="/analytics" element={authenticated === null ? null : authenticated ? <Analytics /> : <Navigate to="/" replace />} />
           <Route path="/notifications" element={authenticated === null ? null : authenticated ? <Notifications /> : <Navigate to="/" replace />} />
