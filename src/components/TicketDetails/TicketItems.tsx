@@ -125,7 +125,7 @@ export default function TicketItems({
                     <TicketDetailItem
                         key={item.id}
                         id={item.id}
-                        pending={item.id < 0}
+                        pending={!Number.isInteger(item.id)}
                         name={
                             item.staff_drink
                                 ? [item.staff_name, item.drink_name].filter(Boolean).join(" · ") || item.name
