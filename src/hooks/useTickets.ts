@@ -36,7 +36,8 @@ export function useTickets() {
   const confirmed = useRef(new Map<number, Ticket>());
   const overlays = useRef(new Map<number, OptimisticEdit[]>());
   const nextKey = useRef(1);
-  const nextTempId = useRef(-1);
+  // Provisional IDs are fractional: backend item IDs (including negative staff-drink IDs) are integers.
+  const nextTempId = useRef(-0.5);
 
   const project = (ticket: Ticket) => {
     const projected = projectTicket(ticket, overlays.current.get(ticket.id) ?? []);
@@ -206,7 +207,7 @@ export function useTickets() {
     itemId: number,
     change: number,
   ) => {
-    if (itemId < 0) return; // Wait for a real server ID on newly added rows.
+    if (!Number.isInteger(itemId)) return; // Provisional rows must resolve before editing.
     void enqueue(ticketId, (current) => {
       const item = current?.items.find((i) => i.id === itemId);
       if (!item) return null;
@@ -234,7 +235,7 @@ export function useTickets() {
       return;
     }
 
-    if (itemId < 0) return;
+    if (!Number.isInteger(itemId)) return;
     const rounded = Math.round(price);
     void enqueue(ticketId, () =>
       ticketsApi.updateItem(ticketId, itemId, { unit_price: rounded }),
@@ -329,7 +330,7 @@ export function useTickets() {
       return;
     }
 
-    if (itemId < 0) return;
+    if (!Number.isInteger(itemId)) return;
     void enqueue(ticketId, () => ticketsApi.removeItem(ticketId, itemId),
       ticket => ({ ...ticket, items: ticket.items.filter(item => item.id !== itemId) }));
   };
