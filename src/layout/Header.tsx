@@ -213,7 +213,12 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           )}
         </SecondaryNavLink>
 
-        </NavTabs> : null}
+        </NavTabs> : (
+          <PublicMenuLink to="/menu" onClick={() => setIsOpen(false)}>
+            <Icon name="Book" />
+            {t("drinkMenu")}
+          </PublicMenuLink>
+        )}
 
       <MobileTools>
       <LanguageToggle
@@ -586,4 +591,15 @@ const SecondaryNavLink = styled(NavLink)`
   @media (min-width: 769px) {
     display: none;
   }
+`;
+
+const PublicMenuLink = styled(RouterNavLink)`
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0);
+  padding: var(--space-1);
+  color: var(--neutral-200);
+  text-decoration: none;
+  white-space: nowrap;
+  &:hover, &:focus-visible { color: white; }
 `;
