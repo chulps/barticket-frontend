@@ -1,7 +1,7 @@
 // src/components/ModalHost.tsx
 
 // import react stuff
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useModal } from "../hooks/useModal";
 import { createPortal } from "react-dom";
 
@@ -16,25 +16,61 @@ import { useI18n } from "../i18n";
 export default function ModalHost() {
     const { modal, closeModal } = useModal();
     const { t } = useI18n();
+    const dialogRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        if (!modal) return;
+        const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const previousOverflow = document.body.style.overflow;
+        // Block background page scrolling while preserving scroll in the dialog content.
+        document.body.style.overflow = "hidden";
+        const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+        const dialog = dialogRef.current;
+        const focusables = dialog?.querySelectorAll<HTMLElement>(focusableSelector);
+        if (!dialog?.contains(document.activeElement)) {
+            (focusables?.[0] ?? dialog)?.focus();
+        }
+
         function handleKeyDown(e: KeyboardEvent) {
             if (e.key === "Escape") {
+                e.stopPropagation();
                 closeModal();
+                return;
+            }
+            if (e.key !== "Tab") return;
+            const elements = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+                .filter(node => node.getClientRects().length > 0);
+            if (!elements.length) {
+                e.preventDefault();
+                dialogRef.current?.focus();
+                return;
+            }
+            const first = elements[0];
+            const last = elements[elements.length - 1];
+            if (e.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) {
+                e.preventDefault();
+                first.focus();
             }
         }
 
         window.addEventListener("keydown", handleKeyDown);
-
-        return () =>
+        return () => {
             window.removeEventListener("keydown", handleKeyDown);
-    }, [closeModal]);
+            document.body.style.overflow = previousOverflow;
+            if (previousFocus?.isConnected) previousFocus.focus();
+        };
+    }, [closeModal, modal]);
 
     if (!modal) return null;
 
     return createPortal(
   <Overlay onClick={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
     <Dialog
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={typeof modal.title === "string" ? modal.title : t("addDrink")}
@@ -50,7 +86,7 @@ export default function ModalHost() {
 
           {modal.closeStyle !== "button" &&
             modal.closeStyle !== "none" && (
-              <CloseButton onClick={closeModal}>
+              <CloseButton type="button" aria-label={t("close")} onClick={closeModal}>
                 <Icon name="X" />
               </CloseButton>
           )}
@@ -77,6 +113,8 @@ export default function ModalHost() {
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
+  height: 100dvh;
+  min-height: 0;
   background: rgb(0 0 0 / 60%);
   backdrop-filter: blur(3px) saturate(50%);
 
@@ -93,11 +131,11 @@ const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
     max-width: 100%;
     height: ${({ $fit }) => ($fit ? "auto" : "100dvh")};
     min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    @media (max-width: 767px) { max-height: 100dvh; }
     display: flex;
     flex-direction: column;
     box-sizing: border-box;

@@ -186,6 +186,8 @@ justify-self: center;
 
   border: none;
   background: none;
+  min-width: 0;
+  overflow-wrap: anywhere;
 
   color: inherit;
   cursor: pointer;
@@ -206,6 +208,8 @@ const BackButton = styled.button`
   background: var(--neutral-900);
   border: 1px solid var(--neutral-500);
   flex-shrink: 1;
+  min-height: 44px;
+  min-width: 44px;
 
   @media (min-width: 769px) {
     display: none;
@@ -243,6 +247,8 @@ const SelectorButtons = styled.div`
 
 const LeftButton = styled.button`
     border-radius: var(--space-1) 0 0 var(--space-1);
+    min-height: 44px;
+    min-width: 44px;
     padding: var(--space-0);
     border: 1px solid var(--neutral-500);
     background: var(--neutral-900);
@@ -254,6 +260,8 @@ const LeftButton = styled.button`
 
 const RightButton = styled.button`
     border-radius: 0 var(--space-1) var(--space-1) 0;
+    min-height: 44px;
+    min-width: 44px;
     padding: var(--space-0);
     border: 1px solid var(--neutral-500);
     border-left: none;

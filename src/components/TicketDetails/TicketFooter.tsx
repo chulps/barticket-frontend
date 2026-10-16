@@ -74,6 +74,15 @@ const Footer = styled.footer`
     padding-top: var(--space-1);
     border-top: 1px solid var(--neutral-800);
 
+    @media (max-width: 767px) {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        flex-shrink: 0;
+        background: var(--neutral-950);
+        padding-bottom: calc(var(--space-1) + env(safe-area-inset-bottom, 0px));
+    }
+
     @media (min-width: 768px) {
         padding-top: var(--space-3);
         gap: var(--space-3);
