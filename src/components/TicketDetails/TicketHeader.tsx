@@ -32,7 +32,13 @@ export default function TicketDetailsHeader({
   const { t, locale } = useI18n();
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+  const cancellingName = useRef(false);
   const finishEditingName = () => {
+    if (cancellingName.current) {
+      cancellingName.current = false;
+      setEditingName(false);
+      return;
+    }
     const next = nameDraft.trim();
     if (next && next !== ticket.name) onUpdateName(ticket.id, next);
     setEditingName(false);
@@ -64,7 +70,10 @@ export default function TicketDetailsHeader({
                                 if (e.key === "Enter") {
                                     finishEditingName();
                                 }
-                                if (e.key === "Escape") setEditingName(false);
+                                if (e.key === "Escape") {
+                                    cancellingName.current = true;
+                                    setEditingName(false);
+                                }
                             }}
                             onBlur={finishEditingName}
                         />
@@ -76,6 +85,7 @@ export default function TicketDetailsHeader({
                             <CustomerName
                                 onClick={() => {
                                     if (!isEditable) return;
+                                    cancellingName.current = false;
                                     setNameDraft("");
                                     setEditingName(true);
                                 }}
