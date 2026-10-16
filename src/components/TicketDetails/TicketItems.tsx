@@ -43,7 +43,7 @@ type TicketItemsProps = {
     onRemoveItem: (
         ticketId: number,
         itemId: number
-    ) => Promise<boolean>;
+    ) => void;
 
     onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => Promise<boolean>;
 
@@ -53,7 +53,7 @@ type TicketItemsProps = {
         priceKey: keyof Prices,
         unitPrice: number,
         quantity: number
-    ) => void;
+    ) => Promise<boolean>;
 };
 
 export default function TicketItems({
