@@ -59,7 +59,10 @@ export default function AddItemPicker({ menu, tickets, onAddItem, onAddStaffDrin
                     <PriceButtons>
                         {options.map((priceKey) => (
                             <PriceButton key={priceKey} type="button" className="small hollow"
-                                onClick={() => setSelectedItems((previous) => addSelection(previous, item, priceKey))}>
+                                onClick={() => {
+                                    setSelectedItems((previous) => addSelection(previous, item, priceKey));
+                                    setSearch("");
+                                }}>
                                 {priceKey === "standard" ? "" : priceKey + " · "}
                                 ¥{item.prices[priceKey]!.toLocaleString()}
                             </PriceButton>
@@ -141,7 +144,11 @@ const ItemName = styled.p`font-weight: normal; flex: 1; min-width: 0; margin: 0;
 const OutOfStock = styled.span`color: var(--danger-400); font-size: 12px; white-space: nowrap;`;
 const PriceButtons = styled.div`display: flex; gap: var(--space-1); flex-wrap: wrap; justify-content: end;`;
 const PriceButton = styled.button`width: auto; min-height: 44px; white-space: nowrap;`;
-const SearchBarContainer = styled.div`padding: var(--space-1) var(--space-2);`;
+const SearchBarContainer = styled.div`
+    position: sticky; top: 0; z-index: 5;
+    padding: var(--space-1) var(--space-2);
+    background: var(--neutral-900);
+`;
 const SelectedItems = styled.div`
     display: flex; flex-wrap: wrap; gap: var(--space-1);
     padding: var(--space-2); max-height: 30dvh; overflow-y: auto;
