@@ -117,7 +117,7 @@ export default function Admin() {
         });
     }
 
-    if (loading) return <Page><h1>{locale === "ja" ? "管理" : "Admin"}</h1><p>{t("loading")}</p></Page>;
+    if (loading) return <Page><h1>{locale === "ja" ? "管理" : "Admin"}</h1><p role="status" aria-live="polite">{t("loading")}</p></Page>;
     if (!me && error) return (
         <Page>
             <h1>{locale === "ja" ? "管理" : "Admin"}</h1>
@@ -196,7 +196,7 @@ export default function Admin() {
                             : "Only accounts currently returned by the API are shown. Historical and deactivated accounts are not included."}</p>
                         {accountsError ? <ErrorText role="alert">{accountsError}</ErrorText> : null}
                         <button type="button" className="small hollow secondary" disabled={accountsLoading || busy} onClick={() => void refreshAccounts()}>
-                            {locale === "ja" ? "一覧を更新" : "Refresh accounts"}
+                            {accountsLoading ? (locale === "ja" ? "更新中…" : "Refreshing…") : (locale === "ja" ? "一覧を更新" : "Refresh accounts")}
                         </button>
                         {!team.length && !accountsError ? <p>{locale === "ja" ? "登録アカウントがありません。" : "No accounts were returned."}</p> : null}
                         {team.map(person => (
