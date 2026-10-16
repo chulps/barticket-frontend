@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import styled from "styled-components";
 
 import type { Prices } from "../types/Menu";
@@ -23,7 +23,14 @@ export default function MenuItemForm({
     const { t, locale } = useI18n();
     const id = useId().replace(/:/g, "");
     const help = (en: string, jp: string) => locale === "ja" ? jp : en;
-    const { closeModal } = useModal();
+    const { closeModal, forceCloseModal, registerCloseGuard } = useModal();
+    const dirty = useRef(false);
+    const pending = useRef(false);
+    useEffect(() => {
+        registerCloseGuard(() => !pending.current && (!dirty.current || window.confirm(locale === "ja"
+            ? "保存していない変更を破棄しますか？" : "Discard unsaved changes?")));
+        return () => registerCloseGuard(null);
+    }, [locale, registerCloseGuard]);
     const [name, setName] = useState("");
     const [categoryChoice, setCategoryChoice] = useState("");
     const [customCategory, setCustomCategory] = useState("");
@@ -49,6 +56,7 @@ export default function MenuItemForm({
     const [error, setError] = useState("");
 
     function addTag() {
+        dirty.current = true;
         const next = tagDraft.trim();
         if (!next || tags.includes(next)) {
             setTagDraft("");
@@ -60,7 +68,7 @@ export default function MenuItemForm({
 
     async function save(event: FormEvent) {
         event.preventDefault();
-        if (saving) return;
+        if (pending.current) return;
         const trimmedName = name.trim();
         const trimmedCategory = category.trim();
         if (!trimmedName) {
@@ -90,6 +98,7 @@ export default function MenuItemForm({
             return;
         }
         setError("");
+        pending.current = true;
         setSaving(true);
         try {
             const created = await createMenuItem({
@@ -106,17 +115,19 @@ export default function MenuItemForm({
                 cocktail_ingredient: cocktailIngredient,
             });
             onCreated({ ...created, prices: created.prices ?? {} });
-            closeModal();
+            dirty.current = false;
+            forceCloseModal();
         } catch (caught) {
             setError(caught instanceof ApiError ? caught.message : t("addMenuItemFailed"));
         } finally {
+            pending.current = false;
             setSaving(false);
         }
     }
 
 
     return (
-        <Form onSubmit={save}>
+        <Form onSubmit={save} onChangeCapture={() => { dirty.current = true; }}>
             <Field>
                 <Caption htmlFor={id + "-name"}>{t("name")} *</Caption>
                 <TextInput id={id + "-name"} value={name} onChange={(e) => setName(e.target.value)}
@@ -223,7 +234,7 @@ export default function MenuItemForm({
             </Checks>
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             <Actions>
-                <button type="button" className="hollow" onClick={closeModal}>{t("cancel")}</button>
+                <button type="button" className="hollow" disabled={saving} onClick={closeModal}>{t("cancel")}</button>
                 <button type="submit" disabled={saving}>{saving ? help("Saving…", "保存中…") : t("addDrink")}</button>
             </Actions>
         </Form>
