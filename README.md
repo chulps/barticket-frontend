@@ -173,6 +173,8 @@ If the build variable is missing, the deployed app falls back to
 `http://localhost:8000`, which points at each visitor's machine. Configure the
 hosted API URL before deploying.
 
+GitHub Pages builds read `VITE_API_URL` from **Settings → Secrets and variables → Actions → Variables** (`vars.VITE_API_URL`), not from a secret with the same name. Changing that variable requires a new build and deployment.
+
 ## Troubleshooting
 
 - **Menu or requests fail:** check that the backend is running and that
