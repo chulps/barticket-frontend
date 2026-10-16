@@ -1,3 +1,5 @@
+import { noteApiAvailability } from "./connectionStatus";
+
 // api/client.ts
 
 export const API_URL = (
@@ -63,11 +65,20 @@ export async function apiRequest<T>(
     if (token) headers.Authorization = `Bearer ${token}`;
     if (options.body !== undefined) headers["Content-Type"] = "application/json";
 
-    const res = await fetch(`${API_URL}${path}`, {
-        method: options.method ?? "GET",
-        headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    });
+    let res: Response;
+    try {
+        res = await fetch(`${API_URL}${path}`, {
+            method: options.method ?? "GET",
+            headers,
+            body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        });
+    } catch (error) {
+        noteApiAvailability(false);
+        // Writes may have reached the server before the connection failed.
+        // Do not retry them automatically.
+        throw error;
+    }
+    noteApiAvailability(res.status < 500);
 
     if (!res.ok) {
         let message = `Request failed (${res.status})`;
