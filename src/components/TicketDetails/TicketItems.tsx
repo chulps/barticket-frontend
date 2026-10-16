@@ -38,7 +38,7 @@ type TicketItemsProps = {
         ticketId: number,
         itemId: number,
         price: number
-    ) => void;
+    ) => Promise<boolean>;
 
     onRemoveItem: (
         ticketId: number,
@@ -152,10 +152,12 @@ export default function TicketItems({
                         onAdjustPrice={() => {
                             setEditingPriceItemId(item.id);
                         }}
-                        onSavePrice={(price) => {
-                            onUpdatePrice(ticket.id, item.id, price);
-                            setEditingPriceItemId(null);
+                        onSavePrice={async (price) => {
+                            const saved = await onUpdatePrice(ticket.id, item.id, price);
+                            if (saved) setEditingPriceItemId(null);
+                            return saved;
                         }}
+                        onCancelPrice={() => setEditingPriceItemId(null)}
                     />
                 ))}
             </ItemList>
