@@ -45,6 +45,7 @@ export default function TicketFooter({
 
             <Actions>
                 <TicketActions
+                    key={ticket.id}
                     ticket={ticket}
                     activeTab={activeTab}
                     onCancelTicket={onCancelTicket}
