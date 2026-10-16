@@ -48,6 +48,8 @@ export default function Dashboard({
   // business logic for updating or creating new tickets (../hooks/useTickets.ts)
   const {
     tickets,
+    ticketsLoading,
+    ticketsError,
     updateItemQuantity,
     updateItemPrice,
     addItemToTicket,
@@ -211,11 +213,22 @@ export default function Dashboard({
   if (loadingMenu) {
     return <p role="status" aria-live="polite">{t("loadingMenu")}</p>;
   }
+  if (ticketsLoading && tickets.length === 0) {
+    return <p role="status" aria-live="polite">{locale === "ja" ? "伝票を読み込み中…" : "Loading tickets…"}</p>;
+  }
 
 
   return (
 
     <DashboardContainer>
+      {ticketsError ? <TicketLoadWarning role="alert">
+        <span>{locale === "ja"
+          ? "伝票の取得に失敗しました。表示中の伝票が古い可能性があります。"
+          : "Could not refresh tickets. Displayed ticket data may be outdated."}</span>
+        <button type="button" className="small hollow secondary" onClick={() => window.dispatchEvent(new Event("barticket-retry-tickets"))}>
+          {locale === "ja" ? "再試行" : "Retry"}
+        </button>
+      </TicketLoadWarning> : null}
       {menuError ? <MenuLoadWarning role="alert">
         {locale === "ja" ? "メニューを更新できません。価格と在庫を確認してください。" : "Menu is unavailable or out of date. Verify prices and stock before adding drinks."}
         <button type="button" className="small hollow secondary" onClick={() => window.dispatchEvent(new Event("barticket-retry-menu"))}>{locale === "ja" ? "再試行" : "Retry"}</button>
@@ -316,6 +329,18 @@ const EmptyTicketDetails = styled.div`
 `;
 
 // something
+const TicketLoadWarning = styled.div`
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--danger-500);
+  border-radius: var(--space-1);
+  button { width: auto; }
+`;
+
 const MenuLoadWarning = styled.div`
   grid-column: 1 / -1;
   display: flex;
