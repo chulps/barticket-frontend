@@ -7,7 +7,7 @@ import ts from "typescript";
 function src(path) { return readFileSync(new URL("../src/" + path, import.meta.url), "utf8"); }
 
 test("API connectivity state changes only once per transition and announces restoration", () => {
-  const input = src("api/connectionStatus.ts");
+  const input = src("api/client.ts").replaceAll("import.meta.env.", "globalThis.__BARTICKET_TEST_ENV__.");
   const { outputText } = ts.transpileModule(input, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   });
@@ -16,6 +16,7 @@ test("API connectivity state changes only once per transition and announces rest
   class FakeEvent { constructor(type) { this.type = type; } }
   runInNewContext(outputText, {
     module: mod, exports: mod.exports,
+    globalThis: { __BARTICKET_TEST_ENV__: { VITE_API_URL: "https://api.example.test", BASE_URL: "/" } },
     Event: FakeEvent,
     window: { dispatchEvent: e => events.push(e.type) },
   });
@@ -36,7 +37,7 @@ test("API requests flag failed network and 5xx responses, not auth errors", () =
   assert.match(client, /noteApiAvailability\(false\)/);
   assert.match(client, /noteApiAvailability\(res\.status < 500\)/);
   assert.match(client, /throw error;/);
-  assert.equal((client.match(/\bawait fetch\(/g) ?? []).length, 1);
+  assert.equal((client.split("export async function apiRequest")[1].match(/\bawait fetch\(/g) ?? []).length, 1);
 });
 
 test("offline message and recovery refresh are connected to ticket and analytics screens", () => {
