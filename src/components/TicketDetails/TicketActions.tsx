@@ -144,6 +144,7 @@ const ButtonActions = styled.div<{ $row?: boolean }>`
         }
 
         @media (max-width: 767px) {
+            flex-direction: column-reverse;
             && > button {
                 padding-left: var(--space-1);
                 padding-right: var(--space-1);
