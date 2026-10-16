@@ -7,7 +7,7 @@ import type { PaymentType, Ticket } from "../types/Ticket";
 
 // import api
 import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
-import { useI18n } from "../i18n";
+import { readLocale, useI18n } from "../i18n";
 import { notifyMutation } from "../utils/mutationFeedback";
 import { ACTIVE_REFRESH_MS, isTicketRefreshDue } from "./ticketRefreshPolicy";
 import { projectTicket, type OptimisticEdit } from "./optimisticTickets";
@@ -20,7 +20,7 @@ const RENAME_DELAY_MS = 500;
 function reportError(error: unknown) {
   // A timed-out write may already have committed. Avoid suggesting blind retries.
   console.warn("Ticket operation could not be confirmed", error);
-  notifyMutation("error", "Ticket update not confirmed. Check the ticket before retrying.");
+  notifyMutation("error", readLocale() === "ja" ? "変更を確認できませんでした。再実行する前に伝票を確認してください。" : "Ticket update not confirmed. Check the ticket before retrying.");
 }
 
 export function useTickets() {
