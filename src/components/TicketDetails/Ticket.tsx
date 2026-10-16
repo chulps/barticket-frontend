@@ -5,6 +5,7 @@ import { useState } from "react";
 
 //import styling package
 import styled from "styled-components";
+import { useI18n } from "../../i18n";
 
 //import UI components
 import PaidTicketSummary from "./PaidTicketSummary"
@@ -92,6 +93,7 @@ export default function TicketDetails({
     onReopenTicket,
 }: TicketDetailsProps) {
 
+    const { locale } = useI18n();
     const [editingPriceItemId, setEditingPriceItemId] = useState<number | null>(null);
     const [closingTicketId, setClosingTicketId] = useState<number | null>(null);
 
@@ -105,7 +107,7 @@ export default function TicketDetails({
     }
 
     const closing = activeTab === "open" && closingTicketId === ticket.id;
-    const closingMessage = "Choose payment or cancel this ticket";
+    const closingMessage = locale === "ja" ? "お支払い、またはチケットのキャンセルを選択してください" : "Choose a payment method or cancel this ticket";
 
     return (
         <TicketDetailsContainer>
@@ -128,10 +130,7 @@ export default function TicketDetails({
             )}
             
             {closing ? (
-                <CloseStepMessage>{/* This is a view change only; ticket stays open until payment or cancellation. */}
-                    {/** Text comes from the active language and should not imply payment has happened. */}
-                    <span>{closingMessage}</span>
-                </CloseStepMessage>
+                <CloseStepMessage>{closingMessage}</CloseStepMessage>
             ) : <TicketItems
                 ticket={ticket}
                 menu={menu}
