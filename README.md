@@ -173,7 +173,7 @@ If the build variable is missing, the deployed app falls back to
 `http://localhost:8000`, which points at each visitor's machine. Configure the
 hosted API URL before deploying.
 
-The GitHub Pages workflow currently pins `VITE_API_URL` to `https://bar-ticket-api-taupe.vercel.app` at build time. The old API hostname is no longer used by this deployment. If switching back to a repository variable later, update `.github/workflows/deploy.yml` to use `vars.VITE_API_URL` and rebuild.
+The GitHub Pages workflow reads `VITE_API_URL` from the repository's GitHub Actions secret (`secrets.VITE_API_URL`) at build time. Populate that secret with the current API base URL and rebuild after changing it. Note that Vite embeds the value into the publicly downloadable frontend bundle: storing the build setting as a secret keeps it out of repository source but does not conceal the API hostname from browser users.
 
 ## Troubleshooting
 
