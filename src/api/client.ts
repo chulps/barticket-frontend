@@ -1,8 +1,11 @@
 // api/client.ts
 
-export const API_URL = (
-    import.meta.env.VITE_API_URL || "http://localhost:8000"
-).replace(/\/$/, "");
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
+if (import.meta.env.PROD && !configuredApiUrl) {
+    // Production must never silently call the visitor's localhost.
+    throw new Error("BarTicket API URL is not configured for production.");
+}
+export const API_URL = (configuredApiUrl || "http://localhost:8000").replace(/\/$/, "");
 
 const TOKEN_KEY = "barticket_token";
 const DEVICE_KEY = "barticket_device_id";
