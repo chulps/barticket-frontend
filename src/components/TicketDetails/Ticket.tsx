@@ -106,6 +106,13 @@ export default function TicketDetails({
         return null;
     }
 
+    const navigateFromDraft = (action: () => void) => {
+        if (editingPriceItemId !== null && !window.confirm(locale === "ja"
+            ? "保存していない価格の変更を破棄しますか？" : "Discard unsaved price changes?")) return;
+        setEditingPriceItemId(null);
+        action();
+    };
+
     const closing = activeTab === "open" && closingTicketId === ticket.id;
     const closingMessage = locale === "ja" ? "お支払い、またはチケットのキャンセルを選択してください" : "Choose a payment method or cancel this ticket";
 
@@ -117,9 +124,9 @@ export default function TicketDetails({
                 key={ticket.id}
                 ticket={ticket}
                 activeTab={activeTab}
-                onClose={onClose}
-                onPrevious={onPrevious}
-                onNext={onNext}
+                onClose={() => navigateFromDraft(onClose)}
+                onPrevious={() => navigateFromDraft(onPrevious)}
+                onNext={() => navigateFromDraft(onNext)}
                 hasPrevious={hasPrevious}
                 hasNext={hasNext}
                 onUpdateName={onUpdateName}
