@@ -372,20 +372,27 @@ export function useTickets() {
     return { temporaryId, completion };
   };
 
-  const cancelTicket = (ticketId: number) => {
+  // Financial and terminal transitions cannot be queued twice by double taps.
+  // A transport timeout may still have committed; never replay automatically.
+  const terminalPending = useRef(new Set<number>());
+  const terminalMutation = (
+    ticketId: number,
+    request: () => Promise<Ticket | null>,
+  ): Promise<Ticket | null> => {
+    if (terminalPending.current.has(ticketId)) return Promise.resolve(null);
+    terminalPending.current.add(ticketId);
     flushRename(ticketId);
-    return enqueue(ticketId, () => ticketsApi.cancel(ticketId));
+    return request().finally(() => terminalPending.current.delete(ticketId));
   };
 
-  const payTicket = (ticketId: number, paymentType: PaymentType) => {
-    flushRename(ticketId);
-    return enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType));
-  };
+  const cancelTicket = (ticketId: number) =>
+    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.cancel(ticketId)));
 
-  const reopenTicket = (ticketId: number) => {
-    flushRename(ticketId);
-    return enqueue(ticketId, () => ticketsApi.reopen(ticketId));
-  };
+  const payTicket = (ticketId: number, paymentType: PaymentType) =>
+    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType)));
+
+  const reopenTicket = (ticketId: number) =>
+    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.reopen(ticketId)));
 
   return {
     tickets,

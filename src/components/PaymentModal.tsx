@@ -1,6 +1,6 @@
 // src/components/PaymentModal.tsx
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import styled from "styled-components";
 
 import { useModal } from "../hooks/useModal";
@@ -13,7 +13,7 @@ type IconName = React.ComponentProps<typeof Icon>["name"];type PaymentType = "ca
 
 type PaymentModalProps = {
     ticket: Ticket;
-    onConfirm: (paymentType: PaymentType) => void;
+    onConfirm: (paymentType: PaymentType) => Promise<boolean>;
 };
 
 
@@ -44,22 +44,37 @@ export default function PaymentModal({
     onConfirm,
 }: PaymentModalProps) {
     const { closeModal } = useModal();
-    const { t } = useI18n();
+    const { t, locale } = useI18n();
 
     const [paymentType, setPaymentType] =
         useState<PaymentType>("cash");
 
     const [step, setStep] =
         useState<"select" | "success">("select");
+    const pending = useRef(false);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
 
     const total = ticket.items.reduce(
         (sum, item) => sum + item.subtotal,
         0
     );
 
-    const handleConfirm = () => {
-        onConfirm(paymentType);
-        setStep("success");
+    const handleConfirm = async () => {
+        if (pending.current) return;
+        pending.current = true;
+        setSaving(true);
+        setError("");
+        try {
+            const confirmed = await onConfirm(paymentType);
+            if (confirmed) setStep("success");
+            else setError(locale === "ja" ? "お支払いを確認できませんでした。再試行前にチケットの状態を確認してください。" : "Payment not confirmed. Check the ticket before retrying.");
+        } catch {
+            setError("Payment could not be confirmed. Check ticket status before retrying.");
+        } finally {
+            pending.current = false;
+            setSaving(false);
+        }
     };
 
     if (step === "success") {
@@ -92,6 +107,7 @@ export default function PaymentModal({
                     <MethodButton
                         key={method.type}
                         $active={paymentType === method.type}
+                        disabled={saving}
                         onClick={() => setPaymentType(method.type)}
                     >
                         <Icon 
@@ -102,16 +118,18 @@ export default function PaymentModal({
                 ))}
             </Methods>
 
+            {error ? <p role="alert">{error}</p> : null}
             <Footer>
                 <button
                     className="hollow"
                     onClick={closeModal}
+                    disabled={saving}
                 >
                     {t("cancel")}
                 </button>
 
-                <button onClick={handleConfirm}>
-                    {t("confirmPayment")}
+                <button disabled={saving} onClick={() => void handleConfirm()}>
+                    {saving ? (locale === "ja" ? "処理中…" : "Processing…") : t("confirmPayment")}
                 </button>
             </Footer>
         </Container>

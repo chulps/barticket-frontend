@@ -57,7 +57,7 @@ type TicketDetailsProps = {
     onPayTicket: (
         ticketId: number,
         paymentType: PaymentType,
-    ) => void;
+    ) => Promise<boolean>;
 
     onClose: () => void;
     onPrevious: () => void;
@@ -153,7 +153,7 @@ export default function TicketDetails({
                 activeTab={activeTab}
                 total={total}
                 onCancelTicket={(id) => { setClosingTicketId(null); onCancelTicket(id); }}
-                onPayTicket={(id, method) => { setClosingTicketId(null); onPayTicket(id, method); }}
+                onPayTicket={(id, method) => { setClosingTicketId(null); return onPayTicket(id, method); }}
                 onReopenTicket={(id) => { setClosingTicketId(null); onReopenTicket(id); }}
             />
         </TicketDetailsContainer >
