@@ -288,10 +288,15 @@ const Content = styled.section<{ $open: boolean }>`
     flex-direction: column;
     position: fixed;
     inset: 0;
+    height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-sizing: border-box;
     z-index: 1000;
     background: var(--neutral-950);
     border: none;
     padding: var(--space-2);
+    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
   }
 `;
 
