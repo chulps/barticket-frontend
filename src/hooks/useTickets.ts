@@ -226,7 +226,9 @@ export function useTickets() {
       if (item.id !== itemId) return item;
       const quantity = Math.max(1, item.quantity + change);
       return { ...item, quantity, subtotal: quantity * item.unit_price };
-    }) }));
+    }) })).then(saved => {
+      if (saved) notifyMutation("success", locale === "ja" ? "数量を更新しました" : "Quantity updated");
+    });
   };
 
   const updateItemPrice = async (ticketId: number, itemId: number, price: number): Promise<boolean> => {
@@ -299,6 +301,9 @@ export function useTickets() {
       if (pendingNames.current.get(ticketId) !== name) return;
 
       pendingNames.current.delete(ticketId);
+      if (saved) {
+        notifyMutation("success", locale === "ja" ? "伝票名を保存しました" : "Ticket name saved");
+      }
       if (saved === null) {
         // Save failed: show the name the backend actually has.
         try {
@@ -357,6 +362,7 @@ export function useTickets() {
         const response = await ticketsApi.create();
         // Replace the temporary row atomically, avoiding duplicate tickets.
         const saved = toTicket(response);
+        notifyMutation("success", locale === "ja" ? "伝票を作成しました" : "Ticket created");
         confirmed.current.set(saved.id, saved);
         commit(resolveProvisionalTicket(ticketsRef.current, temporaryId, project(saved)));
         return saved;
@@ -389,13 +395,15 @@ export function useTickets() {
   };
 
   const cancelTicket = (ticketId: number) =>
-    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.cancel(ticketId)));
+    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.cancel(ticketId)))
+      .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票をキャンセルしました" : "Ticket cancelled"); return saved; });
 
   const payTicket = (ticketId: number, paymentType: PaymentType) =>
     terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType)));
 
   const reopenTicket = (ticketId: number) =>
-    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.reopen(ticketId)));
+    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.reopen(ticketId)))
+      .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票を再開しました" : "Ticket reopened"); return saved; });
 
   return {
     tickets,
