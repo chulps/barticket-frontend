@@ -2,7 +2,7 @@ import styled from "styled-components";
 import Icon from "../Icon";
 import DropdownMenu from "../DropdownMenu";
 import DropdownMenuItem from "../DropdownMenuItem";
-import { useState } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useI18n } from "../../i18n";
 
 type TicketDetailItemProps = {
@@ -20,7 +20,8 @@ type TicketDetailItemProps = {
 
     onRemove: () => void;
     onAdjustPrice: () => void;
-    onSavePrice: (price: number) => void;
+    onSavePrice: (price: number) => Promise<boolean>;
+    onCancelPrice: () => void;
     activeTab: "open" | "paid" | "cancelled";
 };
 
@@ -35,46 +36,91 @@ export default function TicketDetailItem({
     onRemove,
     onAdjustPrice,
     onSavePrice,
+    onCancelPrice,
     activeTab
 }: TicketDetailItemProps) {
-    const { t } = useI18n();
+    const { t, locale } = useI18n();
     const subtotal = unitPrice * quantity;
 
     const [priceInput, setPriceInput] = useState(unitPrice.toString());
+    const [savingPrice, setSavingPrice] = useState(false);
+    const [priceError, setPriceError] = useState("");
+    const priceSavingRef = useRef(false);
+
+    const startEditingPrice = () => {
+        setPriceInput(unitPrice.toString());
+        setPriceError("");
+        onAdjustPrice();
+    };
+    const savePrice = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (priceSavingRef.current || pending) return;
+        if (!/^\\d+$/.test(priceInput) || !Number.isSafeInteger(Number(priceInput))) {
+            setPriceError(t("priceMinimum"));
+            return;
+        }
+        const next = Number(priceInput);
+        if (next === unitPrice) {
+            onCancelPrice();
+            return;
+        }
+        priceSavingRef.current = true;
+        setSavingPrice(true);
+        setPriceError("");
+        try {
+            const saved = await onSavePrice(next);
+            if (!saved) setPriceError(locale === "ja"
+                ? "価格を保存できませんでした。伝票を確認してください。"
+                : "Price could not be confirmed. Check the ticket before retrying.");
+        } catch {
+            setPriceError(locale === "ja"
+                ? "通信エラーが発生しました。伝票を確認してください。"
+                : "Connection error. Check the ticket before retrying.");
+        } finally {
+            priceSavingRef.current = false;
+            setSavingPrice(false);
+        }
+    };
 
     const isEditable = activeTab === "open" && !pending;
 
     return (
         <Container>
-            <Info>
+            <Info $editing={isEditingPrice}>
                 <Name>{name}{pending ? " · Saving…" : ""}</Name>
                 {isEditingPrice ? (
-                    <PriceInput
-                        autoFocus
-                        type="text"
-                        inputMode="numeric"
-                        value={priceInput}
-                        onChange={(e) =>
-                            setPriceInput(
-                                e.target.value.replace(/\D/g, "")
-                            )
-                        }
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                                onSavePrice(Number(priceInput));
-                            }
-
-                            if (e.key === "Escape") {
-                                onSavePrice(unitPrice);
-                            }
-                        }}
-                    />
+                    <PriceEditForm onSubmit={(event) => void savePrice(event)}>
+                        <PriceInput
+                            autoFocus
+                            aria-label={locale === "ja" ? "新しい商品価格" : "New item price"}
+                            type="text"
+                            inputMode="numeric"
+                            value={priceInput}
+                            disabled={savingPrice || pending}
+                            onChange={(event) => { setPriceInput(event.target.value.replace(/\D/g, "")); setPriceError(""); }}
+                            onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    if (!savingPrice) onCancelPrice();
+                                }
+                            }}
+                        />
+                        <PriceEditActions>
+                            <button type="submit" className="small" disabled={savingPrice || pending || priceInput === ""}>
+                                {savingPrice ? (locale === "ja" ? "保存中…" : "Saving…") : t("save")}
+                            </button>
+                            <button type="button" className="small hollow secondary" disabled={savingPrice} onClick={onCancelPrice}>
+                                {t("cancel")}
+                            </button>
+                        </PriceEditActions>
+                        {priceError ? <PriceError role="alert">{priceError}</PriceError> : null}
+                    </PriceEditForm>
                 ) : (
                     <Price
                         onClick={() => {
                             if (!isEditable) return;
-                            setPriceInput(unitPrice.toString());
-                            onAdjustPrice();
+                            startEditingPrice();
                         }}
                     >
                         {t("priceEach", { price: unitPrice.toLocaleString() })}
@@ -134,7 +180,7 @@ export default function TicketDetailItem({
                             <DropdownMenuItem
                                 onClick={() => {
                                     closeMenu();
-                                    onAdjustPrice();
+                                    startEditingPrice();
                                 }}
                             >
                                 <Icon name="CurrencyCircleDollar" />
@@ -178,10 +224,12 @@ const Container = styled.div`
   }
 `;
 
-const Info = styled.div`
+const Info = styled.div<{ $editing: boolean }>`
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  grid-column: ${({ $editing }) => $editing ? "1 / -1" : "auto"};
+  min-width: 0;
 `;
 
 const Name = styled.p`
@@ -206,6 +254,24 @@ const PriceInput = styled.input`
     font-size: var(--font-size-h6);
     background: var(--neutral-800);
     border-color: var(--primary);
+`;
+
+const PriceEditForm = styled.form`
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+    min-width: 0;
+`;
+const PriceEditActions = styled.div`
+    display: flex;
+    gap: var(--space-1);
+    flex-wrap: wrap;
+    button { width: auto; min-height: 44px; }
+`;
+const PriceError = styled.small`
+    flex-basis: 100%;
+    color: var(--danger-400);
 `;
 
 const Controls = styled.div`
