@@ -46,9 +46,9 @@ type TicketDetailsProps = {
         priceKey: keyof Prices,
         unitPrice: number,
         quantity: number
-    ) => void;
+    ) => Promise<boolean>;
 
-    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => void;
+    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => Promise<boolean>;
 
     onCancelTicket: (ticketId: number) => void;
 
