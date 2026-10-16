@@ -26,6 +26,8 @@ function reportError(error: unknown) {
 export function useTickets() {
   const { t, locale } = useI18n();
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
+  const [ticketsError, setTicketsError] = useState(false);
 
   // latest tickets for async callbacks, which would otherwise see stale state
   const ticketsRef = useRef<Ticket[]>([]);
@@ -147,6 +149,7 @@ export function useTickets() {
           cancelled,
         });
         if (loaded === null) return;
+        setTicketsError(false);
         // Never overwrite a name being edited or awaiting its debounced save.
         const next = loaded.map((ticket) => {
           const pendingName = pendingNames.current.get(ticket.id);
@@ -157,12 +160,14 @@ export function useTickets() {
         setTickets(next);
       } catch (error) {
         if (!cancelled) {
+          setTicketsError(true);
           if (!initialErrorReported) {
             initialErrorReported = true;
             reportError(error);
           } else console.warn("Unable to refresh tickets", error);
         }
       } finally {
+        if (!cancelled) setTicketsLoading(false);
         fetching = false;
       }
     };
@@ -192,6 +197,7 @@ export function useTickets() {
     window.addEventListener("focus", onFocus);
     window.addEventListener("barticket-push", onFocus);
     window.addEventListener("barticket-api-restored", onFocus);
+    window.addEventListener("barticket-retry-tickets", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
@@ -201,6 +207,7 @@ export function useTickets() {
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("barticket-push", onFocus);
       window.removeEventListener("barticket-api-restored", onFocus);
+      window.removeEventListener("barticket-retry-tickets", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
@@ -407,6 +414,8 @@ export function useTickets() {
 
   return {
     tickets,
+    ticketsLoading,
+    ticketsError,
     updateItemQuantity,
     updateItemPrice,
     addItemToTicket,
