@@ -152,9 +152,9 @@ export default function TicketDetails({
                 onBackToItems={() => setClosingTicketId(null)}
                 activeTab={activeTab}
                 total={total}
-                onCancelTicket={onCancelTicket}
-                onPayTicket={onPayTicket}
-                onReopenTicket={onReopenTicket}
+                onCancelTicket={(id) => { setClosingTicketId(null); onCancelTicket(id); }}
+                onPayTicket={(id, method) => { setClosingTicketId(null); onPayTicket(id, method); }}
+                onReopenTicket={(id) => { setClosingTicketId(null); onReopenTicket(id); }}
             />
         </TicketDetailsContainer >
     );
