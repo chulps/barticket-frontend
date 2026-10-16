@@ -14,6 +14,8 @@ export default function Profile() {
     const [hasAccounts, setHasAccounts] = useState(true);
     const [shift, setShift] = useState<ShiftReport | null>(null);
     const [error, setError] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [busy, setBusy] = useState(false);
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -51,6 +53,8 @@ export default function Profile() {
                 if (!cancelled) {
                     setError(err instanceof ApiError ? err.message : translate(readLocale(), "couldNotLoadAccount"));
                 }
+            } finally {
+                if (!cancelled) setLoading(false);
             }
         }
         load();
@@ -60,11 +64,15 @@ export default function Profile() {
     }, []);
 
     async function run(action: () => Promise<void>) {
+        if (busy) return;
+        setBusy(true);
         setError("");
         try {
             await action();
         } catch (err) {
             setError(err instanceof ApiError ? err.message : translate(readLocale(), "somethingWrong"));
+        } finally {
+            setBusy(false);
         }
     }
 
@@ -72,10 +80,13 @@ export default function Profile() {
         account && shift?.punches.some((punch) => punch.user_id === account.id && punch.clock_out === null),
     );
 
+    if (loading) return <Page $signedIn={false}><h1>{t("account")}</h1><p role="status" aria-live="polite">{locale === "ja" ? "アカウントを読み込み中…" : "Loading account…"}</p></Page>;
+
     return (
         <Page $signedIn={Boolean(account)}>
             <h1>{t("account")}</h1>
-            {error ? <ErrorText>{error}</ErrorText> : null}
+            {error ? <ErrorText role="alert">{error}</ErrorText> : null}
+            {error && !account ? <button type="button" className="small hollow secondary" onClick={() => window.location.reload()}>{locale === "ja" ? "再試行" : "Retry"}</button> : null}
 
             {!account ? (
                 <Section>
@@ -100,6 +111,7 @@ export default function Profile() {
                     </label>
                     <button
                         type="button"
+                        disabled={busy}
                         onClick={() =>
                             run(async () => {
                                 const user = hasAccounts
