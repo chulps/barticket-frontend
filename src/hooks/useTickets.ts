@@ -227,23 +227,22 @@ export function useTickets() {
     }) }));
   };
 
-  const updateItemPrice = (ticketId: number, itemId: number, price: number) => {
+  const updateItemPrice = async (ticketId: number, itemId: number, price: number): Promise<boolean> => {
     if (itemId === COVER_ITEM_ID) {
       window.alert(t("coverPriceFixed"));
-      return;
+      return false;
     }
-    if (!Number.isFinite(price) || price < 0) {
+    if (!Number.isSafeInteger(price) || price < 0) {
       window.alert(t("priceMinimum"));
-      return;
+      return false;
     }
-
-    if (!Number.isInteger(itemId)) return;
-    const rounded = Math.round(price);
-    void enqueue(ticketId, () =>
-      ticketsApi.updateItem(ticketId, itemId, { unit_price: rounded }),
+    if (!Number.isInteger(itemId)) return false;
+    const saved = await enqueue(ticketId, () =>
+      ticketsApi.updateItem(ticketId, itemId, { unit_price: price }),
       ticket => ({ ...ticket, items: ticket.items.map(item => item.id === itemId
-        ? { ...item, unit_price: rounded, subtotal: item.quantity * rounded } : item) }),
+        ? { ...item, unit_price: price, subtotal: item.quantity * price } : item) }),
     );
+    return saved !== null;
   };
 
   const addItemToTicket = (
