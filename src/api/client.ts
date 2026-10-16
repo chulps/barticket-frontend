@@ -1,3 +1,18 @@
+// Shared in-memory connectivity state. A 401/403 is an application response,
+// not proof that the backend is down. Never automatically replay a write.
+let apiAvailable = true;
+
+export function isApiAvailable(): boolean {
+    return apiAvailable;
+}
+
+export function noteApiAvailability(available: boolean): void {
+    if (apiAvailable === available) return;
+    apiAvailable = available;
+    window.dispatchEvent(new Event("barticket-api-status"));
+    if (available) window.dispatchEvent(new Event("barticket-api-restored"));
+}
+
 // api/client.ts
 
 const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
@@ -66,11 +81,20 @@ export async function apiRequest<T>(
     if (token) headers.Authorization = `Bearer ${token}`;
     if (options.body !== undefined) headers["Content-Type"] = "application/json";
 
-    const res = await fetch(`${API_URL}${path}`, {
-        method: options.method ?? "GET",
-        headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    });
+    let res: Response;
+    try {
+        res = await fetch(`${API_URL}${path}`, {
+            method: options.method ?? "GET",
+            headers,
+            body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        });
+    } catch (error) {
+        noteApiAvailability(false);
+        // Writes may have reached the server before the connection failed.
+        // Do not retry them automatically.
+        throw error;
+    }
+    noteApiAvailability(res.status < 500);
 
     if (!res.ok) {
         let message = `Request failed (${res.status})`;

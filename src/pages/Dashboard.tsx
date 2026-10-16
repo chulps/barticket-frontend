@@ -86,11 +86,13 @@ export default function Dashboard({
     const timer = window.setInterval(load, 20000);
     window.addEventListener("focus", load);
     window.addEventListener("barticket-auth", load);
+    window.addEventListener("barticket-api-restored", load);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
       window.removeEventListener("focus", load);
       window.removeEventListener("barticket-auth", load);
+      window.removeEventListener("barticket-api-restored", load);
     };
   }, []);
 

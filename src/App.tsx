@@ -1,6 +1,9 @@
 // src/App.tsx
 
 // import react stuff
+import styled from "styled-components";
+import { isApiAvailable } from "./api/client";
+import { useI18n } from "./i18n";
 import {
   BrowserRouter,
   Routes,
@@ -28,6 +31,14 @@ import { replaceMenuItem, optimisticStock, optimisticPrices, reconcileMenuSnapsh
 
 
 export default function App() {
+  const { locale } = useI18n();
+  const [apiAvailable, setApiAvailable] = useState(isApiAvailable);
+  useEffect(() => {
+    const updateStatus = () => setApiAvailable(isApiAvailable());
+    window.addEventListener("barticket-api-status", updateStatus);
+    return () => window.removeEventListener("barticket-api-status", updateStatus);
+  }, []);
+
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -51,7 +62,12 @@ export default function App() {
     }
     void checkAuth();
     window.addEventListener("barticket-auth", checkAuth);
-    return () => { version++; window.removeEventListener("barticket-auth", checkAuth); };
+    window.addEventListener("barticket-api-restored", checkAuth);
+    return () => {
+      version++;
+      window.removeEventListener("barticket-auth", checkAuth);
+      window.removeEventListener("barticket-api-restored", checkAuth);
+    };
   }, []);
 
   const [menu, setMenu] = useState<MenuData | null>(null);
@@ -122,7 +138,8 @@ export default function App() {
           updateMenu(reconcileMenuSnapshot(data, menuRef.current, pendingMenuItems.current));
         }
       } catch (error) {
-        console.error(error);
+        // Offline state is shown once in the persistent banner, not logged every poll.
+        if (isApiAvailable()) console.error(error);
       } finally {
         if (!cancelled) setLoadingMenu(false);
       }
@@ -130,10 +147,12 @@ export default function App() {
     load();
     const timer = window.setInterval(load, 20000);
     window.addEventListener("barticket-notices", load);
+    window.addEventListener("online", load);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
       window.removeEventListener("barticket-notices", load);
+      window.removeEventListener("online", load);
     };
   }, []);
 
@@ -151,6 +170,13 @@ export default function App() {
       <ModalProvider>
 
         <Header authenticated={authenticated === true} />
+        {!apiAvailable ? (
+          <ConnectionBanner role="status" aria-live="polite">
+            {locale === "ja"
+              ? "APIに接続できません。復旧後に自動で再読み込みします。支払いなどの操作は再試行する前に確認してください。"
+              : "Connection to BarTicket is unavailable. Data will refresh when it returns. Check payment status before retrying an action."}
+          </ConnectionBanner>
+        ) : null}
 
         <Routes>
           <Route path="/" element={authenticated === null ? null : authenticated ? <Navigate to="/tickets" replace /> : <Profile />} />
@@ -183,3 +209,14 @@ export default function App() {
     </BrowserRouter>
   );
 }
+const ConnectionBanner = styled.div`
+  position: sticky;
+  top: 64px;
+  z-index: 90;
+  padding: var(--space-2);
+  border: 1px solid var(--danger-500);
+  background: var(--danger-950);
+  color: white;
+  text-align: center;
+  @media (min-width: 768px) { top: 56px; }
+`;

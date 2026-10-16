@@ -189,6 +189,7 @@ export function useTickets() {
     window.addEventListener("keydown", markActivity);
     window.addEventListener("focus", onFocus);
     window.addEventListener("barticket-push", onFocus);
+    window.addEventListener("barticket-api-restored", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
@@ -197,6 +198,7 @@ export function useTickets() {
       window.removeEventListener("keydown", markActivity);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("barticket-push", onFocus);
+      window.removeEventListener("barticket-api-restored", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
