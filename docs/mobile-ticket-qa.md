@@ -17,3 +17,12 @@ Test English and Japanese layouts at these viewport conditions:
 ## Status
 
 Static layout changes and regression checks are implemented. **Live mobile device verification is outstanding**, so issue #107 must stay open until a tester confirms the matrix. The server-side payment behavior is unchanged.
+
+## 2026-10-17 additional frontend hardening
+
+- Modal dialogs now contain Tab/Shift+Tab focus, restore focus on close, and lock background scrolling.
+- Mobile ticket payment controls use a safe-area-aware sticky footer; header navigation controls have 44px targets.
+- Menu search uses a 16px input and a 44px target to avoid iOS's automatic input zoom.
+- Automated static regressions validate keyboard behavior and responsive CSS hooks; these tests do **not** simulate physical devices or real payments.
+
+**Outstanding before closing #107:** Run the above viewport matrix in a real narrow browser, open/close the mobile keyboard, verify scroll position and focus restoration, and test payment/cancellation only against isolated test data. Do not execute live financial writes as part of QA.
