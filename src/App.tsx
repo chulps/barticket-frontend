@@ -147,10 +147,12 @@ export default function App() {
     load();
     const timer = window.setInterval(load, 20000);
     window.addEventListener("barticket-notices", load);
+    window.addEventListener("online", load);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
       window.removeEventListener("barticket-notices", load);
+      window.removeEventListener("online", load);
     };
   }, []);
 
