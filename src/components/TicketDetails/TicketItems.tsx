@@ -198,6 +198,8 @@ const SectionTitle = styled.label`
 const ItemList = styled.div`
     color: white;
     height: 100%;
+    min-height: 0;
+    min-width: 0;
     overflow-x: visible;
     overflow-y: auto;
 

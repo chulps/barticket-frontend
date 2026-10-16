@@ -92,6 +92,7 @@ const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
     width: 100%;
     max-width: 100%;
     height: ${({ $fit }) => ($fit ? "auto" : "100dvh")};
+    min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -122,20 +123,31 @@ const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
 `;
 
 const Footer = styled.footer`
-    background: green;
-    position: absolute;
+    position: sticky;
     bottom: 0;
-    height: 100px;
+    z-index: 2;
+    display: flex;
+    justify-content: stretch;
+    padding: var(--space-2);
+    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--neutral-700);
+    background: var(--neutral-900);
+    button { width: 100%; }
 `
 
 const Content = styled.div`
   display: flex;
   flex-direction: column;
-  flex-grow: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 `
 
 const Header = styled.header`
     z-index: 1;
+    flex-shrink: 0;
     padding: var(--space-2);
     display: flex;
     justify-content: space-between;
