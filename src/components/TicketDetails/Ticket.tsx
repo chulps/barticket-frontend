@@ -93,6 +93,7 @@ export default function TicketDetails({
 }: TicketDetailsProps) {
 
     const [editingPriceItemId, setEditingPriceItemId] = useState<number | null>(null);
+    const [closingTicketId, setClosingTicketId] = useState<number | null>(null);
 
     const total = ticket?.items.reduce(
         (sum, item) => sum + item.subtotal,
@@ -103,11 +104,15 @@ export default function TicketDetails({
         return null;
     }
 
+    const closing = activeTab === "open" && closingTicketId === ticket.id;
+    const closingMessage = "Choose payment or cancel this ticket";
+
     return (
         <TicketDetailsContainer>
 
 
             <TicketDetailsHeader
+                key={ticket.id}
                 ticket={ticket}
                 activeTab={activeTab}
                 onClose={onClose}
@@ -122,7 +127,12 @@ export default function TicketDetails({
                 <PaidTicketSummary ticket={ticket} />
             )}
             
-            <TicketItems
+            {closing ? (
+                <CloseStepMessage>{/* This is a view change only; ticket stays open until payment or cancellation. */}
+                    {/** Text comes from the active language and should not imply payment has happened. */}
+                    <span>{closingMessage}</span>
+                </CloseStepMessage>
+            ) : <TicketItems
                 ticket={ticket}
                 menu={menu}
                 tickets={tickets}
@@ -134,10 +144,13 @@ export default function TicketDetails({
                 onRemoveItem={onRemoveItem}
                 onAddItem={onAddItem}
                 onAddStaffDrink={onAddStaffDrink}
-            />
+            />}
 
             <TicketFooter
                 ticket={ticket}
+                closing={closing}
+                onEnterClose={() => setClosingTicketId(ticket.id)}
+                onBackToItems={() => setClosingTicketId(null)}
                 activeTab={activeTab}
                 total={total}
                 onCancelTicket={onCancelTicket}
@@ -147,6 +160,16 @@ export default function TicketDetails({
         </TicketDetailsContainer >
     );
 }
+
+const CloseStepMessage = styled.section`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-3);
+  color: var(--neutral-300);
+`;
 
 const TicketDetailsContainer = styled.div`
   display: flex;
