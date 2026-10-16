@@ -8,6 +8,7 @@ import type { PaymentType, Ticket } from "../types/Ticket";
 // import api
 import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
 import { useI18n } from "../i18n";
+import { notifyMutation } from "../utils/mutationFeedback";
 import { ACTIVE_REFRESH_MS, isTicketRefreshDue } from "./ticketRefreshPolicy";
 import { projectTicket, type OptimisticEdit } from "./optimisticTickets";
 import { acceptBackgroundSnapshot } from "./refreshSafety";
@@ -17,12 +18,13 @@ import { provisionalTicket, resolveProvisionalTicket, removeProvisionalTicket } 
 const RENAME_DELAY_MS = 500;
 
 function reportError(error: unknown) {
-  console.error(error);
-  window.alert(error instanceof Error ? error.message : String(error));
+  // A timed-out write may already have committed. Avoid suggesting blind retries.
+  console.warn("Ticket operation could not be confirmed", error);
+  notifyMutation("error", "Ticket update not confirmed. Check the ticket before retrying.");
 }
 
 export function useTickets() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [tickets, setTickets] = useState<Ticket[]>([]);
 
   // latest tickets for async callbacks, which would otherwise see stale state
@@ -242,6 +244,7 @@ export function useTickets() {
       ticket => ({ ...ticket, items: ticket.items.map(item => item.id === itemId
         ? { ...item, unit_price: price, subtotal: item.quantity * price } : item) }),
     );
+    if (saved) notifyMutation("success", locale === "ja" ? "価格を保存しました" : "Price saved");
     return saved !== null;
   };
 
@@ -251,24 +254,24 @@ export function useTickets() {
     priceKey: keyof Prices,
     _unitPrice?: number,
     quantity = 1,
-  ) => {
-    if (menuItem.inStock === false || quantity < 1) return;
+  ): Promise<boolean> => {
+    if (menuItem.inStock === false || quantity < 1) return Promise.resolve(false);
     const price = menuItem.prices?.[priceKey];
-    if (typeof price !== "number") return;
+    if (typeof price !== "number") return Promise.resolve(false);
     const temporaryId = nextTempId.current--;
-    void enqueue(ticketId, () => ticketsApi.addItem(ticketId, menuItem.id, priceKey, quantity),
+    return enqueue(ticketId, () => ticketsApi.addItem(ticketId, menuItem.id, priceKey, quantity),
       ticket => ({ ...ticket, items: [...ticket.items, {
         id: temporaryId, type: "menu", menu_item_id: menuItem.id, price_key: priceKey,
         name: menuItem.name, unit_price: price, quantity, subtotal: price * quantity,
-      }] }));
+      }] })).then(saved => saved !== null);
   };
 
   const addStaffDrinkToTicket = (
     ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number,
     details?: { name: string; staffName: string; price: number },
-  ) => {
+  ): Promise<boolean> => {
     const temporaryId = nextTempId.current--;
-    void enqueue(ticketId, () => ticketsApi.addStaffDrink(ticketId, staffId, menuItemId, priceKey, quantity),
+    return enqueue(ticketId, () => ticketsApi.addStaffDrink(ticketId, staffId, menuItemId, priceKey, quantity),
       details && Number.isFinite(details.price)
         ? ticket => ({ ...ticket, items: [...ticket.items, {
             id: temporaryId, type: "menu", menu_item_id: menuItemId, price_key: priceKey,
@@ -276,7 +279,7 @@ export function useTickets() {
             name: details.name, unit_price: details.price, quantity,
             subtotal: details.price * quantity,
           }] })
-        : undefined);
+        : undefined).then(saved => saved !== null);
   };
 
   const flushRename = (ticketId: number) => {
@@ -333,7 +336,8 @@ export function useTickets() {
 
     if (!Number.isInteger(itemId)) return;
     void enqueue(ticketId, () => ticketsApi.removeItem(ticketId, itemId),
-      ticket => ({ ...ticket, items: ticket.items.filter(item => item.id !== itemId) }));
+      ticket => ({ ...ticket, items: ticket.items.filter(item => item.id !== itemId) }))
+      .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "商品を削除しました" : "Item removed"); });
   };
 
   // Creating a ticket is optimistic only until the server assigns an ID.
