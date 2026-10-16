@@ -33,7 +33,7 @@ type TicketDetailsProps = {
         ticketId: number,
         itemId: number,
         price: number
-    ) => void;
+    ) => Promise<boolean>;
 
     onRemoveItem: (
         ticketId: number,
