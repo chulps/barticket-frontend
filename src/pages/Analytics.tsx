@@ -491,6 +491,7 @@ export default function Analytics() {
     const [notices, setNotices] = useState<NoticeList | null>(null);
     const [lastUpdated, setLastUpdated] = useState<number | null>(null);
     const [error, setError] = useState("");
+    const [loading, setLoading] = useState(true);
     const [range, setRange] = useState<Range>("day");
     const [month, setMonth] = useState("");
     const [year, setYear] = useState("");
@@ -523,6 +524,7 @@ export default function Analytics() {
                 setNotices(stock);
                 setLastUpdated(Math.floor(Date.now() / 1000));
                 setError("");
+                setLoading(false);
 
                 // Set the default date only on the first successful response.
                 // Background refreshes must not interrupt the date the user is viewing.
@@ -538,6 +540,7 @@ export default function Analytics() {
                 }
             } catch (err: unknown) {
                 if (cancelled || request !== latestRequest) return;
+                setLoading(false);
                 if (err instanceof ApiError && err.status === 403) {
                     setError(readLocale() === "ja"
                         ? "分析データへのアクセスが許可されていません。バックエンドの閲覧権限を確認してください。"
@@ -570,6 +573,7 @@ export default function Analytics() {
                 await refresh();
             } catch (err: unknown) {
                 if (cancelled) return;
+                setLoading(false);
                 if (err instanceof ApiError && err.status === 403) {
                     setError(readLocale() === "ja"
                         ? "分析データへのアクセスが許可されていません。バックエンドの閲覧権限を確認してください。"
@@ -668,7 +672,10 @@ export default function Analytics() {
         <Page>
             <h1>{t("analytics")}</h1>
             {!signedIn ? <p>{t("signInForShifts")}</p> : null}
-            {error ? <p role="alert">{error}</p> : null}
+            {signedIn && loading && !shifts ? <p role="status" aria-live="polite">{locale === "ja" ? "分析データを読み込み中…" : "Loading analytics…"}</p> : null}
+            {error ? <div role="alert"><p>{error}</p>
+                <button type="button" className="small hollow secondary" onClick={() => window.location.reload()}>{locale === "ja" ? "再試行" : "Retry"}</button>
+            </div> : null}
             {account && shifts ? (
                 <>
                     <TabGroup
