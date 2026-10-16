@@ -48,7 +48,7 @@ export default function Menu({
         window.dispatchEvent(new Event("barticket-notices"));
         notifyMutation("success", locale === "ja" ? "在庫状況を更新しました" : "Stock status updated");
       }
-    } catch (error) {
+    } catch {
       notifyMutation("error", locale === "ja" ? "在庫状況を更新できませんでした" : t("stockUpdateFailed"));
     }
   }
