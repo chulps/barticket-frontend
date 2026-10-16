@@ -39,6 +39,9 @@ jobs:
           VITE_REVENUE_SHARE_CHUCK_USER_ID: ${{ vars.VITE_REVENUE_SHARE_CHUCK_USER_ID }}
           VITE_REVENUE_SHARE_NORI_USER_ID: ${{ vars.VITE_REVENUE_SHARE_NORI_USER_ID }}
 
+      - name: Reject unsafe build artifacts
+        run: node scripts/audit-frontend-security.mjs --dist
+
       # GitHub Pages has no SPA rewrites; serve the app for deep links like /menu.
       - run: cp dist/index.html dist/404.html
 
