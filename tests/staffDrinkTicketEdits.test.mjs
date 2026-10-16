@@ -13,13 +13,14 @@ test("Saved negative integer staff-drink IDs are editable; provisional fractiona
     assert.match(hook, /nextTempId = useRef\(-0\.5\)/);
     assert.match(items, /pending=\{!Number\.isInteger\(item\.id\)\}/);
     assert.doesNotMatch(items, /pending=\{item\.id < 0\}/);
-    assert.equal((hook.match(/if \(!Number\.isInteger\(itemId\)\) return;/g) ?? []).length, 3);
+    assert.equal((hook.match(/if \(!Number\.isInteger\(itemId\)\) return;/g) ?? []).length, 2);
+    assert.match(hook, /if \(!Number\.isInteger\(itemId\)\) return false/);
     assert.doesNotMatch(hook, /if \(itemId < 0\) return/);
 });
 
 test("Quantity, price and removal still use the existing PATCH/DELETE item APIs", () => {
     assert.match(hook, /ticketsApi\.updateItem\(ticketId, itemId, \{ quantity \}\)/);
-    assert.match(hook, /ticketsApi\.updateItem\(ticketId, itemId, \{ unit_price: rounded \}\)/);
+    assert.match(hook, /ticketsApi\.updateItem\(ticketId, itemId, \{ unit_price: price \}\)/);
     assert.match(hook, /ticketsApi\.removeItem\(ticketId, itemId\)/);
     assert.match(api, /method: "PATCH"/);
     assert.match(api, /method: "DELETE"/);
