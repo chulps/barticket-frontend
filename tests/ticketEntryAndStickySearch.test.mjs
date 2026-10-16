@@ -12,17 +12,16 @@ const ticket = source("components/TicketDetails/Ticket.tsx");
 const footer = source("components/TicketDetails/TicketFooter.tsx");
 
 test("Editing ticket name begins empty; submitting blank retains the old name", () => {
-    assert.match(header, /setNameDraft\(" "\)/.source ? /setNameDraft\(" "\)/ : /setNameDraft\(" "\)/);
+    assert.ok(header.includes('setNameDraft("")'));
 });
 test("Ticket name save requires nonblank trimmed text", () => {
     assert.match(header, /const next = nameDraft\.trim\(\)/);
     assert.match(header, /if \(next && next !== ticket\.name\) onUpdateName/);
-    assert.match(header, /setNameDraft\(" "\)|setNameDraft\(" "\)/);
     assert.match(header, /cancellingName\.current = true/);
 });
 test("Add-item search clears on selection and stays above its scrollable results", () => {
     assert.match(picker, /addSelection\(previous, item, priceKey\)/);
-    assert.match(picker, /setSearch\(" "\)/);
+    assert.ok(picker.includes('setSearch("")'));
     assert.match(picker, /position: sticky; top: 0; z-index: 5/);
     assert.match(picker, /flex: 1; overflow-y: auto/);
 });
