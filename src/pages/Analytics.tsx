@@ -565,6 +565,7 @@ export default function Analytics() {
                 window.addEventListener("focus", refresh);
                 window.addEventListener("barticket-push", refresh);
                 window.addEventListener("barticket-notices", refresh);
+                window.addEventListener("barticket-api-restored", refresh);
                 timer = window.setInterval(refresh, 20000);
                 await refresh();
             } catch (err: unknown) {
@@ -586,6 +587,7 @@ export default function Analytics() {
             window.removeEventListener("focus", refresh);
             window.removeEventListener("barticket-push", refresh);
             window.removeEventListener("barticket-notices", refresh);
+            window.removeEventListener("barticket-api-restored", refresh);
         };
     }, [signedIn]);
 
