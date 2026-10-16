@@ -6,6 +6,7 @@ import { useI18n } from "../i18n";
 import { useModal } from "../hooks/useModal";
 import { createMenuItem } from "../api/menu";
 import { ApiError } from "../api/client";
+import { notifyMutation } from "../utils/mutationFeedback";
 
 const PRICE_KEYS = ["standard", "15ml", "30ml"] as const;
 
@@ -115,6 +116,7 @@ export default function MenuItemForm({
                 cocktail_ingredient: cocktailIngredient,
             });
             onCreated({ ...created, prices: created.prices ?? {} });
+            notifyMutation("success", locale === "ja" ? "メニューに商品を追加しました" : "Item added to menu");
             dirty.current = false;
             forceCloseModal();
         } catch (caught) {
