@@ -43,9 +43,9 @@ type TicketItemsProps = {
     onRemoveItem: (
         ticketId: number,
         itemId: number
-    ) => void;
+    ) => Promise<boolean>;
 
-    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => void;
+    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => Promise<boolean>;
 
     onAddItem: (
         ticketId: number,
@@ -69,7 +69,7 @@ export default function TicketItems({
     onAddItem,
     onAddStaffDrink,
 }: TicketItemsProps) {
-    const { openModal, closeModal } = useModal();
+    const { openModal } = useModal();
     const { t, locale } = useI18n();
 
     const isEditable = activeTab === "open";
@@ -93,16 +93,14 @@ export default function TicketItems({
                                 <AddItemPicker
                                     menu={menu}
                                     tickets={tickets}
-                                    onAddStaffDrink={(staffId, menuItemId, priceKey, quantity, details) => {
-                                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity, details);
-                                        closeModal();
-                                    }}
+                                    onAddStaffDrink={(staffId, menuItemId, priceKey, quantity, details) =>
+                                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity, details)}
                                     onAddItem={(item, priceKey, quantity) => {
                                         const unitPrice = item.prices[priceKey];
 
-                                        if (unitPrice === undefined) return;
+                                        if (unitPrice === undefined) return Promise.resolve(false);
 
-                                        onAddItem(
+                                        return onAddItem(
                                             ticket.id,
                                             item,
                                             priceKey,
