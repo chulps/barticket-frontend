@@ -2,7 +2,7 @@
 
 // import react stuff
 import styled from "styled-components";
-import { isApiAvailable } from "./api/connectionStatus";
+import { isApiAvailable } from "./api/client";
 import { useI18n } from "./i18n";
 import {
   BrowserRouter,
