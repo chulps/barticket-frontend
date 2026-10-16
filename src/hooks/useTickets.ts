@@ -7,7 +7,8 @@ import type { PaymentType, Ticket } from "../types/Ticket";
 
 // import api
 import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
-import { useI18n } from "../i18n";
+import { readLocale, useI18n } from "../i18n";
+import { notifyMutation } from "../utils/mutationFeedback";
 import { ACTIVE_REFRESH_MS, isTicketRefreshDue } from "./ticketRefreshPolicy";
 import { projectTicket, type OptimisticEdit } from "./optimisticTickets";
 import { acceptBackgroundSnapshot } from "./refreshSafety";
@@ -17,12 +18,13 @@ import { provisionalTicket, resolveProvisionalTicket, removeProvisionalTicket } 
 const RENAME_DELAY_MS = 500;
 
 function reportError(error: unknown) {
-  console.error(error);
-  window.alert(error instanceof Error ? error.message : String(error));
+  // A timed-out write may already have committed. Avoid suggesting blind retries.
+  console.warn("Ticket operation could not be confirmed", error);
+  notifyMutation("error", readLocale() === "ja" ? "変更を確認できませんでした。再実行する前に伝票を確認してください。" : "Ticket update not confirmed. Check the ticket before retrying.");
 }
 
 export function useTickets() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [tickets, setTickets] = useState<Ticket[]>([]);
 
   // latest tickets for async callbacks, which would otherwise see stale state
@@ -224,7 +226,9 @@ export function useTickets() {
       if (item.id !== itemId) return item;
       const quantity = Math.max(1, item.quantity + change);
       return { ...item, quantity, subtotal: quantity * item.unit_price };
-    }) }));
+    }) })).then(saved => {
+      if (saved) notifyMutation("success", locale === "ja" ? "数量を更新しました" : "Quantity updated");
+    });
   };
 
   const updateItemPrice = async (ticketId: number, itemId: number, price: number): Promise<boolean> => {
@@ -242,6 +246,7 @@ export function useTickets() {
       ticket => ({ ...ticket, items: ticket.items.map(item => item.id === itemId
         ? { ...item, unit_price: price, subtotal: item.quantity * price } : item) }),
     );
+    if (saved) notifyMutation("success", locale === "ja" ? "価格を保存しました" : "Price saved");
     return saved !== null;
   };
 
@@ -251,24 +256,24 @@ export function useTickets() {
     priceKey: keyof Prices,
     _unitPrice?: number,
     quantity = 1,
-  ) => {
-    if (menuItem.inStock === false || quantity < 1) return;
+  ): Promise<boolean> => {
+    if (menuItem.inStock === false || quantity < 1) return Promise.resolve(false);
     const price = menuItem.prices?.[priceKey];
-    if (typeof price !== "number") return;
+    if (typeof price !== "number") return Promise.resolve(false);
     const temporaryId = nextTempId.current--;
-    void enqueue(ticketId, () => ticketsApi.addItem(ticketId, menuItem.id, priceKey, quantity),
+    return enqueue(ticketId, () => ticketsApi.addItem(ticketId, menuItem.id, priceKey, quantity),
       ticket => ({ ...ticket, items: [...ticket.items, {
         id: temporaryId, type: "menu", menu_item_id: menuItem.id, price_key: priceKey,
         name: menuItem.name, unit_price: price, quantity, subtotal: price * quantity,
-      }] }));
+      }] })).then(saved => saved !== null);
   };
 
   const addStaffDrinkToTicket = (
     ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number,
     details?: { name: string; staffName: string; price: number },
-  ) => {
+  ): Promise<boolean> => {
     const temporaryId = nextTempId.current--;
-    void enqueue(ticketId, () => ticketsApi.addStaffDrink(ticketId, staffId, menuItemId, priceKey, quantity),
+    return enqueue(ticketId, () => ticketsApi.addStaffDrink(ticketId, staffId, menuItemId, priceKey, quantity),
       details && Number.isFinite(details.price)
         ? ticket => ({ ...ticket, items: [...ticket.items, {
             id: temporaryId, type: "menu", menu_item_id: menuItemId, price_key: priceKey,
@@ -276,7 +281,7 @@ export function useTickets() {
             name: details.name, unit_price: details.price, quantity,
             subtotal: details.price * quantity,
           }] })
-        : undefined);
+        : undefined).then(saved => saved !== null);
   };
 
   const flushRename = (ticketId: number) => {
@@ -296,6 +301,9 @@ export function useTickets() {
       if (pendingNames.current.get(ticketId) !== name) return;
 
       pendingNames.current.delete(ticketId);
+      if (saved) {
+        notifyMutation("success", locale === "ja" ? "伝票名を保存しました" : "Ticket name saved");
+      }
       if (saved === null) {
         // Save failed: show the name the backend actually has.
         try {
@@ -333,7 +341,8 @@ export function useTickets() {
 
     if (!Number.isInteger(itemId)) return;
     void enqueue(ticketId, () => ticketsApi.removeItem(ticketId, itemId),
-      ticket => ({ ...ticket, items: ticket.items.filter(item => item.id !== itemId) }));
+      ticket => ({ ...ticket, items: ticket.items.filter(item => item.id !== itemId) }))
+      .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "商品を削除しました" : "Item removed"); });
   };
 
   // Creating a ticket is optimistic only until the server assigns an ID.
@@ -353,6 +362,7 @@ export function useTickets() {
         const response = await ticketsApi.create();
         // Replace the temporary row atomically, avoiding duplicate tickets.
         const saved = toTicket(response);
+        notifyMutation("success", locale === "ja" ? "伝票を作成しました" : "Ticket created");
         confirmed.current.set(saved.id, saved);
         commit(resolveProvisionalTicket(ticketsRef.current, temporaryId, project(saved)));
         return saved;
@@ -385,13 +395,15 @@ export function useTickets() {
   };
 
   const cancelTicket = (ticketId: number) =>
-    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.cancel(ticketId)));
+    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.cancel(ticketId)))
+      .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票をキャンセルしました" : "Ticket cancelled"); return saved; });
 
   const payTicket = (ticketId: number, paymentType: PaymentType) =>
     terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType)));
 
   const reopenTicket = (ticketId: number) =>
-    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.reopen(ticketId)));
+    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.reopen(ticketId)))
+      .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票を再開しました" : "Ticket reopened"); return saved; });
 
   return {
     tickets,

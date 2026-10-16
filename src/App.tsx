@@ -20,6 +20,7 @@ import Menu from "./pages/Menu";
 import Analytics from "./pages/Analytics";
 import Notifications from "./pages/Notifications";
 import ModalHost from "./components/ModalHost"
+import MutationToastHost from "./components/MutationToastHost";
 import { ModalProvider } from "./context/ModalProvider";
 import { useState, useEffect, useRef } from "react";
 import { accountApi } from "./api/account";
@@ -209,6 +210,7 @@ export default function App() {
         </Routes>
 
         <ModalHost />
+        <MutationToastHost />
 
       </ModalProvider>
 

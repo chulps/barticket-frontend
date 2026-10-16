@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { accountApi } from "../api/account";
 import type { MenuData } from "../types/Menu";
@@ -6,7 +6,7 @@ import { menuHaystack, menuLabel, useI18n } from "../i18n";
 
 type Props = {
     menu: MenuData;
-    onAdd: (staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => void;
+    onAdd: (staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => Promise<boolean>;
 };
 
 function numericPrices(prices: object | null | undefined): [string, number][] {
@@ -21,6 +21,8 @@ export default function AddStaffDrink({ menu, onAdd }: Props) {
     const [search, setSearch] = useState("");
     const [priceKey, setPriceKey] = useState("standard");
     const [error, setError] = useState("");
+    const submitting = useRef(false);
+    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         accountApi.staffDrinkRecipients().then(setPeople).catch(() =>
@@ -47,14 +49,27 @@ export default function AddStaffDrink({ menu, onAdd }: Props) {
     return (
         <Form onSubmit={event => {
             event.preventDefault();
+            if (submitting.current) return;
             if (!staffId) {
                 setError(t("selectStaffFirst"));
                 return;
             }
-            onAdd(Number(staffId), item?.id ?? null, item ? selectedKey : "standard", 1, {
+            submitting.current = true;
+            setSaving(true);
+            setError("");
+            void onAdd(Number(staffId), item?.id ?? null, item ? selectedKey : "standard", 1, {
                 name: item?.name ?? "Staff Drink",
                 staffName: people.find(person => String(person.id) === staffId)?.name ?? "Staff",
                 price,
+            }).then(confirmed => {
+                if (!confirmed) setError(locale === "ja"
+                    ? "追加を確認できませんでした。再操作の前に伝票を確認してください。"
+                    : "Addition not confirmed. Check the ticket before retrying.");
+            }).catch(() => {
+                setError(locale === "ja" ? "伝票を確認してください。" : "Check ticket status before retrying.");
+            }).finally(() => {
+                submitting.current = false;
+                setSaving(false);
             });
         }}>
             <div className="people-field">
@@ -102,7 +117,7 @@ export default function AddStaffDrink({ menu, onAdd }: Props) {
             <div className="dock">
                 <div className="preview"><span>{item ? menuLabel(locale, item.name) : (locale === "ja" ? "通常スタッフドリンク" : "Default Staff Drink")}</span><strong>¥{price.toLocaleString()}</strong></div>
                 {error ? <p role="alert">{error}</p> : null}
-                <button className="submit" type="submit">{locale === "ja" ? "伝票に追加" : "Add to ticket"}</button>
+                <button className="submit" type="submit" disabled={saving}>{saving ? (locale === "ja" ? "追加中…" : "Adding…") : (locale === "ja" ? "伝票に追加" : "Add to ticket")}</button>
             </div>
         </Form>
     );

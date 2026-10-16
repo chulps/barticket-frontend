@@ -13,7 +13,7 @@ import type { MenuData, MenuItem, Prices } from "../types/Menu";
 import { useFilteredMenu } from "../hooks/useFilteredMenu";
 import { useModal } from "../hooks/useModal";
 import { useI18n } from "../i18n";
-import { ApiError } from "../api/client";
+import { notifyMutation } from "../utils/mutationFeedback";
 
 
 type MenuProps = {
@@ -44,9 +44,12 @@ export default function Menu({
   async function toggleStock(item: MenuItem) {
     try {
       const saved = await onToggleStock(item);
-      if (saved) window.dispatchEvent(new Event("barticket-notices"));
-    } catch (error) {
-      window.alert(error instanceof ApiError ? error.message : t("stockUpdateFailed"));
+      if (saved) {
+        window.dispatchEvent(new Event("barticket-notices"));
+        notifyMutation("success", locale === "ja" ? "在庫状況を更新しました" : "Stock status updated");
+      }
+    } catch {
+      notifyMutation("error", locale === "ja" ? "在庫状況を更新できませんでした" : t("stockUpdateFailed"));
     }
   }
 
@@ -54,8 +57,9 @@ export default function Menu({
     try {
       const saved = await onSavePrices(item, prices);
       if (!saved) throw new Error("Menu item is already being updated");
+      notifyMutation("success", locale === "ja" ? "メニュー価格を保存しました" : "Menu prices saved");
     } catch (error) {
-      window.alert(error instanceof ApiError ? error.message : t("priceUpdateFailed"));
+      notifyMutation("error", locale === "ja" ? "価格を保存できませんでした" : t("priceUpdateFailed"));
       throw error;
     }
   }
