@@ -1,5 +1,6 @@
 // TicketActions.tsx
 import styled from "styled-components";
+import { useState } from "react";
 
 import Icon from "../Icon";
 import PaymentModal from "../PaymentModal";
@@ -34,6 +35,7 @@ export default function TicketActions({
 }: TicketActionsProps) {
     const { openModal, closeModal } = useModal();
     const { t, locale } = useI18n();
+    const [confirmingClose, setConfirmingClose] = useState(false);
 
     const confirmCancellation = () => {
         openModal({
@@ -54,9 +56,21 @@ export default function TicketActions({
         });
     };
 
+    if (activeTab === "open" && !confirmingClose) {
+        return <ActionButton type="button" className="hollow secondary" onClick={() => setConfirmingClose(true)}>
+            <Icon name="CheckCircle" />
+            {locale === "ja" ? "チケットを閉じる" : "Close ticket"}
+        </ActionButton>;
+    }
+
     if (activeTab === "open") {
         return (
             <ButtonActions $row>
+                <ActionButton type="button" className="hollow secondary"
+                    onClick={() => setConfirmingClose(false)}>
+                    <Icon name="ArrowLeft" />
+                    {t("back")}
+                </ActionButton>
                 <ActionButton
                     className="hollow danger"
                     onClick={confirmCancellation}
