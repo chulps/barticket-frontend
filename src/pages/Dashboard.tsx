@@ -23,14 +23,16 @@ import { getToken } from "../api/client";
 type DashboardProps = {
   menu: MenuData | null;
   loadingMenu: boolean;
+  menuError: boolean;
 }
 
 // component setup
 export default function Dashboard({
   menu,
   loadingMenu,
+  menuError,
 }: DashboardProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   // States
   const [activeTab, setActiveTab] = useState<"open" | "paid" | "cancelled">("open");
@@ -207,13 +209,17 @@ export default function Dashboard({
   };
 
   if (loadingMenu) {
-    return <data>{t("loadingMenu")}</data>;
+    return <p role="status" aria-live="polite">{t("loadingMenu")}</p>;
   }
 
 
   return (
 
     <DashboardContainer>
+      {menuError ? <MenuLoadWarning role="alert">
+        {locale === "ja" ? "メニューを更新できません。価格と在庫を確認してください。" : "Menu is unavailable or out of date. Verify prices and stock before adding drinks."}
+        <button type="button" className="small hollow secondary" onClick={() => window.dispatchEvent(new Event("barticket-retry-menu"))}>{locale === "ja" ? "再試行" : "Retry"}</button>
+      </MenuLoadWarning> : null}
       <TicketSidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -305,3 +311,13 @@ const EmptyTicketDetails = styled.div`
 `;
 
 // something
+const MenuLoadWarning = styled.div`
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--danger-500);
+  button { width: auto; }
+`;

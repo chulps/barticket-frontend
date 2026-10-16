@@ -20,6 +20,7 @@ type MenuProps = {
   authenticated: boolean;
   menu: MenuData | null;
   loadingMenu: boolean;
+  menuError: boolean;
   onToggleStock: (item: MenuItem) => Promise<boolean>;
   onSavePrices: (item: MenuItem, prices: Prices) => Promise<boolean>;
   pendingMenuIds: number[];
@@ -30,12 +31,14 @@ export default function Menu({
   authenticated,
   menu,
   loadingMenu,
+  menuError,
   onToggleStock,
   onSavePrices,
   pendingMenuIds,
   onItemAdded,
 }: MenuProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const retryMenu = () => window.dispatchEvent(new Event("barticket-retry-menu"));
   const { openModal } = useModal();
   const [searchTerm, setSearchTerm] = useState("");
   async function toggleStock(item: MenuItem) {
@@ -60,11 +63,19 @@ export default function Menu({
   const groupedMenu = useFilteredMenu(menu, searchTerm);
 
   if (loadingMenu) {
-    return <h1>{t("loading")}</h1>;
+    return <main role="status" aria-live="polite"><h2>{t("loading")}</h2></main>;
   }
 
   if (!menu) {
-    return <h1>{t("noMenu")}</h1>;
+    return <main>
+      <h2>{t("drinkMenu")}</h2>
+      <p role="alert">{menuError
+        ? (locale === "ja" ? "メニューを読み込めませんでした。接続を確認して再試行してください。" : "Could not load the menu. Check your connection and retry.")
+        : t("noMenu")}</p>
+      {menuError ? <button type="button" className="small secondary" onClick={retryMenu}>
+        {locale === "ja" ? "再試行" : "Retry"}
+      </button> : null}
+    </main>;
   }
 
   const menuItems = menu.items;
@@ -94,6 +105,12 @@ export default function Menu({
 
   return (
     <main>
+      {menuError ? (
+        <LoadWarning role="alert">
+          {locale === "ja" ? "メニューの更新に失敗しました。表示中の情報が古い可能性があります。" : "Menu refresh failed; displayed prices or stock may be outdated."}
+          <button type="button" className="small hollow secondary" onClick={retryMenu}>{locale === "ja" ? "再試行" : "Retry"}</button>
+        </LoadWarning>
+      ) : null}
       <MenuHeader>
         <h2>{t("drinkMenu")}</h2>
         {authenticated ? (
@@ -164,3 +181,13 @@ const MenuGridContainer = styled.section`
     columns: var(--space-6);
   }
   `
+const LoadWarning = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--danger-500);
+  border-radius: var(--space-1);
+  button { width: auto; }
+`;

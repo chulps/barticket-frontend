@@ -72,6 +72,7 @@ export default function App() {
 
   const [menu, setMenu] = useState<MenuData | null>(null);
   const [loadingMenu, setLoadingMenu] = useState(true);
+  const [menuError, setMenuError] = useState(false);
   const menuRef = useRef<MenuData | null>(null);
   const menuRevision = useRef(0);
   const pendingMenuItems = useRef(new Set<number>());
@@ -136,8 +137,10 @@ export default function App() {
           // While a write is pending, preserve the optimistic item from the
           // current view rather than replacing it with an older server snapshot.
           updateMenu(reconcileMenuSnapshot(data, menuRef.current, pendingMenuItems.current));
+          setMenuError(false);
         }
       } catch (error) {
+        if (!cancelled) setMenuError(true);
         // Offline state is shown once in the persistent banner, not logged every poll.
         if (isApiAvailable()) console.error(error);
       } finally {
@@ -147,11 +150,13 @@ export default function App() {
     load();
     const timer = window.setInterval(load, 20000);
     window.addEventListener("barticket-notices", load);
+    window.addEventListener("barticket-retry-menu", load);
     window.addEventListener("online", load);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
       window.removeEventListener("barticket-notices", load);
+      window.removeEventListener("barticket-retry-menu", load);
       window.removeEventListener("online", load);
     };
   }, []);
@@ -182,7 +187,7 @@ export default function App() {
           <Route path="/" element={authenticated === null ? null : authenticated ? <Navigate to="/tickets" replace /> : <Profile />} />
           <Route path="/tickets" element={authenticated === null ? null : authenticated ? <Dashboard
             menu={menu}
-            loadingMenu={loadingMenu} /> : <Navigate to="/" replace />} />
+            loadingMenu={loadingMenu} menuError={menuError} /> : <Navigate to="/" replace />} />
 
           <Route path="/admin" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
           <Route path="/admin/staff/:staffId" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
@@ -193,6 +198,7 @@ export default function App() {
             authenticated={authenticated}
             menu={menu}
             loadingMenu={loadingMenu}
+            menuError={menuError}
             onToggleStock={changeStock}
             onSavePrices={changePrices}
             pendingMenuIds={pendingMenuIds}
