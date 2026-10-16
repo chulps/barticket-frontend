@@ -32,7 +32,7 @@ jobs:
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
           # Set under Settings > Secrets and variables > Actions > Variables.
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_API_URL: https://bar-ticket-api-taupe.vercel.app
           # UI allowlist IDs are public client-side values, not authorization.
           # Leave unset until real user IDs are verified. Private pay APIs must
           # enforce a separate server-side Chuck/Nori manager policy.
