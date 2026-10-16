@@ -174,5 +174,7 @@ const TicketDetailsContainer = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+  min-width: 0;
   overflow: visible;
 `;
