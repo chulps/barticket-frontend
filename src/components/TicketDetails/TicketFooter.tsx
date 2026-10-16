@@ -11,6 +11,9 @@ import type { PaymentType, Ticket } from "../../types/Ticket";
 
 type TicketFooterProps = {
     ticket: Ticket;
+    closing: boolean;
+    onEnterClose: () => void;
+    onBackToItems: () => void;
     activeTab: "open" | "paid" | "cancelled";
     total: number;
 
@@ -26,6 +29,9 @@ type TicketFooterProps = {
 
 export default function TicketFooter({
     ticket,
+    closing,
+    onEnterClose,
+    onBackToItems,
     activeTab,
     total,
     onCancelTicket,
@@ -45,7 +51,11 @@ export default function TicketFooter({
 
             <Actions>
                 <TicketActions
+                    key={ticket.id}
                     ticket={ticket}
+                    closing={closing}
+                    onEnterClose={onEnterClose}
+                    onBackToItems={onBackToItems}
                     activeTab={activeTab}
                     onCancelTicket={onCancelTicket}
                     onPayTicket={onPayTicket}

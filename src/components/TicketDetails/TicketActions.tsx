@@ -13,6 +13,9 @@ import { useI18n } from "../../i18n";
 
 type TicketActionsProps = {
     ticket: Ticket;
+    closing: boolean;
+    onEnterClose: () => void;
+    onBackToItems: () => void;
     activeTab: "open" | "paid" | "cancelled";
 
     onCancelTicket: (ticketId: number) => void;
@@ -27,6 +30,9 @@ type TicketActionsProps = {
 
 export default function TicketActions({
     ticket,
+    closing,
+    onEnterClose,
+    onBackToItems,
     activeTab,
     onCancelTicket,
     onPayTicket,
@@ -54,9 +60,21 @@ export default function TicketActions({
         });
     };
 
+    if (activeTab === "open" && !closing) {
+        return <ActionButton type="button" className="hollow secondary" onClick={onEnterClose}>
+            <Icon name="CheckCircle" />
+            {locale === "ja" ? "チケットを閉じる" : "Close ticket"}
+        </ActionButton>;
+    }
+
     if (activeTab === "open") {
         return (
             <ButtonActions $row>
+                <ActionButton type="button" className="hollow secondary"
+                    onClick={onBackToItems}>
+                    <Icon name="ArrowLeft" />
+                    {t("back")}
+                </ActionButton>
                 <ActionButton
                     className="hollow danger"
                     onClick={confirmCancellation}
@@ -126,6 +144,7 @@ const ButtonActions = styled.div<{ $row?: boolean }>`
         }
 
         @media (max-width: 767px) {
+            flex-direction: column-reverse;
             && > button {
                 padding-left: var(--space-1);
                 padding-right: var(--space-1);

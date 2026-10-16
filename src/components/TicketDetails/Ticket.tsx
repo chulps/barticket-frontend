@@ -5,6 +5,7 @@ import { useState } from "react";
 
 //import styling package
 import styled from "styled-components";
+import { useI18n } from "../../i18n";
 
 //import UI components
 import PaidTicketSummary from "./PaidTicketSummary"
@@ -92,7 +93,9 @@ export default function TicketDetails({
     onReopenTicket,
 }: TicketDetailsProps) {
 
+    const { locale } = useI18n();
     const [editingPriceItemId, setEditingPriceItemId] = useState<number | null>(null);
+    const [closingTicketId, setClosingTicketId] = useState<number | null>(null);
 
     const total = ticket?.items.reduce(
         (sum, item) => sum + item.subtotal,
@@ -103,11 +106,15 @@ export default function TicketDetails({
         return null;
     }
 
+    const closing = activeTab === "open" && closingTicketId === ticket.id;
+    const closingMessage = locale === "ja" ? "お支払い、またはチケットのキャンセルを選択してください" : "Choose a payment method or cancel this ticket";
+
     return (
         <TicketDetailsContainer>
 
 
             <TicketDetailsHeader
+                key={ticket.id}
                 ticket={ticket}
                 activeTab={activeTab}
                 onClose={onClose}
@@ -122,7 +129,9 @@ export default function TicketDetails({
                 <PaidTicketSummary ticket={ticket} />
             )}
             
-            <TicketItems
+            {closing ? (
+                <CloseStepMessage>{closingMessage}</CloseStepMessage>
+            ) : <TicketItems
                 ticket={ticket}
                 menu={menu}
                 tickets={tickets}
@@ -134,19 +143,32 @@ export default function TicketDetails({
                 onRemoveItem={onRemoveItem}
                 onAddItem={onAddItem}
                 onAddStaffDrink={onAddStaffDrink}
-            />
+            />}
 
             <TicketFooter
                 ticket={ticket}
+                closing={closing}
+                onEnterClose={() => setClosingTicketId(ticket.id)}
+                onBackToItems={() => setClosingTicketId(null)}
                 activeTab={activeTab}
                 total={total}
-                onCancelTicket={onCancelTicket}
-                onPayTicket={onPayTicket}
-                onReopenTicket={onReopenTicket}
+                onCancelTicket={(id) => { setClosingTicketId(null); onCancelTicket(id); }}
+                onPayTicket={(id, method) => { setClosingTicketId(null); onPayTicket(id, method); }}
+                onReopenTicket={(id) => { setClosingTicketId(null); onReopenTicket(id); }}
             />
         </TicketDetailsContainer >
     );
 }
+
+const CloseStepMessage = styled.section`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-3);
+  color: var(--neutral-300);
+`;
 
 const TicketDetailsContainer = styled.div`
   display: flex;

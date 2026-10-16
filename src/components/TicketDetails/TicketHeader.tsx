@@ -30,7 +30,19 @@ export default function TicketDetailsHeader({
   onUpdateName,
 }: Props) {
   const { t, locale } = useI18n();
-  const [editingName, setEditingName] = useState(ticket.name === "");
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const cancellingName = useRef(false);
+  const finishEditingName = () => {
+    if (cancellingName.current) {
+      cancellingName.current = false;
+      setEditingName(false);
+      return;
+    }
+    const next = nameDraft.trim();
+    if (next && next !== ticket.name) onUpdateName(ticket.id, next);
+    setEditingName(false);
+  };
 
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,17 +64,18 @@ export default function TicketDetailsHeader({
                             ref={nameInputRef}
                             autoFocus
                             type="text"
-                            value={ticket.name}
-                            onChange={(e) =>
-                                ticket &&
-                                onUpdateName(ticket.id, e.target.value)
-                            }
+                            value={nameDraft}
+                            onChange={(e) => setNameDraft(e.target.value)}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter") {
+                                    finishEditingName();
+                                }
+                                if (e.key === "Escape") {
+                                    cancellingName.current = true;
                                     setEditingName(false);
                                 }
                             }}
-                            onBlur={() => setEditingName(false)}
+                            onBlur={finishEditingName}
                         />
                     ) : (
                         <TicketHeader>
@@ -71,6 +84,9 @@ export default function TicketDetailsHeader({
                             </TicketNumber>
                             <CustomerName
                                 onClick={() => {
+                                    if (!isEditable) return;
+                                    cancellingName.current = false;
+                                    setNameDraft("");
                                     setEditingName(true);
                                 }}
                             >

@@ -104,10 +104,9 @@ export default function Menu({
         ) : null}
       </MenuHeader>
 
-      <SearchBar
-        value={searchTerm}
-        onChange={setSearchTerm}
-      />
+      <StickySearch>
+        <SearchBar value={searchTerm} onChange={setSearchTerm} />
+      </StickySearch>
 
       <MenuGridContainer>
         {Object.entries(groupedMenu).map(([category, subcategories]) => (
@@ -125,6 +124,15 @@ export default function Menu({
   );
 }
 
+
+const StickySearch = styled.div`
+  position: sticky;
+  top: 64px;
+  z-index: 90; /* below the sticky app header (100), menus (1200) and modals (1000) */
+  padding: var(--space-1) 0;
+  background: var(--neutral-950);
+  @media (min-width: 768px) { top: 56px; }
+`;
 
 const MenuHeader = styled.div`
   display: flex;
