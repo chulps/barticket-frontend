@@ -20,6 +20,7 @@ import { useI18n } from "../i18n";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { getToken } from "../api/client";
 import { ticketVisibleOnBoard, type ShiftLookup } from "./ticketBoardVisibility";
+import { resolveVisibleSelection } from "./ticketBoardSelection";
 
 type DashboardProps = {
   menu: MenuData | null;
@@ -115,9 +116,24 @@ export default function Dashboard({
 
   // Open tickets retain their all-shift recovery policy. Closed tickets
   // must belong to a confirmed active shift; loading/errors fail closed.
-  const visibleTickets = tickets.filter((ticket) =>
-    ticketVisibleOnBoard(ticket, activeTab, shiftLookup)
+  const ticketsForTab = (tab: Ticket["status"]) => tickets.filter((ticket) =>
+    ticketVisibleOnBoard(ticket, tab, shiftLookup)
   );
+  const visibleTickets = ticketsForTab(activeTab);
+
+  // An incoming refresh or new shift can invalidate a selected ticket. Never
+  // keep details attached to a row no longer visible in this status tab.
+  useEffect(() => {
+    const nextId = resolveVisibleSelection(visibleTickets, selectedTicketId);
+    if (nextId === null) {
+      if (selectedTicketId !== 0) setSelectedTicketId(0);
+      if (showTicketDetails) setShowTicketDetails(false);
+    } else if (nextId !== selectedTicketId) {
+      setSelectedTicketId(nextId);
+      // On mobile, do not silently replace one customer's detail with another.
+      if (showTicketDetails) setShowTicketDetails(false);
+    }
+  }, [activeTab, tickets, shiftLookup, selectedTicketId, showTicketDetails]);
 
   // answers which ticket is currently being displayed in ticket details?
   const currentIndex = visibleTickets.findIndex(
@@ -259,7 +275,7 @@ export default function Dashboard({
       <TicketSidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        tickets={tickets}
+        ticketsForTab={ticketsForTab}
         visibleTickets={visibleTickets}
         selectedTicketId={selectedTicketId}
         setSelectedTicketId={setSelectedTicketId}
