@@ -69,7 +69,8 @@ type TicketDetailsProps = {
 
     onUpdateName: (ticketId: number, name: string) => void;
 
-    onReopenTicket: (ticketId: number) => void;
+    onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => Promise<boolean>;
+    canCorrectPayment: boolean;
 };
 
 // component
@@ -93,6 +94,7 @@ export default function TicketDetails({
     hasNext,
     onUpdateName,
     onReopenTicket,
+    canCorrectPayment,
 }: TicketDetailsProps) {
 
     const { locale } = useI18n();
@@ -164,7 +166,8 @@ export default function TicketDetails({
                 total={total}
                 onCancelTicket={(id) => { setClosingTicketId(null); onCancelTicket(id); }}
                 onPayTicket={(id, method) => { setClosingTicketId(null); return onPayTicket(id, method); }}
-                onReopenTicket={(id) => { setClosingTicketId(null); onReopenTicket(id); }}
+                onReopenTicket={(id, reason) => { setClosingTicketId(null); return onReopenTicket(id, reason); }}
+                canCorrectPayment={canCorrectPayment}
             />
         </TicketDetailsContainer >
     );
