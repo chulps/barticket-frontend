@@ -5,6 +5,7 @@ export type Payment = {
   paid_at: number;
   reference?: string;
   refunded_at?: number | null;
+  amount?: number;
 };
 
 export type Ticket = {
@@ -39,10 +40,13 @@ export type Ticket = {
   guestCount?: number;
   waivedCoverCount?: number;
   coverChargePerPerson?: number;
-  // Reserved for returning visits and split/previous payments when backend supports them.
+  // The merged backend #91 supplies historical payments and return references.
   returningGuestCount?: number;
   returningFromTicketId?: number | null;
   amountPaid?: number;
   balanceDue?: number;
-  payments?: { type: PaymentType; amount: number; paid_at: number }[];
+  payments?: { type: PaymentType; amount: number; paid_at: number; voided_at?: number | null; voided_by?: string | null }[];
+  coverAdjustedBy?: string | null;
+  coverAdjustmentReason?: string | null;
+  serverTotal?: number;
 };
