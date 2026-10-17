@@ -11,6 +11,8 @@ type MenuCategoryProps = {
   onToggleStock?: (item: MenuItem) => void;
   onSavePrices?: (item: MenuItem, prices: Prices) => Promise<void>;
   pendingMenuIds?: number[];
+  categories?: string[];
+  allSubcategories?: string[];
 };
 
 export default function MenuCategory({
@@ -19,6 +21,8 @@ export default function MenuCategory({
   onToggleStock,
   onSavePrices,
   pendingMenuIds = [],
+  categories = [],
+  allSubcategories = [],
 }: MenuCategoryProps) {
   const { locale } = useI18n();
   return (
@@ -40,6 +44,8 @@ export default function MenuCategory({
                   onToggle={onToggleStock}
                   onSavePrices={onSavePrices}
                   pending={pendingMenuIds.includes(item.id)}
+                  categories={categories}
+                  subcategories={allSubcategories}
                 />
               ))}
             </MenuItemsContainer>
