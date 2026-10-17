@@ -142,7 +142,7 @@ export default function MenuItemForm({
             const raw = prices[key] ?? "";
             if (!raw) continue;
             const value = Number(raw);
-            if (!/^\\d+$/.test(raw) || !Number.isSafeInteger(value)) {
+            if (!/^\d+$/.test(raw) || !Number.isSafeInteger(value)) {
                 setError(help("Prices must be nonnegative whole yen amounts.", "価格は0以上の整数で入力してください。")); return;
             }
             nextPrices[key] = value;
