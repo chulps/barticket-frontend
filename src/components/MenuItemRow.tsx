@@ -103,17 +103,6 @@ export default function MenuItemRow({
                 <MenuPrice item={item} />
             </ItemInfo>
             {onToggle && !pending ? (
-                <EditItemButton type="button"
-                    aria-label={locale === "ja"
-                        ? menuLabel(locale, item.name) + " の商品編集を開く"
-                        : "Open item editor for " + item.name}
-                    title={locale === "ja" ? "商品を編集" : "Edit item"}
-                    onClick={openEditDraft}>
-                    <Icon name="PencilSimple" />
-                    <EditItemText>{locale === "ja" ? "編集" : "Edit"}</EditItemText>
-                </EditItemButton>
-            ) : null}
-            {onToggle && !pending ? (
                 <DropdownMenu
                     label={locale === "ja" ? menuLabel(locale, item.name) + " の操作" : "Actions for " + menuLabel(locale, item.name)}
                     trigger={(isOpen) => (
@@ -158,25 +147,6 @@ export default function MenuItemRow({
         </MenuRow>
     );
 }
-
-const EditItemButton = styled.button`
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
-    flex-shrink: 0;
-    min-width: 44px;
-    min-height: 44px;
-    padding: var(--space-0) var(--space-1);
-    background: transparent;
-    border: 1px solid var(--neutral-600);
-    color: var(--neutral-100);
-    &:hover { background: var(--neutral-800); transform: none; }
-    &:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-`;
-const EditItemText = styled.span`
-    @media (max-width: 575px) { display: none; }
-`;
 
 const MenuRow = styled.div`
   display: flex;
