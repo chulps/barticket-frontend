@@ -146,9 +146,7 @@ export default function TicketItems({
                                     ? t("coverCharge")
                                     : menuLabel(
                                         locale,
-                                        activeTab === "open"
-                                            ? (menu?.items.find((row) => row.id === item.menu_item_id)?.name ?? item.name)
-                                            : item.name,
+                                        item.name,
                                     )
                         }
                         unitPrice={item.unit_price}
