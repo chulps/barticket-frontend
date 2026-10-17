@@ -8,6 +8,7 @@ import styled from "styled-components";
 
 // UI components
 import TicketDetailItem from "./TicketItem";
+import CoverChargeModal, { type CoverAdjustment } from "./CoverChargeModal";
 import Icon from "../Icon";
 import AddItemPicker from "../AddItemPicker";
 
@@ -46,6 +47,7 @@ type TicketItemsProps = {
     ) => void;
 
     onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => Promise<boolean>;
+    onAdjustCover: (ticketId: number, adjustment: CoverAdjustment) => Promise<boolean>;
 
     onAddItem: (
         ticketId: number,
@@ -68,11 +70,27 @@ export default function TicketItems({
     onRemoveItem,
     onAddItem,
     onAddStaffDrink,
+    onAdjustCover,
 }: TicketItemsProps) {
     const { openModal } = useModal();
     const { t, locale } = useI18n();
 
     const isEditable = activeTab === "open";
+    function openCoverModal(mode: "returning" | "waiver") {
+        openModal({
+            title: mode === "waiver"
+                ? (locale === "ja" ? "カバー料金を免除" : "Waive cover charge")
+                : (locale === "ja" ? "再来店のカバー調整" : "Returning guest cover"),
+            maxWidth: "560px", fitContent: true,
+            content: <CoverChargeModal ticket={ticket} tickets={tickets} mode={mode}
+                onCancel={closeModal}
+                onSave={async adjustment => {
+                    const saved = await onAdjustCover(ticket.id, adjustment);
+                    if (saved) closeModal();
+                    return saved;
+                }} />,
+        });
+    }
 
     return (
         <Items>
@@ -128,7 +146,9 @@ export default function TicketItems({
                             item.staff_drink
                                 ? [item.staff_name, item.drink_name].filter(Boolean).join(" · ") || item.name
                                 : item.type === "cover"
-                                    ? t("coverCharge")
+                                    ? t("coverCharge") +
+                                        ((ticket.waivedCoverCount ?? 0) ? ` · ${ticket.waivedCoverCount} ${locale === "ja" ? "免除" : "waived"}` : "") +
+                                        ((ticket.returningGuestCount ?? 0) ? ` · ${ticket.returningGuestCount} ${locale === "ja" ? "再来店" : "returning"}` : "")
                                     : menuLabel(
                                         locale,
                                         activeTab === "open"
@@ -138,6 +158,10 @@ export default function TicketItems({
                         }
                         unitPrice={item.unit_price}
                         quantity={item.quantity}
+                        subtotal={item.subtotal}
+                        isCover={item.type === "cover"}
+                        onWaiveCover={() => openCoverModal("waiver")}
+                        onReturningCustomer={() => openCoverModal("returning")}
                         activeTab={activeTab}
                         isEditingPrice={editingPriceItemId === item.id}
                         onIncrease={() =>
