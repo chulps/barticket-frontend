@@ -1,6 +1,7 @@
 // src/components/PaymentModal.tsx
 
-import { useRef, useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
+import { nextSelectorIndex } from "./selectorNavigation";
 import styled from "styled-components";
 
 import { useModal } from "../hooks/useModal";
@@ -52,6 +53,15 @@ export default function PaymentModal({
     const [step, setStep] =
         useState<"select" | "success">("select");
     const pending = useRef(false);
+    const methodButtons = useRef<(HTMLButtonElement | null)[]>([]);
+    function handleMethodArrow(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+        if (saving) return;
+        const next = nextSelectorIndex(index, paymentMethods.length, event.key);
+        if (next === null) return;
+        event.preventDefault();
+        setPaymentType(paymentMethods[next].type);
+        methodButtons.current[next]?.focus();
+    }
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
@@ -102,12 +112,16 @@ export default function PaymentModal({
                 <small>{t("receivePayment")}</small>
             </TotalContainer>
 
-            <Methods>
-                {paymentMethods.map(method => (
+            <Methods role="group" aria-label={t("receivePayment")}>
+                {paymentMethods.map((method, index) => (
                     <MethodButton
                         key={method.type}
+                        type="button"
+                        ref={node => { methodButtons.current[index] = node; }}
+                        aria-pressed={paymentType === method.type}
                         $active={paymentType === method.type}
                         disabled={saving}
+                        onKeyDown={event => handleMethodArrow(event, index)}
                         onClick={() => setPaymentType(method.type)}
                     >
                         <Icon 
