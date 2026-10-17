@@ -4,6 +4,7 @@ import styled from "styled-components";
 import Icon from "../Icon";
 import PaymentModal from "../PaymentModal";
 import ReceiptPreview from "./ReceiptPreview";
+import ReopenTicketModal from "./ReopenTicketModal";
 
 // Types
 import type { PaymentType, Ticket } from "../../types/Ticket";
@@ -26,7 +27,8 @@ type TicketActionsProps = {
         paymentType: PaymentType,
     ) => Promise<boolean>;
 
-    onReopenTicket: (ticketId: number) => void;
+    onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => Promise<boolean>;
+    canCorrectPayment: boolean;
 };
 
 export default function TicketActions({
@@ -38,6 +40,7 @@ export default function TicketActions({
     onCancelTicket,
     onPayTicket,
     onReopenTicket,
+    canCorrectPayment,
 }: TicketActionsProps) {
     const { openModal, closeModal } = useModal();
     const { t, locale } = useI18n();
@@ -122,7 +125,12 @@ export default function TicketActions({
 
                 <ActionButton
                     className="hollow"
-                    onClick={() => onReopenTicket(ticket.id)}
+                    onClick={() => openModal({
+                        title: locale === "ja" ? "伝票を再開する" : "Reopen paid ticket",
+                        maxWidth: "480px",
+                        content: <ReopenTicketModal canCorrectPayment={canCorrectPayment}
+                            onReopen={(reason) => onReopenTicket(ticket.id, reason)} />,
+                    })}
                 >
                     <Icon name="ArrowCounterClockwise" />
                     {t("reopenTicket")}
