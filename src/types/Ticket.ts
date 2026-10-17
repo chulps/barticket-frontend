@@ -36,4 +36,13 @@ export type Ticket = {
   shiftId: number | null;
 
   payment: Payment | null;
+  guestCount?: number;
+  waivedCoverCount?: number;
+  coverChargePerPerson?: number;
+  // Reserved for returning visits and split/previous payments when backend supports them.
+  returningGuestCount?: number;
+  returningFromTicketId?: number | null;
+  amountPaid?: number;
+  balanceDue?: number;
+  payments?: { type: PaymentType; amount: number; paid_at: number }[];
 };
