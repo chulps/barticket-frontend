@@ -24,6 +24,9 @@ jobs:
         if: github.head_ref == 'feature/ticket-item-actions-menu-translations-v2'
         continue-on-error: true
         run: npm run i18n:menu-audit
+      - name: Verify deployed backend cover API (read-only)
+        if: github.head_ref == 'feature/cover-waivers-returning-customers-v2'
+        run: node scripts/verify-live-cover-contract.mjs
       - name: Frontend unit tests
         run: node --test tests/*.test.mjs
       - name: Frontend security source audit
