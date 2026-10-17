@@ -44,7 +44,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
         try {
             const current = await accountApi.currentShift();
             if (!mounted.current || request !== version.current || mutation.current) return;
-            if (!current && roleCanManage) {
+            if (!current && account.role === "manager") {
                 // Existing POST /shifts/open silently reopens a closed same-day shift.
                 // Refuse to use it until a read-only history check has ruled that out.
                 setEligibility("checking");
@@ -58,7 +58,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
                     if (!mounted.current || request !== version.current || mutation.current) return;
                     setEligibility("error");
                 }
-            } else setEligibility("checking");
+            } else setEligibility(current ? "checking" : "allowed");
             if (mounted.current && request === version.current && !mutation.current) {
                 setLookup({ status: "ready", shift: current });
             }
@@ -68,7 +68,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
                 setEligibility("error");
             }
         }
-    }, [roleCanManage]);
+    }, [account.role]);
 
     useEffect(() => {
         mounted.current = true;
@@ -94,6 +94,13 @@ export default function ShiftControls({ account, locale }: { account: Account; l
         if (mutation.current || lookup.status !== "ready") return;
         if (action === "open" && (shift || !roleCanManage || eligibility !== "allowed")) return;
         if (action !== "open" && (!shift || (stale && action !== "clock-out"))) return;
+        // A staff account cannot query manager-only shift history. Keep existing
+        // shift-opening access for solo coverage, but explicitly warn that the
+        // legacy API may reopen a previously closed same-day shift.
+        if (action === "open" && account.role === "staff" &&
+            !window.confirm(ja
+                ? "現在のAPIでは、すでに終了した本日のシフトが再開される可能性があります。営業日を確認してから開始しますか？"
+                : "The current API may reopen a shift already closed today. Confirm the business date before starting. Continue?")) return;
         mutation.current = true;
         version.current++;
         setPending(action);
@@ -112,13 +119,15 @@ export default function ShiftControls({ account, locale }: { account: Account; l
                     }
                     return;
                 }
-                const history = await accountApi.closedShifts();
-                if (history.some(row => row.business_date === businessDateJst(Date.now()) && row.status === "closed")) {
-                    if (mounted.current) {
-                        setEligibility("closed-today");
-                        setError(ja ? "本日の営業は閉店済みです。再開には専用のAPIが必要です。" : "This business date has already been closed. Reopening requires the dedicated API.");
+                if (account.role === "manager") {
+                    const history = await accountApi.closedShifts();
+                    if (history.some(row => row.business_date === businessDateJst(Date.now()) && row.status === "closed")) {
+                        if (mounted.current) {
+                            setEligibility("closed-today");
+                            setError(ja ? "本日の営業は閉店済みです。再開には専用のAPIが必要です。" : "This business date has already been closed. Reopening requires the dedicated API.");
+                        }
+                        return;
                     }
-                    return;
                 }
             }
             const result = action === "open" ? await accountApi.openShift()
