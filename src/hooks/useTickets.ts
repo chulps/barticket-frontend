@@ -232,6 +232,8 @@ export function useTickets() {
 
       const quantity = Math.max(1, item.quantity + change);
       if (quantity === item.quantity) return null;
+      if (item.type === "cover" &&
+          quantity < (current?.returningGuestCount ?? 0) + (current?.waivedCoverCount ?? 0)) return null;
 
       return item.type === "cover"
         ? ticketsApi.setGuests(ticketId, quantity)
@@ -239,7 +241,8 @@ export function useTickets() {
     }, ticket => ({ ...ticket, items: ticket.items.map(item => {
       if (item.id !== itemId) return item;
       const quantity = Math.max(1, item.quantity + change);
-      return { ...item, quantity, subtotal: quantity * item.unit_price };
+      const coverCount = Math.max(0, quantity - (ticket.returningGuestCount ?? 0) - (ticket.waivedCoverCount ?? 0));
+      return { ...item, quantity, subtotal: (item.type === "cover" ? coverCount : quantity) * item.unit_price };
     }) })).then(saved => {
       if (saved) notifyMutation("success", locale === "ja" ? "数量を更新しました" : "Quantity updated");
     });
@@ -422,9 +425,19 @@ export function useTickets() {
   const payTicket = (ticketId: number, paymentType: PaymentType) =>
     terminalMutation(ticketId, "open", () => enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType), undefined, true));
 
-  const reopenTicket = (ticketId: number) =>
-    terminalMutation(ticketId, "closed", () => enqueue(ticketId, () => ticketsApi.reopen(ticketId), undefined, true))
+  const reopenTicket = (ticketId: number, reason: "customer_returned" | "closed_by_mistake") =>
+    terminalMutation(ticketId, "closed", () => enqueue(ticketId, () => ticketsApi.reopen(ticketId, reason), undefined, true))
       .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票を再開しました" : "Ticket reopened"); return saved; });
+
+  const adjustCover = (ticketId: number, adjustment: {
+    returning_guest_count: number; waived_cover_count: number;
+    returning_from_ticket_id: number | null; reason: string;
+  }): Promise<boolean> =>
+    enqueue(ticketId, () => ticketsApi.adjustCover(ticketId, adjustment))
+      .then(saved => {
+        if (saved) notifyMutation("success", locale === "ja" ? "カバー料金を更新しました（客数はそのまま）" : "Cover adjusted; guest count preserved");
+        return saved !== null;
+      });
 
   return {
     tickets,
@@ -440,5 +453,6 @@ export function useTickets() {
     cancelTicket,
     payTicket,
     reopenTicket,
+    adjustCover,
   };
 }
