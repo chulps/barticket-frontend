@@ -36,7 +36,8 @@ const menu = {
 };
 async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
   const state = { tickets:[ticket()], requests:[], paymentPosts:0,
-    newTicketPosts:0, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false };
+    newTicketPosts:0, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
+    activeMenu:structuredClone(menu), archivedItems:[], editedMenuItems:0, archivedChanges:0 };
   await page.addInitScript(({authenticated, locale}) => {
     if(authenticated) localStorage.setItem("barticket_token","NON_PRODUCTION_BROWSER_TEST_TOKEN");
     else localStorage.removeItem("barticket_token");
@@ -71,7 +72,41 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
     } else if(key==="POST /auth/login") {
       status=401; response={detail:"Invalid test login"};
     } else if(key==="GET /shifts/current") response=shift();
-    else if(key==="GET /menu") response=menu;
+    else if(key==="GET /menu") response=state.activeMenu;
+    else if(key==="GET /menu/archived") {
+      status=authenticated ? 200 : 401;
+      response=authenticated ? {items:state.archivedItems} : {detail:"Sign in"};
+    } else if(/^PATCH \/menu\/items\/\d+$/.test(key)) {
+      const itemId=Number(path.split("/").at(-1));
+      const row=state.activeMenu.items.find(x=>x.id===itemId);
+      if(!authenticated){status=401;response={detail:"Sign in"};}
+      else if(!row){status=404;response={detail:"Unknown item"};}
+      else{
+        const data=json();
+        state.editedMenuItems++;
+        Object.assign(row,{
+          name:data.name,category:data.category,subcategory:data.subcategory,
+          brand:data.brand,volume:data.volume,description:data.description,
+          notes:data.notes,tags:data.tags,prices:data.prices,
+          inStock:data.in_stock,cocktailIngredient:data.cocktail_ingredient,
+        });
+        response=structuredClone(row);
+      }
+    } else if(/^POST \/menu\/items\/\d+\/(archive|restore)$/.test(key)) {
+      const id=Number(path.split("/")[3]),archive=path.endsWith("/archive");
+      const src=archive ? state.activeMenu.items : state.archivedItems;
+      const dst=archive ? state.archivedItems : state.activeMenu.items;
+      const index=src.findIndex(x=>x.id===id);
+      if(!authenticated){status=401;response={detail:"Sign in"};}
+      else if(index<0){status=404;response={detail:"Unknown item"};}
+      else{
+        const row=src.splice(index,1)[0];
+        row.archived=archive;
+        dst.push(row);
+        state.archivedChanges++;
+        response=structuredClone(row);
+      }
+    }
     else if(key==="GET /tickets") response=state.tickets;
     else if(key==="GET /users") response=[account];
     else if(key==="GET /users/recipients") response=[{id:7,name:account.name}];
@@ -365,4 +400,58 @@ test("returning guest links same-shift paid ticket without double charging cover
   expect(target.cover_charge_total).toBe(0);
   expect(source.amount_paid).toBe(500);
   expect(source.status).toBe("paid");
+});
+
+test("full menu edit uses the prefilled Add Item form and updates only the catalog",async ({page})=>{
+  const state=await mockedPOS(page);
+  const oldSnapshot=structuredClone(state.tickets[0].items[0]);
+  await page.goto("/menu");
+  await page.getByRole("button",{name:"Actions for Highball"}).click();
+  await page.getByRole("menuitem",{name:"Edit Item"}).click();
+  const editor=page.getByRole("dialog");
+  await expect(editor).toBeVisible();
+  await expect(editor.getByRole("textbox",{name:/Name/i})).toHaveValue("Highball");
+  await editor.getByRole("textbox",{name:/Name/i}).fill("House Highball");
+  await editor.getByRole("button",{name:"Save",exact:true}).click();
+  await expect.poll(()=>state.editedMenuItems).toBe(1);
+  await expect(page.getByText("House Highball").first()).toBeVisible();
+  expect(state.activeMenu.items.find(x=>x.id===1).name).toBe("House Highball");
+  expect(state.tickets[0].items[0]).toEqual(oldSnapshot);
+  expect(state.requests).toContain("PATCH /menu/items/1");
+});
+
+test("Archive Item hides a drink and Restore Item brings back the same ID with ticket history unchanged",async ({page})=>{
+  const state=await mockedPOS(page);
+  const before=structuredClone(state.tickets[0]);
+  await page.goto("/menu");
+  await page.getByRole("button",{name:"Actions for Highball"}).click();
+  await page.getByRole("menuitem",{name:"Archive Item"}).click();
+  const confirm=page.getByRole("dialog");
+  await expect(confirm.getByText(/Existing tickets, sales and recorded prices are preserved/)).toBeVisible();
+  await confirm.getByRole("button",{name:"Archive Item"}).click();
+  await expect.poll(()=>state.archivedItems.length).toBe(1);
+  expect(state.activeMenu.items.some(x=>x.id===1)).toBe(false);
+  expect(state.tickets[0]).toEqual(before);
+
+  await page.getByRole("button",{name:"Archived Items"}).click();
+  await expect(page.getByText("Highball").first()).toBeVisible();
+  page.once("dialog",dialog=>dialog.accept());
+  await page.getByRole("button",{name:"Restore Item"}).click();
+  await expect.poll(()=>state.archivedItems.length).toBe(0);
+  await page.getByRole("button",{name:"Active Menu"}).click();
+  await expect(page.getByRole("button",{name:"Actions for Highball"})).toBeVisible();
+  expect(state.activeMenu.items.find(x=>x.id===1).id).toBe(1);
+  expect(state.tickets[0]).toEqual(before);
+  expect(state.requests).toContain("POST /menu/items/1/archive");
+  expect(state.requests).toContain("POST /menu/items/1/restore");
+});
+
+test("public menu never exposes archive, restore or full edit controls",async ({page})=>{
+  const state=await mockedPOS(page,{authenticated:false});
+  await page.goto("/menu");
+  await expect(page.getByText("Highball").first()).toBeVisible();
+  await expect(page.getByRole("button",{name:"Archived Items"})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"Actions for Highball"})).toHaveCount(0);
+  expect(state.requests).not.toContain("GET /menu/archived");
+  expect(state.requests.some(key=>key.includes("PATCH /menu/items/"))).toBe(false);
 });
