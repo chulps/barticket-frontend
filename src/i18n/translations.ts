@@ -335,6 +335,26 @@ export type MessageKey = keyof typeof en;
 
 // Menu copy, written by hand. The build script does not translate this.
 export const menuJa: Record<string, string> = {
+    // Newly added entries verified against the live /menu response (October 2026).
+    "Adjust price for custom cocktails": "カスタムカクテルの価格を調整してください",
+    "Ardbeg": "アードベッグ",
+    "Ardbeg 10": "アードベッグ 10年",
+    "Bruichladdic": "ブルイックラディ",
+    "Custom": "カスタム",
+    "Custom cocktail (adjust price)": "カスタムカクテル（価格調整）",
+    "Highball lottery": "ハイボールくじ",
+    "Islay whiskey lottery": "アイラウイスキーくじ",
+    "Japanese Lottery": "ジャパニーズウイスキーくじ",
+    "Japanese whiskey lottery": "ジャパニーズウイスキーくじ",
+    "Lottery": "くじ",
+    "Nikka from the Barrel": "ニッカ フロム・ザ・バレル",
+    "Octomore": "オクトモア",
+    "Octomore 16.2": "オクトモア 16.2",
+    "Roulette for a chance to win": "ルーレットで当たりが決まります",
+    "Roulette for highball lottery": "ハイボールくじのルーレット",
+    "Roulette for Islay whiskey lottery": "アイラウイスキーくじのルーレット",
+    "Roulette for shot lottery": "ショットくじのルーレット",
+    "Shot Lottery": "ショットくじ",
     "'The Smokey'": "「ザ・スモーキー」",
     "A nostalgic attempt at recreating the classic American Dreamsicle as a cocktail.": "アメリカの定番ドリームシックルをカクテルにした一杯。",
     "A smoky twist on the Old Fashioned made with Ardbeg 10, bitters, sugar, and lime.": "アードベッグ10年、ビターズ、砂糖、ライムで作るスモーキーなオールドファッションド。",
