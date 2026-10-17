@@ -47,28 +47,43 @@ export default function App() {
     let version = 0;
     async function checkAuth() {
       const current = ++version;
-      if (!getToken()) { setAuthenticated(false); return; }
+      const token = getToken();
+      // Unmount private ticket/admin/profile state immediately on any auth
+      // change, including a session switch in another browser tab.
+      setAuthenticated(null);
+      if (!token) { setAuthenticated(false); return; }
       try {
         await accountApi.me();
-        if (current === version) setAuthenticated(true);
+        if (current === version && getToken() === token) setAuthenticated(true);
       } catch (error) {
-        if (current !== version) return;
+        if (current !== version || getToken() !== token) return;
         if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          // A stale 401 from the previous account must not sign out a new one.
           setToken(null);
           setAuthenticated(false);
         } else {
-          // A temporary network failure must not discard a valid saved session.
+          // Offline sessions preserve access to operational UI; sensitive
+          // manager data must independently revalidate its role on load.
           setAuthenticated(true);
         }
       }
     }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === "barticket_token" || event.key === null) {
+        // "storage" fires in OTHER tabs, not this tab; it does not propagate
+        // through setToken here or create an auth-event loop.
+        window.dispatchEvent(new Event("barticket-auth"));
+      }
+    };
     void checkAuth();
     window.addEventListener("barticket-auth", checkAuth);
     window.addEventListener("barticket-api-restored", checkAuth);
+    window.addEventListener("storage", onStorage);
     return () => {
       version++;
       window.removeEventListener("barticket-auth", checkAuth);
       window.removeEventListener("barticket-api-restored", checkAuth);
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 
