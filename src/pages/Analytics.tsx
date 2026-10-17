@@ -13,6 +13,7 @@ import TabGroup from "../components/TabGroup";
 import { formatDuration, localeTag, menuLabel, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
 import type { Ticket } from "../types/Ticket";
 import { topSellingItems } from "../components/topSellingItems";
+import GuestOccupancyChart from "../components/GuestOccupancyChart";
 import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 import { analyticsDrillDownTarget, shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
@@ -491,6 +492,7 @@ export default function Analytics() {
     const [team, setTeam] = useState<Account[] | null>(null);
     const [notices, setNotices] = useState<NoticeList | null>(null);
     const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+    const [clockNow, setClockNow] = useState<number | null>(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
     const [range, setRange] = useState<Range>("day");
@@ -499,6 +501,13 @@ export default function Analytics() {
     const [dayId, setDayId] = useState<number | null>(null);
     const [pickedDate, setPickedDate] = useState("");
     const signedIn = getToken() !== null;
+
+    useEffect(() => {
+        const updateClock = () => setClockNow(Math.floor(Date.now() / 1000));
+        updateClock();
+        const timer = window.setInterval(updateClock, 10_000);
+        return () => window.clearInterval(timer);
+    }, []);
 
     useEffect(() => {
         if (!signedIn) return;
@@ -777,6 +786,12 @@ export default function Analytics() {
                                 updatedAt={lastUpdated}
                                 dateLabel={formatNight(selected.business_date, locale)}
                             />
+                            <GuestOccupancyChart
+                                shift={selected}
+                                tickets={tickets}
+                                now={lastUpdated ?? clockNow ?? selected.opened_at}
+                                dateLabel={formatNight(selected.business_date, locale)}
+                            />
                         </>
                     ) : (
                         <>
@@ -798,6 +813,14 @@ export default function Analytics() {
                             </Card>
                             <StaffChart shifts={[selected]} context={copyPeriod(range, month, year, selected, locale)} />
                         </DayBento>
+                    ) : null}
+                    {range === "day" && selected ? (
+                        <GuestOccupancyChart
+                            shift={selected}
+                            tickets={tickets}
+                            now={lastUpdated ?? clockNow ?? selected.opened_at}
+                            dateLabel={formatNight(selected.business_date, locale)}
+                        />
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
                     {visible.length > 0 ? <TopSellingPanel shifts={visible} tickets={tickets} context={copyPeriod(range, month, year, selected, locale)} /> : null}
