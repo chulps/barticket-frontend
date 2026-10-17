@@ -255,7 +255,12 @@ test("ticket item action menu keeps original trailing-row placement and flips on
   await page.setViewportSize({width:375,height:667});
   const state=await mockedPOS(page);
   // A long ticket reproduces the original offscreen menu on the final row.
-  const extra=Array.from({length:18},(_,n)=>item(201+n, n===17 ? "Last Drink" : "Drink "+(n+1),700));
+  // These are historical ticket names, not live menu IDs; otherwise the
+  // client correctly substitutes the catalog name for menu_item_id=3.
+  const extra=Array.from({length:18},(_,n)=>({
+    ...item(201+n, n===17 ? "Last Drink" : "Drink "+(n+1),700),
+    menu_item_id:null,
+  }));
   state.tickets[0].items.push(...extra);
   state.tickets[0].total+=extra.reduce((sum,line)=>sum+line.subtotal,0);
   await page.goto("/tickets");
