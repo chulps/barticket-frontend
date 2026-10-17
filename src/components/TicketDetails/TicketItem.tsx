@@ -11,6 +11,10 @@ type TicketDetailItemProps = {
     name: string;
     unitPrice: number;
     quantity: number;
+    subtotal?: number;
+    isCover?: boolean;
+    onWaiveCover?: () => void;
+    onReturningCustomer?: () => void;
 
     isEditingPrice: boolean;
     pending?: boolean;
@@ -29,6 +33,10 @@ export default function TicketDetailItem({
     name,
     unitPrice,
     quantity,
+    subtotal: adjustedSubtotal,
+    isCover = false,
+    onWaiveCover,
+    onReturningCustomer,
     isEditingPrice,
     pending = false,
     onIncrease,
@@ -40,7 +48,7 @@ export default function TicketDetailItem({
     activeTab
 }: TicketDetailItemProps) {
     const { t, locale } = useI18n();
-    const subtotal = unitPrice * quantity;
+    const subtotal = adjustedSubtotal ?? unitPrice * quantity;
 
     const [priceInput, setPriceInput] = useState(unitPrice.toString());
     const [savingPrice, setSavingPrice] = useState(false);
@@ -89,6 +97,7 @@ export default function TicketDetailItem({
     };
 
     const isEditable = activeTab === "open" && !pending;
+    const canEditPrice = isEditable && !isCover;
 
     return (
         <Container>
@@ -123,7 +132,7 @@ export default function TicketDetailItem({
                         </PriceEditActions>
                         {priceError ? <PriceError role="alert">{priceError}</PriceError> : null}
                     </PriceEditForm>
-                ) : isEditable ? (
+                ) : canEditPrice ? (
                     <PriceTrigger type="button" ref={priceTriggerRef}
                         aria-label={locale === "ja" ? name + " の価格を調整" : "Adjust price for " + name}
                         onClick={startEditingPrice}>
@@ -184,26 +193,31 @@ export default function TicketDetailItem({
                 >
                     {(closeMenu) => (
                         <>
-                            <DropdownMenuItem
-                                onClick={() => {
+                            {isCover ? <>
+                                <DropdownMenuItem onClick={() => { closeMenu(); onWaiveCover?.(); }}>
+                                    <Icon name="CurrencyCircleDollar" />
+                                    {locale === "ja" ? "カバー料金を免除" : "Waive cover charge"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { closeMenu(); onReturningCustomer?.(); }}>
+                                    <Icon name="ArrowCounterClockwise" />
+                                    {locale === "ja" ? "再来店のカバー調整" : "Returning guest cover"}
+                                </DropdownMenuItem>
+                            </> : <>
+                                <DropdownMenuItem onClick={() => {
                                     closeMenu();
                                     startEditingPrice();
-                                }}
-                            >
-                                <Icon name="CurrencyCircleDollar" />
-                                {t("adjustPrice")}
-                            </DropdownMenuItem>
-
-                            <DropdownMenuItem
-                                danger
-                                onClick={() => {
+                                }}>
+                                    <Icon name="CurrencyCircleDollar" />
+                                    {t("adjustPrice")}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem danger onClick={() => {
                                     closeMenu();
                                     onRemove();
-                                }}
-                            >
-                                <Icon name="Trash" />
-                                {t("removeItem")}
-                            </DropdownMenuItem>
+                                }}>
+                                    <Icon name="Trash" />
+                                    {t("removeItem")}
+                                </DropdownMenuItem>
+                            </>}
                         </>
                     )}
                 </DropdownMenu>
