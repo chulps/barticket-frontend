@@ -178,7 +178,10 @@ const ItemList = styled.div`
     box-sizing: border-box;
 `;
 const SectionTitle = styled.h4`
-    position: sticky; top: 0; z-index: 1;
+    /* Sticky category headings inside a short picker could overlay price
+       buttons during scroll-into-view and block mouse/touch activation.
+       Keep only the search input sticky; category labels stay in flow. */
+    position: static;
     padding: var(--space-1) var(--space-2); margin: 0;
     background: var(--neutral-900); color: var(--neutral-300);
 `;
