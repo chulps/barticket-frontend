@@ -25,8 +25,14 @@ export default function CoverChargeModal({ ticket, tickets, mode, onSave }: Prop
     const ja = locale === "ja";
     const guests = ticket.guestCount ?? ticket.items.find(item => item.type === "cover")?.quantity ?? 0;
     const price = ticket.coverChargePerPerson ?? ticket.items.find(item => item.type === "cover")?.unit_price ?? 0;
-    const [waived, setWaived] = useState(ticket.waivedCoverCount ?? 0);
-    const [returning, setReturning] = useState(ticket.returningGuestCount ?? 0);
+    // Staff can waive one cover in just a few taps; existing waivers are retained.
+    const [waived, setWaived] = useState(
+        mode === "waiver" && !(ticket.waivedCoverCount ?? 0) && guests > 0 ? 1 : (ticket.waivedCoverCount ?? 0)
+    );
+    const [returning, setReturning] = useState(
+        mode === "returning" && !(ticket.returningGuestCount ?? 0) && guests > (ticket.waivedCoverCount ?? 0)
+            ? 1 : (ticket.returningGuestCount ?? 0)
+    );
     const [sourceId, setSourceId] = useState<number | null>(ticket.returningFromTicketId ?? null);
     const [reason, setReason] = useState(
         ticket.coverAdjustmentReason ?? (mode === "waiver" ? "Complimentary cover" : "Customer returning after paid cover")
@@ -102,19 +108,19 @@ export default function CoverChargeModal({ ticket, tickets, mode, onSave }: Prop
             : "Adjust covers charged without changing the number of guests counted."}</p>
         <p><strong>{ja ? "来店人数" : "Guests"}: {guests}</strong> · ¥{price.toLocaleString("ja-JP")} {ja ? "／人" : "each"}</p>
 
-        <label style={{ display: "grid", gap: "var(--space-1)" }}>
-            {ja ? "免除人数" : "Complimentary covers to waive"}
+        {mode === "waiver" && <label style={{ display: "grid", gap: "var(--space-1)" }}>
+            {ja ? "免除する人数" : "Covers to waive"}
             <input type="number" inputMode="numeric" min={0} max={guests} step={1}
                 value={waived < 0 ? "" : waived} disabled={saving}
                 onChange={event => inputChanged(event.currentTarget.value === "" ? -1 : Number(event.currentTarget.value), setWaived)} />
-        </label>
-        <label style={{ display: "grid", gap: "var(--space-1)" }}>
-            {ja ? "再来店人数（既にカバーチャージを支払い済み）" : "Returning guests (already paid cover)"}
+        </label>}
+        {mode === "returning" && <label style={{ display: "grid", gap: "var(--space-1)" }}>
+            {ja ? "再来店人数" : "Returning guests"}
             <input type="number" inputMode="numeric" min={0} max={guests} step={1}
                 value={returning < 0 ? "" : returning} disabled={saving}
                 onChange={event => inputChanged(event.currentTarget.value === "" ? -1 : Number(event.currentTarget.value), setReturning)} />
-        </label>
-        {returning > 0 && <label style={{ display: "grid", gap: "var(--space-1)" }}>
+        </label>}
+        {mode === "returning" && returning > 0 && <label style={{ display: "grid", gap: "var(--space-1)" }}>
             {ja ? "元の支払済み伝票" : "Original paid ticket (same shift)"}
             <select required value={sourceId ?? ""} disabled={saving}
                 onChange={event => { setSourceId(event.currentTarget.value ? Number(event.currentTarget.value) : null); setError(""); }}>
@@ -127,11 +133,14 @@ export default function CoverChargeModal({ ticket, tickets, mode, onSave }: Prop
                 ? <small role="alert">{ja ? "指定した伝票の支払い済みカバー残数が不足しています。" : "Not enough unclaimed paid covers on that ticket."}</small>
                 : null}
         </label>}
-        <label style={{ display: "grid", gap: "var(--space-1)" }}>
-            {ja ? "調整理由（必須・監査記録に保存）" : "Reason (required for audit)"}
-            <input required maxLength={255} value={reason} disabled={saving}
-                onChange={event => { setReason(event.currentTarget.value); setError(""); }} />
-        </label>
+        <details>
+            <summary>{ja ? "理由を変更（任意）" : "Change reason (optional)"}</summary>
+            <label style={{ display: "grid", gap: "var(--space-1)" }}>
+                {ja ? "記録に残る理由" : "Recorded reason"}
+                <input required maxLength={255} value={reason} disabled={saving}
+                    onChange={event => { setReason(event.currentTarget.value); setError(""); }} />
+            </label>
+        </details>
         {!valid && <p role="alert">{ja
             ? "人数・支払済み伝票・理由を確認してください。"
             : "Check the guest counts, original paid ticket, and reason."}</p>}
