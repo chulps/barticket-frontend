@@ -25,39 +25,47 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
 
   useEffect(() => {
     let cancelled = false;
+    let generation = 0;
     async function loadRole() {
-      if (!getToken()) {
+      const request = ++generation;
+      const token = getToken();
+      if (!token) {
         if (!cancelled) {
           setIsManager(false);
           setUserName(null);
           setClockedIn(false);
+          setAlertCount(0);
+          setIsOpen(false);
+          setMoreOpen(false);
         }
         return;
       }
       try {
         const me = await accountApi.me();
         const shift = await accountApi.currentShift();
-        if (cancelled) return;
+        if (cancelled || request !== generation || getToken() !== token) return;
         setIsManager(me.role === "manager");
         setUserName(me.name.trim() || null);
         setClockedIn(
           Boolean(shift?.punches.some((punch) => punch.user_id === me.id && punch.clock_out === null)),
         );
       } catch {
-        if (!cancelled) {
+        if (!cancelled && request === generation && getToken() === token) {
           setIsManager(false);
           setUserName(null);
           setClockedIn(false);
+          setAlertCount(0);
         }
       }
     }
-    loadRole();
+    void loadRole();
     const timer = window.setInterval(loadRole, 20000);
     window.addEventListener("barticket-auth", loadRole);
     window.addEventListener("barticket-shift-updated", loadRole);
     window.addEventListener("focus", loadRole);
     return () => {
       cancelled = true;
+      generation++;
       window.clearInterval(timer);
       window.removeEventListener("barticket-auth", loadRole);
       window.removeEventListener("barticket-shift-updated", loadRole);

@@ -3,7 +3,7 @@ import { Navigate, useMatch, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 
 import { accountApi, type Account } from "../api/account";
-import { ApiError } from "../api/client";
+import { ApiError, getToken } from "../api/client";
 import TabGroup from "../components/TabGroup";
 import { useI18n } from "../i18n";
 import { confirmAccountRole } from "./adminAccountRole";
@@ -52,39 +52,63 @@ export default function Admin() {
 
     useEffect(() => {
         let cancelled = false;
+        let generation = 0;
         async function load() {
+            const request = ++generation;
+            const token = getToken();
+            // Fail closed while checking the current session; never show
+            // another account's cached manager, team, or payroll draft data.
+            setLoading(true);
+            setMe(null);
+            setTeam([]);
+            setAccountsError("");
+            setError("");
+            if (!token) { setLoading(false); return; }
             try {
                 const account = await accountApi.me();
-                if (cancelled) return;
+                if (cancelled || request !== generation || getToken() !== token) return;
+                if (account.role !== "manager") { setMe(account); return; }
+                const members = await accountApi.listUsers();
+                if (cancelled || request !== generation || getToken() !== token) return;
+                setTeam(members);
                 setMe(account);
-                if (account.role === "manager") {
-                    try {
-                        const members = await accountApi.listUsers();
-                        if (!cancelled) setTeam(members);
-                    } catch (err) {
-                        if (!cancelled) setAccountsError(err instanceof ApiError ? err.message : String(err));
-                    }
-                }
             } catch (err) {
-                if (!cancelled) setError(err instanceof ApiError ? err.message : String(err));
+                if (cancelled || request !== generation || getToken() !== token) return;
+                setTeam([]);
+                setMe(null);
+                setError(err instanceof ApiError ? err.message : String(err));
             } finally {
-                if (!cancelled) setLoading(false);
+                if (!cancelled && request === generation && getToken() === token) setLoading(false);
             }
         }
+        const reload = () => { void load(); };
         void load();
-        return () => { cancelled = true; };
+        window.addEventListener("barticket-auth", reload);
+        window.addEventListener("focus", reload);
+        return () => {
+            cancelled = true;
+            generation++;
+            window.removeEventListener("barticket-auth", reload);
+            window.removeEventListener("focus", reload);
+        };
     }, []);
 
     async function refreshAccounts() {
-        if (accountsLoading) return;
+        if (accountsLoading || me?.role !== "manager") return;
+        const token = getToken();
+        if (!token) return;
         setAccountsLoading(true);
         setAccountsError("");
         try {
-            setTeam(await accountApi.listUsers());
+            const members = await accountApi.listUsers();
+            if (getToken() === token) setTeam(members);
         } catch (err) {
-            setAccountsError(err instanceof ApiError ? err.message : String(err));
+            if (getToken() === token) {
+                setTeam([]);
+                setAccountsError(err instanceof ApiError ? err.message : String(err));
+            }
         } finally {
-            setAccountsLoading(false);
+            if (getToken() === token) setAccountsLoading(false);
         }
     }
 
