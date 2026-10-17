@@ -47,6 +47,18 @@ export default function TicketFooter({
                     <label>{t("total")}</label>
                     <data>¥{total.toLocaleString()}</data>
                 </Row>
+                {(ticket.waivedCoverCount ?? 0) > 0 ? <Row>
+                    <small>{ticket.waivedCoverCount} waived / チャージ免除</small>
+                    <small>{ticket.guestCount ?? 0} guests / 来店人数</small>
+                </Row> : null}
+                {ticket.amountPaid !== undefined && ticket.amountPaid > 0 ? <Row>
+                    <small>Already paid / 支払済</small>
+                    <small>¥{ticket.amountPaid.toLocaleString()}</small>
+                </Row> : null}
+                {ticket.balanceDue !== undefined && ticket.status === "open" ? <Row>
+                    <strong>Balance due / 残額</strong>
+                    <strong>¥{ticket.balanceDue.toLocaleString()}</strong>
+                </Row> : null}
             </Totals>
 
             <Actions>
