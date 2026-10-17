@@ -15,6 +15,8 @@ export default function DropdownMenuItem({
 }: DropdownMenuItemProps) {
     return (
         <Item
+            type="button"
+            role="menuitem"
             onClick={() => {
                 closeMenu?.();
                 onClick?.();
