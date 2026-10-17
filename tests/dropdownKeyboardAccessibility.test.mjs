@@ -34,7 +34,7 @@ test("outside click, scroll and resize dismiss without leaving a visible portal"
   assert.match(popup, /!skipFocusReturn\.current && popup\.contains\(document\.activeElement\)/);
   assert.match(popup, /window\.addEventListener\("scroll"/);
   assert.match(popup, /window\.addEventListener\("resize"/);
-  assert.match(popup, /triggerRect\.bottom \+ 6 \+ popupRect\.height/);
+  assert.match(popup, /const availableBelow =/);
   assert.match(popup, /popup\.contains\(document\.activeElement\)/);
   assert.match(popup, /top: \$\{\(\{ \$top \}\) =>/);
   assert.match(popup, /right: \$\{\(\{ \$right \}\) =>/);
