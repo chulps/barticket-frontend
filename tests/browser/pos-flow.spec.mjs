@@ -241,6 +241,8 @@ test("partial multi-item failure leaves unresolved items visible without automat
   await page.getByRole("button",{name:/Add Item/i}).click();
   const dialog=page.getByRole("dialog");
   await expect(dialog).toBeVisible();
+  // Regression: this click must be a real pointer hit, not force:true.
+  // Earlier a sticky "All drinks" heading intercepted the price button.
   await dialog.getByRole("button",{name:"¥700",exact:true}).first().click();
   await dialog.getByRole("button",{name:"¥600",exact:true}).first().click();
   await dialog.getByRole("button",{name:/Save \(2\)/}).click();
