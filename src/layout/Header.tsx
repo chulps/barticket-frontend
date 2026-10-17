@@ -54,11 +54,13 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
     loadRole();
     const timer = window.setInterval(loadRole, 20000);
     window.addEventListener("barticket-auth", loadRole);
+    window.addEventListener("barticket-shift-updated", loadRole);
     window.addEventListener("focus", loadRole);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
       window.removeEventListener("barticket-auth", loadRole);
+      window.removeEventListener("barticket-shift-updated", loadRole);
       window.removeEventListener("focus", loadRole);
     };
   }, []);
