@@ -213,7 +213,7 @@ test("mobile menu search stays visible with long lists, and Japanese close navig
   await expect(page.getByText("Highball").first()).toBeVisible();
   await page.goto("/tickets");
   await page.getByRole("button",{name:/Test Walk-in/i}).first().click();
-  const close=page.getByRole("button",{name:/チケットを閉じる/);
+  const close=page.getByRole("button",{name:/チケットを閉じる/});
   await expect(close).toBeVisible();
   await close.click();
   await expect(page.getByRole("button",{name:/支払い|お支払い/}).first()).toBeVisible();
