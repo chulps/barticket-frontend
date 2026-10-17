@@ -43,19 +43,36 @@ export function liveAnalyticsShift(
     let otherTotal = 0;
     let coverTotal = 0;
     let guestCount = 0;
-    for (const ticket of paid) {
-        const total = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
-        paidTotal += total;
-        const method = ticket.payment?.type ?? "other";
-        if (method === "cash") cashTotal += total;
-        else if (method === "card") cardTotal += total;
-        else otherTotal += total;
-
-        for (const item of ticket.items) {
-            if (item.type !== "cover") continue;
-            guestCount += item.quantity;
-            coverTotal += item.subtotal;
+    // The merged backend records multiple tenders per ticket. A returned
+    // customer can have an open ticket WITH earlier payments already collected.
+    // Count each non-voided actual payment, never the entire ticket total again.
+    for (const ticket of shiftTickets) {
+        if (ticket.status === "cancelled") continue;
+        const recorded = ticket.payments;
+        const activePayments = recorded?.filter(payment => payment.voided_at == null);
+        if (recorded !== undefined) {
+            for (const payment of activePayments ?? []) {
+                paidTotal += payment.amount;
+                if (payment.type === "cash") cashTotal += payment.amount;
+                else if (payment.type === "card") cardTotal += payment.amount;
+                else otherTotal += payment.amount;
+            }
+        } else if (ticket.status === "paid") {
+            // Historic or fixture records without an expanded payment ledger.
+            const total = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
+            paidTotal += total;
+            const method = ticket.payment?.type ?? "other";
+            if (method === "cash") cashTotal += total;
+            else if (method === "card") cardTotal += total;
+            else otherTotal += total;
         }
+    }
+    // Match server shift-close semantics: waived customers still attended,
+    // returning customers are NOT new arrivals, and covers are net of waivers.
+    for (const ticket of paid) {
+        guestCount += (ticket.guestCount ?? ticket.items.find(item => item.type === "cover")?.quantity ?? 0) -
+            (ticket.returningGuestCount ?? 0);
+        coverTotal += ticket.items.find(item => item.type === "cover")?.subtotal ?? 0;
     }
     return {
         ...openShift,

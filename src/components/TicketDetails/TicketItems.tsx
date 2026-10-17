@@ -8,6 +8,7 @@ import styled from "styled-components";
 
 // UI components
 import TicketDetailItem from "./TicketItem";
+import CoverChargeModal, { type CoverAdjustment } from "./CoverChargeModal";
 import Icon from "../Icon";
 import AddItemPicker from "../AddItemPicker";
 
@@ -33,6 +34,7 @@ type TicketItemsProps = {
         itemId: number,
         change: number
     ) => void;
+    onAdjustCover: (ticketId: number, adjustment: CoverAdjustment) => Promise<boolean>;
 
     onUpdatePrice: (
         ticketId: number,
@@ -64,6 +66,7 @@ export default function TicketItems({
     editingPriceItemId,
     setEditingPriceItemId,
     onUpdateQuantity,
+    onAdjustCover,
     onUpdatePrice,
     onRemoveItem,
     onAddItem,
@@ -73,6 +76,18 @@ export default function TicketItems({
     const { t, locale } = useI18n();
 
     const isEditable = activeTab === "open";
+    const openCoverAdjustment = (mode: "waiver" | "returning") => {
+        if (!isEditable || ticket.id <= 0 || !ticket.items.some(item => item.type === "cover")) return;
+        openModal({
+            title: mode === "waiver"
+                ? (locale === "ja" ? "カバーチャージ免除" : "Waive cover charge")
+                : (locale === "ja" ? "再来店のお客様" : "Returning customer"),
+            maxWidth: "480px",
+            fitContent: true,
+            content: <CoverChargeModal key={ticket.id + "-" + mode} ticket={ticket} tickets={tickets} mode={mode}
+                onSave={(adjustment) => onAdjustCover(ticket.id, adjustment)} />,
+        });
+    };
 
     return (
         <Items>
@@ -138,6 +153,10 @@ export default function TicketItems({
                         }
                         unitPrice={item.unit_price}
                         quantity={item.quantity}
+                        lineSubtotal={item.subtotal}
+                        isCover={item.type === "cover"}
+                        onWaiveCover={item.type === "cover" ? () => openCoverAdjustment("waiver") : undefined}
+                        onReturningCustomer={item.type === "cover" ? () => openCoverAdjustment("returning") : undefined}
                         activeTab={activeTab}
                         isEditingPrice={editingPriceItemId === item.id}
                         onIncrease={() =>

@@ -100,6 +100,25 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
             found.items.push(item(30+state.itemPosts,menuItem?.name ?? "Unknown",price,quantity));
             found.total+=quantity*price;response=found;
           }
+        } else if(method==="PATCH" && m[2]==="cover"){
+          const data=json();
+          state.coverPatchCount=(state.coverPatchCount ?? 0)+1;
+          const waived=data.waived_cover_count ?? 0;
+          const returning=data.returning_guest_count ?? 0;
+          if(!data.reason?.trim() || returning+waived>found.guest_count ||
+            (returning>0 && !data.returning_from_ticket_id)){
+            status=422; response={detail:"Invalid cover adjustment"};
+          }else{
+            found.waived_cover_count=waived;
+            found.returning_guest_count=returning;
+            found.returning_from_ticket_id=data.returning_from_ticket_id;
+            found.cover_adjustment_reason=data.reason;
+            found.cover_charge_total=(found.guest_count-waived-returning)*found.cover_charge_per_person;
+            found.total=found.items.reduce((sum,x)=>sum+x.subtotal,0)+found.cover_charge_total;
+            found.amount_paid=found.amount_paid ?? 0;
+            found.balance_due=Math.max(0,found.total-found.amount_paid);
+            response=found;
+          }
         } else if(method==="PATCH" && m[2]?.startsWith("items/")){
           const line=found.items.find(x=>x.id===Number(m[2].split("/")[1]));
           if(!line){status=404;response={detail:"Missing line"};}
@@ -200,6 +219,7 @@ test("payment conflict displays an error without duplicate POST, then paid/reope
   await page.getByRole("button",{name:"Paid"}).click();
   await expect(page.getByRole("button",{name:/Reopen Ticket/i})).toBeVisible();
   await page.getByRole("button",{name:/Reopen Ticket/i}).click();
+  await page.getByRole("dialog").getByRole("button",{name:/Customer returned/i}).click();
   await expect.poll(()=>state.tickets[0].status).toBe("open");
 });
 
@@ -283,4 +303,66 @@ test("ticket item action menu keeps original trailing-row placement and flips on
   expect(state.requests).not.toContain("PATCH /tickets/11/items/218");
   await menu.getByRole("menuitem",{name:/Adjust Price/i}).click();
   await expect(page.getByRole("textbox",{name:/New price for Last Drink/})).toBeVisible();
+});
+
+test("staff cover waiver requires only count and Save while preserving full guest attendance",async ({page})=>{
+  const state=await mockedPOS(page);
+  const target=state.tickets[0];
+  target.guest_count=3;
+  target.cover_charge_per_person=500;
+  target.cover_charge_total=1500;
+  target.total+=1500;
+  await openTicket(page);
+  const action=page.getByRole("button",{name:"Actions for Cover Charge"});
+  await action.click();
+  const popup=page.getByRole("menu",{name:"Actions for Cover Charge"});
+  await expect(popup).toBeVisible();
+  await expect(popup.getByRole("menuitem",{name:/Waive cover charge/i})).toBeVisible();
+  await popup.getByRole("menuitem",{name:/Waive cover charge/i}).click();
+  const dialog=page.getByRole("dialog");
+  await expect(dialog.getByRole("spinbutton",{name:/Covers to waive/i})).toHaveValue("1");
+  await expect(dialog.getByText(/Guests: 3/)).toBeVisible();
+  await dialog.getByRole("button",{name:/Save adjustment/i}).click();
+  await expect.poll(()=>target.waived_cover_count).toBe(1);
+  expect(state.coverPatchCount).toBe(1);
+  expect(target.guest_count).toBe(3);
+  expect(target.cover_charge_total).toBe(1000);
+  expect(target.cover_adjustment_reason).toBe("Complimentary cover");
+});
+
+test("returning guest links same-shift paid ticket without double charging cover",async ({page})=>{
+  const state=await mockedPOS(page);
+  const target=state.tickets[0];
+  target.guest_count=1;
+  target.cover_charge_per_person=500;
+  target.cover_charge_total=500;
+  target.total+=500;
+  const source=ticket(12);
+  source.name="Paid cover source";
+  source.status="paid";
+  source.guest_count=1;
+  source.cover_charge_per_person=500;
+  source.cover_charge_total=500;
+  source.total=500;
+  source.items=[];
+  source.amount_paid=500;
+  source.balance_due=0;
+  source.paid_at=now();
+  source.payments=[{type:"cash",amount:500,paid_at:source.paid_at,voided_at:null}];
+  source.payment={type:"cash",amount:500,paid_at:source.paid_at};
+  state.tickets.push(source);
+  await openTicket(page);
+  await page.getByRole("button",{name:"Actions for Cover Charge"}).click();
+  const popup=page.getByRole("menu",{name:"Actions for Cover Charge"});
+  await popup.getByRole("menuitem",{name:/Returning customer/i}).click();
+  const dialog=page.getByRole("dialog");
+  await expect(dialog.getByRole("spinbutton",{name:/Returning guests/i})).toHaveValue("1");
+  await dialog.getByRole("combobox",{name:/Original paid ticket/i}).selectOption("12");
+  await dialog.getByRole("button",{name:/Save adjustment/i}).click();
+  await expect.poll(()=>target.returning_guest_count).toBe(1);
+  expect(target.returning_from_ticket_id).toBe(12);
+  expect(target.guest_count).toBe(1);
+  expect(target.cover_charge_total).toBe(0);
+  expect(source.amount_paid).toBe(500);
+  expect(source.status).toBe("paid");
 });

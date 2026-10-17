@@ -80,6 +80,31 @@ test("Unpaid, cancelled and other-shift tickets cannot inflate live revenue", ()
     assert.equal(report?.cover_total, 0);
 });
 
+test("Live shift uses each active payment, excludes POS voids and counts returning visitors once", () => {
+    const current = shift(42, "2026-10-12", "open");
+    const old = ticket(10, 42, "paid", "cash", [["cover", 2, 1000], ["menu", 1, 700]]);
+    old.guestCount = 2;
+    old.payments = [{ type: "cash", amount: 1700, paid_at: 1, voided_at: null }];
+    const returned = ticket(11, 42, "paid", "card", [["cover", 1, 0], ["menu", 1, 550]]);
+    returned.guestCount = 1;
+    returned.returningGuestCount = 1;
+    returned.payments = [
+        { type: "cash", amount: 100, paid_at: 2, voided_at: 3 },
+        { type: "card", amount: 550, paid_at: 4, voided_at: null },
+    ];
+    const reopened = ticket(12, 42, "open", "cash", [["menu", 1, 2200]]);
+    reopened.guestCount = 0;
+    reopened.payments = [{ type: "cash", amount: 1200, paid_at: 1, voided_at: null }];
+    const result = liveAnalyticsShift(current, [old, returned, reopened]);
+    assert.equal(result?.paid_total, 3450, "active payment records, including previously paid reopened tab");
+    assert.equal(result?.cash_total, 2900);
+    assert.equal(result?.card_total, 550);
+    assert.equal(result?.other_total, 0);
+    assert.equal(result?.guest_count, 2, "returning visitor must not be counted again");
+    assert.equal(result?.cover_total, 1000, "returning and waived covers are not billed");
+    assert.equal(result?.paid_count, 2);
+});
+
 test("A newly opened shift with no tickets has zero collected sales and stays selected", () => {
     const current = shift(52, "2026-10-12", "open");
     assert.equal(initialAnalyticsShift(current, [])?.id, 52);

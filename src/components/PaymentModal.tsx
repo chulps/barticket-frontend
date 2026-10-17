@@ -65,10 +65,13 @@ export default function PaymentModal({
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
 
-    const total = ticket.items.reduce(
+    const ticketTotal = ticket.serverTotal ?? ticket.items.reduce(
         (sum, item) => sum + item.subtotal,
         0
     );
+    // #91 charges ONLY the outstanding balance when an already-paid customer
+    // returns. Never display the historical total as the next amount to collect.
+    const total = ticket.balanceDue ?? Math.max(0, ticketTotal - (ticket.amountPaid ?? 0));
 
     const handleConfirm = async () => {
         if (pending.current) return;
@@ -80,7 +83,9 @@ export default function PaymentModal({
             if (confirmed) setStep("success");
             else setError(locale === "ja" ? "お支払いを確認できませんでした。再試行前にチケットの状態を確認してください。" : "Payment not confirmed. Check the ticket before retrying.");
         } catch {
-            setError("Payment could not be confirmed. Check ticket status before retrying.");
+            setError(locale === "ja"
+                ? "お支払いを確認できませんでした。伝票の状態を確認してください。"
+                : "Payment could not be confirmed. Check ticket status before retrying.");
         } finally {
             pending.current = false;
             setSaving(false);
@@ -106,6 +111,9 @@ export default function PaymentModal({
     return (
         <Container>
             <TotalContainer>
+                {(ticket.amountPaid ?? 0) > 0 && <small>
+                    {locale === "ja" ? "お支払い済み" : "Previously paid"}: ¥{(ticket.amountPaid ?? 0).toLocaleString()}
+                </small>}
                 <Amount>
                     ¥{total.toLocaleString()}
                 </Amount>
