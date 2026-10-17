@@ -28,7 +28,7 @@ type TicketDetailsProps = {
         itemId: number,
         change: number
     ) => void;
-    onSetCoverWaivers: (ticketId: number, count: number) => Promise<boolean>;
+    onAdjustCover: (ticketId: number, adjustment: import("./CoverChargeModal").CoverAdjustment) => Promise<boolean>;
 
     onUpdatePrice: (
         ticketId: number,
@@ -78,7 +78,7 @@ export default function TicketDetails({
     menu,
     tickets,
     onUpdateQuantity,
-    onSetCoverWaivers,
+    onAdjustCover,
     onUpdatePrice,
     onAddItem,
     onAddStaffDrink,
@@ -148,7 +148,7 @@ export default function TicketDetails({
                 editingPriceItemId={editingPriceItemId}
                 setEditingPriceItemId={setEditingPriceItemId}
                 onUpdateQuantity={onUpdateQuantity}
-                onSetCoverWaivers={onSetCoverWaivers}
+                onAdjustCover={onAdjustCover}
                 onUpdatePrice={onUpdatePrice}
                 onRemoveItem={onRemoveItem}
                 onAddItem={onAddItem}
