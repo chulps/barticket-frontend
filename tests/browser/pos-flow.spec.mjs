@@ -200,6 +200,8 @@ test("payment conflict displays an error without duplicate POST, then paid/reope
   await page.getByRole("button",{name:"Paid"}).click();
   await expect(page.getByRole("button",{name:/Reopen Ticket/i})).toBeVisible();
   await page.getByRole("button",{name:/Reopen Ticket/i}).click();
+  // #91 requires the user to choose why a paid ticket is reopened.
+  await page.getByRole("dialog").getByRole("button",{name:/Customer returned/i}).click();
   await expect.poll(()=>state.tickets[0].status).toBe("open");
 });
 
