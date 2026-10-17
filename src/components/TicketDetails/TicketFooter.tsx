@@ -24,7 +24,8 @@ type TicketFooterProps = {
         paymentType: PaymentType,
     ) => Promise<boolean>;
 
-    onReopenTicket: (ticketId: number) => void;
+    onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => Promise<boolean>;
+    canCorrectPayment: boolean;
 };
 
 export default function TicketFooter({
@@ -37,6 +38,7 @@ export default function TicketFooter({
     onCancelTicket,
     onPayTicket,
     onReopenTicket,
+    canCorrectPayment,
 }: TicketFooterProps) {
     const { t } = useI18n();
 
@@ -72,6 +74,7 @@ export default function TicketFooter({
                     onCancelTicket={onCancelTicket}
                     onPayTicket={onPayTicket}
                     onReopenTicket={onReopenTicket}
+                    canCorrectPayment={canCorrectPayment}
                 />
             </Actions>
         </Footer>
