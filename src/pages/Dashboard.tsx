@@ -19,6 +19,7 @@ import { useTickets } from "../hooks/useTickets"; // (business logic for creatin
 import { useI18n } from "../i18n";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { getToken } from "../api/client";
+import { ticketVisibleOnBoard, type ShiftLookup } from "./ticketBoardVisibility";
 
 type DashboardProps = {
   menu: MenuData | null;
@@ -41,7 +42,7 @@ export default function Dashboard({
   // Async create callbacks must respect any navigation that happened meanwhile.
   const selectionRef = useRef(selectedTicketId);
   useEffect(() => { selectionRef.current = selectedTicketId; }, [selectedTicketId]);
-  const [openShiftId, setOpenShiftId] = useState<number | null | undefined>(undefined);
+  const [shiftLookup, setShiftLookup] = useState<ShiftLookup>({ status: "loading", shiftId: null });
   const [me, setMe] = useState<Account | null>(null);
   const [shift, setShift] = useState<ShiftReport | null>(null);
 
@@ -64,39 +65,45 @@ export default function Dashboard({
 
   useEffect(() => {
     let cancelled = false;
+    let requestVersion = 0;
     async function load() {
+      const request = ++requestVersion;
       try {
         const current = await accountApi.currentShift();
-        if (cancelled) return;
+        if (cancelled || request !== requestVersion) return;
         setShift(current);
-        setOpenShiftId(current?.id ?? null);
+        setShiftLookup({ status: "ready", shiftId: current?.id ?? null });
       } catch {
-        if (cancelled) return;
+        if (cancelled || request !== requestVersion) return;
+        // Unknown is never treated as "all shifts" or as an open shift.
         setShift(null);
-        setOpenShiftId(undefined);
+        setShiftLookup({ status: "error", shiftId: null });
       }
       if (!getToken()) {
-        if (!cancelled) setMe(null);
+        if (!cancelled && request === requestVersion) setMe(null);
         return;
       }
       try {
         const account = await accountApi.me();
-        if (!cancelled) setMe(account);
+        if (!cancelled && request === requestVersion) setMe(account);
       } catch {
-        if (!cancelled) setMe(null);
+        if (!cancelled && request === requestVersion) setMe(null);
       }
     }
-    load();
+    void load();
     const timer = window.setInterval(load, 20000);
     window.addEventListener("focus", load);
     window.addEventListener("barticket-auth", load);
     window.addEventListener("barticket-api-restored", load);
+    window.addEventListener("barticket-retry-shift", load);
     return () => {
       cancelled = true;
+      requestVersion++;
       window.clearInterval(timer);
       window.removeEventListener("focus", load);
       window.removeEventListener("barticket-auth", load);
       window.removeEventListener("barticket-api-restored", load);
+      window.removeEventListener("barticket-retry-shift", load);
     };
   }, []);
 
@@ -106,12 +113,11 @@ export default function Dashboard({
     shift.punches.some((punch) => punch.user_id === me.id && punch.clock_out === null),
   );
 
-  // Paid and cancelled tickets stay on the board only for the open shift.
-  const visibleTickets = tickets.filter((ticket) => {
-    if (ticket.status !== activeTab) return false;
-    if (activeTab === "open" || openShiftId === undefined) return true;
-    return openShiftId !== null && ticket.shiftId === openShiftId;
-  });
+  // Open tickets retain their all-shift recovery policy. Closed tickets
+  // must belong to a confirmed active shift; loading/errors fail closed.
+  const visibleTickets = tickets.filter((ticket) =>
+    ticketVisibleOnBoard(ticket, activeTab, shiftLookup)
+  );
 
   // answers which ticket is currently being displayed in ticket details?
   const currentIndex = visibleTickets.findIndex(
@@ -221,6 +227,23 @@ export default function Dashboard({
   return (
 
     <DashboardContainer>
+      {shiftLookup.status === "loading" ? (
+        <TicketLoadWarning role="status" aria-live="polite">
+          {locale === "ja"
+            ? "営業シフトを確認中です。確認が終わるまで会計済み・キャンセル済み伝票を非表示にしています。"
+            : "Checking the active shift. Paid and cancelled tickets are hidden until it is confirmed."}
+        </TicketLoadWarning>
+      ) : shiftLookup.status === "error" ? (
+        <TicketLoadWarning role="alert">
+          <span>{locale === "ja"
+            ? "営業シフトを確認できません。会計済み・キャンセル済み伝票は非表示です。現在営業中とは限りません。"
+            : "Cannot confirm the active shift. Paid and cancelled tickets are hidden; do not assume a shift is open."}</span>
+          <button type="button" className="small hollow secondary"
+            onClick={() => window.dispatchEvent(new Event("barticket-retry-shift"))}>
+            {locale === "ja" ? "再試行" : "Retry shift lookup"}
+          </button>
+        </TicketLoadWarning>
+      ) : null}
       {ticketsError ? <TicketLoadWarning role="alert">
         <span>{locale === "ja"
           ? "伝票の取得に失敗しました。表示中の伝票が古い可能性があります。"
@@ -245,7 +268,7 @@ export default function Dashboard({
         getTicketTotal={getTicketTotal}
         lastSelectedTicket={lastSelectedTicket}
         setLastSelectedTicket={setLastSelectedTicket}
-        nightOpen={openShiftId !== null}
+        nightOpen={shiftLookup.status === "ready" && shift?.status === "open"}
         canCreate={canCreate && !tickets.some(ticket => ticket.id < 0)}
       />
 
