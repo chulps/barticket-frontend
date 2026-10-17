@@ -14,6 +14,7 @@ type TicketDetailItemProps = {
     lineSubtotal?: number;
     isCover?: boolean;
     onWaiveCover?: () => void;
+    onReturningCustomer?: () => void;
 
     isEditingPrice: boolean;
     pending?: boolean;
@@ -35,6 +36,7 @@ export default function TicketDetailItem({
     lineSubtotal,
     isCover = false,
     onWaiveCover,
+    onReturningCustomer,
     isEditingPrice,
     pending = false,
     onIncrease,
@@ -196,9 +198,9 @@ export default function TicketDetailItem({
                                     <Icon name="CurrencyCircleDollar" />
                                     {locale === "ja" ? "カバーチャージを免除" : "Waive cover charge"}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem disabled>
+                                <DropdownMenuItem onClick={() => { closeMenu(); onReturningCustomer?.(); }}>
                                     <Icon name="ArrowCounterClockwise" />
-                                    {locale === "ja" ? "再来店（API待ち）" : "Returning customer (API pending)"}
+                                    {locale === "ja" ? "再来店" : "Returning customer"}
                                 </DropdownMenuItem>
                             </> : <DropdownMenuItem
                                 onClick={() => {
