@@ -68,7 +68,9 @@ test("close POST is called only from reviewed explicit confirmation", () => {
     const review = src("pages/ShiftCloseReview.tsx");
     assert.doesNotMatch(profile, /accountApi\.closeShift\(/);
     assert.doesNotMatch(timeClock, /accountApi\.closeShift\(/);
-    assert.match(review, /if \(!preview \|\| blockers\.length \|\| !acknowledged \|\| working \|\| uncertain\) return/);
+    assert.match(review, /if \(!preview \|\| blockers\.length \|\| !acknowledged \|\| working \|\| uncertain \|\| submitInFlight\.current\) return/);
+    assert.match(review, /submitInFlight\.current = true/);
+    assert.match(review, /err\.status >= 500/);
     assert.match(review, /onClick=\{\(\) => void confirmClose\(\)\}/);
     assert.match(review, /const \[latest, latestTickets\] = await Promise\.all/);
     assert.match(review, /accountApi\.closeShift\(\)/);
