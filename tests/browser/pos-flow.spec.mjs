@@ -285,9 +285,7 @@ test("staff quick waiver preserves all three guests while billing only two cover
       waived_cover_count:0,returning_guest_count:0,returning_from_ticket_id:null,
       total:2200,amount_paid:0,balance_due:2200,payments:[]});
   await openTicket(page);
-  await page.getByRole("button",{name:"Actions for Cover Charge"}).click();
-  await expect(page.getByRole("menu")).toBeVisible();
-  await page.getByRole("menuitem",{name:"Waive cover charge"}).click();
+  await page.getByRole("button",{name:"Waive Cover",exact:true}).click();
   const dialog=page.getByRole("dialog");
   await expect(dialog.getByText(/Guests: 3/)).toBeVisible();
   const waived=dialog.getByRole("spinbutton",{name:"Covers to waive"});
@@ -313,9 +311,7 @@ test("returning visitor references an earlier paid same-shift ticket without dup
       waived_cover_count:0,returning_guest_count:0,payments:[]});
   state.tickets.push(source);
   await openTicket(page);
-  await page.getByRole("button",{name:"Actions for Cover Charge"}).click();
-  await expect(page.getByRole("menu")).toBeVisible();
-  await page.getByRole("menuitem",{name:"Returning customer"}).click();
+  await page.getByRole("button",{name:"Returning Customer",exact:true}).click();
   const dialog=page.getByRole("dialog");
   await dialog.getByLabel(/Original paid ticket/).selectOption("10");
   await dialog.getByRole("button",{name:"Save adjustment"}).click();
