@@ -41,3 +41,27 @@ export function setMenuPrices(itemId: number, prices: Prices): Promise<MenuItem>
         body: { prices },
     });
 }
+
+
+
+/** Backend #93: full Add Item-shaped edit; archived records retain ticket history. */
+export type MenuItemEdit = NewMenuItem;
+
+export function updateMenuItem(itemId: number, item: MenuItemEdit): Promise<MenuItem> {
+    return apiRequest<MenuItem>(`/menu/items/${itemId}`, {
+        method: "PATCH",
+        body: item,
+    });
+}
+
+export function getArchivedMenuItems(): Promise<{ items: MenuItem[] }> {
+    return apiRequest<{ items: MenuItem[] }>("/menu/archived");
+}
+
+export function archiveMenuItem(itemId: number): Promise<MenuItem> {
+    return apiRequest<MenuItem>(`/menu/items/${itemId}/archive`, { method: "POST" });
+}
+
+export function restoreMenuItem(itemId: number): Promise<MenuItem> {
+    return apiRequest<MenuItem>(`/menu/items/${itemId}/restore`, { method: "POST" });
+}
