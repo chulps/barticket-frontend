@@ -70,7 +70,7 @@ export default function AddItemPicker({ menu, tickets, onAddItem, onAddStaffDrin
         const matches = menu.items.filter((item) =>
             !term || [
                 item.name, item.brand, item.volume, item.category, item.subcategory,
-                item.description, item.notes, item.tags?.join(" "),
+                item.description, item.notes, ...(item.tags ?? []),
             ].map(menuHaystack).filter(Boolean).some((field) => field.toLowerCase().includes(term)),
         );
         return matches.filter((item) => item.category !== "Cocktail Ingredients");
@@ -129,10 +129,10 @@ export default function AddItemPicker({ menu, tickets, onAddItem, onAddStaffDrin
                         {selectedItems.map(({ item, priceKey, quantity }) => (
                             <Selection key={item.id + "-" + priceKey}>
                                 <SelectionLabel>{menuLabel(locale, item.name)}{priceKey !== "standard" ? " · " + priceKey : ""}</SelectionLabel>
-                                <QuantityButton type="button" aria-label="Decrease quantity"
+                                <QuantityButton type="button" aria-label={locale === "ja" ? "数量を減らす" : "Decrease quantity"}
                                     disabled={saving} onClick={() => setSelectedItems((current) => changeSelectionQuantity(current, item.id, priceKey, -1))}>−</QuantityButton>
-                                <span aria-label="Quantity">{quantity}</span>
-                                <QuantityButton type="button" aria-label="Increase quantity" disabled={saving || quantity >= 99}
+                                <span aria-label={locale === "ja" ? "数量" : "Quantity"}>{quantity}</span>
+                                <QuantityButton type="button" aria-label={locale === "ja" ? "数量を増やす" : "Increase quantity"} disabled={saving || quantity >= 99}
                                     onClick={() => setSelectedItems((current) => changeSelectionQuantity(current, item.id, priceKey, 1))}>+</QuantityButton>
                             </Selection>
                         ))}
