@@ -171,6 +171,7 @@ export default function TicketDetailItem({
             <DropdownContainer>
                 <DropdownMenu
                     disabled={!isEditable}
+                    label={locale === "ja" ? name + " の操作" : "Actions for " + name}
                     trigger={(isOpen) => (
                         <Icon
                             name={
