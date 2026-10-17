@@ -45,6 +45,28 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
     const [drinkback, setDrinkback] = useState(initialDrinkbackDraft);
     const [hours, setHours] = useState(initialHoursDraft);
     const [bonus, setBonus] = useState(initialBonusDraft);
+    const [copyNotice, setCopyNotice] = useState("");
+    async function copyProposal(kind: "terms" | "drinkback" | "hours" | "bonus") {
+        const payload = kind === "terms"
+            ? { action: "propose-pay-terms", ...rate }
+            : kind === "drinkback"
+                ? { action: "propose-drinkback-rule", ...drinkback }
+                : kind === "hours"
+                    ? { action: "propose-time-correction", ...hours }
+                    : { action: "propose-bonus-adjustment", ...bonus };
+        try {
+            await navigator.clipboard.writeText(JSON.stringify({
+                status: "UNSAVED_PROPOSAL_ONLY", employee_id: person.id,
+                employee_name: person.name, ...payload,
+            }, null, 2));
+            setCopyNotice(ja
+                ? "下書きJSONをコピーしました。APIにも給与記録にも保存されていません。"
+                : "Draft JSON copied. Nothing was saved to the API or payroll records.");
+        } catch {
+            setCopyNotice(ja ? "コピーできませんでした。ブラウザの権限を確認してください。" :
+                "Copy failed. Check your browser's clipboard permissions.");
+        }
+    }
     const correctable = rows.filter(row => row.status === "closed" && row.hoursSeconds !== null);
     const drinkShifts = [...new Set(drinkLines.map(row => row.shiftId))];
     const selectedHours = correctable.find(row => String(row.shiftId) === hours.shiftId);
@@ -67,6 +89,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                     ? "現在のAPIには給与・ドリンクバック設定や修正を保存する機能がありません。入力内容は保存・送信されず、画面を離れると消えます。実際の給与にも反映されません。"
                     : "The current API cannot save pay terms, drinkback rules or corrections. Drafts are not submitted or stored and are lost when you leave this profile. No payroll or ticket amounts are changed."}
             </Notice>
+            {copyNotice ? <Notice role="status">{copyNotice}</Notice> : null}
             <StaffTabSurface>
                 <TabGroup
                     tabs={[
@@ -120,6 +143,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                         ) : <Help>{ja ? "給与方式・日付・理由を入力してください。時給は0以上の整数です。" : "Choose a type, date and reason. An hourly rate must be a nonnegative whole-yen amount."}</Help>}
                         <Actions>
                             <button type="button" className="hollow secondary" onClick={() => setRate(initialRateDraft)}>{ja ? "クリア" : "Clear draft"}</button>
+                            <button type="button" className="secondary" disabled={!readyRate} onClick={() => void copyProposal("terms")}>{ja ? "変更案をコピー" : "Copy pay proposal"}</button>
                             <button type="button" disabled title={ja ? "保存API未対応" : "Awaiting manager-only save API"}>{ja ? "保存（未対応）" : "Save — unavailable"}</button>
                         </Actions>
                     </Card>
@@ -158,6 +182,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                         </Preview> : <Help>{ja ? "計算方法・適用日・理由を入力してください。" : "Choose a method, effective date and reason."}</Help>}
                         <Actions>
                             <button type="button" className="hollow secondary" onClick={() => setDrinkback(initialDrinkbackDraft)}>{ja ? "クリア" : "Clear draft"}</button>
+                            <button type="button" className="secondary" disabled={!readyDrinkback} onClick={() => void copyProposal("drinkback")}>{ja ? "設定案をコピー" : "Copy rule proposal"}</button>
                             <button type="button" disabled title={ja ? "保存API未対応" : "Awaiting manager-only save API"}>{ja ? "保存（未対応）" : "Save — unavailable"}</button>
                         </Actions>
                     </Card>
@@ -202,6 +227,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                         <Help>{ja ? "給与・シフト・分析データは変更されません。実際の修正には承認・監査APIが必要です。" : "No recorded hours, shift report or payroll is changed. Corrections will require an audited backend API."}</Help>
                         <Actions>
                             <button type="button" className="hollow secondary" onClick={() => setHours(initialHoursDraft)}>{ja ? "クリア" : "Clear draft"}</button>
+                            <button type="button" className="secondary" disabled={!readyHours} onClick={() => void copyProposal("hours")}>{ja ? "修正案をコピー" : "Copy time correction"}</button>
                             <button type="button" disabled title={ja ? "修正API未対応" : "Awaiting audited correction API"}>{ja ? "修正を保存（未対応）" : "Apply correction — unavailable"}</button>
                         </Actions>
                     </Card>
@@ -254,6 +280,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                         </Preview> : <Help>{ja ? "対象シフト・0以外の整数の円金額・理由を入力してください。" : "Choose a shift, a nonzero whole-yen adjustment and a reason."}</Help>}
                         <Actions>
                             <button type="button" className="hollow secondary" onClick={() => setBonus(initialBonusDraft)}>{ja ? "クリア" : "Clear draft"}</button>
+                            <button type="button" className="secondary" disabled={!readyBonus} onClick={() => void copyProposal("bonus")}>{ja ? "調整案をコピー" : "Copy bonus adjustment"}</button>
                             <button type="button" disabled title={ja ? "修正API未対応" : "Awaiting approved adjustment API"}>{ja ? "調整を保存（未対応）" : "Save adjustment — unavailable"}</button>
                         </Actions>
                     </Card>
