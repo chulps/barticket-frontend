@@ -134,6 +134,18 @@ export default function TicketItems({
             </ItemsHeader>
 
             <ItemList>
+                {isEditable && ticket.id > 0 && ticket.items.some(item => item.type === "cover") && (
+                    <CoverActions>
+                        <button type="button" className="small secondary"
+                            onClick={() => openCoverAdjustment("waiver")}>
+                            {locale === "ja" ? "カバー免除" : "Waive Cover"}
+                        </button>
+                        <button type="button" className="small hollow secondary"
+                            onClick={() => openCoverAdjustment("returning")}>
+                            {locale === "ja" ? "再来店" : "Returning Customer"}
+                        </button>
+                    </CoverActions>
+                )}
                 {ticket.items.map((item) => (
                     <TicketDetailItem
                         key={item.id}
@@ -183,6 +195,18 @@ export default function TicketItems({
         </Items>
     );
 }
+
+const CoverActions = styled.div`
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    padding: var(--space-1) 0;
+    button {
+        flex: 1 1 140px;
+        min-height: 44px;
+        width: auto;
+    }
+`;
 
 const Items = styled.section`
     flex: 1;
