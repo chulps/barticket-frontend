@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import styled from "styled-components";
+import RequestState from "../components/RequestState";
 import { useNavigate } from "react-router-dom";
 
 import { accountApi, type Account } from "../api/account";
@@ -72,15 +73,12 @@ export default function Profile() {
         }
     }
 
-    if (loading) return <Page $signedIn={false}><h1>{t("account")}</h1><p role="status" aria-live="polite">{locale === "ja" ? "アカウントを読み込み中…" : "Loading account…"}</p></Page>;
+    if (loading) return <Page $signedIn={false}><h1>{t("account")}</h1><RequestState kind="loading" detail={locale === "ja" ? "アカウントを読み込み中…" : "Loading account…"} /></Page>;
     // A failed authenticated lookup is not a signed-out session. Avoid showing
     // login/manager-registration forms until the auth state can be verified.
     if (getToken() && !account && error) return <Page $signedIn={false}>
         <h1>{t("account")}</h1>
-        <ErrorText role="alert">{error}</ErrorText>
-        <button type="button" className="small hollow secondary" onClick={() => window.location.reload()}>
-            {locale === "ja" ? "再試行" : "Retry"}
-        </button>
+        <RequestState kind="error" detail={error} onRetry={() => window.location.reload()} />
     </Page>;
 
     return (

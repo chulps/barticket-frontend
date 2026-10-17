@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 // import npm packages
 import styled from "styled-components";
+import RequestState from "../components/RequestState";
 import { Link } from "react-router-dom";
 
 // import UI components
@@ -229,10 +230,10 @@ export default function Dashboard({
   };
 
   if (loadingMenu) {
-    return <p role="status" aria-live="polite">{t("loadingMenu")}</p>;
+    return <RequestState kind="loading" detail={t("loadingMenu")} />;
   }
   if (ticketsLoading && tickets.length === 0) {
-    return <p role="status" aria-live="polite">{locale === "ja" ? "伝票を読み込み中…" : "Loading tickets…"}</p>;
+    return <RequestState kind="loading" detail={locale === "ja" ? "伝票を読み込み中…" : "Loading tickets…"} />;
   }
 
 
