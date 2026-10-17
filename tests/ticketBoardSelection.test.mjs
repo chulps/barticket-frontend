@@ -39,5 +39,5 @@ test("sidebar resolves tab selection against filtered tickets, not all tickets",
   const dashboard = readFileSync(new URL("../src/pages/Dashboard.tsx", import.meta.url), "utf8");
   assert.match(sidebar, /resolveVisibleSelection\(ticketsForTab\(tab\), lastSelectedTicket\[tab\]\)/);
   assert.match(dashboard, /ticketVisibleOnBoard\(ticket, tab, shiftLookup\)/);
-  assert.match(dashboard, /setShowTicketDetails\(false\)/);
+  assert.match(dashboard, /showCurrentDetails = showTicketDetails && visibleSelectedTicketId === selectedTicketId/);
 });
