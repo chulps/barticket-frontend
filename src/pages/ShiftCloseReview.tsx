@@ -4,7 +4,7 @@ import { accountApi, type ShiftReport } from "../api/account";
 import { ApiError } from "../api/client";
 import { ticketsApi, type ApiTicket } from "../api/tickets";
 import { useModal } from "../hooks/useModal";
-import { closeBlockers } from "./shiftControlPolicy";
+import { closeBlockers, previewPaidTotals, businessDateJst } from "./shiftControlPolicy";
 import "./ShiftControls.css";
 
 type Preview = { shift: ShiftReport; tickets: ApiTicket[] };
@@ -54,6 +54,8 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
 
     const blockers = closeBlockers(preview?.tickets ?? []);
     const active = preview?.shift.punches.filter(punch => punch.clock_out === null) ?? [];
+    const live = preview ? previewPaidTotals(preview.tickets, preview.shift.id) : null;
+    const stale = Boolean(preview && preview.shift.business_date !== businessDateJst(Date.now()));
     const yen = (n: number) => "¥" + n.toLocaleString("ja-JP");
 
     async function confirmClose() {
@@ -112,15 +114,18 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
         {loading ? <p role="status">{ja ? "伝票と勤務状況を確認しています…" : "Checking tickets and staff…"}</p> : null}
         {error ? <p className="shift-alert" role="alert">{error}</p> : null}
         {preview ? <>
+            {stale ? <p className="shift-alert" role="alert">{ja
+                ? "このシフトは以前の営業日から継続しています。日付と勤務時間を慎重に確認してください。"
+                : "This shift belongs to an earlier business date. Review the business date and working hours carefully."}</p> : null}
             <div className="shift-review-grid">
                 <div><small>{ja ? "営業日" : "Business date"}</small><strong>{preview.shift.business_date}</strong></div>
                 <div><small>{ja ? "シフト" : "Shift"}</small><strong>#{preview.shift.id}</strong></div>
-                <div><small>{ja ? "会計済み売上（参考）" : "Recorded paid revenue"}</small><strong>{yen(preview.shift.paid_total)}</strong></div>
+                <div><small>{ja ? "会計済み売上（推定）" : "Paid revenue (preview)"}</small><strong>{yen(live?.paidTotal ?? 0)}</strong></div>
                 <div><small>{ja ? "未会計伝票" : "Open tickets"}</small><strong>{blockers.length}</strong></div>
             </div>
-            <p className="shift-muted">{ja ? "現金" : "Cash"} {yen(preview.shift.cash_total)}
-                {" · "}{ja ? "カード" : "Card"} {yen(preview.shift.card_total)}
-                {" · "}{ja ? "その他" : "Other"} {yen(preview.shift.other_total)}</p>
+            <p className="shift-muted">{ja ? "現金" : "Cash"} {yen(live?.cash ?? 0)}
+                {" · "}{ja ? "カード" : "Card"} {yen(live?.card ?? 0)}
+                {" · "}{ja ? "その他" : "Other"} {yen(live?.other ?? 0)}</p>
             {blockers.length ? <div className="shift-alert" role="alert">
                 <strong>{ja ? "未会計伝票があるため閉店できません" : "Open tickets must be resolved first"}</strong>
                 <ul>{blockers.slice(0, 12).map(ticket => <li key={ticket.id}>{ticket.name || "#" + ticket.id} (#{ticket.id}){ticket.shift_id !== shiftId ? " — " + (ja ? "別の営業日または未割当" : "Other night or unassigned") : ""}</li>)}</ul>
