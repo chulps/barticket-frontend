@@ -36,7 +36,8 @@ const menu = {
 };
 async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
   const state = { tickets:[ticket()], requests:[], paymentPosts:0,
-    newTicketPosts:0, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false };
+    newTicketPosts:0, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
+    coverPatches:0, menu:{...menu, items:[...menu.items]} };
   await page.addInitScript(({authenticated, locale}) => {
     if(authenticated) localStorage.setItem("barticket_token","NON_PRODUCTION_BROWSER_TEST_TOKEN");
     else localStorage.removeItem("barticket_token");
@@ -71,7 +72,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
     } else if(key==="POST /auth/login") {
       status=401; response={detail:"Invalid test login"};
     } else if(key==="GET /shifts/current") response=shift();
-    else if(key==="GET /menu") response=menu;
+    else if(key==="GET /menu") response=state.menu;
     else if(key==="GET /tickets") response=state.tickets;
     else if(key==="GET /users") response=[account];
     else if(key==="GET /users/recipients") response=[{id:7,name:account.name}];
@@ -95,7 +96,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
           state.itemPosts++;
           if(state.failNextItem || state.itemPosts === state.failItemAt){state.failNextItem=false;status=503;response={detail:"Simulated partial failure"};}
           else{
-            const data=json(), menuItem=menu.items.find(i=>i.id===data.menu_item_id);
+            const data=json(), menuItem=state.menu.items.find(i=>i.id===data.menu_item_id);
             const quantity=data.quantity ?? 1, price=menuItem?.prices?.standard ?? 0;
             found.items.push(item(30+state.itemPosts,menuItem?.name ?? "Unknown",price,quantity));
             found.total+=quantity*price;response=found;
@@ -109,6 +110,26 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
             if(data.quantity!==undefined)line.quantity=data.quantity;
             line.subtotal=line.quantity*line.unit_price;
             found.total=found.items.reduce((sum,x)=>sum+x.subtotal,0);
+            response=found;
+          }
+        } else if(method==="PATCH" && m[2]==="cover"){
+          state.coverPatches++;
+          const data=json();
+          if(!Number.isInteger(data.waived_cover_count) || !Number.isInteger(data.returning_guest_count) ||
+              !data.reason?.trim() || data.waived_cover_count + data.returning_guest_count > found.guest_count) {
+            status=422;response={detail:"Invalid cover adjustment"};
+          } else if(data.returning_guest_count > 0 &&
+              !state.tickets.some(t=>t.id===data.returning_from_ticket_id && t.status==="paid" && t.shift_id===found.shift_id)){
+            status=409;response={detail:"Returning source must be paid"};
+          } else {
+            const previous=found.cover_charge_total;
+            found.waived_cover_count=data.waived_cover_count;
+            found.returning_guest_count=data.returning_guest_count;
+            found.returning_from_ticket_id=data.returning_from_ticket_id;
+            found.cover_adjustment_reason=data.reason;
+            found.cover_charge_total=(found.guest_count-data.waived_cover_count-data.returning_guest_count)*found.cover_charge_per_person;
+            found.total+=found.cover_charge_total-previous;
+            found.balance_due=Math.max(0,found.total-(found.amount_paid??0));
             response=found;
           }
         } else if(method==="PATCH" && !m[2]){found.name=json().name;response=found;}
@@ -125,7 +146,12 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
             response=found;
           }
         } else if(method==="POST" && m[2]==="reopen"){
-          found.status="open";found.payment=null;found.paid_at=null;response=found;
+          found.status="open";found.paid_at=null;
+          if(json().reason==="closed_by_mistake"){
+            found.payments=(found.payments??[]).map(p=>({...p,voided_at:now(),voided_by:"Test Bartender"}));
+            found.amount_paid=0;found.payment=null;
+          }
+          found.balance_due=Math.max(0,found.total-(found.amount_paid??0));response=found;
         }
       }
     }
@@ -200,6 +226,7 @@ test("payment conflict displays an error without duplicate POST, then paid/reope
   await page.getByRole("button",{name:"Paid"}).click();
   await expect(page.getByRole("button",{name:/Reopen Ticket/i})).toBeVisible();
   await page.getByRole("button",{name:/Reopen Ticket/i}).click();
+  await page.getByRole("button",{name:"Customer returned"}).click();
   await expect.poll(()=>state.tickets[0].status).toBe("open");
 });
 
@@ -249,4 +276,76 @@ test("partial multi-item failure leaves unresolved items visible without automat
   await expect.poll(()=>state.itemPosts).toBe(2);
   await expect(dialog.getByRole("alert")).toContainText(/unconfirmed/);
   expect(state.tickets[0].items.length).toBe(2);
+});
+
+test("staff quick waiver preserves all three guests while billing only two covers",async ({page})=>{
+  const state=await mockedPOS(page);
+  const target=state.tickets[0];
+  Object.assign(target,{guest_count:3,cover_charge_per_person:500,cover_charge_total:1500,
+      waived_cover_count:0,returning_guest_count:0,returning_from_ticket_id:null,
+      total:2200,amount_paid:0,balance_due:2200,payments:[]});
+  await openTicket(page);
+  await page.getByRole("button",{name:"Actions for Cover Charge"}).click();
+  await page.getByRole("menuitem",{name:"Waive cover charge"}).click();
+  const dialog=page.getByRole("dialog");
+  await expect(dialog.getByText(/Guests: 3/)).toBeVisible();
+  const waived=dialog.getByRole("spinbutton",{name:"Covers to waive"});
+  await expect(waived).toHaveValue("1");
+  await dialog.getByRole("button",{name:"Save adjustment"}).dblclick();
+  await expect.poll(()=>state.coverPatches).toBe(1);
+  await expect.poll(()=>target.cover_charge_total).toBe(1000);
+  expect(target.guest_count).toBe(3);
+  expect(target.waived_cover_count).toBe(1);
+  expect(target.total).toBe(1700);
+  expect(target.cover_adjustment_reason).toBe("Complimentary cover");
+});
+
+test("returning visitor references an earlier paid same-shift ticket without duplicate guest totals",async ({page})=>{
+  const state=await mockedPOS(page);
+  const source=ticket(10);
+  Object.assign(source,{status:"paid",guest_count:2,cover_charge_per_person:500,
+      cover_charge_total:1000,total:1700,amount_paid:1700,balance_due:0,
+      payments:[{type:"cash",amount:1700,paid_at:now(),voided_at:null}]});
+  const current=state.tickets[0];
+  Object.assign(current,{guest_count:1,cover_charge_per_person:500,
+      cover_charge_total:500,total:1200,amount_paid:0,balance_due:1200,
+      waived_cover_count:0,returning_guest_count:0,payments:[]});
+  state.tickets.push(source);
+  await openTicket(page);
+  await page.getByRole("button",{name:"Actions for Cover Charge"}).click();
+  await page.getByRole("menuitem",{name:"Returning customer"}).click();
+  const dialog=page.getByRole("dialog");
+  await dialog.getByLabel(/Original paid ticket/).selectOption("10");
+  await dialog.getByRole("button",{name:"Save adjustment"}).click();
+  await expect.poll(()=>current.returning_guest_count).toBe(1);
+  expect(current.guest_count).toBe(1);
+  expect(current.cover_charge_total).toBe(0);
+  expect(current.returning_from_ticket_id).toBe(10);
+});
+
+test("menu editor and popup remain visible for the last item on a long mobile list",async ({page})=>{
+  await page.setViewportSize({width:375,height:667});
+  const state=await mockedPOS(page);
+  for(let i=0;i<110;i++) state.menu.items.push({
+      id:500+i,name:"Long Item "+i,category:"Whisky",subcategory:"Long List",
+      prices:{standard:900},inStock:true
+  });
+  await page.goto("/menu");
+  const edit=page.getByRole("button",{name:"Open item editor for Long Item 109"});
+  await edit.scrollIntoViewIfNeeded();
+  await expect(edit).toBeVisible();
+  await edit.click();
+  const dialog=page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("button",{name:"Save — unavailable"})).toBeDisabled();
+  await dialog.getByRole("button",{name:"Cancel"}).click();
+  const actions=page.getByRole("button",{name:"Actions for Long Item 109"});
+  await actions.scrollIntoViewIfNeeded();
+  await actions.click();
+  const popup=page.getByRole("menu");
+  await expect(popup).toBeVisible();
+  const bounds=await popup.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.y+bounds.height).toBeLessThanOrEqual(667);
 });
