@@ -55,6 +55,7 @@ export default function Dashboard({
     ticketsLoading,
     ticketsError,
     updateItemQuantity,
+    setCoverWaivers,
     updateItemPrice,
     addItemToTicket,
     addStaffDrinkToTicket,
@@ -305,6 +306,7 @@ export default function Dashboard({
             menu={menu}
             tickets={tickets}
             onUpdateQuantity={updateItemQuantity}
+            onSetCoverWaivers={setCoverWaivers}
             onUpdatePrice={updateItemPrice}
             onAddItem={addItemToTicket}
             onAddStaffDrink={addStaffDrinkToTicket}
