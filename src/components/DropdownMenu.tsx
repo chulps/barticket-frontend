@@ -90,14 +90,28 @@ export default function DropdownMenu({
             if (menuRef.current?.contains(target)) return;
             closeMenu(false);
         };
-        const handleResize = () => closeMenu();
-        // Keep the popup mounted during focus-driven or touch scrolling.
-        // A capture-phase scroll listener detached menu items during clicks.
+        const reposition = () => {
+            const anchor = triggerRef.current?.getBoundingClientRect();
+            const popup = menuRef.current?.getBoundingClientRect();
+            if (!anchor || !popup) return;
+            const height = window.innerHeight;
+            const width = window.innerWidth;
+            const below = height - anchor.bottom - 8;
+            const above = anchor.top - 8;
+            const desiredTop = popup.height > below && above > below
+                ? anchor.top - popup.height - 6 : anchor.bottom + 6;
+            const top = Math.max(8, Math.min(desiredTop, height - popup.height - 8));
+            const right = Math.max(8, Math.min(width - anchor.right, width - popup.width - 8));
+            setBox(previous => previous?.top === top && previous?.right === right
+                ? previous : { top, right });
+        };
         document.addEventListener("mousedown", handleClickOutside);
-        window.addEventListener("resize", handleResize);
+        window.addEventListener("scroll", reposition, true);
+        window.addEventListener("resize", reposition);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
-            window.removeEventListener("resize", handleResize);
+            window.removeEventListener("scroll", reposition, true);
+            window.removeEventListener("resize", reposition);
         };
     }, [isOpen]);
 
