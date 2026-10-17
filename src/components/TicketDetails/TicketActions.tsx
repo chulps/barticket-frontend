@@ -150,7 +150,9 @@ const ButtonActions = styled.div<{ $row?: boolean }>`
         }
 
         @media (max-width: 767px) {
-            flex-direction: column-reverse;
+            /* DOM order and visual order must match for keyboard/VoiceOver.
+               Back → Cancel → Take Payment stays predictable on phones. */
+            flex-direction: column;
             && > button {
                 padding-left: var(--space-1);
                 padding-right: var(--space-1);
@@ -174,6 +176,8 @@ const ActionButton = styled.button`
     min-width: 0;
     padding: calc(var(--space-0) + var(--space-1));
     justify-content: center;
+    min-height: 44px;
+    touch-action: manipulation;
 
     @media (min-width: 768px) {
         flex: 1;

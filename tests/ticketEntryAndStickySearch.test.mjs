@@ -26,7 +26,7 @@ test("Add-item search clears on selection and stays above its scrollable results
     assert.match(picker, /addSelection\(previous, item, priceKey\)/);
     assert.ok(picker.includes('setSearch("")'));
     assert.match(picker, /position: sticky; top: 0; z-index: 5/);
-    assert.match(picker, /flex: 1; overflow-y: auto/);
+    assert.match(picker, /flex: 1 1 0; overflow-y: auto/);
 });
 test("Drink menu search stays beneath app header and portals", () => {
     assert.match(menu, /<StickySearch>/);

@@ -115,6 +115,8 @@ const Overlay = styled.div`
   inset: 0;
   height: 100dvh;
   min-height: 0;
+  padding-top: env(safe-area-inset-top, 0px);
+  box-sizing: border-box;
   background: rgb(0 0 0 / 60%);
   backdrop-filter: blur(3px) saturate(50%);
 
@@ -135,7 +137,11 @@ const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    @media (max-width: 767px) { max-height: 100dvh; }
+    @media (max-width: 767px) {
+        max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+        /* The on-screen keyboard reduces dvh; keep the action footer in
+           the scrollable modal instead of under Safari's browser chrome. */
+    }
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
@@ -181,6 +187,8 @@ const Content = styled.div`
   min-width: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
 `
 
 const Header = styled.header`

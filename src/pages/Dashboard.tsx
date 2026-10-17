@@ -355,6 +355,8 @@ const Content = styled.section<{ $open: boolean }>`
     inset: 0;
     height: 100dvh;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
     overscroll-behavior: contain;
     box-sizing: border-box;
     z-index: 1000;
