@@ -492,6 +492,7 @@ export default function Analytics() {
     const [team, setTeam] = useState<Account[] | null>(null);
     const [notices, setNotices] = useState<NoticeList | null>(null);
     const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+    const [clockNow, setClockNow] = useState<number | null>(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
     const [range, setRange] = useState<Range>("day");
@@ -500,6 +501,13 @@ export default function Analytics() {
     const [dayId, setDayId] = useState<number | null>(null);
     const [pickedDate, setPickedDate] = useState("");
     const signedIn = getToken() !== null;
+
+    useEffect(() => {
+        const updateClock = () => setClockNow(Math.floor(Date.now() / 1000));
+        updateClock();
+        const timer = window.setInterval(updateClock, 10_000);
+        return () => window.clearInterval(timer);
+    }, []);
 
     useEffect(() => {
         if (!signedIn) return;
@@ -781,7 +789,7 @@ export default function Analytics() {
                             <GuestOccupancyChart
                                 shift={selected}
                                 tickets={tickets}
-                                now={lastUpdated ?? Math.floor(Date.now() / 1000)}
+                                now={lastUpdated ?? clockNow ?? selected.opened_at}
                                 dateLabel={formatNight(selected.business_date, locale)}
                             />
                         </>
@@ -810,7 +818,7 @@ export default function Analytics() {
                         <GuestOccupancyChart
                             shift={selected}
                             tickets={tickets}
-                            now={lastUpdated ?? Math.floor(Date.now() / 1000)}
+                            now={lastUpdated ?? clockNow ?? selected.opened_at}
                             dateLabel={formatNight(selected.business_date, locale)}
                         />
                     ) : null}
