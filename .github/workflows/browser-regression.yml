@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   browser:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       # Non-routable test API only; no production POS host or secrets.
