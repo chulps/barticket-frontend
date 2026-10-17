@@ -8,6 +8,7 @@ import styled from "styled-components";
 
 // UI components
 import TicketDetailItem from "./TicketItem";
+import CoverChargeModal from "./CoverChargeModal";
 import Icon from "../Icon";
 import AddItemPicker from "../AddItemPicker";
 
@@ -33,6 +34,7 @@ type TicketItemsProps = {
         itemId: number,
         change: number
     ) => void;
+    onSetCoverWaivers: (ticketId: number, count: number) => Promise<boolean>;
 
     onUpdatePrice: (
         ticketId: number,
@@ -64,6 +66,7 @@ export default function TicketItems({
     editingPriceItemId,
     setEditingPriceItemId,
     onUpdateQuantity,
+    onSetCoverWaivers,
     onUpdatePrice,
     onRemoveItem,
     onAddItem,
@@ -73,6 +76,15 @@ export default function TicketItems({
     const { t, locale } = useI18n();
 
     const isEditable = activeTab === "open";
+    const openWaiver = () => {
+        if (!isEditable || ticket.id <= 0 || !ticket.items.some(item => item.type === "cover")) return;
+        openModal({
+            title: locale === "ja" ? "カバーチャージ免除" : "Waive cover charge",
+            maxWidth: "480px", fitContent: true,
+            content: <CoverChargeModal key={ticket.id} ticket={ticket}
+                onSave={(count) => onSetCoverWaivers(ticket.id, count)} />,
+        });
+    };
 
     return (
         <Items>
@@ -138,6 +150,9 @@ export default function TicketItems({
                         }
                         unitPrice={item.unit_price}
                         quantity={item.quantity}
+                        lineSubtotal={item.subtotal}
+                        isCover={item.type === "cover"}
+                        onWaiveCover={item.type === "cover" ? openWaiver : undefined}
                         activeTab={activeTab}
                         isEditingPrice={editingPriceItemId === item.id}
                         onIncrease={() =>
