@@ -51,7 +51,10 @@ export default function DropdownMenu({
         if (!popup || !trigger) return;
         const options = popup.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled])');
         const choice = initialFocus.current === "last" ? options[options.length - 1] : options[0];
-        choice?.focus();
+        // Focus the portal without scrolling the underlying ticket/menu list.
+        // Otherwise the global scroll-dismiss listener immediately closes it.
+        // The measured layout below then moves the popup into the viewport.
+        choice?.focus({ preventScroll: true });
 
         // Measure the actual popup instead of guessing item height, and
         // position it above the trigger if the bottom of the viewport is tight.
