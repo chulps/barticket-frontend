@@ -104,6 +104,7 @@ export default function MenuItemRow({
             </ItemInfo>
             {onToggle && !pending ? (
                 <DropdownMenu
+                    label={locale === "ja" ? menuLabel(locale, item.name) + " の操作" : "Actions for " + menuLabel(locale, item.name)}
                     trigger={(isOpen) => (
                         <Icon name={isOpen ? "X" : "DotsThreeOutlineVerticalIcon"} />
                     )}
