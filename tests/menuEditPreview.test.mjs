@@ -5,8 +5,8 @@ import ts from "typescript";
 
 const source=readFileSync(new URL("../src/components/MenuItemForm.tsx",import.meta.url),"utf8");
 test("menu edit draft accepts digits and rejects non-numeric price strings",()=>{
- const expected=String.raw`!/\^\\d\+\$/.test(raw)`;
- const correct=String.raw`!/\^\d\+\$/.test(raw)`;
+ const expected="!/^"+String.fromCharCode(92,92)+"d+$/.test(raw)";
+ const correct="!/^"+String.fromCharCode(92)+"d+$/.test(raw)";
  assert.ok(source.includes(correct),"edit draft must use a digit character class");
  assert.ok(!source.includes(expected),"escaped digit class would reject numeric values");
  assert.equal(/^\d+$/.test("1200"),true);
