@@ -29,6 +29,7 @@ import { getToken, setToken, ApiError } from "./api/client";
 import type { MenuData, MenuItem, Prices } from "./types/Menu";
 import { getMenu, setMenuPrices, setMenuStock } from "./api/menu";
 import { replaceMenuItem, optimisticStock, optimisticPrices, reconcileMenuSnapshot } from "./hooks/optimisticOperations";
+import { createSingleFlightRefresh } from "./hooks/singleFlightRefresh";
 
 
 export default function App() {
@@ -129,32 +130,31 @@ export default function App() {
     () => setMenuPrices(item.id, prices));
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      const revision = menuRevision.current;
-      try {
-        const data = await getMenu();
-        if (!cancelled && revision === menuRevision.current) {
-          // While a write is pending, preserve the optimistic item from the
-          // current view rather than replacing it with an older server snapshot.
-          updateMenu(reconcileMenuSnapshot(data, menuRef.current, pendingMenuItems.current));
-          setMenuError(false);
-        }
-      } catch (error) {
-        if (!cancelled) setMenuError(true);
-        // Offline state is shown once in the persistent banner, not logged every poll.
+    // A single read in flight plus one coalesced pending refresh prevents an
+    // older GET from committing after a newer one, without GET storms.
+    // Revision checks still reject reads overtaken by a local optimistic write.
+    const reader = createSingleFlightRefresh({
+      read: getMenu,
+      currentRevision: () => menuRevision.current,
+      onSnapshot: data => {
+        updateMenu(reconcileMenuSnapshot(data, menuRef.current, pendingMenuItems.current));
+        setMenuError(false);
+      },
+      onError: error => {
+        setMenuError(true);
+        // Offline state is shown once in the persistent banner.
         if (isApiAvailable()) console.error(error);
-      } finally {
-        if (!cancelled) setLoadingMenu(false);
-      }
-    }
+      },
+      onSettled: () => setLoadingMenu(false),
+    });
+    const load = () => reader.request();
     load();
     const timer = window.setInterval(load, 20000);
     window.addEventListener("barticket-notices", load);
     window.addEventListener("barticket-retry-menu", load);
     window.addEventListener("online", load);
     return () => {
-      cancelled = true;
+      reader.dispose();
       window.clearInterval(timer);
       window.removeEventListener("barticket-notices", load);
       window.removeEventListener("barticket-retry-menu", load);
