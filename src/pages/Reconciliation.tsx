@@ -51,8 +51,8 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
 
     useEffect(() => {
         // Keep a short-lived in-memory restore point when navigating away.
-        temporaryWorkingCopy = { selectedId, draft, csv, mapping, includeHours };
-    }, [selectedId, draft, csv, mapping, includeHours]);
+        temporaryWorkingCopy = hasUnsavedWork ? { selectedId, draft, csv, mapping, includeHours } : null;
+    }, [selectedId, draft, csv, mapping, includeHours, hasUnsavedWork]);
 
     useEffect(() => {
         const clearOnAuthChange = () => { temporaryWorkingCopy = null; };
@@ -74,7 +74,7 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
             if (!(event.target instanceof Element)) return;
             const anchor = event.target.closest("a[href]");
             if (!anchor || anchor.getAttribute("target") === "_blank") return;
-            const destination = new URL(anchor.href, window.location.href);
+            const destination = new URL(anchor.getAttribute("href") ?? "", window.location.href);
             if (destination.origin !== window.location.origin || destination.href === window.location.href) return;
             if (!window.confirm(message)) {
                 event.preventDefault();
