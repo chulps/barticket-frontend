@@ -16,13 +16,14 @@ import TicketListItem from "./TicketListItem";
 import TabGroup from "./TabGroup";
 import Icon from "./Icon";
 import { useI18n } from "../i18n";
+import { resolveVisibleSelection } from "../pages/ticketBoardSelection";
 
 // props
 type SidebarProps = {
   activeTab: "open" | "paid" | "cancelled";
   setActiveTab: (tab: "open" | "paid" | "cancelled") => void;
 
-  tickets: Ticket[];
+  ticketsForTab: (tab: Ticket["status"]) => Ticket[];
   visibleTickets: Ticket[];
   selectedTicketId: number;
   setSelectedTicketId: (id: number) => void;
@@ -51,7 +52,7 @@ type SidebarProps = {
 
 export default function TicketSidebar({
   activeTab,
-  tickets,
+  ticketsForTab,
   visibleTickets,
   selectedTicketId,
   lastSelectedTicket,
@@ -99,15 +100,9 @@ export default function TicketSidebar({
 
               setActiveTab(tab);
 
-              const rememberedId = lastSelectedTicket[tab];
-
-              const ticket =
-                tickets.find((t) => t.id === rememberedId) ??
-                tickets.find((t) => t.status === tab);
-
-              if (ticket) {
-                setSelectedTicketId(ticket.id);
-              }
+              const nextId = resolveVisibleSelection(ticketsForTab(tab), lastSelectedTicket[tab]);
+              setSelectedTicketId(nextId ?? 0);
+              if (nextId === null) setShowTicketDetails(false);
             }}
           />
         </div>

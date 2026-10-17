@@ -1,7 +1,7 @@
 // src/components/ModalHost.tsx
 
 // import react stuff
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useModal } from "../hooks/useModal";
 import { createPortal } from "react-dom";
 
@@ -16,25 +16,61 @@ import { useI18n } from "../i18n";
 export default function ModalHost() {
     const { modal, closeModal } = useModal();
     const { t } = useI18n();
+    const dialogRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        if (!modal) return;
+        const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        const previousOverflow = document.body.style.overflow;
+        // Block background page scrolling while preserving scroll in the dialog content.
+        document.body.style.overflow = "hidden";
+        const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+        const dialog = dialogRef.current;
+        const focusables = dialog?.querySelectorAll<HTMLElement>(focusableSelector);
+        if (!dialog?.contains(document.activeElement)) {
+            (focusables?.[0] ?? dialog)?.focus();
+        }
+
         function handleKeyDown(e: KeyboardEvent) {
             if (e.key === "Escape") {
+                e.stopPropagation();
                 closeModal();
+                return;
+            }
+            if (e.key !== "Tab") return;
+            const elements = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) ?? [])
+                .filter(node => node.getClientRects().length > 0);
+            if (!elements.length) {
+                e.preventDefault();
+                dialogRef.current?.focus();
+                return;
+            }
+            const first = elements[0];
+            const last = elements[elements.length - 1];
+            if (e.shiftKey && (document.activeElement === first || !dialogRef.current?.contains(document.activeElement))) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && (document.activeElement === last || !dialogRef.current?.contains(document.activeElement))) {
+                e.preventDefault();
+                first.focus();
             }
         }
 
         window.addEventListener("keydown", handleKeyDown);
-
-        return () =>
+        return () => {
             window.removeEventListener("keydown", handleKeyDown);
-    }, [closeModal]);
+            document.body.style.overflow = previousOverflow;
+            if (previousFocus?.isConnected) previousFocus.focus();
+        };
+    }, [closeModal, modal]);
 
     if (!modal) return null;
 
     return createPortal(
   <Overlay onClick={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
     <Dialog
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={typeof modal.title === "string" ? modal.title : t("addDrink")}
@@ -50,7 +86,7 @@ export default function ModalHost() {
 
           {modal.closeStyle !== "button" &&
             modal.closeStyle !== "none" && (
-              <CloseButton onClick={closeModal}>
+              <CloseButton type="button" aria-label={t("close")} onClick={closeModal}>
                 <Icon name="X" />
               </CloseButton>
           )}
@@ -77,6 +113,10 @@ export default function ModalHost() {
 const Overlay = styled.div`
   position: fixed;
   inset: 0;
+  height: 100dvh;
+  min-height: 0;
+  padding-top: env(safe-area-inset-top, 0px);
+  box-sizing: border-box;
   background: rgb(0 0 0 / 60%);
   backdrop-filter: blur(3px) saturate(50%);
 
@@ -92,11 +132,16 @@ const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
     width: 100%;
     max-width: 100%;
     height: ${({ $fit }) => ($fit ? "auto" : "100dvh")};
-    overflow-x: hidden;
-    overflow-y: auto;
+    min-height: 0;
+    overflow: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    @media (max-width: 767px) {
+        max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+        /* The on-screen keyboard reduces dvh; keep the action footer in
+           the scrollable modal instead of under Safari's browser chrome. */
+    }
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
@@ -122,20 +167,33 @@ const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
 `;
 
 const Footer = styled.footer`
-    background: green;
-    position: absolute;
+    position: sticky;
     bottom: 0;
-    height: 100px;
+    z-index: 2;
+    display: flex;
+    justify-content: stretch;
+    padding: var(--space-2);
+    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--neutral-700);
+    background: var(--neutral-900);
+    button { width: 100%; }
 `
 
 const Content = styled.div`
   display: flex;
   flex-direction: column;
-  flex-grow: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
 `
 
 const Header = styled.header`
     z-index: 1;
+    flex-shrink: 0;
     padding: var(--space-2);
     display: flex;
     justify-content: space-between;

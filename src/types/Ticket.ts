@@ -3,7 +3,6 @@ export type PaymentType = "cash" | "card" | "other";
 export type Payment = {
   type: PaymentType;
   paid_at: number;
-  amount?: number;
   reference?: string;
   refunded_at?: number | null;
 };
@@ -37,14 +36,13 @@ export type Ticket = {
   shiftId: number | null;
 
   payment: Payment | null;
-  payments?: Payment[];
+  guestCount?: number;
+  waivedCoverCount?: number;
+  coverChargePerPerson?: number;
+  // Reserved for returning visits and split/previous payments when backend supports them.
+  returningGuestCount?: number;
+  returningFromTicketId?: number | null;
   amountPaid?: number;
   balanceDue?: number;
-  guestCount?: number;
-  returningGuestCount?: number;
-  waivedCoverCount?: number;
-  returningFromTicketId?: number | null;
-  coverChargePerPerson?: number;
-  coverAdjustedBy?: string | null;
-  coverAdjustmentReason?: string | null;
+  payments?: { type: PaymentType; amount: number; paid_at: number }[];
 };

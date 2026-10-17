@@ -43,31 +43,18 @@ export function liveAnalyticsShift(
     let otherTotal = 0;
     let coverTotal = 0;
     let guestCount = 0;
-    // Money already received stays revenue even if a paid tab is reopened.
-    // Guest counting uses first-time guests, never ticket appearances.
-    for (const ticket of shiftTickets.filter(ticket => ticket.status !== "cancelled")) {
-        const actualPayments = ticket.payments?.filter(payment => typeof payment.amount === "number") ?? [];
-        const ticketTotal = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
-        const paidMoney = actualPayments.length
-            ? actualPayments.reduce((sum, payment) => sum + (payment.amount ?? 0), 0)
-            : (ticket.status === "paid" ? ticketTotal : (ticket.amountPaid ?? 0));
-        paidTotal += paidMoney;
-        if (actualPayments.length) {
-            for (const payment of actualPayments) {
-                const amount = payment.amount ?? 0;
-                if (payment.type === "cash") cashTotal += amount;
-                else if (payment.type === "card") cardTotal += amount;
-                else otherTotal += amount;
-            }
-        } else if (ticket.status === "paid") {
-            const method = ticket.payment?.type ?? "other";
-            if (method === "cash") cashTotal += paidMoney;
-            else if (method === "card") cardTotal += paidMoney;
-            else otherTotal += paidMoney;
-        }
-        if (ticket.status === "paid" || paidMoney > 0) {
-            guestCount += Math.max(0, (ticket.guestCount ?? ticket.items.find(item => item.type === "cover")?.quantity ?? 0) - (ticket.returningGuestCount ?? 0));
-            coverTotal += ticket.items.filter(item => item.type === "cover").reduce((sum, item) => sum + item.subtotal, 0);
+    for (const ticket of paid) {
+        const total = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
+        paidTotal += total;
+        const method = ticket.payment?.type ?? "other";
+        if (method === "cash") cashTotal += total;
+        else if (method === "card") cardTotal += total;
+        else otherTotal += total;
+
+        for (const item of ticket.items) {
+            if (item.type !== "cover") continue;
+            guestCount += item.quantity;
+            coverTotal += item.subtotal;
         }
     }
     return {

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import styled from "styled-components";
 
 import Icon from "../Icon";
@@ -30,9 +30,30 @@ export default function TicketDetailsHeader({
   onUpdateName,
 }: Props) {
   const { t, locale } = useI18n();
-  const [editingName, setEditingName] = useState(ticket.name === "");
-
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(ticket.name);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const nameTriggerRef = useRef<HTMLButtonElement>(null);
+  const wasEditingName = useRef(false);
+  useEffect(() => {
+    if (wasEditingName.current && !editingName) nameTriggerRef.current?.focus();
+    wasEditingName.current = editingName;
+  }, [editingName]);
+
+  const startEditingName = () => {
+    if (activeTab !== "open") return;
+    setNameDraft(ticket.name);
+    setEditingName(true);
+  };
+  const cancelEditingName = () => {
+    setEditingName(false);
+  };
+  const saveEditingName = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const next = nameDraft.trim();
+    if (next && next !== ticket.name) onUpdateName(ticket.id, next);
+    setEditingName(false);
+  };
 
   const createdAt = new Date(ticket.created_at * 1000);
 
@@ -48,37 +69,45 @@ export default function TicketDetailsHeader({
                     </BackButton>
 
                     {editingName ? (
-                        <NameInput
-                            ref={nameInputRef}
-                            autoFocus
-                            type="text"
-                            value={ticket.name}
-                            onChange={(e) =>
-                                ticket &&
-                                onUpdateName(ticket.id, e.target.value)
-                            }
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    setEditingName(false);
-                                }
-                            }}
-                            onBlur={() => setEditingName(false)}
-                        />
+                        <NameEditForm onSubmit={saveEditingName}>
+                            <NameInput
+                                ref={nameInputRef}
+                                autoFocus
+                                aria-label={locale === "ja" ? "お客様名を編集" : "Edit customer name"}
+                                type="text"
+                                value={nameDraft}
+                                onFocus={event => event.currentTarget.select()}
+                                onChange={event => setNameDraft(event.target.value)}
+                                onKeyDown={event => {
+                                    if (event.key === "Escape") {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        cancelEditingName();
+                                    }
+                                }}
+                            />
+                            <NameActions>
+                                <button type="submit" className="small" disabled={!nameDraft.trim()}>{t("save")}</button>
+                                <button type="button" className="small hollow secondary" onClick={cancelEditingName}>{t("cancel")}</button>
+                            </NameActions>
+                        </NameEditForm>
                     ) : (
                         <TicketHeader>
                             <TicketNumber>
                                 {t("ticketNumber", { id: ticket.id })}
                             </TicketNumber>
-                            <CustomerName
-                                onClick={() => {
-                                    setEditingName(true);
-                                }}
-                            >
-                                {ticket.name || t("walkIn")}
-                                <Icon
-                                    className={!isEditable ? "disabled" : ""}
-                                    name="PencilSimple" size={18}
-                                />
+                            <CustomerName>
+                                {isEditable ? (
+                                    <NameTrigger
+                                        ref={nameTriggerRef}
+                                        type="button"
+                                        aria-label={locale === "ja" ? "お客様名を編集: " + (ticket.name || t("walkIn")) : "Edit customer name: " + (ticket.name || t("walkIn"))}
+                                        onClick={startEditingName}
+                                    >
+                                        <span>{ticket.name || t("walkIn")}</span>
+                                        <Icon name="PencilSimple" size={18} aria-hidden="true" />
+                                    </NameTrigger>
+                                ) : (ticket.name || t("walkIn"))}
                             </CustomerName>
                             <TicketCreationTime $status={ticket.status}>
                                 {t("createdAt")}{" "}
@@ -163,20 +192,39 @@ const NameInput = styled.input`
 `;
 
 const CustomerName = styled.h4`
-display: flex;
-align-items: center;  
-justify-self: center;
-  gap: var(--space-1);
-
-  border: none;
-  background: none;
-
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: inherit;
-  cursor: pointer;
+`;
 
-  &:hover {
-    color: white;
-  }
+const NameTrigger = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-0);
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  text-align: center;
+  overflow-wrap: anywhere;
+  &:hover { color: white; background: transparent; }
+  &:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+`;
+const NameEditForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  min-width: 0;
+`;
+const NameActions = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: var(--space-1);
+  button { width: auto; min-height: 44px; }
 `;
 
 const BackButton = styled.button`
@@ -190,6 +238,8 @@ const BackButton = styled.button`
   background: var(--neutral-900);
   border: 1px solid var(--neutral-500);
   flex-shrink: 1;
+  min-height: 44px;
+  min-width: 44px;
 
   @media (min-width: 769px) {
     display: none;
@@ -227,6 +277,8 @@ const SelectorButtons = styled.div`
 
 const LeftButton = styled.button`
     border-radius: var(--space-1) 0 0 var(--space-1);
+    min-height: 44px;
+    min-width: 44px;
     padding: var(--space-0);
     border: 1px solid var(--neutral-500);
     background: var(--neutral-900);
@@ -238,6 +290,8 @@ const LeftButton = styled.button`
 
 const RightButton = styled.button`
     border-radius: 0 var(--space-1) var(--space-1) 0;
+    min-height: 44px;
+    min-width: 44px;
     padding: var(--space-0);
     border: 1px solid var(--neutral-500);
     border-left: none;

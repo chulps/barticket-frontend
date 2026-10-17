@@ -1,42 +1,36 @@
 import { useEffect, useState } from "react";
 import styled from "styled-components";
+import RequestState from "../components/RequestState";
 import { useNavigate } from "react-router-dom";
 
-import { accountApi, type Account, type ShiftReport } from "../api/account";
+import { accountApi, type Account } from "../api/account";
 import { ApiError, getToken } from "../api/client";
-import Icon from "../components/Icon";
-import { localeTag, readLocale, translate, useI18n } from "../i18n";
+import { readLocale, translate, useI18n } from "../i18n";
+import ShiftControls from "./ShiftControls";
+import StaffWorkHistory from "./StaffWorkHistory";
 
 export default function Profile() {
     const { t, locale } = useI18n();
     const navigate = useNavigate();
     const [account, setAccount] = useState<Account | null>(null);
     const [hasAccounts, setHasAccounts] = useState(true);
-    const [shift, setShift] = useState<ShiftReport | null>(null);
     const [error, setError] = useState("");
+    const [loading, setLoading] = useState(true);
+    const [busy, setBusy] = useState(false);
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [staffName, setStaffName] = useState("");
-    const [staffEmail, setStaffEmail] = useState("");
-    const [staffPassword, setStaffPassword] = useState("");
-    const [staffRole, setStaffRole] = useState<"staff" | "manager">("staff");
-    const [team, setTeam] = useState<Account[]>([]);
 
     async function refresh(next?: Account | null) {
         const current = next === undefined ? account : next;
         if (!getToken()) {
             setAccount(null);
-            setShift(null);
             const status = await accountApi.status();
             setHasAccounts(status.has_accounts);
             return;
         }
         const me = current ?? (await accountApi.me());
         setAccount(me);
-        setShift(await accountApi.currentShift());
-        if (me.role === "manager") setTeam(await accountApi.listUsers());
-        else setTeam([]);
     }
 
     useEffect(() => {
@@ -49,17 +43,15 @@ export default function Profile() {
                     return;
                 }
                 const me = await accountApi.me();
-                const current = await accountApi.currentShift();
-                const people = me.role === "manager" ? await accountApi.listUsers() : [];
                 if (!cancelled) {
                     setAccount(me);
-                    setShift(current);
-                    setTeam(people);
                 }
             } catch (err) {
                 if (!cancelled) {
                     setError(err instanceof ApiError ? err.message : translate(readLocale(), "couldNotLoadAccount"));
                 }
+            } finally {
+                if (!cancelled) setLoading(false);
             }
         }
         load();
@@ -69,22 +61,31 @@ export default function Profile() {
     }, []);
 
     async function run(action: () => Promise<void>) {
+        if (busy) return;
+        setBusy(true);
         setError("");
         try {
             await action();
         } catch (err) {
             setError(err instanceof ApiError ? err.message : translate(readLocale(), "somethingWrong"));
+        } finally {
+            setBusy(false);
         }
     }
 
-    const clockedIn = Boolean(
-        account && shift?.punches.some((punch) => punch.user_id === account.id && punch.clock_out === null),
-    );
+    if (loading) return <Page $signedIn={false}><h1>{t("account")}</h1><RequestState kind="loading" detail={locale === "ja" ? "アカウントを読み込み中…" : "Loading account…"} /></Page>;
+    // A failed authenticated lookup is not a signed-out session. Avoid showing
+    // login/manager-registration forms until the auth state can be verified.
+    if (getToken() && !account && error) return <Page $signedIn={false}>
+        <h1>{t("account")}</h1>
+        <RequestState kind="error" detail={error} onRetry={() => window.location.reload()} />
+    </Page>;
 
     return (
-        <Page>
+        <Page $signedIn={Boolean(account)}>
             <h1>{t("account")}</h1>
-            {error ? <ErrorText>{error}</ErrorText> : null}
+            {error ? <ErrorText role="alert">{error}</ErrorText> : null}
+            {error && !account ? <button type="button" className="small hollow secondary" onClick={() => window.location.reload()}>{locale === "ja" ? "再試行" : "Retry"}</button> : null}
 
             {!account ? (
                 <Section>
@@ -109,6 +110,7 @@ export default function Profile() {
                     </label>
                     <button
                         type="button"
+                        disabled={busy}
                         onClick={() =>
                             run(async () => {
                                 const user = hasAccounts
@@ -125,62 +127,9 @@ export default function Profile() {
                 </Section>
             ) : (
                 <>
-                    <Section>
-                        <h2>{t("tonight")}</h2>
-                        {shift?.status === "open" ? (
-                            <p>
-                                {t("shiftOpenSince", {
-                                    time: new Date(shift.opened_at * 1000).toLocaleTimeString(localeTag(locale), {
-                                        hour: "numeric",
-                                        minute: "2-digit",
-                                    }),
-                                    name: shift.opened_by,
-                                })}
-                            </p>
-                        ) : (
-                            <p>{t("noShiftOpen")}</p>
-                        )}
-                        <Row>
-                            {shift?.status !== "open" ? (
-                                <button type="button" className="success" onClick={() => run(async () => setShift(await accountApi.openShift()))}>
-                                    {t("openShift")}
-                                </button>
-                            ) : (
-                                <>
-                                    <button
-                                        type="button"
-                                        className="secondary"
-                                        onClick={() =>
-                                            run(async () =>
-                                                setShift(clockedIn ? await accountApi.clockOut() : await accountApi.clockIn()),
-                                            )
-                                        }
-                                    >
-                                        {clockedIn ? t("clockOut") : t("clockIn")}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="danger"
-                                        onClick={() => run(async () => setShift(await accountApi.closeShift()))}
-                                    >
-                                        {t("closeShift")}
-                                    </button>
-                                </>
-                            )}
-                        </Row>
-                        {shift?.status === "closed" ? (
-                            <p>
-                                {t("shiftClosed")}
-                                {account.role === "manager"
-                                    ? ` ${t("shiftClosedTotals", {
-                                          total: shift.paid_total.toLocaleString(),
-                                          cash: shift.cash_total.toLocaleString(),
-                                          card: shift.card_total.toLocaleString(),
-                                      })}`
-                                    : ""}
-                            </p>
-                        ) : null}
-                    </Section>
+                    <ShiftControls account={account} locale={locale} />
+
+                    <StaffWorkHistory key={account.id} userId={account.id} locale={locale} />
 
                     <Section>
                         <Who>
@@ -241,98 +190,15 @@ export default function Profile() {
                         </Row>
                     </Section>
 
-                    {account.role === "manager" ? (
-                        <>
-                            <Section>
-                                <h2>{t("team")}</h2>
-                                {team.map((person) => (
-                                    <Person key={person.id}>
-                                        <Who>
-                                            <strong>{person.name}</strong>
-                                            <span>{person.email}</span>
-                                            <span>{t(person.role)}</span>
-                                        </Who>
-                                        {person.id === account.id ? null : (
-                                            <RemoveButton
-                                                type="button"
-                                                className="small hollow danger"
-                                                onClick={() => {
-                                                    if (!window.confirm(t("removePersonConfirm", { name: person.name }))) return;
-                                                    run(async () => {
-                                                        setTeam(await accountApi.removeUser(person.id));
-                                                    });
-                                                }}
-                                            >
-                                                {t("removePerson")}
-                                            </RemoveButton>
-                                        )}
-                                    </Person>
-                                ))}
-                            </Section>
-                            <Section>
-                            <h2>{t("addPerson")}</h2>
-                            <label>
-                                {t("name")}
-                                <input value={staffName} onChange={(event) => setStaffName(event.target.value)} />
-                            </label>
-                            <label>
-                                {t("email")}
-                                <input value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} />
-                            </label>
-                            <label>
-                                {t("password")}
-                                <input
-                                    type="password"
-                                    value={staffPassword}
-                                    onChange={(event) => setStaffPassword(event.target.value)}
-                                />
-                            </label>
-                            <label>
-                                {t("role")}
-                                <RoleField>
-                                    <select
-                                        value={staffRole}
-                                        onChange={(event) => setStaffRole(event.target.value as "staff" | "manager")}
-                                    >
-                                        <option value="staff">{t("staff")}</option>
-                                        <option value="manager">{t("manager")}</option>
-                                    </select>
-                                    <RoleCaret>
-                                        <Icon name="CaretDown" size="1em" />
-                                    </RoleCaret>
-                                </RoleField>
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    run(async () => {
-                                        await accountApi.createUser({
-                                            name: staffName,
-                                            email: staffEmail,
-                                            password: staffPassword,
-                                            role: staffRole,
-                                        });
-                                        setStaffName("");
-                                        setStaffEmail("");
-                                        setStaffPassword("");
-                                        setTeam(await accountApi.listUsers());
-                                    })
-                                }
-                            >
-                                {t("addAccount")}
-                            </button>
-                            </Section>
-                        </>
-                    ) : null}
                 </>
             )}
         </Page>
     );
 }
 
-const Page = styled.main`
+const Page = styled.main<{ $signedIn: boolean }>`
     width: 100%;
-    max-width: 480px;
+    max-width: ${({ $signedIn }) => $signedIn ? "960px" : "480px"};
     padding: var(--space-2) 0;
     display: flex;
     flex-direction: column;
@@ -349,6 +215,8 @@ const Page = styled.main`
 `;
 
 const Section = styled.section`
+    width: 100%;
+    max-width: 580px;
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
@@ -385,39 +253,6 @@ const SignOutButton = styled.button`
         outline: 1px solid var(--danger-500);
         outline-offset: -1px;
     }
-`;
-
-const RoleField = styled.span`
-    position: relative;
-    display: block;
-    width: 100%;
-
-    select {
-        padding-right: 2.5em;
-    }
-`;
-
-const RoleCaret = styled.span`
-    position: absolute;
-    top: 50%;
-    right: 1em;
-    display: flex;
-    transform: translateY(-50%);
-    pointer-events: none;
-    color: var(--neutral-300);
-    font-size: var(--font-size-default);
-`;
-
-const Person = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-`;
-
-const RemoveButton = styled.button`
-    width: auto;
-    flex-shrink: 0;
 `;
 
 const Who = styled.div`

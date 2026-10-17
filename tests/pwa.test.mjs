@@ -42,3 +42,19 @@ test("preview build generates root-scoped manifest without changing source", () 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+
+test("install icons use the same artwork as the favicon with raster fallbacks", () => {
+  assert.match(index, /%BASE_URL%favicon\.svg/);
+  assert.match(index, /%BASE_URL%icon-192\.png/);
+  const icons = manifest.icons;
+  for (const size of [192, 512]) {
+    const icon = icons.find(item => item.src === `icon-${size}.png`);
+    assert.deepEqual(icon, { src: `icon-${size}.png`, sizes: `${size}x${size}`, type: "image/png", purpose: "any" });
+    const data = readFileSync(new URL(`../public/icon-${size}.png`, import.meta.url));
+    assert.equal(data.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+    assert.equal(data.readUInt32BE(16), size);
+    assert.equal(data.readUInt32BE(20), size);
+  }
+  assert.equal(icons.some(item => item.src === "favicon.svg"), true);
+});

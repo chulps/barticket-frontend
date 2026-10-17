@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import styled from "styled-components";
+import RequestState from "../components/RequestState";
 
 // imported components
 import SearchBar from "../components/MenuSearchBar";
@@ -13,12 +14,14 @@ import type { MenuData, MenuItem, Prices } from "../types/Menu";
 import { useFilteredMenu } from "../hooks/useFilteredMenu";
 import { useModal } from "../hooks/useModal";
 import { useI18n } from "../i18n";
-import { ApiError, getToken } from "../api/client";
+import { notifyMutation } from "../utils/mutationFeedback";
 
 
 type MenuProps = {
+  authenticated: boolean;
   menu: MenuData | null;
   loadingMenu: boolean;
+  menuError: boolean;
   onToggleStock: (item: MenuItem) => Promise<boolean>;
   onSavePrices: (item: MenuItem, prices: Prices) => Promise<boolean>;
   pendingMenuIds: number[];
@@ -26,30 +29,28 @@ type MenuProps = {
 };
 
 export default function Menu({
+  authenticated,
   menu,
   loadingMenu,
+  menuError,
   onToggleStock,
   onSavePrices,
   pendingMenuIds,
   onItemAdded,
 }: MenuProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const retryMenu = () => window.dispatchEvent(new Event("barticket-retry-menu"));
   const { openModal } = useModal();
   const [searchTerm, setSearchTerm] = useState("");
-  const [signedIn, setSignedIn] = useState(() => Boolean(getToken()));
-
-  useEffect(() => {
-    const sync = () => setSignedIn(Boolean(getToken()));
-    window.addEventListener("barticket-auth", sync);
-    return () => window.removeEventListener("barticket-auth", sync);
-  }, []);
-
   async function toggleStock(item: MenuItem) {
     try {
       const saved = await onToggleStock(item);
-      if (saved) window.dispatchEvent(new Event("barticket-notices"));
-    } catch (error) {
-      window.alert(error instanceof ApiError ? error.message : t("stockUpdateFailed"));
+      if (saved) {
+        window.dispatchEvent(new Event("barticket-notices"));
+        notifyMutation("success", locale === "ja" ? "在庫状況を更新しました" : "Stock status updated");
+      }
+    } catch {
+      notifyMutation("error", locale === "ja" ? "在庫状況を更新できませんでした" : t("stockUpdateFailed"));
     }
   }
 
@@ -57,8 +58,9 @@ export default function Menu({
     try {
       const saved = await onSavePrices(item, prices);
       if (!saved) throw new Error("Menu item is already being updated");
+      notifyMutation("success", locale === "ja" ? "メニュー価格を保存しました" : "Menu prices saved");
     } catch (error) {
-      window.alert(error instanceof ApiError ? error.message : t("priceUpdateFailed"));
+      notifyMutation("error", locale === "ja" ? "価格を保存できませんでした" : t("priceUpdateFailed"));
       throw error;
     }
   }
@@ -66,11 +68,18 @@ export default function Menu({
   const groupedMenu = useFilteredMenu(menu, searchTerm);
 
   if (loadingMenu) {
-    return <h1>{t("loading")}</h1>;
+    return <main><RequestState kind="loading" detail={t("loading")} /></main>;
   }
 
   if (!menu) {
-    return <h1>{t("noMenu")}</h1>;
+    return <main>
+      <h2>{t("drinkMenu")}</h2>
+      <RequestState kind={menuError ? "error" : "empty"}
+        detail={menuError
+          ? (locale === "ja" ? "メニューを読み込めませんでした。接続を確認して再試行してください。" : "Could not load the menu. Check your connection and refresh.")
+          : t("noMenu")}
+        onRetry={menuError ? retryMenu : undefined} />
+    </main>;
   }
 
   const menuItems = menu.items;
@@ -100,9 +109,15 @@ export default function Menu({
 
   return (
     <main>
+      {menuError ? (
+        <LoadWarning role="alert">
+          {locale === "ja" ? "メニューの更新に失敗しました。表示中の情報が古い可能性があります。" : "Menu refresh failed; displayed prices or stock may be outdated."}
+          <button type="button" className="small hollow secondary" onClick={retryMenu}>{locale === "ja" ? "再試行" : "Retry"}</button>
+        </LoadWarning>
+      ) : null}
       <MenuHeader>
         <h2>{t("drinkMenu")}</h2>
-        {signedIn ? (
+        {authenticated ? (
           <AddButton type="button" className="small" onClick={openAddDrink}>
             <Icon name="Plus" />
             {t("addDrink")}
@@ -110,10 +125,9 @@ export default function Menu({
         ) : null}
       </MenuHeader>
 
-      <SearchBar
-        value={searchTerm}
-        onChange={setSearchTerm}
-      />
+      <StickySearch>
+        <SearchBar value={searchTerm} onChange={setSearchTerm} />
+      </StickySearch>
 
       <MenuGridContainer>
         {Object.entries(groupedMenu).map(([category, subcategories]) => (
@@ -121,9 +135,11 @@ export default function Menu({
             key={category}
             category={category}
             subcategories={subcategories}
-            onToggleStock={signedIn ? toggleStock : undefined}
-            onSavePrices={signedIn ? savePrices : undefined}
+            onToggleStock={authenticated ? toggleStock : undefined}
+            onSavePrices={authenticated ? savePrices : undefined}
             pendingMenuIds={pendingMenuIds}
+            categories={Array.from(new Set(menuItems.map(item => item.category)))}
+            allSubcategories={Array.from(new Set(menuItems.map(item => item.subcategory).filter((value): value is string => Boolean(value))))}
           />
         ))}
       </MenuGridContainer>
@@ -131,6 +147,15 @@ export default function Menu({
   );
 }
 
+
+const StickySearch = styled.div`
+  position: sticky;
+  top: 64px;
+  z-index: 90; /* below the sticky app header (100), menus (1200) and modals (1000) */
+  padding: var(--space-1) 0;
+  background: var(--neutral-950);
+  @media (min-width: 768px) { top: 56px; }
+`;
 
 const MenuHeader = styled.div`
   display: flex;
@@ -162,3 +187,13 @@ const MenuGridContainer = styled.section`
     columns: var(--space-6);
   }
   `
+const LoadWarning = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--danger-500);
+  border-radius: var(--space-1);
+  button { width: auto; }
+`;

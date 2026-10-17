@@ -1,50 +1,72 @@
-import { useState } from "react";
-import styled from "styled-components";
+import { useRef, useState, type FormEvent } from "react";
 import type { Ticket } from "../../types/Ticket";
+import { useModal } from "../../hooks/useModal";
+import { useI18n } from "../../i18n";
 
-type CoverAdjustment = { returning_guest_count: number; waived_cover_count: number; returning_from_ticket_id: number | null; reason: string };
-type Props = { ticket: Ticket; tickets: Ticket[]; mode: "returning" | "waiver"; onCancel: () => void; onSave: (value: CoverAdjustment) => void };
-
-export default function CoverChargeModal({ ticket, tickets, mode, onCancel, onSave }: Props) {
-    const guestCount = ticket.guestCount ?? ticket.items.find(item => item.type === "cover")?.quantity ?? 0;
+/** Existing API contract is PATCH /tickets/:id/cover-waivers (#92).
+ * Returning-customer links are intentionally unavailable until their backend
+ * validation and payment-history API exists. */
+export default function CoverChargeModal({ ticket, onSave }: {
+    ticket: Ticket; onSave: (count: number) => Promise<boolean>;
+}) {
+    const { locale } = useI18n();
+    const { closeModal } = useModal();
+    const ja = locale === "ja";
+    const guests = ticket.guestCount ?? ticket.items.find(item => item.type === "cover")?.quantity ?? 0;
     const price = ticket.coverChargePerPerson ?? ticket.items.find(item => item.type === "cover")?.unit_price ?? 0;
-    const [returning, setReturning] = useState(ticket.returningGuestCount ?? 0);
     const [waived, setWaived] = useState(ticket.waivedCoverCount ?? 0);
-    const [source, setSource] = useState<number | null>(ticket.returningFromTicketId ?? null);
-    const [reason, setReason] = useState(ticket.coverAdjustmentReason ?? "");
-    const candidates = tickets.filter(row => row.id !== ticket.id && row.shiftId === ticket.shiftId && row.status === "paid" && ((row.guestCount ?? 0) - (row.returningGuestCount ?? 0) - (row.waivedCoverCount ?? 0)) > 0 && (row.amountPaid ?? 0) > 0 && (row.items.find(item => item.type === "cover")?.subtotal ?? 0) > 0);
-    const sourceTicket = candidates.find(row => row.id === source);
-    const availableOnSource = sourceTicket ? (sourceTicket.guestCount ?? 0) - (sourceTicket.returningGuestCount ?? 0) - (sourceTicket.waivedCoverCount ?? 0) : 0;
-    const valid = guestCount > 0 && returning >= 0 && waived >= 0 && returning + waived <= guestCount && (returning === 0 || (source !== null && availableOnSource >= returning));
-    const coverCount = Math.max(0, guestCount - returning - waived);
-    return <Form onSubmit={(event) => { event.preventDefault(); if (valid) onSave({ returning_guest_count: returning, waived_cover_count: waived, returning_from_ticket_id: returning ? source : null, reason: reason.trim() }); }}>
-        <p>{guestCount} guests · ¥{price.toLocaleString()} each</p>
-        <label>Returning guests / 再来店人数
-            <input type="number" inputMode="numeric" min="0" max={guestCount} value={returning} onChange={e => setReturning(Number(e.target.value))} />
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState("");
+    const pending = useRef(false);
+    const valid = Number.isSafeInteger(waived) && waived >= 0 && waived <= guests;
+    const charged = guests - waived;
+
+    async function submit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (!valid || busy || pending.current || ticket.status !== "open") return;
+        pending.current = true;
+        setBusy(true);
+        setError("");
+        try {
+            if (await onSave(waived)) closeModal();
+            else setError(ja ? "保存を確認できませんでした。最新の伝票を確認してください。" : "Could not confirm waiver. Check the current ticket before trying again.");
+        } catch {
+            setError(ja ? "結果が不明です。再操作する前に伝票を確認してください。" : "Outcome unknown. Check the ticket before retrying.");
+        } finally {
+            pending.current = false;
+            setBusy(false);
+        }
+    }
+
+    return <form onSubmit={event => void submit(event)}
+        style={{ display: "grid", gap: "var(--space-2)", padding: "var(--space-2)" }}>
+        <p>{ja ? "カバーチャージを免除しても、来店人数は変わりません。" : "Waiving a cover does not remove the guest from attendance."}</p>
+        <p><strong>{ja ? "来店人数" : "Guests"}: {guests}</strong> · ¥{price.toLocaleString("ja-JP")} {ja ? "／人" : "each"}</p>
+        <label style={{ display: "grid", gap: "var(--space-1)" }}>
+            {ja ? "免除するカバーチャージの人数" : "Number of cover charges to waive"}
+            <input type="number" inputMode="numeric" min={0} max={guests} step={1}
+                value={waived < 0 ? "" : waived} disabled={busy}
+                onChange={event => {
+                    const raw = event.currentTarget.value;
+                    setWaived(raw === "" ? -1 : Number(raw));
+                }} />
         </label>
-        {returning > 0 && <label>Original paid ticket / 支払済チケット
-            <select required value={source ?? ""} onChange={e => setSource(e.target.value ? Number(e.target.value) : null)}>
-                <option value="">Select paid ticket...</option>
-                {candidates.map(row => <option value={row.id} key={row.id}>{row.name} (#{row.id}) · {((row.guestCount ?? 0) - (row.returningGuestCount ?? 0) - (row.waivedCoverCount ?? 0))} covered</option>)}
-            </select>
-            {!sourceTicket && <small>Choose a paid ticket from the same shift. Returning guests are not counted twice.</small>}
-        </label>}
-        <label>Waived covers / チャージ免除人数
-            <input type="number" inputMode="numeric" min="0" max={guestCount} value={waived} onChange={e => setWaived(Number(e.target.value))} />
-        </label>
-        <label>Reason / 理由
-            <input value={reason} maxLength={255} onChange={e => setReason(e.target.value)} placeholder={mode === "waiver" ? "Complimentary entry" : "Returning after paying cover"} />
-        </label>
-        <Summary>
-            <span>New guests counted / 新規客数</span><strong>{guestCount - returning}</strong>
-            <span>Chargeable covers</span><strong>{coverCount}</strong>
-            <span>Cover total</span><strong>¥{(coverCount * price).toLocaleString()}</strong>
-            <span>Waived / returning covers</span><strong>−¥{((returning + waived) * price).toLocaleString()}</strong>
-        </Summary>
-        {!valid && <small role="alert">Returning and waived covers cannot exceed guests. Returning guests need an earlier paid ticket with enough covered guests.</small>}
-        <Actions><button type="button" className="hollow" onClick={onCancel}>Cancel</button><button type="submit" disabled={!valid}>Apply Cover Adjustment</button></Actions>
-    </Form>;
+        {!valid ? <p role="alert">{ja ? "0から来店人数までの整数を入力してください。" : "Enter a whole number from zero to the guest count."}</p> : null}
+        <div role="status" aria-live="polite">
+            <p>{ja ? "来店人数" : "Guests counted"}: <strong>{guests}</strong></p>
+            <p>{ja ? "免除人数" : "Waived covers"}: <strong>{valid ? waived : "—"}</strong></p>
+            <p>{ja ? "請求対象人数" : "Covers charged"}: <strong>{valid ? charged : "—"}</strong></p>
+            <p>{ja ? "カバーチャージ合計" : "Cover total"}: <strong>{valid ? "¥" + (charged * price).toLocaleString("ja-JP") : "—"}</strong></p>
+        </div>
+        <p style={{color: "var(--neutral-300)"}}>{ja
+            ? "再来店客のチケット紐付けと支払履歴は追加バックエンドAPI待ちです。"
+            : "Returning-customer linking and payment history are pending additional backend support."}</p>
+        {error ? <p role="alert">{error}</p> : null}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-1)" }}>
+            <button type="button" className="hollow secondary" disabled={busy} onClick={closeModal}>{ja ? "キャンセル" : "Cancel"}</button>
+            <button type="submit" disabled={!valid || busy || ticket.status !== "open"}>
+                {busy ? (ja ? "保存中…" : "Saving…") : (ja ? "免除を保存" : "Save cover waiver")}
+            </button>
+        </div>
+    </form>;
 }
-const Form = styled.form`display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2); min-width: 0; label {display: flex; flex-direction: column; gap: var(--space-1);} input, select {width: 100%; min-width: 0; box-sizing: border-box;} small {color: var(--neutral-400);}`;
-const Summary = styled.div`display: grid; grid-template-columns: 1fr auto; gap: var(--space-1); background: var(--neutral-900); padding: var(--space-2); border-radius: var(--space-1);`;
-const Actions = styled.div`display: flex; gap: var(--space-1); button {flex: 1;}`;

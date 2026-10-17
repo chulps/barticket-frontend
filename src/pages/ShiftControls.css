@@ -1,0 +1,35 @@
+.shift-section {
+    width: 100%;
+    max-width: 580px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    background: var(--neutral-900);
+    border-radius: 12px;
+    min-width: 0;
+}
+.shift-section h2 { font-size: var(--font-size-h4); font-weight: 500; }
+.shift-card-details { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: var(--space-1); }
+.shift-card-details > div, .shift-review-grid > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.shift-card-details small, .shift-review-grid small { color: var(--neutral-400); }
+.shift-card-details strong, .shift-review-grid strong { font-size: var(--font-size-h4); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.shift-status { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); }
+.shift-status-pill { display: inline-flex; align-items: center; border: 1px solid var(--neutral-600); border-radius: 999px; padding: 4px 10px; font-size: var(--font-size-small); }
+.shift-status-pill.is-on-duty { border-color: var(--success-500); color: var(--success-300); }
+.shift-muted { color: var(--neutral-300); font-size: var(--font-size-small); }
+.shift-alert, .shift-warning { border-radius: 8px; padding: var(--space-2); border: 1px solid var(--danger-500); display: grid; gap: var(--space-1); }
+.shift-warning { border-color: var(--neutral-600); }
+.shift-alert p, .shift-warning p { margin: 0; }
+.shift-action-row { display: flex; flex-direction: column; gap: var(--space-1); }
+.shift-action-row button { width: 100%; min-height: 44px; }
+.shift-close-review { padding: var(--space-2); display: grid; gap: var(--space-2); min-width: 0; }
+.shift-close-review ul { padding-inline-start: 1.5rem; margin: 0; }
+.shift-review-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--space-2); }
+.shift-ack { display: flex; align-items: flex-start; gap: var(--space-1); cursor: pointer; }
+.shift-ack input { width: auto; margin-top: 0.3em; flex-shrink: 0; }
+.shift-closed-summary { border-top: 1px solid var(--neutral-700); padding-top: var(--space-1); }
+@media (min-width: 640px) {
+    .shift-action-row { flex-direction: row; }
+    .shift-action-row button { flex: 1; }
+}

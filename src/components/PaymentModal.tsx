@@ -1,6 +1,7 @@
 // src/components/PaymentModal.tsx
 
-import { useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
+import { nextSelectorIndex } from "./selectorNavigation";
 import styled from "styled-components";
 
 import { useModal } from "../hooks/useModal";
@@ -44,25 +45,45 @@ export default function PaymentModal({
     onConfirm,
 }: PaymentModalProps) {
     const { closeModal } = useModal();
-    const { t } = useI18n();
+    const { t, locale } = useI18n();
 
     const [paymentType, setPaymentType] =
         useState<PaymentType>("cash");
 
-    const [submitting, setSubmitting] = useState(false);
     const [step, setStep] =
         useState<"select" | "success">("select");
+    const pending = useRef(false);
+    const methodButtons = useRef<(HTMLButtonElement | null)[]>([]);
+    function handleMethodArrow(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+        if (saving) return;
+        const next = nextSelectorIndex(index, paymentMethods.length, event.key);
+        if (next === null) return;
+        event.preventDefault();
+        setPaymentType(paymentMethods[next].type);
+        methodButtons.current[next]?.focus();
+    }
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
 
-    const ticketTotal = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
-    const total = ticket.balanceDue ?? Math.max(0, ticketTotal - (ticket.amountPaid ?? 0));
+    const total = ticket.items.reduce(
+        (sum, item) => sum + item.subtotal,
+        0
+    );
 
     const handleConfirm = async () => {
-        if (submitting) return;
-        setSubmitting(true);
+        if (pending.current) return;
+        pending.current = true;
+        setSaving(true);
+        setError("");
         try {
-            if (await onConfirm(paymentType)) setStep("success");
+            const confirmed = await onConfirm(paymentType);
+            if (confirmed) setStep("success");
+            else setError(locale === "ja" ? "お支払いを確認できませんでした。再試行前にチケットの状態を確認してください。" : "Payment not confirmed. Check the ticket before retrying.");
+        } catch {
+            setError("Payment could not be confirmed. Check ticket status before retrying.");
         } finally {
-            setSubmitting(false);
+            pending.current = false;
+            setSaving(false);
         }
     };
 
@@ -85,18 +106,22 @@ export default function PaymentModal({
     return (
         <Container>
             <TotalContainer>
-                {(ticket.amountPaid ?? 0) > 0 && <small>Previously paid: ¥{ticket.amountPaid?.toLocaleString()}</small>}
                 <Amount>
                     ¥{total.toLocaleString()}
                 </Amount>
                 <small>{t("receivePayment")}</small>
             </TotalContainer>
 
-            <Methods>
-                {paymentMethods.map(method => (
+            <Methods role="group" aria-label={t("receivePayment")}>
+                {paymentMethods.map((method, index) => (
                     <MethodButton
                         key={method.type}
+                        type="button"
+                        ref={node => { methodButtons.current[index] = node; }}
+                        aria-pressed={paymentType === method.type}
                         $active={paymentType === method.type}
+                        disabled={saving}
+                        onKeyDown={event => handleMethodArrow(event, index)}
                         onClick={() => setPaymentType(method.type)}
                     >
                         <Icon 
@@ -107,16 +132,18 @@ export default function PaymentModal({
                 ))}
             </Methods>
 
+            {error ? <p role="alert">{error}</p> : null}
             <Footer>
                 <button
                     className="hollow"
                     onClick={closeModal}
+                    disabled={saving}
                 >
                     {t("cancel")}
                 </button>
 
-                <button onClick={handleConfirm} disabled={submitting}>
-                    {t("confirmPayment")}
+                <button disabled={saving} onClick={() => void handleConfirm()}>
+                    {saving ? (locale === "ja" ? "処理中…" : "Processing…") : t("confirmPayment")}
                 </button>
             </Footer>
         </Container>

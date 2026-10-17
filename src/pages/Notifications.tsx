@@ -20,6 +20,8 @@ export default function Notifications() {
     const { t, locale } = useI18n();
     const [notices, setNotices] = useState<NoticeList | null>(null);
     const [denied, setDenied] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [loadFailed, setLoadFailed] = useState(false);
     const [isManager, setIsManager] = useState(false);
     // Serialize restocks and reject responses from refreshes started before a write.
     const pendingRestock = useRef(false);
@@ -41,13 +43,19 @@ export default function Notifications() {
                 });
                 if (safe === null) return;
                 setDenied(false);
+                setLoadFailed(false);
                 setNotices(safe);
             } catch (error) {
                 if (cancelled) return;
                 if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
                     setDenied(true);
                     setNotices(null);
+                    setLoadFailed(false);
+                } else {
+                    setLoadFailed(true);
                 }
+            } finally {
+                if (!cancelled) setLoading(false);
             }
         }
         load();
@@ -61,11 +69,13 @@ export default function Notifications() {
         const timer = window.setInterval(load, 20000);
         window.addEventListener("barticket-auth", load);
         window.addEventListener("barticket-notices", load);
+        window.addEventListener("barticket-api-restored", load);
         return () => {
             cancelled = true;
             window.clearInterval(timer);
             window.removeEventListener("barticket-auth", load);
             window.removeEventListener("barticket-notices", load);
+            window.removeEventListener("barticket-api-restored", load);
         };
     }, []);
 
@@ -104,7 +114,9 @@ export default function Notifications() {
         <main>
             <Heading>{t("notifications")}</Heading>
             <PushSettings />
+            {loading ? <p role="status">{locale === "ja" ? "通知を読み込み中…" : "Loading notifications…"}</p> : null}
             {denied ? <p>{t("clockInForNotices")}</p> : null}
+            {loadFailed ? <p role="alert">{locale === "ja" ? "通知を更新できませんでした。" : "Could not refresh notifications."} <button className="small hollow secondary" type="button" onClick={() => window.dispatchEvent(new Event("barticket-notices"))}>{locale === "ja" ? "再試行" : "Retry"}</button></p> : null}
             {!denied && notices && notices.notices.length === 0 ? <p>{t("noNotifications")}</p> : null}
             {!denied && notices
                 ? notices.notices.map((notice) => (

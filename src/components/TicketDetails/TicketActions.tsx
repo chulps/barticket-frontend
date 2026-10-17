@@ -3,6 +3,7 @@ import styled from "styled-components";
 
 import Icon from "../Icon";
 import PaymentModal from "../PaymentModal";
+import ReceiptPreview from "./ReceiptPreview";
 
 // Types
 import type { PaymentType, Ticket } from "../../types/Ticket";
@@ -13,6 +14,9 @@ import { useI18n } from "../../i18n";
 
 type TicketActionsProps = {
     ticket: Ticket;
+    closing: boolean;
+    onEnterClose: () => void;
+    onBackToItems: () => void;
     activeTab: "open" | "paid" | "cancelled";
 
     onCancelTicket: (ticketId: number) => void;
@@ -22,11 +26,14 @@ type TicketActionsProps = {
         paymentType: PaymentType,
     ) => Promise<boolean>;
 
-    onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => void;
+    onReopenTicket: (ticketId: number) => void;
 };
 
 export default function TicketActions({
     ticket,
+    closing,
+    onEnterClose,
+    onBackToItems,
     activeTab,
     onCancelTicket,
     onPayTicket,
@@ -34,23 +41,6 @@ export default function TicketActions({
 }: TicketActionsProps) {
     const { openModal, closeModal } = useModal();
     const { t, locale } = useI18n();
-
-    const confirmReopen = () => {
-        openModal({ title: locale === "ja" ? "チケットを再開" : "Reopen ticket?",
-            content: <ConfirmCancellation>
-                <p>{locale === "ja" ? "再開する理由を選択してください。" : "Why are you reopening this paid ticket?"}</p>
-                <button type="button" onClick={() => { closeModal(); onReopenTicket(ticket.id, "customer_returned"); }}>
-                    Customer returned / 再来店<br/><small>Keep the original payment; charge only new orders.</small>
-                </button>
-                <button type="button" className="hollow danger" onClick={() => {
-                    if (!window.confirm("Manager correction: void the recorded payment? Only use if payment was recorded by mistake.")) return;
-                    closeModal(); onReopenTicket(ticket.id, "closed_by_mistake");
-                }}>
-                    Closed by mistake / 誤って会計済<br/><small>Manager only · voids previous payment in the audit history.</small>
-                </button>
-                <button type="button" className="hollow secondary" onClick={closeModal}>Cancel</button>
-            </ConfirmCancellation> });
-    };
 
     const confirmCancellation = () => {
         openModal({
@@ -71,9 +61,21 @@ export default function TicketActions({
         });
     };
 
+    if (activeTab === "open" && !closing) {
+        return <ActionButton type="button" className="hollow secondary" onClick={onEnterClose}>
+            <Icon name="CheckCircle" />
+            {locale === "ja" ? "チケットを閉じる" : "Close ticket"}
+        </ActionButton>;
+    }
+
     if (activeTab === "open") {
         return (
             <ButtonActions $row>
+                <ActionButton type="button" className="hollow secondary"
+                    onClick={onBackToItems}>
+                    <Icon name="ArrowLeft" />
+                    {t("back")}
+                </ActionButton>
                 <ActionButton
                     className="hollow danger"
                     onClick={confirmCancellation}
@@ -108,14 +110,19 @@ export default function TicketActions({
     if (activeTab === "paid") {
         return (
             <ButtonActions $row>
-                <ActionButton className="hollow secondary">
+                <ActionButton className="hollow secondary" onClick={() => openModal({
+                    title: locale === "ja" ? "領収書メール（プレビュー）" : "Email receipt — preview",
+                    content: <ReceiptPreview ticket={ticket} />,
+                    fitContent: true,
+                    maxWidth: "520px",
+                })}>
                     <Icon name="EnvelopeSimple" />
                     {t("emailReceipt")}
                 </ActionButton>
 
                 <ActionButton
                     className="hollow"
-                    onClick={confirmReopen}
+                    onClick={() => onReopenTicket(ticket.id)}
                 >
                     <Icon name="ArrowCounterClockwise" />
                     {t("reopenTicket")}
@@ -143,6 +150,9 @@ const ButtonActions = styled.div<{ $row?: boolean }>`
         }
 
         @media (max-width: 767px) {
+            /* DOM order and visual order must match for keyboard/VoiceOver.
+               Back → Cancel → Take Payment stays predictable on phones. */
+            flex-direction: column;
             && > button {
                 padding-left: var(--space-1);
                 padding-right: var(--space-1);
@@ -166,6 +176,8 @@ const ActionButton = styled.button`
     min-width: 0;
     padding: calc(var(--space-0) + var(--space-1));
     justify-content: center;
+    min-height: 44px;
+    touch-action: manipulation;
 
     @media (min-width: 768px) {
         flex: 1;

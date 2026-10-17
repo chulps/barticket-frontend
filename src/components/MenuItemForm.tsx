@@ -1,54 +1,66 @@
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import styled from "styled-components";
 
-import type { Prices } from "../types/Menu";
+import type { MenuItem, Prices } from "../types/Menu";
 import { useI18n } from "../i18n";
 import { useModal } from "../hooks/useModal";
 import { createMenuItem } from "../api/menu";
 import { ApiError } from "../api/client";
+import { notifyMutation } from "../utils/mutationFeedback";
 
 const PRICE_KEYS = ["standard", "15ml", "30ml"] as const;
 
 type MenuItemFormProps = {
     categories: string[];
     subcategories: string[];
-    onCreated: (item: Awaited<ReturnType<typeof createMenuItem>>) => void;
+    onCreated?: (item: Awaited<ReturnType<typeof createMenuItem>>) => void;
+    editingItem?: MenuItem;
 };
 
 export default function MenuItemForm({
     categories,
     subcategories,
     onCreated,
+    editingItem,
 }: MenuItemFormProps) {
     const { t, locale } = useI18n();
     const id = useId().replace(/:/g, "");
     const help = (en: string, jp: string) => locale === "ja" ? jp : en;
-    const { closeModal } = useModal();
-    const [name, setName] = useState("");
-    const [categoryChoice, setCategoryChoice] = useState("");
+    const { closeModal, forceCloseModal, registerCloseGuard } = useModal();
+    const dirty = useRef(false);
+    const pending = useRef(false);
+    useEffect(() => {
+        registerCloseGuard(() => !pending.current && (!dirty.current || window.confirm(locale === "ja"
+            ? "保存していない変更を破棄しますか？" : "Discard unsaved changes?")));
+        return () => registerCloseGuard(null);
+    }, [locale, registerCloseGuard]);
+    const [name, setName] = useState(editingItem?.name ?? "");
+    const [categoryChoice, setCategoryChoice] = useState(editingItem?.category ?? "");
     const [customCategory, setCustomCategory] = useState("");
-    const [subcategoryChoice, setSubcategoryChoice] = useState("");
+    const [subcategoryChoice, setSubcategoryChoice] = useState(editingItem?.subcategory ?? "");
     const [customSubcategory, setCustomSubcategory] = useState("");
     const category = categoryChoice === "__new__" ? customCategory : categoryChoice;
     const subcategory = subcategoryChoice === "__new__" ? customSubcategory : subcategoryChoice;
     const isBeer = category.trim().toLowerCase() === "beer";
-    const [brand, setBrand] = useState("");
-    const [volume, setVolume] = useState("");
-    const [description, setDescription] = useState("");
-    const [notes, setNotes] = useState("");
-    const [tags, setTags] = useState<string[]>([]);
+    const [brand, setBrand] = useState(editingItem?.brand ?? "");
+    const [volume, setVolume] = useState(editingItem?.volume ?? "");
+    const [description, setDescription] = useState(editingItem?.description ?? "");
+    const [notes, setNotes] = useState(editingItem?.notes ?? "");
+    const [tags, setTags] = useState<string[]>(editingItem?.tags ?? []);
     const [tagDraft, setTagDraft] = useState("");
     const [prices, setPrices] = useState<Record<string, string>>({
-        standard: "",
-        "15ml": "",
-        "30ml": "",
+        standard: editingItem?.prices?.standard === undefined ? "" : String(editingItem.prices.standard),
+        "15ml": editingItem?.prices?.["15ml"] === undefined ? "" : String(editingItem.prices["15ml"]),
+        "30ml": editingItem?.prices?.["30ml"] === undefined ? "" : String(editingItem.prices["30ml"]),
     });
-    const [inStock, setInStock] = useState(true);
-    const [cocktailIngredient, setCocktailIngredient] = useState(false);
+    const [inStock, setInStock] = useState(editingItem?.inStock !== false);
+    const [cocktailIngredient, setCocktailIngredient] = useState(editingItem?.cocktailIngredient === true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
+    const [draftNotice, setDraftNotice] = useState("");
 
     function addTag() {
+        dirty.current = true;
         const next = tagDraft.trim();
         if (!next || tags.includes(next)) {
             setTagDraft("");
@@ -60,7 +72,8 @@ export default function MenuItemForm({
 
     async function save(event: FormEvent) {
         event.preventDefault();
-        if (saving) return;
+        if (editingItem) return; // No update API yet: preview never writes to the live menu.
+        if (pending.current) return;
         const trimmedName = name.trim();
         const trimmedCategory = category.trim();
         if (!trimmedName) {
@@ -90,6 +103,7 @@ export default function MenuItemForm({
             return;
         }
         setError("");
+        pending.current = true;
         setSaving(true);
         try {
             const created = await createMenuItem({
@@ -105,18 +119,57 @@ export default function MenuItemForm({
                 in_stock: inStock,
                 cocktail_ingredient: cocktailIngredient,
             });
-            onCreated({ ...created, prices: created.prices ?? {} });
-            closeModal();
+            onCreated?.({ ...created, prices: created.prices ?? {} });
+            notifyMutation("success", locale === "ja" ? "メニューに商品を追加しました" : "Item added to menu");
+            dirty.current = false;
+            forceCloseModal();
         } catch (caught) {
             setError(caught instanceof ApiError ? caught.message : t("addMenuItemFailed"));
         } finally {
+            pending.current = false;
             setSaving(false);
         }
     }
 
 
+    async function copyEditDraft() {
+        if (!editingItem) return;
+        if (!name.trim() || !category.trim()) {
+            setError(help("Name and category are required.", "名前とカテゴリーは必須です。")); return;
+        }
+        const nextPrices: Prices = {};
+        for (const key of PRICE_KEYS) {
+            const raw = prices[key] ?? "";
+            if (!raw) continue;
+            const value = Number(raw);
+            if (!/^\d+$/.test(raw) || !Number.isSafeInteger(value)) {
+                setError(help("Prices must be nonnegative whole yen amounts.", "価格は0以上の整数で入力してください。")); return;
+            }
+            nextPrices[key] = value;
+        }
+        if (!cocktailIngredient && nextPrices.standard === undefined &&
+            (nextPrices["15ml"] === undefined || nextPrices["30ml"] === undefined)) {
+            setError(help("Set a standard price or both 15ml and 30ml prices.", "通常価格または15ml/30mlの両方を設定してください。")); return;
+        }
+        const draft = {
+            item_id: editingItem.id, name: name.trim(), category: category.trim(),
+            subcategory: subcategory.trim() || null, brand: brand.trim() || null,
+            volume: isBeer ? volume.trim() || null : null,
+            description: description.trim() || null, notes: notes.trim() || null,
+            tags: [...new Set([...tags, tagDraft.trim()].filter(Boolean))],
+            prices: nextPrices, in_stock: inStock, cocktail_ingredient: cocktailIngredient,
+        };
+        try {
+            await navigator.clipboard.writeText(JSON.stringify(draft, null, 2));
+            setError("");
+            setDraftNotice(help("Draft copied. No menu changes were saved.", "下書きをコピーしました。メニューは保存されていません。"));
+        } catch {
+            setError(help("Could not copy the draft. Please check clipboard permissions.", "下書きをコピーできませんでした。クリップボードの権限を確認してください。"));
+        }
+    }
+
     return (
-        <Form onSubmit={save}>
+        <Form onSubmit={save} onChangeCapture={() => { dirty.current = true; }}>
             <Field>
                 <Caption htmlFor={id + "-name"}>{t("name")} *</Caption>
                 <TextInput id={id + "-name"} value={name} onChange={(e) => setName(e.target.value)}
@@ -221,10 +274,18 @@ export default function MenuItemForm({
                     <span>{t("cocktailIngredient")}</span></Check>
                 <Hint>{help("Use for a cocktail ingredient rather than a standalone drink.", "単品ドリンクではなくカクテルの材料として登録する場合に選択します。")}</Hint>
             </Checks>
+            {editingItem ? <Hint role="status">{help(
+                "Edit preview only — not saved. The update API is pending (backend #73). Price and stock controls elsewhere still work.",
+                "編集プレビューのみ・未保存です。更新APIはバックエンド #73 対応待ちです。既存の価格・在庫操作は引き続き利用できます。"
+            )}</Hint> : null}
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
+            {draftNotice ? <Hint role="status">{draftNotice}</Hint> : null}
             <Actions>
-                <button type="button" className="hollow" onClick={closeModal}>{t("cancel")}</button>
-                <button type="submit" disabled={saving}>{saving ? help("Saving…", "保存中…") : t("addDrink")}</button>
+                <button type="button" className="hollow" disabled={saving} onClick={closeModal}>{t("cancel")}</button>
+                {editingItem ? <>
+                    <button type="button" className="secondary" onClick={() => void copyEditDraft()}>{help("Copy draft JSON", "下書きJSONをコピー")}</button>
+                    <button type="button" disabled title={help("Awaiting backend #73", "バックエンド #73 対応待ち")}>{help("Save — unavailable", "保存（未対応）")}</button>
+                </> : <button type="submit" disabled={saving}>{saving ? help("Saving…", "保存中…") : t("addDrink")}</button>}
             </Actions>
         </Form>
     );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import styled from "styled-components";
+import RequestState from "../components/RequestState";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ticketsApi, toTicket } from "../api/tickets";
@@ -15,6 +16,7 @@ import { topSellingItems } from "../components/topSellingItems";
 import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 import { analyticsDrillDownTarget, shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
+import { groupAnalyticsTickets } from "./analyticsTicketGroups";
 import OpenShiftOverview from "./OpenShiftOverview";
 import AnalyticsReportActions from "../components/AnalyticsReportActions";
 import { createAnalyticsTextReport } from "./analyticsTextReport";
@@ -490,6 +492,7 @@ export default function Analytics() {
     const [notices, setNotices] = useState<NoticeList | null>(null);
     const [lastUpdated, setLastUpdated] = useState<number | null>(null);
     const [error, setError] = useState("");
+    const [loading, setLoading] = useState(true);
     const [range, setRange] = useState<Range>("day");
     const [month, setMonth] = useState("");
     const [year, setYear] = useState("");
@@ -522,6 +525,7 @@ export default function Analytics() {
                 setNotices(stock);
                 setLastUpdated(Math.floor(Date.now() / 1000));
                 setError("");
+                setLoading(false);
 
                 // Set the default date only on the first successful response.
                 // Background refreshes must not interrupt the date the user is viewing.
@@ -537,6 +541,7 @@ export default function Analytics() {
                 }
             } catch (err: unknown) {
                 if (cancelled || request !== latestRequest) return;
+                setLoading(false);
                 if (err instanceof ApiError && err.status === 403) {
                     setError(readLocale() === "ja"
                         ? "分析データへのアクセスが許可されていません。バックエンドの閲覧権限を確認してください。"
@@ -564,10 +569,12 @@ export default function Analytics() {
                 window.addEventListener("focus", refresh);
                 window.addEventListener("barticket-push", refresh);
                 window.addEventListener("barticket-notices", refresh);
+                window.addEventListener("barticket-api-restored", refresh);
                 timer = window.setInterval(refresh, 20000);
                 await refresh();
             } catch (err: unknown) {
                 if (cancelled) return;
+                setLoading(false);
                 if (err instanceof ApiError && err.status === 403) {
                     setError(readLocale() === "ja"
                         ? "分析データへのアクセスが許可されていません。バックエンドの閲覧権限を確認してください。"
@@ -585,6 +592,7 @@ export default function Analytics() {
             window.removeEventListener("focus", refresh);
             window.removeEventListener("barticket-push", refresh);
             window.removeEventListener("barticket-notices", refresh);
+            window.removeEventListener("barticket-api-restored", refresh);
         };
     }, [signedIn]);
 
@@ -665,7 +673,8 @@ export default function Analytics() {
         <Page>
             <h1>{t("analytics")}</h1>
             {!signedIn ? <p>{t("signInForShifts")}</p> : null}
-            {error ? <p role="alert">{error}</p> : null}
+            {signedIn && loading && !shifts ? <RequestState kind="loading" detail={locale === "ja" ? "分析データを読み込み中…" : "Loading analytics…"} /> : null}
+            {error ? <RequestState kind="error" detail={error} onRetry={() => window.location.reload()} /> : null}
             {account && shifts ? (
                 <>
                     <TabGroup
@@ -888,14 +897,14 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
     const { t, locale } = useI18n();
     const [openId, setOpenId] = useState<number | null>(null);
     const dates = new Map(shifts.map((shift) => [shift.id, shift.business_date]));
-    const rows = tickets
-        .filter((ticket) => ticket.shiftId !== null && dates.has(ticket.shiftId) && ticket.status !== "open")
-        .sort((a, b) => {
-            const byDate = (dates.get(a.shiftId ?? 0) ?? "").localeCompare(dates.get(b.shiftId ?? 0) ?? "");
-            return byDate || a.id - b.id;
-        });
-
+    const groups = groupAnalyticsTickets(tickets, dates);
+    const sections = [
+        { id: "paid", title: t("paid"), rows: groups.paid },
+        { id: "cancelled", title: t("cancelled"), rows: groups.cancelled },
+    ] as const;
     const missingNights = shifts.filter(ticketCountsUnavailable).length;
+    const count = groups.paid.length + groups.cancelled.length;
+
     return (
         <TicketLog>
             <h2>{t("tickets")}</h2>
@@ -904,49 +913,56 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
                     ? `${missingNights}件の過去の夜は個別のチケット履歴が未記録です。`
                     : `Individual ticket records weren't kept for ${missingNights} historical night(s).`}</DataCaveat>
             ) : null}
-            {rows.length === 0 && missingNights === 0 ? <p>{t("noTicketsInRange")}</p> : null}
-            {rows.map((ticket) => {
-                const date = dates.get(ticket.shiftId ?? 0);
-                const total = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
-                const detail =
-                    ticket.status === "paid"
-                        ? t(ticket.payment?.type ?? "paid")
-                        : t("cancelled");
-                const open = openId === ticket.id;
-                return (
-                    <TicketCard key={ticket.id}>
-                        <TicketRow
-                            type="button"
-                            aria-expanded={open}
-                            onClick={() => setOpenId(open ? null : ticket.id)}
-                        >
-                            <span>
-                                <span>{ticket.name || `#${ticket.id}`}</span>
-                                <small>
-                                    {date ? formatNight(date, locale) : ""}
-                                    {date ? " · " : ""}
-                                    {detail}
-                                </small>
-                            </span>
-                            <span>
-                                <strong>{yen(total)}</strong>
-                                <Icon name={open ? "CaretDown" : "CaretRight"} size="1.6rem" />
-                            </span>
-                        </TicketRow>
-                        {open ? (
-                            <ItemList>
-                                {ticket.items.map((item) => (
-                                    <li key={item.id}>
-                                        <span>{item.type === "cover" ? t("coverCharge") : menuLabel(locale, item.name)}</span>
-                                        <data>{item.quantity}</data>
-                                        <strong>{yen(item.subtotal)}</strong>
-                                    </li>
-                                ))}
-                            </ItemList>
-                        ) : null}
-                    </TicketCard>
-                );
-            })}
+            {count === 0 && missingNights === 0 ? <p>{t("noTicketsInRange")}</p> : null}
+            {count > 0 ? sections.map((section) => (
+                <TicketStatusGroup key={section.id} aria-label={section.title}>
+                    <TicketStatusHeading>
+                        <h3>{section.title}</h3>
+                        <span aria-label={`${section.title}: ${section.rows.length}`}>{section.rows.length}</span>
+                    </TicketStatusHeading>
+                    {section.rows.map((ticket) => {
+                        const date = dates.get(ticket.shiftId ?? 0);
+                        const total = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
+                        const detail = ticket.status === "paid"
+                            ? t(ticket.payment?.type ?? "paid")
+                            : t("cancelled");
+                        const open = openId === ticket.id;
+                        return (
+                            <TicketCard key={ticket.id}>
+                                <TicketRow
+                                    type="button"
+                                    aria-expanded={open}
+                                    onClick={() => setOpenId(open ? null : ticket.id)}
+                                >
+                                    <span>
+                                        <span>{ticket.name || `#${ticket.id}`}</span>
+                                        <small>
+                                            {date ? formatNight(date, locale) : ""}
+                                            {date ? " · " : ""}
+                                            {detail}
+                                        </small>
+                                    </span>
+                                    <span>
+                                        <strong>{yen(total)}</strong>
+                                        <Icon name={open ? "CaretDown" : "CaretRight"} size="1.6rem" />
+                                    </span>
+                                </TicketRow>
+                                {open ? (
+                                    <ItemList>
+                                        {ticket.items.map((item) => (
+                                            <li key={item.id}>
+                                                <span>{item.type === "cover" ? t("coverCharge") : menuLabel(locale, item.name)}</span>
+                                                <data>{item.quantity}</data>
+                                                <strong>{yen(item.subtotal)}</strong>
+                                            </li>
+                                        ))}
+                                    </ItemList>
+                                ) : null}
+                            </TicketCard>
+                        );
+                    })}
+                </TicketStatusGroup>
+            )) : null}
         </TicketLog>
     );
 }
@@ -1175,6 +1191,34 @@ const TicketLog = styled.section`
     small {
         display: block;
         color: var(--neutral-400);
+    }
+`;
+
+const TicketStatusGroup = styled.section`
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+`;
+
+const TicketStatusHeading = styled.div`
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+    padding-bottom: var(--space-0);
+    border-bottom: 1px solid var(--neutral-700);
+
+    h3 {
+        margin: 0;
+        font-size: var(--font-size-default);
+        font-weight: 500;
+    }
+
+    span {
+        font-family: var(--font-family-data);
+        color: var(--neutral-400);
+        font-size: var(--font-size-small);
     }
 `;
 

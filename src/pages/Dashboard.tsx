@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 
 // import npm packages
 import styled from "styled-components";
+import RequestState from "../components/RequestState";
+import { Link } from "react-router-dom";
 
 // import UI components
 import TicketDetails from "../components/TicketDetails/Ticket"
@@ -19,18 +21,22 @@ import { useTickets } from "../hooks/useTickets"; // (business logic for creatin
 import { useI18n } from "../i18n";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { getToken } from "../api/client";
+import { ticketVisibleOnBoard, type ShiftLookup } from "./ticketBoardVisibility";
+import { resolveVisibleSelection } from "./ticketBoardSelection";
 
 type DashboardProps = {
   menu: MenuData | null;
   loadingMenu: boolean;
+  menuError: boolean;
 }
 
 // component setup
 export default function Dashboard({
   menu,
   loadingMenu,
+  menuError,
 }: DashboardProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   // States
   const [activeTab, setActiveTab] = useState<"open" | "paid" | "cancelled">("open");
@@ -39,14 +45,17 @@ export default function Dashboard({
   // Async create callbacks must respect any navigation that happened meanwhile.
   const selectionRef = useRef(selectedTicketId);
   useEffect(() => { selectionRef.current = selectedTicketId; }, [selectedTicketId]);
-  const [openShiftId, setOpenShiftId] = useState<number | null | undefined>(undefined);
+  const [shiftLookup, setShiftLookup] = useState<ShiftLookup>({ status: "loading", shiftId: null });
   const [me, setMe] = useState<Account | null>(null);
   const [shift, setShift] = useState<ShiftReport | null>(null);
 
   // business logic for updating or creating new tickets (../hooks/useTickets.ts)
   const {
     tickets,
+    ticketsLoading,
+    ticketsError,
     updateItemQuantity,
+    setCoverWaivers,
     updateItemPrice,
     addItemToTicket,
     addStaffDrinkToTicket,
@@ -55,43 +64,52 @@ export default function Dashboard({
     createTicket,
     cancelTicket,
     payTicket,
-    reopenTicket,
-    adjustCover
+    reopenTicket
   } = useTickets();
 
   useEffect(() => {
     let cancelled = false;
+    let requestVersion = 0;
     async function load() {
+      const request = ++requestVersion;
       try {
         const current = await accountApi.currentShift();
-        if (cancelled) return;
+        if (cancelled || request !== requestVersion) return;
         setShift(current);
-        setOpenShiftId(current?.id ?? null);
+        setShiftLookup({ status: "ready", shiftId: current?.id ?? null });
       } catch {
-        if (cancelled) return;
+        if (cancelled || request !== requestVersion) return;
+        // Unknown is never treated as "all shifts" or as an open shift.
         setShift(null);
-        setOpenShiftId(undefined);
+        setShiftLookup({ status: "error", shiftId: null });
       }
       if (!getToken()) {
-        if (!cancelled) setMe(null);
+        if (!cancelled && request === requestVersion) setMe(null);
         return;
       }
       try {
         const account = await accountApi.me();
-        if (!cancelled) setMe(account);
+        if (!cancelled && request === requestVersion) setMe(account);
       } catch {
-        if (!cancelled) setMe(null);
+        if (!cancelled && request === requestVersion) setMe(null);
       }
     }
-    load();
+    void load();
     const timer = window.setInterval(load, 20000);
     window.addEventListener("focus", load);
     window.addEventListener("barticket-auth", load);
+    window.addEventListener("barticket-api-restored", load);
+    window.addEventListener("barticket-shift-updated", load);
+    window.addEventListener("barticket-retry-shift", load);
     return () => {
       cancelled = true;
+      requestVersion++;
       window.clearInterval(timer);
       window.removeEventListener("focus", load);
       window.removeEventListener("barticket-auth", load);
+      window.removeEventListener("barticket-api-restored", load);
+      window.removeEventListener("barticket-shift-updated", load);
+      window.removeEventListener("barticket-retry-shift", load);
     };
   }, []);
 
@@ -101,21 +119,28 @@ export default function Dashboard({
     shift.punches.some((punch) => punch.user_id === me.id && punch.clock_out === null),
   );
 
-  // Paid and cancelled tickets stay on the board only for the open shift.
-  const visibleTickets = tickets.filter((ticket) => {
-    if (ticket.status !== activeTab) return false;
-    if (activeTab === "open" || openShiftId === undefined) return true;
-    return openShiftId !== null && ticket.shiftId === openShiftId;
-  });
+  // Open tickets retain their all-shift recovery policy. Closed tickets
+  // must belong to a confirmed active shift; loading/errors fail closed.
+  const ticketsForTab = (tab: Ticket["status"]) => tickets.filter((ticket) =>
+    ticketVisibleOnBoard(ticket, tab, shiftLookup)
+  );
+  const visibleTickets = ticketsForTab(activeTab);
+
+  // Derive a valid display selection instead of updating React state in an
+  // effect (which can briefly expose stale details and cascade renders).
+  const visibleSelectedTicketId = resolveVisibleSelection(visibleTickets, selectedTicketId);
+  // On mobile, let the ticket list reappear rather than silently changing
+  // the open customer's detail pane after an incoming status/shift update.
+  const showCurrentDetails = showTicketDetails && visibleSelectedTicketId === selectedTicketId;
 
   // answers which ticket is currently being displayed in ticket details?
   const currentIndex = visibleTickets.findIndex(
-    (ticket) => ticket.id === selectedTicketId
+    (ticket) => ticket.id === visibleSelectedTicketId
   );
 
   // answers which ticket is selected in the left column
   const selectedTicket =
-    visibleTickets.find((ticket) => ticket.id === selectedTicketId) ?? null;
+    visibleTickets.find((ticket) => ticket.id === visibleSelectedTicketId) ?? null;
 
   // function necessary for mobile users. selects previous ticket while in ticket details view
   const selectPreviousTicket = () => {
@@ -184,8 +209,8 @@ export default function Dashboard({
     return true;
   };
 
-  const handleReopenTicket = async (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => {
-    if (!(await reopenTicket(ticketId, reason))) return;
+  const handleReopenTicket = async (ticketId: number) => {
+    if (!(await reopenTicket(ticketId))) return;
 
     setActiveTab("open");
     setSelectedTicketId(ticketId);
@@ -206,30 +231,72 @@ export default function Dashboard({
   };
 
   if (loadingMenu) {
-    return <data>{t("loadingMenu")}</data>;
+    return <RequestState kind="loading" detail={t("loadingMenu")} />;
+  }
+  if (ticketsLoading && tickets.length === 0) {
+    return <RequestState kind="loading" detail={locale === "ja" ? "伝票を読み込み中…" : "Loading tickets…"} />;
   }
 
 
   return (
 
     <DashboardContainer>
+      <ShiftStatusBar role="status" aria-live="polite">
+        <span className={canCreate ? "on-duty" : ""}>
+          {shiftLookup.status !== "ready" ? (locale === "ja" ? "シフトの確認が必要です" : "Shift status unverified")
+            : !shift ? (locale === "ja" ? "営業中のシフトなし" : "No active shift")
+            : !me ? (locale === "ja" ? "出退勤の確認が必要です" : "Check your time clock")
+            : canCreate ? (locale === "ja" ? "勤務中" : "Clocked in")
+            : (locale === "ja" ? "未出勤" : "Not clocked in")}
+        </span>
+        <Link to="/profile">{locale === "ja" ? "タイムカードを見る" : "View time clock"}</Link>
+      </ShiftStatusBar>
+      {shiftLookup.status === "loading" ? (
+        <TicketLoadWarning role="status" aria-live="polite">
+          {locale === "ja"
+            ? "営業シフトを確認中です。確認が終わるまで会計済み・キャンセル済み伝票を非表示にしています。"
+            : "Checking the active shift. Paid and cancelled tickets are hidden until it is confirmed."}
+        </TicketLoadWarning>
+      ) : shiftLookup.status === "error" ? (
+        <TicketLoadWarning role="alert">
+          <span>{locale === "ja"
+            ? "営業シフトを確認できません。会計済み・キャンセル済み伝票は非表示です。現在営業中とは限りません。"
+            : "Cannot confirm the active shift. Paid and cancelled tickets are hidden; do not assume a shift is open."}</span>
+          <button type="button" className="small hollow secondary"
+            onClick={() => window.dispatchEvent(new Event("barticket-retry-shift"))}>
+            {locale === "ja" ? "再試行" : "Retry shift lookup"}
+          </button>
+        </TicketLoadWarning>
+      ) : null}
+      {ticketsError ? <TicketLoadWarning role="alert">
+        <span>{locale === "ja"
+          ? "伝票の取得に失敗しました。表示中の伝票が古い可能性があります。"
+          : "Could not refresh tickets. Displayed ticket data may be outdated."}</span>
+        <button type="button" className="small hollow secondary" onClick={() => window.dispatchEvent(new Event("barticket-retry-tickets"))}>
+          {locale === "ja" ? "再試行" : "Retry"}
+        </button>
+      </TicketLoadWarning> : null}
+      {menuError ? <MenuLoadWarning role="alert">
+        {locale === "ja" ? "メニューを更新できません。価格と在庫を確認してください。" : "Menu is unavailable or out of date. Verify prices and stock before adding drinks."}
+        <button type="button" className="small hollow secondary" onClick={() => window.dispatchEvent(new Event("barticket-retry-menu"))}>{locale === "ja" ? "再試行" : "Retry"}</button>
+      </MenuLoadWarning> : null}
       <TicketSidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        tickets={tickets}
+        ticketsForTab={ticketsForTab}
         visibleTickets={visibleTickets}
-        selectedTicketId={selectedTicketId}
+        selectedTicketId={visibleSelectedTicketId ?? 0}
         setSelectedTicketId={setSelectedTicketId}
         setShowTicketDetails={setShowTicketDetails}
         handleCreateTicket={handleCreateTicket}
         getTicketTotal={getTicketTotal}
         lastSelectedTicket={lastSelectedTicket}
         setLastSelectedTicket={setLastSelectedTicket}
-        nightOpen={openShiftId !== null}
+        nightOpen={shiftLookup.status === "ready" && shift?.status === "open"}
         canCreate={canCreate && !tickets.some(ticket => ticket.id < 0)}
       />
 
-      <Content $open={showTicketDetails}>
+      <Content $open={showCurrentDetails}>
         {selectedTicket?.id && selectedTicket.id < 0 ? (
           <EmptyTicketDetails role="status" aria-live="polite">Creating ticket…</EmptyTicketDetails>
         ) : selectedTicket ? (
@@ -239,6 +306,7 @@ export default function Dashboard({
             menu={menu}
             tickets={tickets}
             onUpdateQuantity={updateItemQuantity}
+            onSetCoverWaivers={setCoverWaivers}
             onUpdatePrice={updateItemPrice}
             onAddItem={addItemToTicket}
             onAddStaffDrink={addStaffDrinkToTicket}
@@ -253,7 +321,6 @@ export default function Dashboard({
             activeTab={activeTab}
             onPayTicket={handlePayTicket}
             onReopenTicket={handleReopenTicket}
-            onAdjustCover={adjustCover}
           />
         ) : (
           <EmptyTicketDetails>
@@ -289,10 +356,17 @@ const Content = styled.section<{ $open: boolean }>`
     flex-direction: column;
     position: fixed;
     inset: 0;
+    height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
+    box-sizing: border-box;
     z-index: 1000;
     background: var(--neutral-950);
     border: none;
     padding: var(--space-2);
+    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
   }
 `;
 
@@ -305,3 +379,39 @@ const EmptyTicketDetails = styled.div`
 `;
 
 // something
+const TicketLoadWarning = styled.div`
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--danger-500);
+  border-radius: var(--space-1);
+  button { width: auto; }
+`;
+
+const MenuLoadWarning = styled.div`
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--danger-500);
+  button { width: auto; }
+`;
+
+const ShiftStatusBar = styled.div`
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  font-size: var(--font-size-small);
+  color: var(--neutral-300);
+  padding: 0 var(--space-1);
+  .on-duty { color: var(--success-300); }
+  a { color: var(--neutral-100); text-decoration: underline; text-underline-offset: 3px; }
+`;

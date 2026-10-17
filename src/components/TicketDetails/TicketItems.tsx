@@ -34,21 +34,20 @@ type TicketItemsProps = {
         itemId: number,
         change: number
     ) => void;
+    onSetCoverWaivers: (ticketId: number, count: number) => Promise<boolean>;
 
     onUpdatePrice: (
         ticketId: number,
         itemId: number,
         price: number
-    ) => void;
+    ) => Promise<boolean>;
 
     onRemoveItem: (
         ticketId: number,
         itemId: number
     ) => void;
 
-    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => void;
-
-    onAdjustCover: (ticketId: number, adjustment: { returning_guest_count: number; waived_cover_count: number; returning_from_ticket_id: number | null; reason: string }) => void;
+    onAddStaffDrink: (ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number, details?: { name: string; staffName: string; price: number }) => Promise<boolean>;
 
     onAddItem: (
         ticketId: number,
@@ -56,7 +55,7 @@ type TicketItemsProps = {
         priceKey: keyof Prices,
         unitPrice: number,
         quantity: number
-    ) => void;
+    ) => Promise<boolean>;
 };
 
 export default function TicketItems({
@@ -67,21 +66,24 @@ export default function TicketItems({
     editingPriceItemId,
     setEditingPriceItemId,
     onUpdateQuantity,
+    onSetCoverWaivers,
     onUpdatePrice,
     onRemoveItem,
     onAddItem,
     onAddStaffDrink,
-    onAdjustCover,
 }: TicketItemsProps) {
-    const { openModal, closeModal } = useModal();
+    const { openModal } = useModal();
     const { t, locale } = useI18n();
 
     const isEditable = activeTab === "open";
-    const openCoverModal = (mode: "returning" | "waiver") => {
-        openModal({ title: mode === "returning" ? "Returning Customer / 再来店" : "Waive Cover Charge / チャージ免除",
-            content: <CoverChargeModal ticket={ticket} tickets={tickets} mode={mode}
-                onCancel={closeModal}
-                onSave={(adjustment) => { onAdjustCover(ticket.id, adjustment); closeModal(); }} /> });
+    const openWaiver = () => {
+        if (!isEditable || ticket.id <= 0 || !ticket.items.some(item => item.type === "cover")) return;
+        openModal({
+            title: locale === "ja" ? "カバーチャージ免除" : "Waive cover charge",
+            maxWidth: "480px", fitContent: true,
+            content: <CoverChargeModal key={ticket.id} ticket={ticket}
+                onSave={(count) => onSetCoverWaivers(ticket.id, count)} />,
+        });
     };
 
     return (
@@ -103,16 +105,14 @@ export default function TicketItems({
                                 <AddItemPicker
                                     menu={menu}
                                     tickets={tickets}
-                                    onAddStaffDrink={(staffId, menuItemId, priceKey, quantity, details) => {
-                                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity, details);
-                                        closeModal();
-                                    }}
+                                    onAddStaffDrink={(staffId, menuItemId, priceKey, quantity, details) =>
+                                        onAddStaffDrink(ticket.id, staffId, menuItemId, priceKey, quantity, details)}
                                     onAddItem={(item, priceKey, quantity) => {
                                         const unitPrice = item.prices[priceKey];
 
-                                        if (unitPrice === undefined) return;
+                                        if (unitPrice === undefined) return Promise.resolve(false);
 
-                                        onAddItem(
+                                        return onAddItem(
                                             ticket.id,
                                             item,
                                             priceKey,
@@ -135,23 +135,24 @@ export default function TicketItems({
                     <TicketDetailItem
                         key={item.id}
                         id={item.id}
-                        pending={item.id < 0}
+                        pending={!Number.isInteger(item.id)}
                         name={
                             item.staff_drink
                                 ? [item.staff_name, item.drink_name].filter(Boolean).join(" · ") || item.name
                                 : item.type === "cover"
-                                    ? `${t("coverCharge")}${(ticket.returningGuestCount ?? 0) ? ` · ${ticket.returningGuestCount} returning` : ""}${(ticket.waivedCoverCount ?? 0) ? ` · ${ticket.waivedCoverCount} waived` : ""}`
+                                    ? t("coverCharge")
                                     : menuLabel(
                                         locale,
-                                        menu?.items.find((row) => row.id === item.menu_item_id)?.name ?? item.name,
+                                        activeTab === "open"
+                                            ? (menu?.items.find((row) => row.id === item.menu_item_id)?.name ?? item.name)
+                                            : item.name,
                                     )
                         }
                         unitPrice={item.unit_price}
                         quantity={item.quantity}
-                        subtotal={item.subtotal}
+                        lineSubtotal={item.subtotal}
                         isCover={item.type === "cover"}
-                        onReturningCustomer={() => openCoverModal("returning")}
-                        onWaiveCover={() => openCoverModal("waiver")}
+                        onWaiveCover={item.type === "cover" ? openWaiver : undefined}
                         activeTab={activeTab}
                         isEditingPrice={editingPriceItemId === item.id}
                         onIncrease={() =>
@@ -166,10 +167,12 @@ export default function TicketItems({
                         onAdjustPrice={() => {
                             setEditingPriceItemId(item.id);
                         }}
-                        onSavePrice={(price) => {
-                            onUpdatePrice(ticket.id, item.id, price);
-                            setEditingPriceItemId(null);
+                        onSavePrice={async (price) => {
+                            const saved = await onUpdatePrice(ticket.id, item.id, price);
+                            if (saved) setEditingPriceItemId(null);
+                            return saved;
                         }}
+                        onCancelPrice={() => setEditingPriceItemId(null)}
                     />
                 ))}
             </ItemList>
@@ -212,6 +215,8 @@ const SectionTitle = styled.label`
 const ItemList = styled.div`
     color: white;
     height: 100%;
+    min-height: 0;
+    min-width: 0;
     overflow-x: visible;
     overflow-y: auto;
 

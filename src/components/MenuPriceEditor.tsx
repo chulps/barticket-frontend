@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 
 import type { MenuItem, Prices } from "../types/Menu";
@@ -13,8 +13,15 @@ type MenuPriceEditorProps = {
 };
 
 export default function MenuPriceEditor({ item, onSave }: MenuPriceEditorProps) {
-    const { t } = useI18n();
-    const { closeModal } = useModal();
+    const { t, locale } = useI18n();
+    const { closeModal, forceCloseModal, registerCloseGuard } = useModal();
+    const dirty = useRef(false);
+    const pending = useRef(false);
+    useEffect(() => {
+        registerCloseGuard(() => !pending.current && (!dirty.current || window.confirm(locale === "ja"
+            ? "保存していない変更を破棄しますか？" : "Discard unsaved changes?")));
+        return () => registerCloseGuard(null);
+    }, [locale, registerCloseGuard]);
     const keys = PRICE_KEYS.filter((key) => item.prices?.[key] !== undefined);
     const [values, setValues] = useState<Record<string, string>>(() =>
         Object.fromEntries(keys.map((key) => [key, String(item.prices[key])])),
@@ -24,6 +31,7 @@ export default function MenuPriceEditor({ item, onSave }: MenuPriceEditorProps) 
 
     async function save(event: React.FormEvent) {
         event.preventDefault();
+        if (pending.current) return;
         const prices: Prices = {};
         for (const key of keys) {
             const raw = values[key] ?? "";
@@ -35,19 +43,22 @@ export default function MenuPriceEditor({ item, onSave }: MenuPriceEditorProps) 
             prices[key] = amount;
         }
         setError("");
+        pending.current = true;
         setSaving(true);
         try {
             await onSave(prices);
-            closeModal();
+            dirty.current = false;
+            forceCloseModal();
         } catch {
             // The page shows the error.
         } finally {
+            pending.current = false;
             setSaving(false);
         }
     }
 
     return (
-        <Form onSubmit={save}>
+        <Form onSubmit={save} onChangeCapture={() => { dirty.current = true; }}>
             {keys.map((key) => (
                 <Field key={key}>
                     <Caption>{key === "standard" ? t("price") : key}</Caption>
@@ -68,7 +79,7 @@ export default function MenuPriceEditor({ item, onSave }: MenuPriceEditorProps) 
             ))}
             {error ? <ErrorText>{error}</ErrorText> : null}
             <Actions>
-                <button type="button" className="hollow" onClick={closeModal}>
+                <button type="button" className="hollow" disabled={saving} onClick={closeModal}>
                     {t("cancel")}
                 </button>
                 <button type="submit" disabled={saving}>

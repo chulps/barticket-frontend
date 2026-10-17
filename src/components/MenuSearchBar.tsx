@@ -29,4 +29,9 @@ const SearchContainer = styled.div`
 
 const Input = styled.input`
   width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 44px;
+  font-size: 16px; /* Prevent iOS Safari zoom while filtering drinks. */
+  scroll-margin-top: 84px;
 `;

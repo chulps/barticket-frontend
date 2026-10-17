@@ -7,7 +7,8 @@ import type { PaymentType, Ticket } from "../types/Ticket";
 
 // import api
 import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
-import { useI18n } from "../i18n";
+import { readLocale, useI18n } from "../i18n";
+import { notifyMutation } from "../utils/mutationFeedback";
 import { ACTIVE_REFRESH_MS, isTicketRefreshDue } from "./ticketRefreshPolicy";
 import { projectTicket, type OptimisticEdit } from "./optimisticTickets";
 import { acceptBackgroundSnapshot } from "./refreshSafety";
@@ -17,18 +18,24 @@ import { provisionalTicket, resolveProvisionalTicket, removeProvisionalTicket } 
 const RENAME_DELAY_MS = 500;
 
 function reportError(error: unknown) {
-  console.error(error);
-  window.alert(error instanceof Error ? error.message : String(error));
+  // A timed-out write may already have committed. Avoid suggesting blind retries.
+  console.warn("Ticket operation could not be confirmed", error);
+  notifyMutation("error", readLocale() === "ja" ? "変更を確認できませんでした。再実行する前に伝票を確認してください。" : "Ticket update not confirmed. Check the ticket before retrying.");
 }
 
 export function useTickets() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
+  const [ticketsError, setTicketsError] = useState(false);
 
   // latest tickets for async callbacks, which would otherwise see stale state
   const ticketsRef = useRef<Ticket[]>([]);
   // one request chain per ticket so rapid clicks build on the latest server state
   const queues = useRef(new Map<number, Promise<unknown>>());
+  // Terminal operations (pay/cancel/reopen) must not accept new item, name or
+  // quantity writes until their server outcome has been reconciled.
+  const terminalPending = useRef(new Set<number>());
   // names typed but not saved yet; server responses must not overwrite them
   const pendingNames = useRef(new Map<number, string>());
   const renameTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -36,7 +43,8 @@ export function useTickets() {
   const confirmed = useRef(new Map<number, Ticket>());
   const overlays = useRef(new Map<number, OptimisticEdit[]>());
   const nextKey = useRef(1);
-  const nextTempId = useRef(-1);
+  // Provisional IDs are fractional: backend item IDs (including negative staff-drink IDs) are integers.
+  const nextTempId = useRef(-0.5);
 
   const project = (ticket: Ticket) => {
     const projected = projectTicket(ticket, overlays.current.get(ticket.id) ?? []);
@@ -89,7 +97,11 @@ export function useTickets() {
     ticketId: number,
     request: (current: Ticket | undefined) => Promise<ApiTicket> | null,
     transform?: (ticket: Ticket) => Ticket,
+    terminalWrite = false,
   ): Promise<Ticket | null> => {
+    if (terminalPending.current.has(ticketId) && !terminalWrite) {
+      return Promise.resolve(null);
+    }
     const key = transform ? addOverlay(ticketId, transform) : null;
     pendingWrites.current += 1;
     localRevision.current += 1;
@@ -144,6 +156,7 @@ export function useTickets() {
           cancelled,
         });
         if (loaded === null) return;
+        setTicketsError(false);
         // Never overwrite a name being edited or awaiting its debounced save.
         const next = loaded.map((ticket) => {
           const pendingName = pendingNames.current.get(ticket.id);
@@ -154,12 +167,14 @@ export function useTickets() {
         setTickets(next);
       } catch (error) {
         if (!cancelled) {
+          setTicketsError(true);
           if (!initialErrorReported) {
             initialErrorReported = true;
             reportError(error);
           } else console.warn("Unable to refresh tickets", error);
         }
       } finally {
+        if (!cancelled) setTicketsLoading(false);
         fetching = false;
       }
     };
@@ -188,6 +203,8 @@ export function useTickets() {
     window.addEventListener("keydown", markActivity);
     window.addEventListener("focus", onFocus);
     window.addEventListener("barticket-push", onFocus);
+    window.addEventListener("barticket-api-restored", onFocus);
+    window.addEventListener("barticket-retry-tickets", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
@@ -196,6 +213,8 @@ export function useTickets() {
       window.removeEventListener("keydown", markActivity);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("barticket-push", onFocus);
+      window.removeEventListener("barticket-api-restored", onFocus);
+      window.removeEventListener("barticket-retry-tickets", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
@@ -206,7 +225,7 @@ export function useTickets() {
     itemId: number,
     change: number,
   ) => {
-    if (itemId < 0) return; // Wait for a real server ID on newly added rows.
+    if (!Number.isInteger(itemId)) return; // Provisional rows must resolve before editing.
     void enqueue(ticketId, (current) => {
       const item = current?.items.find((i) => i.id === itemId);
       if (!item) return null;
@@ -214,37 +233,47 @@ export function useTickets() {
       const quantity = Math.max(1, item.quantity + change);
       if (quantity === item.quantity) return null;
 
-      if (item.type === "cover" && quantity < (current?.returningGuestCount ?? 0) + (current?.waivedCoverCount ?? 0)) return null;
       return item.type === "cover"
         ? ticketsApi.setGuests(ticketId, quantity)
         : ticketsApi.updateItem(ticketId, itemId, { quantity });
     }, ticket => ({ ...ticket, items: ticket.items.map(item => {
       if (item.id !== itemId) return item;
       const quantity = Math.max(1, item.quantity + change);
-      const subtotal = item.type === "cover"
-        ? Math.max(0, quantity - (ticket.returningGuestCount ?? 0) - (ticket.waivedCoverCount ?? 0)) * item.unit_price
-        : quantity * item.unit_price;
-      return { ...item, quantity, subtotal };
-    }) }));
+      // Optimistic count changes must not temporarily re-charge waived covers.
+      const waived = item.type === "cover" ? Math.min(quantity, ticket.waivedCoverCount ?? 0) : 0;
+      return { ...item, quantity, subtotal: (quantity - waived) * item.unit_price };
+    }) })).then(saved => {
+      if (saved) notifyMutation("success", locale === "ja" ? "数量を更新しました" : "Quantity updated");
+    });
   };
 
-  const updateItemPrice = (ticketId: number, itemId: number, price: number) => {
+  /** Waiver changes are confirmed by the backend; no speculative total updates. */
+  const setCoverWaivers = async (ticketId: number, count: number): Promise<boolean> => {
+    if (!Number.isSafeInteger(ticketId) || !Number.isSafeInteger(count) || terminalPending.current.has(ticketId)) return false;
+    const current = confirmed.current.get(ticketId);
+    if (!current || current.status !== "open" || count < 0 || count > (current.guestCount ?? 0)) return false;
+    const saved = await enqueue(ticketId, () => ticketsApi.setCoverWaivers(ticketId, count));
+    if (saved) notifyMutation("success", locale === "ja" ? "カバーチャージ免除を保存しました" : "Cover waiver saved");
+    return saved !== null;
+  };
+
+  const updateItemPrice = async (ticketId: number, itemId: number, price: number): Promise<boolean> => {
     if (itemId === COVER_ITEM_ID) {
       window.alert(t("coverPriceFixed"));
-      return;
+      return false;
     }
-    if (!Number.isFinite(price) || price < 0) {
+    if (!Number.isSafeInteger(price) || price < 0) {
       window.alert(t("priceMinimum"));
-      return;
+      return false;
     }
-
-    if (itemId < 0) return;
-    const rounded = Math.round(price);
-    void enqueue(ticketId, () =>
-      ticketsApi.updateItem(ticketId, itemId, { unit_price: rounded }),
+    if (!Number.isInteger(itemId)) return false;
+    const saved = await enqueue(ticketId, () =>
+      ticketsApi.updateItem(ticketId, itemId, { unit_price: price }),
       ticket => ({ ...ticket, items: ticket.items.map(item => item.id === itemId
-        ? { ...item, unit_price: rounded, subtotal: item.quantity * rounded } : item) }),
+        ? { ...item, unit_price: price, subtotal: item.quantity * price } : item) }),
     );
+    if (saved) notifyMutation("success", locale === "ja" ? "価格を保存しました" : "Price saved");
+    return saved !== null;
   };
 
   const addItemToTicket = (
@@ -253,24 +282,24 @@ export function useTickets() {
     priceKey: keyof Prices,
     _unitPrice?: number,
     quantity = 1,
-  ) => {
-    if (menuItem.inStock === false || quantity < 1) return;
+  ): Promise<boolean> => {
+    if (menuItem.inStock === false || quantity < 1) return Promise.resolve(false);
     const price = menuItem.prices?.[priceKey];
-    if (typeof price !== "number") return;
+    if (typeof price !== "number") return Promise.resolve(false);
     const temporaryId = nextTempId.current--;
-    void enqueue(ticketId, () => ticketsApi.addItem(ticketId, menuItem.id, priceKey, quantity),
+    return enqueue(ticketId, () => ticketsApi.addItem(ticketId, menuItem.id, priceKey, quantity),
       ticket => ({ ...ticket, items: [...ticket.items, {
         id: temporaryId, type: "menu", menu_item_id: menuItem.id, price_key: priceKey,
         name: menuItem.name, unit_price: price, quantity, subtotal: price * quantity,
-      }] }));
+      }] })).then(saved => saved !== null);
   };
 
   const addStaffDrinkToTicket = (
     ticketId: number, staffId: number, menuItemId: number | null, priceKey: string, quantity: number,
     details?: { name: string; staffName: string; price: number },
-  ) => {
+  ): Promise<boolean> => {
     const temporaryId = nextTempId.current--;
-    void enqueue(ticketId, () => ticketsApi.addStaffDrink(ticketId, staffId, menuItemId, priceKey, quantity),
+    return enqueue(ticketId, () => ticketsApi.addStaffDrink(ticketId, staffId, menuItemId, priceKey, quantity),
       details && Number.isFinite(details.price)
         ? ticket => ({ ...ticket, items: [...ticket.items, {
             id: temporaryId, type: "menu", menu_item_id: menuItemId, price_key: priceKey,
@@ -278,7 +307,7 @@ export function useTickets() {
             name: details.name, unit_price: details.price, quantity,
             subtotal: details.price * quantity,
           }] })
-        : undefined);
+        : undefined).then(saved => saved !== null);
   };
 
   const flushRename = (ticketId: number) => {
@@ -298,6 +327,9 @@ export function useTickets() {
       if (pendingNames.current.get(ticketId) !== name) return;
 
       pendingNames.current.delete(ticketId);
+      if (saved) {
+        notifyMutation("success", locale === "ja" ? "伝票名を保存しました" : "Ticket name saved");
+      }
       if (saved === null) {
         // Save failed: show the name the backend actually has.
         try {
@@ -310,6 +342,7 @@ export function useTickets() {
   };
 
   const updateTicketName = (ticketId: number, name: string) => {
+    if (terminalPending.current.has(ticketId)) return;
     pendingNames.current.set(ticketId, name);
     commit(
       ticketsRef.current.map((ticket) =>
@@ -333,9 +366,10 @@ export function useTickets() {
       return;
     }
 
-    if (itemId < 0) return;
+    if (!Number.isInteger(itemId)) return;
     void enqueue(ticketId, () => ticketsApi.removeItem(ticketId, itemId),
-      ticket => ({ ...ticket, items: ticket.items.filter(item => item.id !== itemId) }));
+      ticket => ({ ...ticket, items: ticket.items.filter(item => item.id !== itemId) }))
+      .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "商品を削除しました" : "Item removed"); });
   };
 
   // Creating a ticket is optimistic only until the server assigns an ID.
@@ -355,6 +389,7 @@ export function useTickets() {
         const response = await ticketsApi.create();
         // Replace the temporary row atomically, avoiding duplicate tickets.
         const saved = toTicket(response);
+        notifyMutation("success", locale === "ja" ? "伝票を作成しました" : "Ticket created");
         confirmed.current.set(saved.id, saved);
         commit(resolveProvisionalTicket(ticketsRef.current, temporaryId, project(saved)));
         return saved;
@@ -373,29 +408,42 @@ export function useTickets() {
     return { temporaryId, completion };
   };
 
-  const cancelTicket = (ticketId: number) => {
+  // Financial and terminal transitions cannot be queued twice by double taps.
+  // A transport timeout may still have committed; never replay automatically.
+  const terminalMutation = (
+    ticketId: number,
+    expected: "open" | "closed",
+    request: () => Promise<Ticket | null>,
+  ): Promise<Ticket | null> => {
+    const status = confirmed.current.get(ticketId)?.status;
+    if (!Number.isSafeInteger(ticketId) || terminalPending.current.has(ticketId) ||
+        (expected === "open" ? status !== "open" : status === undefined || status === "open")) {
+      return Promise.resolve(null);
+    }
+    // Flush the existing name first, before blocking all new edits. The
+    // queued terminal write then observes the updated server state.
     flushRename(ticketId);
-    return enqueue(ticketId, () => ticketsApi.cancel(ticketId));
+    terminalPending.current.add(ticketId);
+    return request().finally(() => terminalPending.current.delete(ticketId));
   };
 
-  const payTicket = (ticketId: number, paymentType: PaymentType) => {
-    flushRename(ticketId);
-    return enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType));
-  };
+  const cancelTicket = (ticketId: number) =>
+    terminalMutation(ticketId, "open", () => enqueue(ticketId, () => ticketsApi.cancel(ticketId), undefined, true))
+      .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票をキャンセルしました" : "Ticket cancelled"); return saved; });
 
-  const reopenTicket = (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => {
-    flushRename(ticketId);
-    return enqueue(ticketId, () => ticketsApi.reopen(ticketId, reason));
-  };
+  const payTicket = (ticketId: number, paymentType: PaymentType) =>
+    terminalMutation(ticketId, "open", () => enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType), undefined, true));
 
-  const adjustCover = (ticketId: number, adjustment: { returning_guest_count: number; waived_cover_count: number; returning_from_ticket_id: number | null; reason: string }) => {
-    flushRename(ticketId);
-    return enqueue(ticketId, () => ticketsApi.adjustCover(ticketId, adjustment));
-  };
+  const reopenTicket = (ticketId: number) =>
+    terminalMutation(ticketId, "closed", () => enqueue(ticketId, () => ticketsApi.reopen(ticketId), undefined, true))
+      .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票を再開しました" : "Ticket reopened"); return saved; });
 
   return {
     tickets,
+    ticketsLoading,
+    ticketsError,
     updateItemQuantity,
+    setCoverWaivers,
     updateItemPrice,
     addItemToTicket,
     addStaffDrinkToTicket,
@@ -405,6 +453,5 @@ export function useTickets() {
     cancelTicket,
     payTicket,
     reopenTicket,
-    adjustCover,
   };
 }

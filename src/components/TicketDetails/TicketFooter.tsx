@@ -11,6 +11,9 @@ import type { PaymentType, Ticket } from "../../types/Ticket";
 
 type TicketFooterProps = {
     ticket: Ticket;
+    closing: boolean;
+    onEnterClose: () => void;
+    onBackToItems: () => void;
     activeTab: "open" | "paid" | "cancelled";
     total: number;
 
@@ -21,11 +24,14 @@ type TicketFooterProps = {
         paymentType: PaymentType,
     ) => Promise<boolean>;
 
-    onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => void;
+    onReopenTicket: (ticketId: number) => void;
 };
 
 export default function TicketFooter({
     ticket,
+    closing,
+    onEnterClose,
+    onBackToItems,
     activeTab,
     total,
     onCancelTicket,
@@ -41,17 +47,27 @@ export default function TicketFooter({
                     <label>{t("total")}</label>
                     <data>¥{total.toLocaleString()}</data>
                 </Row>
-                {(ticket.amountPaid ?? 0) > 0 && (
-                    <Row><label>Already paid / 支払済</label><data>−¥{ticket.amountPaid?.toLocaleString()}</data></Row>
-                )}
-                {ticket.status === "open" && (
-                    <Row><strong>Balance due / 残額</strong><strong>¥{(ticket.balanceDue ?? Math.max(0, total - (ticket.amountPaid ?? 0))).toLocaleString()}</strong></Row>
-                )}
+                {(ticket.waivedCoverCount ?? 0) > 0 ? <Row>
+                    <small>{ticket.waivedCoverCount} waived / チャージ免除</small>
+                    <small>{ticket.guestCount ?? 0} guests / 来店人数</small>
+                </Row> : null}
+                {ticket.amountPaid !== undefined && ticket.amountPaid > 0 ? <Row>
+                    <small>Already paid / 支払済</small>
+                    <small>¥{ticket.amountPaid.toLocaleString()}</small>
+                </Row> : null}
+                {ticket.balanceDue !== undefined && ticket.status === "open" ? <Row>
+                    <strong>Balance due / 残額</strong>
+                    <strong>¥{ticket.balanceDue.toLocaleString()}</strong>
+                </Row> : null}
             </Totals>
 
             <Actions>
                 <TicketActions
+                    key={ticket.id}
                     ticket={ticket}
+                    closing={closing}
+                    onEnterClose={onEnterClose}
+                    onBackToItems={onBackToItems}
                     activeTab={activeTab}
                     onCancelTicket={onCancelTicket}
                     onPayTicket={onPayTicket}
@@ -69,6 +85,15 @@ const Footer = styled.footer`
     gap: var(--space-1);
     padding-top: var(--space-1);
     border-top: 1px solid var(--neutral-800);
+
+    @media (max-width: 767px) {
+        position: sticky;
+        bottom: 0;
+        z-index: 5;
+        flex-shrink: 0;
+        background: var(--neutral-950);
+        padding-bottom: calc(var(--space-1) + env(safe-area-inset-bottom, 0px));
+    }
 
     @media (min-width: 768px) {
         padding-top: var(--space-3);

@@ -10,17 +10,23 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - name: Frontend unit tests
         run: node --test tests/*.test.mjs
+      - name: Frontend security source audit
+        run: node scripts/audit-frontend-security.mjs
       - name: TypeScript and production build
         run: npm run build
+      - name: Verify no source maps are published
+        run: node scripts/audit-frontend-security.mjs --dist
       - name: ESLint (changed frontend files)
-        run: npx eslint src/hooks/useTickets.ts src/hooks/ticketRefreshPolicy.ts src/components/AddItemPicker.tsx src/components/quickEntry.ts src/components/topDrinks.ts src/pages/Dashboard.tsx src/components/TicketDetails/Ticket.tsx src/components/TicketDetails/TicketItems.tsx src/hooks/optimisticOperations.ts src/hooks/optimisticTickets.ts src/pages/Menu.tsx src/pages/Notifications.tsx src/App.tsx src/components/MenuCategory.tsx src/components/MenuItemRow.tsx src/components/topSellingItems.ts src/pages/Analytics.tsx src/pages/analyticsLegacy.ts src/pages/analyticsNavigation.ts src/pages/analyticsCurrentShift.ts src/pages/OpenShiftOverview.tsx src/components/AnalyticsCharts.tsx src/api/client.ts src/api/push.ts src/api/pushEvents.ts src/components/PushSettings.tsx src/hooks/refreshSafety.ts src/main.tsx
+        run: npx eslint src/hooks/useTickets.ts src/hooks/ticketRefreshPolicy.ts src/components/AddItemPicker.tsx src/components/quickEntry.ts src/components/topDrinks.ts src/pages/Dashboard.tsx src/components/TicketDetails/Ticket.tsx src/components/TicketDetails/TicketItems.tsx src/hooks/optimisticOperations.ts src/hooks/optimisticTickets.ts src/pages/Menu.tsx src/pages/Notifications.tsx src/App.tsx src/components/MenuCategory.tsx src/components/MenuItemRow.tsx src/components/topSellingItems.ts src/pages/Analytics.tsx src/pages/analyticsLegacy.ts src/pages/analyticsNavigation.ts src/pages/analyticsCurrentShift.ts src/pages/OpenShiftOverview.tsx src/components/AnalyticsCharts.tsx src/api/client.ts src/api/push.ts src/api/pushEvents.ts src/components/PushSettings.tsx src/hooks/refreshSafety.ts src/main.tsx src/pages/Admin.tsx src/pages/AdminTeam.tsx src/pages/AdminManagerShare.tsx src/pages/managerRevenueShare.ts src/pages/managerRevenueShareAccess.ts

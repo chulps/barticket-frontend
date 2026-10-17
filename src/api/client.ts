@@ -1,8 +1,26 @@
+// Shared in-memory connectivity state. A 401/403 is an application response,
+// not proof that the backend is down. Never automatically replay a write.
+let apiAvailable = true;
+
+export function isApiAvailable(): boolean {
+    return apiAvailable;
+}
+
+export function noteApiAvailability(available: boolean): void {
+    if (apiAvailable === available) return;
+    apiAvailable = available;
+    window.dispatchEvent(new Event("barticket-api-status"));
+    if (available) window.dispatchEvent(new Event("barticket-api-restored"));
+}
+
 // api/client.ts
 
-export const API_URL = (
-    import.meta.env.VITE_API_URL || "http://localhost:8000"
-).replace(/\/$/, "");
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
+if (import.meta.env.PROD && !configuredApiUrl) {
+    // Production must never silently call the visitor's localhost.
+    throw new Error("BarTicket API URL is not configured for production.");
+}
+export const API_URL = (configuredApiUrl || "http://localhost:8000").replace(/\/$/, "");
 
 const TOKEN_KEY = "barticket_token";
 const DEVICE_KEY = "barticket_device_id";
@@ -36,8 +54,8 @@ async function revokePushForSession(previousToken: string): Promise<void> {
 export function setToken(token: string | null) {
     const previousToken = localStorage.getItem(TOKEN_KEY);
     if (previousToken && previousToken !== token) {
-        void revokePushForSession(previousToken).catch((error) =>
-            console.warn("Unable to revoke push subscription on sign out", error),
+        void revokePushForSession(previousToken).catch(() =>
+            console.warn("Unable to revoke push subscription on sign out"),
         );
     }
     if (token) localStorage.setItem(TOKEN_KEY, token);
@@ -63,11 +81,20 @@ export async function apiRequest<T>(
     if (token) headers.Authorization = `Bearer ${token}`;
     if (options.body !== undefined) headers["Content-Type"] = "application/json";
 
-    const res = await fetch(`${API_URL}${path}`, {
-        method: options.method ?? "GET",
-        headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    });
+    let res: Response;
+    try {
+        res = await fetch(`${API_URL}${path}`, {
+            method: options.method ?? "GET",
+            headers,
+            body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        });
+    } catch (error) {
+        noteApiAvailability(false);
+        // Writes may have reached the server before the connection failed.
+        // Do not retry them automatically.
+        throw error;
+    }
+    noteApiAvailability(res.status < 500);
 
     if (!res.ok) {
         let message = `Request failed (${res.status})`;

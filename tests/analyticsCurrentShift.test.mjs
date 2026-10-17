@@ -139,31 +139,3 @@ test("Live dashboard displays only when selected Daily shift is open; archived l
     assert.match(dashboard, /clockedInTeam\(shift, members\)/);
     assert.match(dashboard, /Shift IN PROGRESS|SHIFT IN PROGRESS/);
 });
-
-test("Reopened paid tab preserves collected cash and adds only the new payment to revenue", () => {
-    const current = shift(42, "2026-10-12", "open");
-    const reopened = { ...ticket(7, 42, "open", "cash", [["cover", 1, 500], ["menu", 1, 1100]]),
-        guestCount: 1, returningGuestCount: 0,
-        payments: [{ type: "cash", amount: 500, paid_at: 100 }] };
-    const report = liveAnalyticsShift(current, [reopened]);
-    assert.equal(report?.paid_total, 500);
-    assert.equal(report?.cash_total, 500);
-    assert.equal(report?.guest_count, 1);
-    assert.equal(report?.paid_count, 0);
-});
-
-test("Returning guest with three friends counts three new visitors and only paid covers", () => {
-    const current = shift(42, "2026-10-12", "open");
-    const first = { ...ticket(1, 42, "paid", "cash", [["cover", 1, 500]]),
-        guestCount: 1, returningGuestCount: 0, amountPaid: 500,
-        payments: [{ type: "cash", amount: 500, paid_at: 100 }] };
-    const group = { ...ticket(2, 42, "paid", "card", [["cover", 4, 1000]]),
-        guestCount: 4, returningGuestCount: 1, waivedCoverCount: 1,
-        amountPaid: 1000, payments: [{ type: "card", amount: 1000, paid_at: 200 }] };
-    const report = liveAnalyticsShift(current, [first, group]);
-    assert.equal(report?.guest_count, 4);
-    assert.equal(report?.cover_total, 1500);
-    assert.equal(report?.paid_total, 1500);
-    assert.equal(report?.cash_total, 500);
-    assert.equal(report?.card_total, 1000);
-});

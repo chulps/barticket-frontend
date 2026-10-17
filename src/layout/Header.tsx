@@ -25,40 +25,50 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
 
   useEffect(() => {
     let cancelled = false;
+    let generation = 0;
     async function loadRole() {
-      if (!getToken()) {
+      const request = ++generation;
+      const token = getToken();
+      if (!token) {
         if (!cancelled) {
           setIsManager(false);
           setUserName(null);
           setClockedIn(false);
+          setAlertCount(0);
+          setIsOpen(false);
+          setMoreOpen(false);
         }
         return;
       }
       try {
         const me = await accountApi.me();
         const shift = await accountApi.currentShift();
-        if (cancelled) return;
+        if (cancelled || request !== generation || getToken() !== token) return;
         setIsManager(me.role === "manager");
         setUserName(me.name.trim() || null);
         setClockedIn(
           Boolean(shift?.punches.some((punch) => punch.user_id === me.id && punch.clock_out === null)),
         );
       } catch {
-        if (!cancelled) {
+        if (!cancelled && request === generation && getToken() === token) {
           setIsManager(false);
           setUserName(null);
           setClockedIn(false);
+          setAlertCount(0);
         }
       }
     }
-    loadRole();
+    void loadRole();
     const timer = window.setInterval(loadRole, 20000);
     window.addEventListener("barticket-auth", loadRole);
+    window.addEventListener("barticket-shift-updated", loadRole);
     window.addEventListener("focus", loadRole);
     return () => {
       cancelled = true;
+      generation++;
       window.clearInterval(timer);
       window.removeEventListener("barticket-auth", loadRole);
+      window.removeEventListener("barticket-shift-updated", loadRole);
       window.removeEventListener("focus", loadRole);
     };
   }, []);
@@ -188,6 +198,17 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           </SecondaryNavLink>
         ) : null}
 
+        {isManager ? (
+          <SecondaryNavLink onClick={() => setIsOpen(false)} to="/admin">
+            {({ isActive }) => (
+              <>
+                <Icon name="GearSix" weight={isActive ? "fill" : "regular"} />
+                {locale === "ja" ? "管理" : "Admin"}
+              </>
+            )}
+          </SecondaryNavLink>
+        ) : null}
+
         <SecondaryNavLink
           onClick={() => setIsOpen(false)}
           to="/profile">
@@ -202,7 +223,12 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           )}
         </SecondaryNavLink>
 
-        </NavTabs> : null}
+        </NavTabs> : (
+          <PublicMenuLink to="/menu" onClick={() => setIsOpen(false)}>
+            <Icon name="Book" />
+            {t("drinkMenu")}
+          </PublicMenuLink>
+        )}
 
       <MobileTools>
       <LanguageToggle
@@ -237,6 +263,11 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           </MoreButton>
           {moreOpen ? (
             <MoreDropdown id="desktop-more-menu">
+              {isManager ? (
+                <MoreLink to="/admin" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+                  <Icon name="GearSix" />{locale === "ja" ? "管理" : "Admin"}
+                </MoreLink>
+              ) : null}
               <MoreLink to="/profile" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
                 <Icon name="UserCircle" />{userName ?? t("profile")}
               </MoreLink>
@@ -570,4 +601,15 @@ const SecondaryNavLink = styled(NavLink)`
   @media (min-width: 769px) {
     display: none;
   }
+`;
+
+const PublicMenuLink = styled(RouterNavLink)`
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-0);
+  padding: var(--space-1);
+  color: var(--neutral-200);
+  text-decoration: none;
+  white-space: nowrap;
+  &:hover, &:focus-visible { color: white; }
 `;
