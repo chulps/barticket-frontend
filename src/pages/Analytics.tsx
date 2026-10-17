@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import styled from "styled-components";
+import RequestState from "../components/RequestState";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ticketsApi, toTicket } from "../api/tickets";
@@ -672,10 +673,8 @@ export default function Analytics() {
         <Page>
             <h1>{t("analytics")}</h1>
             {!signedIn ? <p>{t("signInForShifts")}</p> : null}
-            {signedIn && loading && !shifts ? <p role="status" aria-live="polite">{locale === "ja" ? "分析データを読み込み中…" : "Loading analytics…"}</p> : null}
-            {error ? <div role="alert"><p>{error}</p>
-                <button type="button" className="small hollow secondary" onClick={() => window.location.reload()}>{locale === "ja" ? "再試行" : "Retry"}</button>
-            </div> : null}
+            {signedIn && loading && !shifts ? <RequestState kind="loading" detail={locale === "ja" ? "分析データを読み込み中…" : "Loading analytics…"} /> : null}
+            {error ? <RequestState kind="error" detail={error} onRetry={() => window.location.reload()} /> : null}
             {account && shifts ? (
                 <>
                     <TabGroup
