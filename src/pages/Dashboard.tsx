@@ -96,6 +96,7 @@ export default function Dashboard({
     window.addEventListener("focus", load);
     window.addEventListener("barticket-auth", load);
     window.addEventListener("barticket-api-restored", load);
+    window.addEventListener("barticket-shift-updated", load);
     window.addEventListener("barticket-retry-shift", load);
     return () => {
       cancelled = true;
@@ -104,6 +105,7 @@ export default function Dashboard({
       window.removeEventListener("focus", load);
       window.removeEventListener("barticket-auth", load);
       window.removeEventListener("barticket-api-restored", load);
+      window.removeEventListener("barticket-shift-updated", load);
       window.removeEventListener("barticket-retry-shift", load);
     };
   }, []);
