@@ -8,7 +8,7 @@ import styled from "styled-components";
 
 // UI components
 import TicketDetailItem from "./TicketItem";
-import CoverChargeModal from "./CoverChargeModal";
+import CoverChargeModal, { type CoverAdjustment } from "./CoverChargeModal";
 import Icon from "../Icon";
 import AddItemPicker from "../AddItemPicker";
 
@@ -34,7 +34,7 @@ type TicketItemsProps = {
         itemId: number,
         change: number
     ) => void;
-    onSetCoverWaivers: (ticketId: number, count: number) => Promise<boolean>;
+    onAdjustCover: (ticketId: number, adjustment: CoverAdjustment) => Promise<boolean>;
 
     onUpdatePrice: (
         ticketId: number,
@@ -66,7 +66,7 @@ export default function TicketItems({
     editingPriceItemId,
     setEditingPriceItemId,
     onUpdateQuantity,
-    onSetCoverWaivers,
+    onAdjustCover,
     onUpdatePrice,
     onRemoveItem,
     onAddItem,
@@ -76,13 +76,16 @@ export default function TicketItems({
     const { t, locale } = useI18n();
 
     const isEditable = activeTab === "open";
-    const openWaiver = () => {
+    const openCoverAdjustment = (mode: "waiver" | "returning") => {
         if (!isEditable || ticket.id <= 0 || !ticket.items.some(item => item.type === "cover")) return;
         openModal({
-            title: locale === "ja" ? "カバーチャージ免除" : "Waive cover charge",
-            maxWidth: "480px", fitContent: true,
-            content: <CoverChargeModal key={ticket.id} ticket={ticket}
-                onSave={(count) => onSetCoverWaivers(ticket.id, count)} />,
+            title: mode === "waiver"
+                ? (locale === "ja" ? "カバーチャージ免除" : "Waive cover charge")
+                : (locale === "ja" ? "再来店のお客様" : "Returning customer"),
+            maxWidth: "480px",
+            fitContent: true,
+            content: <CoverChargeModal key={ticket.id + "-" + mode} ticket={ticket} tickets={tickets} mode={mode}
+                onSave={(adjustment) => onAdjustCover(ticket.id, adjustment)} />,
         });
     };
 
@@ -152,7 +155,8 @@ export default function TicketItems({
                         quantity={item.quantity}
                         lineSubtotal={item.subtotal}
                         isCover={item.type === "cover"}
-                        onWaiveCover={item.type === "cover" ? openWaiver : undefined}
+                        onWaiveCover={item.type === "cover" ? () => openCoverAdjustment("waiver") : undefined}
+                        onReturningCustomer={item.type === "cover" ? () => openCoverAdjustment("returning") : undefined}
                         activeTab={activeTab}
                         isEditingPrice={editingPriceItemId === item.id}
                         onIncrease={() =>
