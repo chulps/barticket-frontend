@@ -27,6 +27,15 @@ export type ApiTicket = {
     guest_count: number;
     cover_charge_per_person: number;
     cover_charge_total: number;
+    returning_guest_count?: number;
+    waived_cover_count?: number;
+    returning_from_ticket_id?: number | null;
+    cover_adjusted_by?: string | null;
+    cover_adjustment_reason?: string | null;
+    cover_adjusted_at?: number | null;
+    amount_paid?: number;
+    balance_due?: number;
+    payments?: { type: PaymentType; amount: number; paid_at: number; voided_at?: number | null; voided_by?: string | null }[];
     total: number;
     created_at: number;
     paid_at: number | null;
@@ -77,8 +86,19 @@ export function toTicket(api: ApiTicket): Ticket {
         created_by: api.created_by,
         shiftId: api.shift_id,
         payment: api.payment
-            ? { type: api.payment.type, paid_at: api.payment.paid_at }
+            ? { type: api.payment.type, amount: api.payment.amount, paid_at: api.payment.paid_at }
             : null,
+        payments: api.payments ?? [],
+        amountPaid: api.amount_paid ?? (api.status === "paid" ? api.total : 0),
+        balanceDue: api.balance_due ?? (api.status === "paid" ? 0 : api.total),
+        guestCount: api.guest_count,
+        returningGuestCount: api.returning_guest_count ?? 0,
+        waivedCoverCount: api.waived_cover_count ?? 0,
+        returningFromTicketId: api.returning_from_ticket_id ?? null,
+        coverChargePerPerson: api.cover_charge_per_person,
+        coverAdjustedBy: api.cover_adjusted_by ?? null,
+        coverAdjustmentReason: api.cover_adjustment_reason ?? null,
+        coverAdjustedAt: api.cover_adjusted_at ?? null,
     };
 }
 
@@ -141,6 +161,13 @@ export const ticketsApi = {
     cancel: (ticketId: number) =>
         apiRequest<ApiTicket>(`/tickets/${ticketId}/cancel`, { method: "POST" }),
 
-    reopen: (ticketId: number) =>
-        apiRequest<ApiTicket>(`/tickets/${ticketId}/reopen`, { method: "POST" }),
+    reopen: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") =>
+        apiRequest<ApiTicket>(`/tickets/${ticketId}/reopen`, { method: "POST", body: { reason } }),
+
+    adjustCover: (ticketId: number, adjustment: {
+        returning_guest_count: number;
+        waived_cover_count: number;
+        returning_from_ticket_id: number | null;
+        reason: string;
+    }) => apiRequest<ApiTicket>(`/tickets/${ticketId}/cover`, { method: "PATCH", body: adjustment }),
 };
