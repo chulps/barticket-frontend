@@ -316,6 +316,8 @@ test("staff cover waiver requires only count and Save while preserving full gues
   const action=page.getByRole("button",{name:"Actions for Cover Charge"});
   await action.click();
   const popup=page.getByRole("menu",{name:"Actions for Cover Charge"});
+  await expect(popup).toBeVisible();
+  console.log("COVER MENU TEXT",await popup.innerText());
   await expect(popup.getByRole("menuitem",{name:/Waive cover charge/i})).toBeVisible();
   await popup.getByRole("menuitem",{name:/Waive cover charge/i}).click();
   const dialog=page.getByRole("dialog");
