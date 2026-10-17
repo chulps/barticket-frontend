@@ -239,10 +239,22 @@ export function useTickets() {
     }, ticket => ({ ...ticket, items: ticket.items.map(item => {
       if (item.id !== itemId) return item;
       const quantity = Math.max(1, item.quantity + change);
-      return { ...item, quantity, subtotal: quantity * item.unit_price };
+      // Optimistic count changes must not temporarily re-charge waived covers.
+      const waived = item.type === "cover" ? Math.min(quantity, ticket.waivedCoverCount ?? 0) : 0;
+      return { ...item, quantity, subtotal: (quantity - waived) * item.unit_price };
     }) })).then(saved => {
       if (saved) notifyMutation("success", locale === "ja" ? "数量を更新しました" : "Quantity updated");
     });
+  };
+
+  /** Waiver changes are confirmed by the backend; no speculative total updates. */
+  const setCoverWaivers = async (ticketId: number, count: number): Promise<boolean> => {
+    if (!Number.isSafeInteger(ticketId) || !Number.isSafeInteger(count) || terminalPending.current.has(ticketId)) return false;
+    const current = confirmed.current.get(ticketId);
+    if (!current || current.status !== "open" || count < 0 || count > (current.guestCount ?? 0)) return false;
+    const saved = await enqueue(ticketId, () => ticketsApi.setCoverWaivers(ticketId, count));
+    if (saved) notifyMutation("success", locale === "ja" ? "カバーチャージ免除を保存しました" : "Cover waiver saved");
+    return saved !== null;
   };
 
   const updateItemPrice = async (ticketId: number, itemId: number, price: number): Promise<boolean> => {
@@ -431,6 +443,7 @@ export function useTickets() {
     ticketsLoading,
     ticketsError,
     updateItemQuantity,
+    setCoverWaivers,
     updateItemPrice,
     addItemToTicket,
     addStaffDrinkToTicket,
