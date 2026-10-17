@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, useMatch, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
+import RequestState from "../components/RequestState";
 
 import { accountApi, type Account } from "../api/account";
 import { ApiError, getToken } from "../api/client";
@@ -141,14 +142,11 @@ export default function Admin() {
         });
     }
 
-    if (loading) return <Page><h1>{locale === "ja" ? "管理" : "Admin"}</h1><p role="status" aria-live="polite">{t("loading")}</p></Page>;
+    if (loading) return <Page><h1>{locale === "ja" ? "管理" : "Admin"}</h1><RequestState kind="loading" detail={t("loading")} /></Page>;
     if (!me && error) return (
         <Page>
             <h1>{locale === "ja" ? "管理" : "Admin"}</h1>
-            <ErrorText role="alert">{error}</ErrorText>
-            <button type="button" className="small secondary" onClick={() => window.location.reload()}>
-                {locale === "ja" ? "再試行" : "Retry"}
-            </button>
+            <RequestState kind="error" detail={error} onRetry={() => window.location.reload()} />
         </Page>
     );
     if (me?.role !== "manager") return <Navigate to="/profile" replace />;
