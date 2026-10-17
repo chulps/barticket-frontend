@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import type { ShiftReport } from "../api/account";
 import { importPreview, parseCsv, type CsvData } from "./reconciliationCsv";
+import { canDiscard, defaultCsvMapping } from "./reconciliationDraftSafety";
 
 type Field = "manager" | "revenue" | "guests" | "event";
 type Draft = { manager: string; revenue: string; guests: string; event: string; notes: string; staff: string; guestName: string; guestPayType: string; guestPayAmount: string; guestDrinkback: string; staffHours: Record<string, string> };
@@ -10,6 +11,11 @@ const fresh = (shift: ShiftReport): Draft => ({
     event: "", notes: "", staff: "none", guestName: "", guestPayType: "", guestPayAmount: "", guestDrinkback: "", staffHours: Object.fromEntries(shift.staff_hours.map(row => [row.name, String(row.seconds / 3600)]))
 });
 const validNumber = (value: string) => value.trim() !== "" && /^\d+$/.test(value.trim());
+
+// Per-tab working copy: protects browser-back/forward and internal route changes.
+// Never sent to a server or written to localStorage/sessionStorage.
+type WorkingCopy = { selectedId: number | null; draft: Draft | null; csv: CsvData | null; mapping: Record<string, string>; includeHours: string[] };
+let temporaryWorkingCopy: WorkingCopy | null = null;
 const labels = (ja: boolean) => ({
     date: ja ? "日付" : "Date", manager: ja ? "マネージャー" : "Manager",
     revenue: ja ? "売上 (円)" : "Revenue (JPY)", guests: ja ? "来客数" : "Guests",
@@ -20,13 +26,19 @@ const labels = (ja: boolean) => ({
 export default function Reconciliation({ shifts, locale, error, initialShiftId }: { shifts: ShiftReport[]; locale: string; error: string; initialShiftId?: number | null }) {
     const ja = locale === "ja", text = labels(ja);
     const [search, setSearch] = useState("");
-    const [selectedId, setSelectedId] = useState<number | null>(initialShiftId ?? null);
-    const [draft, setDraft] = useState<Draft | null>(() => { const shift = shifts.find(row => row.id === initialShiftId); return shift ? fresh(shift) : null; });
-    const [csv, setCsv] = useState<CsvData | null>(null);
+    const [selectedId, setSelectedId] = useState<number | null>(() => temporaryWorkingCopy?.selectedId ?? initialShiftId ?? null);
+    const [draft, setDraft] = useState<Draft | null>(() => {
+        if (temporaryWorkingCopy) return temporaryWorkingCopy.draft;
+        const shift = shifts.find(row => row.id === initialShiftId);
+        return shift ? fresh(shift) : null;
+    });
+    const [csv, setCsv] = useState<CsvData | null>(() => temporaryWorkingCopy?.csv ?? null);
     const [csvError, setCsvError] = useState("");
-    const [mapping, setMapping] = useState<Record<string, string>>({});
+    const [mapping, setMapping] = useState<Record<string, string>>(() => temporaryWorkingCopy?.mapping ?? {});
     const [extraHourKey, setExtraHourKey] = useState("");
-    const [includeHours, setIncludeHours] = useState<string[]>([]);
+    const [includeHours, setIncludeHours] = useState<string[]>(() => temporaryWorkingCopy?.includeHours ?? []);
+    const [restoredFromMemory] = useState(() => temporaryWorkingCopy !== null);
+    const csvRequestVersion = useRef(0);
     const selected = shifts.find(shift => shift.id === selectedId) ?? null;
     const filtered = useMemo(() => shifts.filter(shift => [shift.business_date, shift.opened_by].join(" ").toLowerCase().includes(search.toLowerCase())).sort((a, b) => b.business_date.localeCompare(a.business_date)), [shifts, search]);
     const invalidDraft = Boolean(draft && (!["Chuck", "Nori"].includes(draft.manager) || (draft.staff === "guest" && (!draft.guestName.trim() || (draft.guestPayType !== "" && !["hourly", "flat", "revenue", "custom"].includes(draft.guestPayType)) || (draft.guestPayAmount !== "" && (!validNumber(draft.guestPayAmount) || (draft.guestPayType === "revenue" && Number(draft.guestPayAmount) > 100))) || (draft.guestDrinkback !== "" && (!validNumber(draft.guestDrinkback) || Number(draft.guestDrinkback) > 100)))) || !validNumber(draft.revenue) || !validNumber(draft.guests) ||
@@ -35,8 +47,58 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
         draft.guests !== String(selected.guest_count) || draft.event || draft.notes || draft.staff !== "none" || draft.guestName || draft.guestPayType || draft.guestPayAmount || draft.guestDrinkback ||
         Object.entries(draft.staffHours).some(([name, value]) => value !== String((selected.staff_hours.find(row => row.name === name)?.seconds ?? 0) / 3600))));
     const preview = useMemo(() => csv ? importPreview(csv, mapping, shifts) : null, [csv, mapping, shifts]);
+    const hasUnsavedWork = changed || csv !== null;
+
+    useEffect(() => {
+        // Keep a short-lived in-memory restore point when navigating away.
+        temporaryWorkingCopy = hasUnsavedWork ? { selectedId, draft, csv, mapping, includeHours } : null;
+    }, [selectedId, draft, csv, mapping, includeHours, hasUnsavedWork]);
+
+    useEffect(() => {
+        const clearOnAuthChange = () => { temporaryWorkingCopy = null; };
+        window.addEventListener("barticket-auth", clearOnAuthChange);
+        return () => window.removeEventListener("barticket-auth", clearOnAuthChange);
+    }, []);
+
+    useEffect(() => {
+        if (!hasUnsavedWork) return;
+        const message = ja
+            ? "未保存の照合作業があります。この画面を離れますか？（データベースには保存されていません）"
+            : "You have unsaved reconciliation work. Leave this view? Nothing is saved to the database.";
+        const beforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = "";
+        };
+        const interceptNavigation = (event: MouseEvent) => {
+            if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            if (!(event.target instanceof Element)) return;
+            const anchor = event.target.closest("a[href]");
+            if (!anchor || anchor.getAttribute("target") === "_blank") return;
+            const destination = new URL(anchor.getAttribute("href") ?? "", window.location.href);
+            if (destination.origin !== window.location.origin || destination.href === window.location.href) return;
+            if (!window.confirm(message)) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        };
+        window.addEventListener("beforeunload", beforeUnload);
+        document.addEventListener("click", interceptNavigation, true);
+        return () => {
+            window.removeEventListener("beforeunload", beforeUnload);
+            document.removeEventListener("click", interceptNavigation, true);
+        };
+    }, [hasUnsavedWork, ja]);
+
+    const confirmDiscard = (dirty: boolean) => canDiscard(dirty, () => window.confirm(ja
+        ? "未保存の変更を破棄しますか？ データベースには保存されていません。"
+        : "Discard unsaved reconciliation changes? Nothing was saved to the database."));
     const update = (field: Field | "notes", value: string) => setDraft(previous => previous ? { ...previous, [field]: value } : previous);
-    const open = (shift: ShiftReport) => { setSelectedId(shift.id); setDraft(fresh(shift)); };
+    const open = (shift: ShiftReport) => {
+        if (selectedId === shift.id) return;
+        if (!confirmDiscard(changed)) return;
+        setSelectedId(shift.id);
+        setDraft(fresh(shift));
+    };
     const mapField = (key: string, header: string) => setMapping(previous => ({ ...previous, [key]: header }));
     const mapOption = (key: string, name: string) => <label key={key}>{name}
         <SelectBox><select value={mapping[key] ?? ""} onChange={event => mapField(key, event.target.value)}>
@@ -46,19 +108,24 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
     </label>;
 
     async function readCsv(file?: File) {
-        setCsv(null); setMapping({}); setIncludeHours([]); setCsvError("");
-        if (!file) return;
-        if (file.size > 2_000_000) { setCsvError(ja ? "2 MB以下のCSVを選択してください。" : "Choose a CSV under 2 MB."); return; }
+        if (!file || !confirmDiscard(csv !== null)) return;
+        if (file.size > 2_000_000) {
+            setCsvError(ja ? "2 MB以下のCSVを選択してください。" : "Choose a CSV under 2 MB.");
+            return;
+        }
+        const request = ++csvRequestVersion.current;
         try {
             const parsed = parseCsv(await file.text());
+            if (request !== csvRequestVersion.current) return;
+            // Commit a complete replacement only after a successful read/parse.
+            // Invalid/malformed files leave the old preview and mappings intact.
             setCsv(parsed);
-            const defaults: Record<string, string> = {};
-            for (const key of ["date", "manager", "revenue", "guests", "event"]) {
-                const found = parsed.headers.find(header => header.toLowerCase().replace(/[^a-z]/g, "") === key);
-                if (found) defaults[key] = found;
-            }
-            setMapping(defaults);
-        } catch (e) { setCsvError(e instanceof Error ? e.message : String(e)); }
+            setMapping(defaultCsvMapping(parsed.headers));
+            setIncludeHours([]);
+            setCsvError("");
+        } catch (e) {
+            if (request === csvRequestVersion.current) setCsvError(e instanceof Error ? e.message : String(e));
+        }
     }
 
     function copyDraft() {
@@ -72,6 +139,7 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
     return <Wrap>
         <h2>{ja ? "データ照合と編集" : "Data reconciliation & editing"}</h2>
         <Notice role="status"><strong>{ja ? "プレビュー・編集中（未保存）" : "Preview / draft mode — NOT SAVED"}</strong>
+            {restoredFromMemory ? <p>{ja ? "このタブの一時メモリから未保存の下書きを復元しました。再読み込みすると消えます。" : "Restored a temporary working copy from this tab's memory. Refreshing the page may erase it."}</p> : null}
             <p>{ja ? "ここでの編集やCSVアップロードはデータベースを変更しません。保存・インポートにはAndrewによるAPI対応が必要です。" :
                 "Edits and CSV uploads stay in your browser. Nothing changes in PostgreSQL. Saving or importing requires backend APIs from Andrew."}</p>
         </Notice>
@@ -165,14 +233,18 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
                 <p>{changed ? (ja ? "変更あり（未保存）" : "Unsaved changes") : (ja ? "変更なし" : "No changes")}</p>
                 <Actions><button type="button" className="secondary" disabled={!changed || invalidDraft} onClick={copyDraft}>{ja ? "修正案をコピー" : "Copy draft JSON"}</button>
                     <button type="button" disabled title={ja ? "バックエンド対応待ち" : "Awaiting backend API"}>{ja ? "保存（未対応）" : "Save — unavailable"}</button>
-                    <button type="button" className="hollow secondary" onClick={() => setDraft(fresh(selected))}>{ja ? "リセット" : "Reset draft"}</button>
-                    <button type="button" className="hollow secondary" onClick={() => { setSelectedId(null); setDraft(null); }}>{ja ? "閉じる" : "Close"}</button></Actions>
+                    <button type="button" className="hollow secondary" onClick={() => { if (confirmDiscard(changed)) setDraft(fresh(selected)); }}>{ja ? "リセット" : "Reset draft"}</button>
+                    <button type="button" className="hollow secondary" onClick={() => { if (confirmDiscard(changed)) { setSelectedId(null); setDraft(null); } }}>{ja ? "閉じる" : "Close"}</button></Actions>
             </Editor> : null}
         </Block>
         <Block>
             <h3>{ja ? "CSV取り込みプレビュー" : "CSV import preview"}</h3>
             <p>{ja ? "ファイルはブラウザ内でのみ解析されます。アップロードだけでは保存されません。" : "CSV is parsed in your browser only. Uploading does not save anything."}</p>
-            <label>CSV (.csv, UTF-8)<input type="file" accept=".csv,text/csv" onChange={e => void readCsv(e.target.files?.[0])} /></label>
+            <label>CSV (.csv, UTF-8)<input type="file" accept=".csv,text/csv" onChange={e => {
+                const file = e.currentTarget.files?.[0];
+                e.currentTarget.value = "";
+                void readCsv(file);
+            }} /></label>
             {csvError ? <p role="alert">{csvError}</p> : null}
             {csv ? <>
                 <p>{csv.rows.length} {ja ? "行" : "rows"} · {csv.headers.length} {ja ? "列" : "columns"}</p>
