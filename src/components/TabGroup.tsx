@@ -1,4 +1,6 @@
+import { useRef, type KeyboardEvent } from "react";
 import styled from "styled-components";
+import { nextSelectorIndex } from "./selectorNavigation";
 
 type Tab<T extends string> = {
   id: T;
@@ -9,27 +11,41 @@ type TabGroupProps<T extends string> = {
   tabs: Tab<T>[];
   activeTab: T;
   onChange: (id: T) => void;
+  label?: string;
 };
 
 export default function TabGroup<T extends string>({
   tabs,
   activeTab,
   onChange,
+  label,
 }: TabGroupProps<T>) {
 const activeIndex = tabs.findIndex(tab => tab.id === activeTab);
+const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+function handleArrow(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+  const next = nextSelectorIndex(index, tabs.length, event.key);
+  if (next === null) return;
+  event.preventDefault();
+  buttons.current[next]?.focus();
+  onChange(tabs[next].id);
+}
 
 return (
-  <Container>
+  <Container role="group" aria-label={label ?? tabs.map(tab => tab.label).join(" / ")}>
     <Indicator
       $index={activeIndex}
       $count={tabs.length}
     />
 
-    {tabs.map((tab) => (
+    {tabs.map((tab, index) => (
       <TabButton
         key={tab.id}
+        ref={node => { buttons.current[index] = node; }}
+        type="button"
+        aria-pressed={tab.id === activeTab}
         $active={tab.id === activeTab}
         onClick={() => onChange(tab.id)}
+        onKeyDown={event => handleArrow(event, index)}
       >
         {tab.label}
       </TabButton>
