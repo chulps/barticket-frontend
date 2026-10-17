@@ -27,9 +27,12 @@ const knownNewEntries = [
     "Japanese whiskey lottery",
 ];
 
-test("newest database menu labels, ingredients and lottery descriptions have Japanese translations", () => {
+test("newest database menu labels and lottery descriptions have Japanese translations", () => {
     for (const entry of knownNewEntries) {
-        assert.match(menu, new RegExp("^\\s*" + JSON.stringify(entry).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&") + "\\s*:\\s*\\"", "m"), entry);
+        const prefix = JSON.stringify(entry) + ": ";
+        const line = menu.split("\n").find(row => row.trim().startsWith(prefix));
+        assert.ok(line, "Missing translation for: " + entry);
+        assert.match(line.slice(line.indexOf(prefix) + prefix.length), /[\u3040-\u30ff\u3400-\u9fff]/u, entry);
     }
 });
 test("localized menu and ticket searches include both source and translation text", () => {
