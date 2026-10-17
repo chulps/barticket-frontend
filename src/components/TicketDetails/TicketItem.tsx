@@ -191,10 +191,16 @@ export default function TicketDetailItem({
                 >
                     {(closeMenu) => (
                         <>
-                            {isCover ? <DropdownMenuItem onClick={() => { closeMenu(); onWaiveCover?.(); }}>
-                                <Icon name="CurrencyCircleDollar" />
-                                {locale === "ja" ? "カバーチャージを免除" : "Waive cover charge"}
-                            </DropdownMenuItem> : <DropdownMenuItem
+                            {isCover ? <>
+                                <DropdownMenuItem onClick={() => { closeMenu(); onWaiveCover?.(); }}>
+                                    <Icon name="CurrencyCircleDollar" />
+                                    {locale === "ja" ? "カバーチャージを免除" : "Waive cover charge"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem disabled>
+                                    <Icon name="ArrowCounterClockwise" />
+                                    {locale === "ja" ? "再来店（API待ち）" : "Returning customer (API pending)"}
+                                </DropdownMenuItem>
+                            </> : <DropdownMenuItem
                                 onClick={() => {
                                     closeMenu();
                                     startEditingPrice();
