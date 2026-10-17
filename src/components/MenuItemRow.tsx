@@ -3,11 +3,13 @@ import styled from "styled-components";
 import MenuPrice from "./MenuPrice";
 import MenuPriceEditor from "./MenuPriceEditor";
 import MenuItemForm from "./MenuItemForm";
+import MenuItemArchiveDialog from "./MenuItemArchiveDialog";
 import DropdownMenu from "./DropdownMenu";
 import DropdownMenuItem from "./DropdownMenuItem";
 import Icon from "./Icon";
 
 import type { MenuItem, Prices } from "../types/Menu";
+import type { MenuItemEdit } from "../api/menu";
 import { menuLabel, useI18n } from "../i18n";
 import { useModal } from "../hooks/useModal";
 
@@ -18,6 +20,8 @@ type MenuItemRowProps = {
     pending?: boolean;
     onToggle?: (item: MenuItem) => void;
     onSavePrices?: (item: MenuItem, prices: Prices) => Promise<void>;
+    onSaveItem?: (item: MenuItem, input: MenuItemEdit) => Promise<boolean>;
+    onArchive?: (item: MenuItem) => Promise<boolean>;
     categories?: string[];
     subcategories?: string[];
 };
@@ -27,6 +31,8 @@ export default function MenuItemRow({
     pending = false,
     onToggle,
     onSavePrices,
+    onSaveItem,
+    onArchive,
     categories = [],
     subcategories = [],
 }: MenuItemRowProps) {
@@ -50,29 +56,23 @@ export default function MenuItemRow({
         });
     }
 
-    function openEditDraft() {
+    function openEdit() {
+        if (!onSaveItem || pending) return;
         openModal({
-            title: locale === "ja" ? "商品を編集（未保存）" : "Edit item — preview only",
+            title: locale === "ja" ? "商品を編集" : "Edit menu item",
             maxWidth: "480px", fitContent: true,
             content: <MenuItemForm key={item.id} editingItem={item}
-                categories={categories} subcategories={subcategories} />,
+                categories={categories} subcategories={subcategories}
+                onSaved={onSaveItem} />,
         });
     }
 
-    function openArchivePreview() {
+    function openArchive() {
+        if (!onArchive || pending) return;
         openModal({
-            title: locale === "ja" ? "メニューから削除（プレビュー）" : "Remove from menu — preview",
+            title: locale === "ja" ? "商品をアーカイブ" : "Archive menu item",
             maxWidth: "430px", fitContent: true,
-            content: <div style={{ padding: "var(--space-2)", display: "grid", gap: "var(--space-2)" }}>
-                <p><strong>{menuLabel(locale, item.name)}</strong></p>
-                <p>{locale === "ja"
-                    ? "削除はアーカイブ（非表示）を意味します。売上履歴・伝票の価格・明細は変更されません。在庫切れとは異なります。"
-                    : "Removal will archive this item, not delete its history. Past ticket prices, sales and existing lines must remain unchanged. This differs from Out of Stock."}</p>
-                <p role="status">{locale === "ja"
-                    ? "アーカイブAPI（バックエンド #73）待ちです。操作はまだ実行できません。"
-                    : "Awaiting backend archive API #73. Nothing will be changed."}</p>
-                <button type="button" disabled>{locale === "ja" ? "アーカイブ（未対応）" : "Archive — unavailable"}</button>
-            </div>,
+            content: <MenuItemArchiveDialog item={item} onArchive={onArchive} />,
         });
     }
 
@@ -121,14 +121,14 @@ export default function MenuItemRow({
                                 <Icon name={unavailable ? "CheckCircle" : "Prohibit"} size="1em" />
                                 {unavailable ? t("markInStock") : t("markOutOfStock")}
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { closeMenu(); openEditDraft(); }}>
+                            {onSaveItem ? <DropdownMenuItem onClick={() => { closeMenu(); openEdit(); }}>
                                 <Icon name="PencilSimple" />
-                                {locale === "ja" ? "商品を編集（プレビュー）" : "Edit item (preview)"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem danger onClick={() => { closeMenu(); openArchivePreview(); }}>
+                                {locale === "ja" ? "商品を編集" : "Edit Item"}
+                            </DropdownMenuItem> : null}
+                            {onArchive ? <DropdownMenuItem danger onClick={() => { closeMenu(); openArchive(); }}>
                                 <Icon name="Archive" />
-                                {locale === "ja" ? "メニューから削除（未対応）" : "Remove from menu (unavailable)"}
-                            </DropdownMenuItem>
+                                {locale === "ja" ? "商品をアーカイブ" : "Archive Item"}
+                            </DropdownMenuItem> : null}
                             {canEditPrice && onSavePrices ? (
                                 <DropdownMenuItem
                                     onClick={() => {

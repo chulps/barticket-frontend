@@ -19,7 +19,10 @@ test("Public menu route renders for both guest and authenticated viewers", () =>
 });
 
 test("Guests receive no add, stock, or price editing controls", () => {
-    assert.match(menu, /\{authenticated \? \(/);
+    assert.match(menu, /\{authenticated \? <HeaderActions>/);
+    assert.match(menu, /onSaveItem=\{authenticated \? onSaveItem : undefined\}/);
+    assert.match(menu, /onArchive=\{authenticated \? archiveItem : undefined\}/);
+    assert.match(menu, /if \(!authenticated \|\| archivedLoading\) return/);
     assert.match(menu, /onToggleStock=\{authenticated \? toggleStock : undefined\}/);
     assert.match(menu, /onSavePrices=\{authenticated \? savePrices : undefined\}/);
     assert.doesNotMatch(menu, /getToken\(|signedIn/);
