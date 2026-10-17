@@ -43,18 +43,33 @@ export function liveAnalyticsShift(
     let otherTotal = 0;
     let coverTotal = 0;
     let guestCount = 0;
-    for (const ticket of paid) {
-        const total = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
-        paidTotal += total;
-        const method = ticket.payment?.type ?? "other";
-        if (method === "cash") cashTotal += total;
-        else if (method === "card") cardTotal += total;
-        else otherTotal += total;
-
-        for (const item of ticket.items) {
-            if (item.type !== "cover") continue;
-            guestCount += item.quantity;
-            coverTotal += item.subtotal;
+    for (const ticket of shiftTickets.filter(row => row.status !== "cancelled")) {
+        const actual = ticket.payments?.filter(payment =>
+            payment.voided_at == null && typeof payment.amount === "number") ?? [];
+        const legacyAmount = ticket.status === "paid"
+            ? ticket.items.reduce((sum, item) => sum + item.subtotal, 0)
+            : (ticket.amountPaid ?? 0);
+        const collected = actual.length
+            ? actual.reduce((sum, item) => sum + (item.amount ?? 0), 0)
+            : legacyAmount;
+        paidTotal += collected;
+        if (actual.length) {
+            for (const payment of actual) {
+                const key = payment.type;
+                if (key === "cash") cashTotal += payment.amount ?? 0;
+                else if (key === "card") cardTotal += payment.amount ?? 0;
+                else otherTotal += payment.amount ?? 0;
+            }
+        } else if (collected > 0) {
+            const method = ticket.payment?.type ?? "other";
+            if (method === "cash") cashTotal += collected;
+            else if (method === "card") cardTotal += collected;
+            else otherTotal += collected;
+        }
+        if (ticket.status === "paid" || collected > 0) {
+            guestCount += Math.max(0, (ticket.guestCount ?? ticket.items.find(item => item.type === "cover")?.quantity ?? 0)
+                - (ticket.returningGuestCount ?? 0));
+            coverTotal += ticket.items.filter(item => item.type === "cover").reduce((sum, item) => sum + item.subtotal, 0);
         }
     }
     return {
