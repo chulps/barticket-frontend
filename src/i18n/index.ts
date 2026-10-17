@@ -49,16 +49,32 @@ export function localeTag(locale: Locale) {
     return locale === "ja" ? "ja-JP" : "en-US";
 }
 
+// Match the same menu item despite differences in spacing, apostrophes,
+ // hyphens and Unicode width. Keep English source text unchanged in storage.
+function normalizeMenuText(text: string): string {
+    return text.normalize("NFKC")
+        .trim().replace(/[‘’＇]/g, "'")
+        .replace(/[‐‑–—−]/g, "-")
+        .replace(/\s+/g, " ")
+        .toLocaleLowerCase("en");
+}
+const normalizedMenuJa = new Map<string, string>(
+    Object.entries(menuJa).map(([key, value]) => [normalizeMenuText(key), value]),
+);
+function translateMenuText(text: string): string {
+    return menuJa[text] ?? normalizedMenuJa.get(normalizeMenuText(text)) ?? text;
+}
+
 export function menuLabel(locale: Locale, text: string | null | undefined) {
     if (!text) return "";
     if (locale !== "ja") return text;
-    return menuJa[text] ?? text;
+    return translateMenuText(text);
 }
 
 export function menuHaystack(text: string | null | undefined) {
     if (!text) return "";
-    const japanese = menuJa[text];
-    return japanese && japanese !== text ? `${text} ${japanese}` : text;
+    const japanese = translateMenuText(text);
+    return japanese !== text ? `${text} ${japanese}` : text;
 }
 
 export function formatDuration(locale: Locale, seconds: number) {
