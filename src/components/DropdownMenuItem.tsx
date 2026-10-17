@@ -4,6 +4,7 @@ type DropdownMenuItemProps = {
     children: React.ReactNode;
     onClick?: () => void;
     danger?: boolean;
+    disabled?: boolean;
     closeMenu?: () => void;
 };
 
@@ -11,13 +12,16 @@ export default function DropdownMenuItem({
     children,
     onClick,
     danger = false,
+    disabled = false,
     closeMenu,
 }: DropdownMenuItemProps) {
     return (
         <Item
             type="button"
             role="menuitem"
+            disabled={disabled}
             onClick={() => {
+                if (disabled) return;
                 closeMenu?.();
                 onClick?.();
             }}
@@ -59,7 +63,8 @@ const Item = styled.button<{ $danger: boolean }>`
 
     border-radius: var(--space-1);
 
-    &:hover {
+    &:disabled { opacity: 0.55; cursor: not-allowed; }
+    &:hover:not(:disabled) {
         background: var(--neutral-800);
         transform: none;
     }
