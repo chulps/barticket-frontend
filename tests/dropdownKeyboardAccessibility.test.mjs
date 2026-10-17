@@ -20,7 +20,7 @@ test("icon-only triggers are named and expose menu relationship and expanded sta
   assert.match(menu, /"Actions for " \+ menuLabel\(locale, item\.name\)/);
 });
 test("opens focused and supports Escape, arrows, Home and End", () => {
-  assert.match(popup, /choice\?\.focus\(\)/);
+  assert.match(popup, /choice\?\.focus\(\{ preventScroll: true \}\)/);
   assert.match(popup, /event\.key === "Escape"/);
   assert.match(popup, /event\.key === "ArrowDown"/);
   assert.match(popup, /event\.key === "ArrowUp"/);
@@ -36,6 +36,9 @@ test("outside click, scroll and resize dismiss without leaving a visible portal"
   assert.match(popup, /window\.addEventListener\("resize"/);
   assert.match(popup, /triggerRect\.bottom \+ 6 \+ popupRect\.height/);
   assert.match(popup, /popup\.contains\(document\.activeElement\)/);
+  assert.match(popup, /top: \$\{\(\{ \$top \}\) =>/);
+  assert.match(popup, /right: \$\{\(\{ \$right \}\) =>/);
+  assert.match(popup, /const openAbove =/);
 });
 test("components parse", () => {
   for (const [path,code] of [["DropdownMenu.tsx",popup],["DropdownMenuItem.tsx",option],
