@@ -1,5 +1,6 @@
 import { useState } from "react";
 import styled from "styled-components";
+import RequestState from "../components/RequestState";
 
 // imported components
 import SearchBar from "../components/MenuSearchBar";
@@ -67,18 +68,17 @@ export default function Menu({
   const groupedMenu = useFilteredMenu(menu, searchTerm);
 
   if (loadingMenu) {
-    return <main role="status" aria-live="polite"><h2>{t("loading")}</h2></main>;
+    return <main><RequestState kind="loading" detail={t("loading")} /></main>;
   }
 
   if (!menu) {
     return <main>
       <h2>{t("drinkMenu")}</h2>
-      <p role="alert">{menuError
-        ? (locale === "ja" ? "メニューを読み込めませんでした。接続を確認して再試行してください。" : "Could not load the menu. Check your connection and retry.")
-        : t("noMenu")}</p>
-      {menuError ? <button type="button" className="small secondary" onClick={retryMenu}>
-        {locale === "ja" ? "再試行" : "Retry"}
-      </button> : null}
+      <RequestState kind={menuError ? "error" : "empty"}
+        detail={menuError
+          ? (locale === "ja" ? "メニューを読み込めませんでした。接続を確認して再試行してください。" : "Could not load the menu. Check your connection and refresh.")
+          : t("noMenu")}
+        onRetry={menuError ? retryMenu : undefined} />
     </main>;
   }
 
