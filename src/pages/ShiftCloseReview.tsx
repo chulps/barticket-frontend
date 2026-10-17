@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { accountApi, type ShiftReport } from "../api/account";
 import { ApiError } from "../api/client";
@@ -21,6 +21,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
     const [preview, setPreview] = useState<Preview | null>(null);
     const [loading, setLoading] = useState(true);
     const [working, setWorking] = useState(false);
+    const submitInFlight = useRef(false);
     const [acknowledged, setAcknowledged] = useState(false);
     const [error, setError] = useState("");
     const [uncertain, setUncertain] = useState(false);
@@ -48,7 +49,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
     }, [shiftId, ja]);
 
     useEffect(() => {
-        registerCloseGuard(() => !working);
+        registerCloseGuard(() => !working && !submitInFlight.current);
         return () => registerCloseGuard(null);
     }, [working, registerCloseGuard]);
 
@@ -59,7 +60,8 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
     const yen = (n: number) => "¥" + n.toLocaleString("ja-JP");
 
     async function confirmClose() {
-        if (!preview || blockers.length || !acknowledged || working || uncertain) return;
+        if (!preview || blockers.length || !acknowledged || working || uncertain || submitInFlight.current) return;
+        submitInFlight.current = true;
         setWorking(true);
         setError("");
         try {
@@ -83,7 +85,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
         } catch (err) {
             // After an ambiguous failure the POST might have committed. Never
             // automatically replay a close operation.
-            const ambiguous = !(err instanceof ApiError);
+            const ambiguous = !(err instanceof ApiError) || err.status >= 500;
             setUncertain(ambiguous);
             setError(ambiguous
                 ? (ja ? "結果を確認できません。閉店済みの可能性があります。シフト状況を再読み込みして確認してください。再送信はしません。" : "Outcome unknown: the shift may already be closed. Refresh its status before taking another action. The close request will not be resent.")
@@ -98,6 +100,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
                 setPreview(null);
             }
         } finally {
+            submitInFlight.current = false;
             setWorking(false);
         }
     }
