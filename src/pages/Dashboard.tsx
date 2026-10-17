@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 // import npm packages
 import styled from "styled-components";
+import { Link } from "react-router-dom";
 
 // import UI components
 import TicketDetails from "../components/TicketDetails/Ticket"
@@ -238,6 +239,16 @@ export default function Dashboard({
   return (
 
     <DashboardContainer>
+      <ShiftStatusBar role="status" aria-live="polite">
+        <span className={canCreate ? "on-duty" : ""}>
+          {shiftLookup.status !== "ready" ? (locale === "ja" ? "シフトの確認が必要です" : "Shift status unverified")
+            : !shift ? (locale === "ja" ? "営業中のシフトなし" : "No active shift")
+            : !me ? (locale === "ja" ? "出退勤の確認が必要です" : "Check your time clock")
+            : canCreate ? (locale === "ja" ? "勤務中" : "Clocked in")
+            : (locale === "ja" ? "未出勤" : "Not clocked in")}
+        </span>
+        <Link to="/profile">{locale === "ja" ? "タイムカードを見る" : "View time clock"}</Link>
+      </ShiftStatusBar>
       {shiftLookup.status === "loading" ? (
         <TicketLoadWarning role="status" aria-live="polite">
           {locale === "ja"
@@ -384,4 +395,18 @@ const MenuLoadWarning = styled.div`
   padding: var(--space-1);
   border: 1px solid var(--danger-500);
   button { width: auto; }
+`;
+
+const ShiftStatusBar = styled.div`
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  font-size: var(--font-size-small);
+  color: var(--neutral-300);
+  padding: 0 var(--space-1);
+  .on-duty { color: var(--success-300); }
+  a { color: var(--neutral-100); text-decoration: underline; text-underline-offset: 3px; }
 `;
