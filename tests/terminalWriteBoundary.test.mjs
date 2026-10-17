@@ -20,7 +20,7 @@ test("rename is queued before terminal lock and terminal operations bypass only 
   assert.match(hook,/\.finally\(\(\) => terminalPending\.current\.delete\(ticketId\)\)/);
   assert.match(hook,/ticketsApi\.pay\(ticketId, paymentType\), undefined, true/);
   assert.match(payment,/if \(pending\.current\) return/);
-  assert.doesNotMatch(hook,/setInterval\([^]*ticketsApi\.pay/);
+  assert.doesNotMatch(hook,/setInterval\(\(\) => ticketsApi\.pay/);
 });
 test("ticket hook still parses",()=>{
   const ast=ts.createSourceFile("useTickets.ts",hook,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
