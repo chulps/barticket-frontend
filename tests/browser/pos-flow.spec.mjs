@@ -264,8 +264,8 @@ test("ticket item action menu keeps original trailing-row placement and flips on
   await trigger.click();
   const menu=page.getByRole("menu",{name:"Actions for Last Drink"});
   await expect(menu).toBeVisible();
-  await expect(menu.getByRole("menuitem",{name:"Adjust Price"})).toBeVisible();
-  await expect(menu.getByRole("menuitem",{name:"Remove Item"})).toBeVisible();
+  await expect(menu.getByRole("menuitem",{name:/Adjust Price/i})).toBeVisible();
+  await expect(menu.getByRole("menuitem",{name:/Remove Item/i})).toBeVisible();
   const bounds=await menu.boundingBox();
   const viewport=page.viewportSize();
   expect(bounds).toBeTruthy();
@@ -274,6 +274,6 @@ test("ticket item action menu keeps original trailing-row placement and flips on
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x+bounds.width).toBeLessThanOrEqual(viewport.width+1);
   expect(state.requests).not.toContain("PATCH /tickets/11/items/218");
-  await menu.getByRole("menuitem",{name:"Adjust Price"}).click();
+  await menu.getByRole("menuitem",{name:/Adjust Price/i}).click();
   await expect(page.getByRole("textbox",{name:/New price for Last Drink/})).toBeVisible();
 });
