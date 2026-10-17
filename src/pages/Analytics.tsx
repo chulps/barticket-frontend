@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
 
@@ -796,18 +796,21 @@ export default function Analytics() {
                         </>
                     ) : (
                         <>
-                            {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} context={copyPeriod(range, month, year, selected, locale)} />}
-                    {range !== "day" && visible.length > 0 ? (
-                        <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} onDrillDown={drillIntoBar} />
-                    ) : null}
-                    {range === "day" && selected ? (
-                        <GuestOccupancyChart
-                            shift={selected}
-                            tickets={tickets}
-                            now={lastUpdated ?? clockNow ?? selected.opened_at}
-                            dateLabel={formatNight(selected.business_date, locale)}
-                        />
-                    ) : null}
+                            {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : (
+                                <Summary totals={totals} context={copyPeriod(range, month, year, selected, locale)}>
+                                    {range !== "day" ? (
+                                        <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} onDrillDown={drillIntoBar} />
+                                    ) : null}
+                                    {range === "day" && selected ? (
+                                        <GuestOccupancyChart
+                                            shift={selected}
+                                            tickets={tickets}
+                                            now={lastUpdated ?? clockNow ?? selected.opened_at}
+                                            dateLabel={formatNight(selected.business_date, locale)}
+                                        />
+                                    ) : null}
+                                </Summary>
+                            )}
                     {range === "day" && selected ? (
                         <DayBento>
                             <Card>
@@ -1007,12 +1010,13 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
     );
 }
 
-function Summary({ totals, context }: { totals: Totals; context: string }) {
+function Summary({ totals, context, children }: { totals: Totals; context: string; children: ReactNode }) {
     const { t, locale } = useI18n();
     const allPaymentTypesMissing = totals.unknownPayment > 0 &&
         totals.cash + totals.card + totals.other === 0;
     const knownPayment = (amount: number) => allPaymentTypesMissing ? "—" : yen(amount);
     return (
+        <>
         <Grid>
             <Stat $lead>
                 <StatHeader>
@@ -1034,6 +1038,9 @@ function Summary({ totals, context }: { totals: Totals; context: string }) {
                 </StatHeader>
                 <strong>{totals.guests}</strong>
             </Stat>
+        </Grid>
+        {children}
+        <Grid>
             <Stat>
                 <StatHeader>
 
@@ -1124,6 +1131,7 @@ function Summary({ totals, context }: { totals: Totals; context: string }) {
                 <strong>{formatDuration(locale, totals.seconds)}</strong>
             </Stat>
         </Grid>
+        </>
     );
 }
 
