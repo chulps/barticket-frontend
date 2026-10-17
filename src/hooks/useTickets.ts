@@ -33,6 +33,9 @@ export function useTickets() {
   const ticketsRef = useRef<Ticket[]>([]);
   // one request chain per ticket so rapid clicks build on the latest server state
   const queues = useRef(new Map<number, Promise<unknown>>());
+  // Terminal operations (pay/cancel/reopen) must not accept new item, name or
+  // quantity writes until their server outcome has been reconciled.
+  const terminalPending = useRef(new Set<number>());
   // names typed but not saved yet; server responses must not overwrite them
   const pendingNames = useRef(new Map<number, string>());
   const renameTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -94,7 +97,11 @@ export function useTickets() {
     ticketId: number,
     request: (current: Ticket | undefined) => Promise<ApiTicket> | null,
     transform?: (ticket: Ticket) => Ticket,
+    terminalWrite = false,
   ): Promise<Ticket | null> => {
+    if (terminalPending.current.has(ticketId) && !terminalWrite) {
+      return Promise.resolve(null);
+    }
     const key = transform ? addOverlay(ticketId, transform) : null;
     pendingWrites.current += 1;
     localRevision.current += 1;
@@ -323,6 +330,7 @@ export function useTickets() {
   };
 
   const updateTicketName = (ticketId: number, name: string) => {
+    if (terminalPending.current.has(ticketId)) return;
     pendingNames.current.set(ticketId, name);
     commit(
       ticketsRef.current.map((ticket) =>
@@ -390,26 +398,32 @@ export function useTickets() {
 
   // Financial and terminal transitions cannot be queued twice by double taps.
   // A transport timeout may still have committed; never replay automatically.
-  const terminalPending = useRef(new Set<number>());
   const terminalMutation = (
     ticketId: number,
+    expected: "open" | "closed",
     request: () => Promise<Ticket | null>,
   ): Promise<Ticket | null> => {
-    if (terminalPending.current.has(ticketId)) return Promise.resolve(null);
-    terminalPending.current.add(ticketId);
+    const status = confirmed.current.get(ticketId)?.status;
+    if (!Number.isSafeInteger(ticketId) || terminalPending.current.has(ticketId) ||
+        (expected === "open" ? status !== "open" : status === undefined || status === "open")) {
+      return Promise.resolve(null);
+    }
+    // Flush the existing name first, before blocking all new edits. The
+    // queued terminal write then observes the updated server state.
     flushRename(ticketId);
+    terminalPending.current.add(ticketId);
     return request().finally(() => terminalPending.current.delete(ticketId));
   };
 
   const cancelTicket = (ticketId: number) =>
-    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.cancel(ticketId)))
+    terminalMutation(ticketId, "open", () => enqueue(ticketId, () => ticketsApi.cancel(ticketId), undefined, true))
       .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票をキャンセルしました" : "Ticket cancelled"); return saved; });
 
   const payTicket = (ticketId: number, paymentType: PaymentType) =>
-    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType)));
+    terminalMutation(ticketId, "open", () => enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType), undefined, true));
 
   const reopenTicket = (ticketId: number) =>
-    terminalMutation(ticketId, () => enqueue(ticketId, () => ticketsApi.reopen(ticketId)))
+    terminalMutation(ticketId, "closed", () => enqueue(ticketId, () => ticketsApi.reopen(ticketId), undefined, true))
       .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票を再開しました" : "Ticket reopened"); return saved; });
 
   return {
