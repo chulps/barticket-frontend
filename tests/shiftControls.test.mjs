@@ -56,9 +56,10 @@ test("previewed paid totals only use paid tickets from the current shift", () =>
     assert.equal(result.paidCount, 3);
 });
 
-test("manager controls are advisory and never replace backend permission checks", () => {
-    assert.equal(canManageShift("staff"), false);
+test("legacy staff access is preserved until backend enforces lifecycle authorization", () => {
+    assert.equal(canManageShift("staff"), true);
     assert.equal(canManageShift("manager"), true);
+    assert.equal(canManageShift("visitor"), false);
 });
 
 test("close POST is called only from reviewed explicit confirmation", () => {
@@ -98,4 +99,12 @@ test("tickets provides an explicit read-only time clock status and profile entry
     assert.match(dashboard, /<ShiftStatusBar role="status" aria-live="polite">/);
     assert.match(dashboard, /<Link to="\/profile">/);
     assert.match(dashboard, /Shift status unverified/);
+});
+
+test("staff opening requires explicit acknowledgement; manager history remains gated", () => {
+    const control = src("pages/ShiftControls.tsx");
+    assert.match(control, /!current && account\.role === "manager"/);
+    assert.match(control, /action === "open" && account\.role === "staff"/);
+    assert.match(control, /window\.confirm/);
+    assert.match(control, /if \(account\.role === "manager"\) \{/);
 });
