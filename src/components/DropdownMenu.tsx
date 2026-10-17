@@ -90,14 +90,14 @@ export default function DropdownMenu({
             if (menuRef.current?.contains(target)) return;
             closeMenu(false);
         };
-        const handleScrollOrResize = () => closeMenu();
+        const handleResize = () => closeMenu();
+        // Keep the popup mounted during focus-driven or touch scrolling.
+        // A capture-phase scroll listener detached menu items during clicks.
         document.addEventListener("mousedown", handleClickOutside);
-        window.addEventListener("scroll", handleScrollOrResize, true);
-        window.addEventListener("resize", handleScrollOrResize);
+        window.addEventListener("resize", handleResize);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
-            window.removeEventListener("scroll", handleScrollOrResize, true);
-            window.removeEventListener("resize", handleScrollOrResize);
+            window.removeEventListener("resize", handleResize);
         };
     }, [isOpen]);
 
