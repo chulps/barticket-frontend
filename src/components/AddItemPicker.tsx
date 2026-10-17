@@ -171,6 +171,11 @@ const ItemList = styled.div`
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     scroll-padding-top: var(--space-2);
+    /* The sticky Save footer must never cover a result after one or more
+       selected items expand the summary on narrow/keyboard viewports. */
+    scroll-padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
 `;
 const SectionTitle = styled.h4`
     position: sticky; top: 0; z-index: 1;
