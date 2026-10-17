@@ -30,6 +30,8 @@ test("opens focused and supports Escape, arrows, Home and End", () => {
 });
 test("outside click, scroll and resize dismiss without leaving a visible portal", () => {
   assert.match(popup, /closeMenu\(false\)/);
+  assert.match(popup, /skipFocusReturn\.current = !restore/);
+  assert.match(popup, /!skipFocusReturn\.current && popup\.contains\(document\.activeElement\)/);
   assert.match(popup, /window\.addEventListener\("scroll"/);
   assert.match(popup, /window\.addEventListener\("resize"/);
   assert.match(popup, /triggerRect\.bottom \+ 6 \+ popupRect\.height/);
