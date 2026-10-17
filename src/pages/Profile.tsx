@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useNavigate } from "react-router-dom";
 
-import { accountApi, type Account, type ShiftReport } from "../api/account";
+import { accountApi, type Account } from "../api/account";
 import { ApiError, getToken } from "../api/client";
-import { localeTag, readLocale, translate, useI18n } from "../i18n";
+import { readLocale, translate, useI18n } from "../i18n";
+import ShiftControls from "./ShiftControls";
 import StaffWorkHistory from "./StaffWorkHistory";
 
 export default function Profile() {
@@ -12,7 +13,6 @@ export default function Profile() {
     const navigate = useNavigate();
     const [account, setAccount] = useState<Account | null>(null);
     const [hasAccounts, setHasAccounts] = useState(true);
-    const [shift, setShift] = useState<ShiftReport | null>(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
@@ -24,14 +24,12 @@ export default function Profile() {
         const current = next === undefined ? account : next;
         if (!getToken()) {
             setAccount(null);
-            setShift(null);
             const status = await accountApi.status();
             setHasAccounts(status.has_accounts);
             return;
         }
         const me = current ?? (await accountApi.me());
         setAccount(me);
-        setShift(await accountApi.currentShift());
     }
 
     useEffect(() => {
@@ -44,10 +42,8 @@ export default function Profile() {
                     return;
                 }
                 const me = await accountApi.me();
-                const current = await accountApi.currentShift();
                 if (!cancelled) {
                     setAccount(me);
-                    setShift(current);
                 }
             } catch (err) {
                 if (!cancelled) {
@@ -75,10 +71,6 @@ export default function Profile() {
             setBusy(false);
         }
     }
-
-    const clockedIn = Boolean(
-        account && shift?.punches.some((punch) => punch.user_id === account.id && punch.clock_out === null),
-    );
 
     if (loading) return <Page $signedIn={false}><h1>{t("account")}</h1><p role="status" aria-live="polite">{locale === "ja" ? "アカウントを読み込み中…" : "Loading account…"}</p></Page>;
     // A failed authenticated lookup is not a signed-out session. Avoid showing
@@ -137,62 +129,7 @@ export default function Profile() {
                 </Section>
             ) : (
                 <>
-                    <Section>
-                        <h2>{t("tonight")}</h2>
-                        {shift?.status === "open" ? (
-                            <p>
-                                {t("shiftOpenSince", {
-                                    time: new Date(shift.opened_at * 1000).toLocaleTimeString(localeTag(locale), {
-                                        hour: "numeric",
-                                        minute: "2-digit",
-                                    }),
-                                    name: shift.opened_by,
-                                })}
-                            </p>
-                        ) : (
-                            <p>{t("noShiftOpen")}</p>
-                        )}
-                        <Row>
-                            {shift?.status !== "open" ? (
-                                <button type="button" className="success" onClick={() => run(async () => setShift(await accountApi.openShift()))}>
-                                    {t("openShift")}
-                                </button>
-                            ) : (
-                                <>
-                                    <button
-                                        type="button"
-                                        className="secondary"
-                                        onClick={() =>
-                                            run(async () =>
-                                                setShift(clockedIn ? await accountApi.clockOut() : await accountApi.clockIn()),
-                                            )
-                                        }
-                                    >
-                                        {clockedIn ? t("clockOut") : t("clockIn")}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="danger"
-                                        onClick={() => run(async () => setShift(await accountApi.closeShift()))}
-                                    >
-                                        {t("closeShift")}
-                                    </button>
-                                </>
-                            )}
-                        </Row>
-                        {shift?.status === "closed" ? (
-                            <p>
-                                {t("shiftClosed")}
-                                {account.role === "manager"
-                                    ? ` ${t("shiftClosedTotals", {
-                                          total: shift.paid_total.toLocaleString(),
-                                          cash: shift.cash_total.toLocaleString(),
-                                          card: shift.card_total.toLocaleString(),
-                                      })}`
-                                    : ""}
-                            </p>
-                        ) : null}
-                    </Section>
+                    <ShiftControls account={account} locale={locale} />
 
                     <StaffWorkHistory key={account.id} userId={account.id} locale={locale} />
 
