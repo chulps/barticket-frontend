@@ -42,7 +42,7 @@ test("malformed or oversized replacement does not wipe prior preview", () => {
 });
 
 test("route changes and reloads preserve or warn about browser-only work", () => {
-  assert.match(page, /temporaryWorkingCopy = \{ selectedId, draft, csv, mapping, includeHours \}/);
+  assert.match(page, /temporaryWorkingCopy = hasUnsavedWork/);
   assert.match(page, /window\.addEventListener\("beforeunload", beforeUnload\)/);
   assert.match(page, /document\.addEventListener\("click", interceptNavigation, true\)/);
   assert.match(page, /window\.addEventListener\("barticket-auth", clearOnAuthChange\)/);
