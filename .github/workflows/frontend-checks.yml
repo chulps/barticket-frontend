@@ -20,6 +20,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Read-only live menu translation audit (report missing database entries)
+        if: github.head_ref == 'feature/ticket-item-actions-menu-translations-v2'
+        continue-on-error: true
+        run: npm run i18n:menu-audit
       - name: Frontend unit tests
         run: node --test tests/*.test.mjs
       - name: Frontend security source audit
