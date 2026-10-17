@@ -85,6 +85,8 @@ export function guestOccupancyTimeline(
     };
 
     for (const ticket of matching) {
+        if (ticket.status === "cancelled") continue;
+
         const rawStart = seconds(ticket.created_at);
         if (rawStart == null || rawStart > end) continue;
         const ticketStart = Math.max(start, rawStart);
