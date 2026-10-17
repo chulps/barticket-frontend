@@ -167,8 +167,15 @@ export default function AddItemPicker({ menu, tickets, onAddItem, onAddStaffDrin
 
 const ItemList = styled.div`
     display: flex; flex-direction: column; gap: var(--space-2);
-    min-height: 0; min-width: 0; flex: 1; overflow-y: auto;
+    min-height: 0; min-width: 0; flex: 1 1 0; overflow-y: auto;
     overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scroll-padding-top: var(--space-2);
+    /* The sticky Save footer must never cover a result after one or more
+       selected items expand the summary on narrow/keyboard viewports. */
+    scroll-padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
 `;
 const SectionTitle = styled.h4`
     position: sticky; top: 0; z-index: 1;
@@ -192,7 +199,8 @@ const SearchBarContainer = styled.div`
 `;
 const SelectedItems = styled.div`
     display: flex; flex-wrap: wrap; gap: var(--space-1);
-    padding: var(--space-2); max-height: 30dvh; overflow-y: auto;
+    padding: var(--space-2); max-height: min(22dvh, 180px); overflow-y: auto;
+    flex-shrink: 0; overscroll-behavior: contain;
 `;
 const Selection = styled.div`
     display: flex; align-items: center; gap: var(--space-1);
@@ -206,6 +214,7 @@ const QuantityButton = styled.button`
 `;
 const Footer = styled.footer`
     position: sticky; bottom: 0; display: flex; gap: var(--space-2);
+    flex-shrink: 0; z-index: 2;
     padding: var(--space-2); padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px)); background: var(--neutral-900);
     border-top: 1px solid var(--neutral-700);
 `;
