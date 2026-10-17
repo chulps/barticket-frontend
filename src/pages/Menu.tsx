@@ -138,6 +138,8 @@ export default function Menu({
             onToggleStock={authenticated ? toggleStock : undefined}
             onSavePrices={authenticated ? savePrices : undefined}
             pendingMenuIds={pendingMenuIds}
+            categories={Array.from(new Set(menuItems.map(item => item.category)))}
+            allSubcategories={Array.from(new Set(menuItems.map(item => item.subcategory).filter((value): value is string => Boolean(value))))}
           />
         ))}
       </MenuGridContainer>
