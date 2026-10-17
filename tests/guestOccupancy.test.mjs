@@ -16,6 +16,7 @@ function shift(status = "open", fields = {}) {
         opened_at: 100,
         closed_at: status === "closed" ? 400 : null,
         guest_count: 0,
+        paid_total: 0,
         paid_count: 0,
         cancelled_count: 0,
         ...fields,
@@ -106,4 +107,10 @@ test("Analytics renders the occupancy chart only for the Daily selection", () =>
     assert.equal(syntax.parseDiagnostics.length, 0);
     assert.match(analytics, /range === "day" && selected\?\.status === "open"[\s\S]*?<GuestOccupancyChart/);
     assert.match(analytics, /\{range === "day" && selected \? \([\s\S]*?<GuestOccupancyChart/);
+});
+
+
+test("does not show a zero timeline when a legacy shift only has revenue totals", () => {
+    const historical = shift("closed", { paid_total: 25000 });
+    assert.equal(guestOccupancyTimeline(historical, [], 500), null);
 });
