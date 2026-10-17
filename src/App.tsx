@@ -27,7 +27,10 @@ import { accountApi } from "./api/account";
 import { getToken, setToken, ApiError } from "./api/client";
 
 import type { MenuData, MenuItem, Prices } from "./types/Menu";
-import { getMenu, setMenuPrices, setMenuStock } from "./api/menu";
+import {
+  archiveMenuItem, getMenu, restoreMenuItem,
+  setMenuPrices, setMenuStock, updateMenuItem, type MenuItemEdit,
+} from "./api/menu";
 import { replaceMenuItem, optimisticStock, optimisticPrices, reconcileMenuSnapshot } from "./hooks/optimisticOperations";
 import { createSingleFlightRefresh } from "./hooks/singleFlightRefresh";
 
@@ -144,6 +147,41 @@ export default function App() {
     current => optimisticPrices(current, prices),
     () => setMenuPrices(item.id, prices));
 
+  // Keep the same per-item single-flight guard used by price/stock changes.
+  // Do not optimistically publish unsaved names or price changes across devices.
+  const saveMenuDetails = (item: MenuItem, input: MenuItemEdit) => mutateMenuItem(
+    item.id, current => current, () => updateMenuItem(item.id, input));
+
+  const archiveMenu = async (item: MenuItem): Promise<boolean> => {
+    const saved = await mutateMenuItem(item.id, current => current,
+      () => archiveMenuItem(item.id));
+    if (!saved) return false;
+    menuRevision.current++;
+    const current = menuRef.current;
+    if (current) updateMenu({ ...current, items: current.items.filter(row => row.id !== item.id) });
+    return true;
+  };
+
+  const restoreMenu = async (item: MenuItem): Promise<boolean> => {
+    if (pendingMenuItems.current.has(item.id)) return false;
+    pendingMenuItems.current.add(item.id);
+    setPendingMenuIds([...pendingMenuItems.current]);
+    try {
+      const saved = await restoreMenuItem(item.id);
+      menuRevision.current++;
+      const current = menuRef.current;
+      if (current) updateMenu({
+        ...current,
+        items: [...current.items.filter(row => row.id !== saved.id), saved]
+          .sort((a, b) => a.id - b.id),
+      });
+      return true;
+    } finally {
+      pendingMenuItems.current.delete(item.id);
+      setPendingMenuIds([...pendingMenuItems.current]);
+    }
+  };
+
   useEffect(() => {
     // A single read in flight plus one coalesced pending refresh prevents an
     // older GET from committing after a newer one, without GET storms.
@@ -217,6 +255,9 @@ export default function App() {
             menuError={menuError}
             onToggleStock={changeStock}
             onSavePrices={changePrices}
+            onSaveItem={saveMenuDetails}
+            onArchiveItem={archiveMenu}
+            onRestoreItem={restoreMenu}
             pendingMenuIds={pendingMenuIds}
             onItemAdded={addMenuItem} />} />
 
