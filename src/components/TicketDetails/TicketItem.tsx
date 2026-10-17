@@ -2,7 +2,7 @@ import styled from "styled-components";
 import Icon from "../Icon";
 import DropdownMenu from "../DropdownMenu";
 import DropdownMenuItem from "../DropdownMenuItem";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useI18n } from "../../i18n";
 
 type TicketDetailItemProps = {
@@ -46,6 +46,12 @@ export default function TicketDetailItem({
     const [savingPrice, setSavingPrice] = useState(false);
     const [priceError, setPriceError] = useState("");
     const priceSavingRef = useRef(false);
+    const priceTriggerRef = useRef<HTMLButtonElement>(null);
+    const wasEditingPrice = useRef(false);
+    useEffect(() => {
+        if (wasEditingPrice.current && !isEditingPrice) priceTriggerRef.current?.focus();
+        wasEditingPrice.current = isEditingPrice;
+    }, [isEditingPrice]);
 
     const startEditingPrice = () => {
         setPriceInput(unitPrice.toString());
@@ -55,7 +61,7 @@ export default function TicketDetailItem({
     const savePrice = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (priceSavingRef.current || pending) return;
-        if (!/^\\d+$/.test(priceInput) || !Number.isSafeInteger(Number(priceInput))) {
+        if (!/^\d+$/.test(priceInput) || !Number.isSafeInteger(Number(priceInput))) {
             setPriceError(t("priceMinimum"));
             return;
         }
@@ -92,7 +98,8 @@ export default function TicketDetailItem({
                     <PriceEditForm onSubmit={(event) => void savePrice(event)}>
                         <PriceInput
                             autoFocus
-                            aria-label={locale === "ja" ? "新しい商品価格" : "New item price"}
+                            onFocus={event => event.currentTarget.select()}
+                            aria-label={locale === "ja" ? name + " の新しい商品価格" : "New price for " + name}
                             type="text"
                             inputMode="numeric"
                             value={priceInput}
@@ -116,15 +123,14 @@ export default function TicketDetailItem({
                         </PriceEditActions>
                         {priceError ? <PriceError role="alert">{priceError}</PriceError> : null}
                     </PriceEditForm>
-                ) : (
-                    <Price
-                        onClick={() => {
-                            if (!isEditable) return;
-                            startEditingPrice();
-                        }}
-                    >
+                ) : isEditable ? (
+                    <PriceTrigger type="button" ref={priceTriggerRef}
+                        aria-label={locale === "ja" ? name + " の価格を調整" : "Adjust price for " + name}
+                        onClick={startEditingPrice}>
                         {t("priceEach", { price: unitPrice.toLocaleString() })}
-                    </Price>
+                    </PriceTrigger>
+                ) : (
+                    <PriceReadOnly>{t("priceEach", { price: unitPrice.toLocaleString() })}</PriceReadOnly>
                 )}
             </Info>
 
@@ -239,13 +245,21 @@ const Name = styled.p`
   overflow-wrap: anywhere;
 `;
 
-const Price = styled.small`
+const PriceReadOnly = styled.small`
     color: var(--neutral-400);
-    cursor: pointer;
-
-    &:hover {
-        color: white;
-    }
+`;
+const PriceTrigger = styled.button`
+    color: var(--neutral-400);
+    font-size: var(--font-size-small);
+    text-align: left;
+    align-self: flex-start;
+    width: auto;
+    min-width: 0;
+    padding: 2px 0;
+    border: 1px solid transparent;
+    background: transparent;
+    &:hover { color: white; background: transparent; }
+    &:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 `;
 
 const PriceInput = styled.input`
