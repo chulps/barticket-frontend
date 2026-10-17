@@ -60,9 +60,17 @@ export default function DropdownMenu({
         // position it above the trigger if the bottom of the viewport is tight.
         const triggerRect = trigger.getBoundingClientRect();
         const popupRect = popup.getBoundingClientRect();
-        const nextTop = triggerRect.bottom + 6 + popupRect.height > window.innerHeight - 8
-            ? Math.max(8, triggerRect.top - popupRect.height - 6)
-            : triggerRect.bottom + 6;
+        const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+        const below = viewportHeight - triggerRect.bottom - 14;
+        const above = triggerRect.top - 14;
+        // Prefer the side with room. For tall action menus, constrain the
+        // popup's scrollable height so the last action remains reachable.
+        const openAbove = popupRect.height > below && above > below;
+        const available = Math.max(80, openAbove ? above : below);
+        popup.style.maxHeight = available + "px";
+        const nextTop = openAbove
+            ? Math.max(8, triggerRect.top - Math.min(popupRect.height, available) - 6)
+            : Math.max(8, triggerRect.bottom + 6);
         const nextRight = Math.max(8, Math.min(window.innerWidth - triggerRect.right,
             Math.max(8, window.innerWidth - popupRect.width - 8)));
         setBox(previous => previous && previous.top === nextTop && previous.right === nextRight
