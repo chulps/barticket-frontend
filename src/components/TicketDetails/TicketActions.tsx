@@ -3,6 +3,7 @@ import styled from "styled-components";
 
 import Icon from "../Icon";
 import PaymentModal from "../PaymentModal";
+import ReceiptPreview from "./ReceiptPreview";
 
 // Types
 import type { PaymentType, Ticket } from "../../types/Ticket";
@@ -109,7 +110,12 @@ export default function TicketActions({
     if (activeTab === "paid") {
         return (
             <ButtonActions $row>
-                <ActionButton className="hollow secondary">
+                <ActionButton className="hollow secondary" onClick={() => openModal({
+                    title: locale === "ja" ? "領収書メール（プレビュー）" : "Email receipt — preview",
+                    content: <ReceiptPreview ticket={ticket} />,
+                    fitContent: true,
+                    maxWidth: "520px",
+                })}>
                     <Icon name="EnvelopeSimple" />
                     {t("emailReceipt")}
                 </ActionButton>
