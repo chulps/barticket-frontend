@@ -61,7 +61,7 @@ test("closed shift timeline subtracts paid and cancelled guests and ends at zero
     const rows = [
         ticket(1, "paid", 120, {
             guestCount: 2,
-            payment: { type: "cash", paid_at: 180 },
+            payment: { type: "cash", paid_at: 260 },
         }),
         ticket(2, "paid", 200, {
             guestCount: 3,
