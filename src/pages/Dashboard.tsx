@@ -20,6 +20,7 @@ import { useI18n } from "../i18n";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { getToken } from "../api/client";
 import { ticketVisibleOnBoard, type ShiftLookup } from "./ticketBoardVisibility";
+import { resolveVisibleSelection } from "./ticketBoardSelection";
 
 type DashboardProps = {
   menu: MenuData | null;
@@ -115,18 +116,26 @@ export default function Dashboard({
 
   // Open tickets retain their all-shift recovery policy. Closed tickets
   // must belong to a confirmed active shift; loading/errors fail closed.
-  const visibleTickets = tickets.filter((ticket) =>
-    ticketVisibleOnBoard(ticket, activeTab, shiftLookup)
+  const ticketsForTab = (tab: Ticket["status"]) => tickets.filter((ticket) =>
+    ticketVisibleOnBoard(ticket, tab, shiftLookup)
   );
+  const visibleTickets = ticketsForTab(activeTab);
+
+  // Derive a valid display selection instead of updating React state in an
+  // effect (which can briefly expose stale details and cascade renders).
+  const visibleSelectedTicketId = resolveVisibleSelection(visibleTickets, selectedTicketId);
+  // On mobile, let the ticket list reappear rather than silently changing
+  // the open customer's detail pane after an incoming status/shift update.
+  const showCurrentDetails = showTicketDetails && visibleSelectedTicketId === selectedTicketId;
 
   // answers which ticket is currently being displayed in ticket details?
   const currentIndex = visibleTickets.findIndex(
-    (ticket) => ticket.id === selectedTicketId
+    (ticket) => ticket.id === visibleSelectedTicketId
   );
 
   // answers which ticket is selected in the left column
   const selectedTicket =
-    visibleTickets.find((ticket) => ticket.id === selectedTicketId) ?? null;
+    visibleTickets.find((ticket) => ticket.id === visibleSelectedTicketId) ?? null;
 
   // function necessary for mobile users. selects previous ticket while in ticket details view
   const selectPreviousTicket = () => {
@@ -259,9 +268,9 @@ export default function Dashboard({
       <TicketSidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        tickets={tickets}
+        ticketsForTab={ticketsForTab}
         visibleTickets={visibleTickets}
-        selectedTicketId={selectedTicketId}
+        selectedTicketId={visibleSelectedTicketId ?? 0}
         setSelectedTicketId={setSelectedTicketId}
         setShowTicketDetails={setShowTicketDetails}
         handleCreateTicket={handleCreateTicket}
@@ -272,7 +281,7 @@ export default function Dashboard({
         canCreate={canCreate && !tickets.some(ticket => ticket.id < 0)}
       />
 
-      <Content $open={showTicketDetails}>
+      <Content $open={showCurrentDetails}>
         {selectedTicket?.id && selectedTicket.id < 0 ? (
           <EmptyTicketDetails role="status" aria-live="polite">Creating ticket…</EmptyTicketDetails>
         ) : selectedTicket ? (
