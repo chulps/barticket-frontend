@@ -53,6 +53,14 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
     const path=new URL(req.url()).pathname;
     const method=req.method();
     const key=method+" "+path;
+    if(method==="OPTIONS") {
+      await route.fulfill({status:204,headers:{
+        "Access-Control-Allow-Origin":"*",
+        "Access-Control-Allow-Methods":"GET,POST,PATCH,DELETE,OPTIONS",
+        "Access-Control-Allow-Headers":"*",
+      }});
+      return;
+    }
     state.requests.push(key);
     let status=200, response=null;
     const json=() => { try { return req.postDataJSON() ?? {}; } catch { return {}; } };
@@ -122,7 +130,9 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
       }
     }
     if(response===null){status=404;response={detail:"Unmocked API endpoint: "+key};}
-    await route.fulfill({status,contentType:"application/json",headers:{"Access-Control-Allow-Origin":"*"},
+    await route.fulfill({status,contentType:"application/json",headers:{"Access-Control-Allow-Origin":"*",
+        "Access-Control-Allow-Methods":"GET,POST,PATCH,DELETE,OPTIONS",
+        "Access-Control-Allow-Headers":"*"},
       body:JSON.stringify(response)});
   });
   return state;
