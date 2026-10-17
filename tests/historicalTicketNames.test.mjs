@@ -5,7 +5,9 @@ import ts from "typescript";
 const source = readFileSync(new URL("../src/components/TicketDetails/TicketItems.tsx", import.meta.url), "utf8");
 
 test("closed tickets use the saved historical item name, not the current menu label", () => {
-  assert.match(source, /activeTab === "open"[\s\S]*?menu\?\.items\.find[\s\S]*?: item\.name/);
+  // Current catalog updates and archiving cannot rename existing open or paid ticket lines.
+  assert.match(source, /menuLabel\([\s\S]*?locale,[\s\S]*?item\.name/);
+  assert.doesNotMatch(source, /menu\?\.items\.find\(/);
   assert.match(source, /item\.staff_drink/);
   assert.match(source, /item\.type === "cover"/);
   assert.match(source, /unitPrice=\{item\.unit_price\}/);
