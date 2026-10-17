@@ -51,17 +51,27 @@ export default function DropdownMenu({
         if (!popup || !trigger) return;
         const options = popup.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled])');
         const choice = initialFocus.current === "last" ? options[options.length - 1] : options[0];
-        choice?.focus();
+        // Focusing a menu option must not scroll its ticket row out of view.
+        // A focus-induced scroll also fires our scroll-to-close handler.
+        choice?.focus({ preventScroll: true });
 
         // Measure the actual popup instead of guessing item height, and
         // position it above the trigger if the bottom of the viewport is tight.
         const triggerRect = trigger.getBoundingClientRect();
         const popupRect = popup.getBoundingClientRect();
-        const nextTop = triggerRect.bottom + 6 + popupRect.height > window.innerHeight - 8
-            ? Math.max(8, triggerRect.top - popupRect.height - 6)
+        // Use the rendered dimensions: each ticket's action menu is anchored
+        // to its original trailing icon and flips upward when space runs out.
+        const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+        const viewportWidth = window.visualViewport?.width ?? window.innerWidth;
+        const availableBelow = viewportHeight - triggerRect.bottom - 8;
+        const availableAbove = triggerRect.top - 8;
+        const openAbove = popupRect.height > availableBelow && availableAbove > availableBelow;
+        const idealTop = openAbove
+            ? triggerRect.top - popupRect.height - 6
             : triggerRect.bottom + 6;
-        const nextRight = Math.max(8, Math.min(window.innerWidth - triggerRect.right,
-            Math.max(8, window.innerWidth - popupRect.width - 8)));
+        const nextTop = Math.max(8, Math.min(idealTop, viewportHeight - popupRect.height - 8));
+        const nextRight = Math.max(8, Math.min(viewportWidth - triggerRect.right,
+            viewportWidth - popupRect.width - 8));
         setBox(previous => previous && previous.top === nextTop && previous.right === nextRight
             ? previous : { top: nextTop, right: nextRight });
 
@@ -169,8 +179,8 @@ const Trigger = styled.button`
 `;
 const Menu = styled.div<{ $top: number; $right: number }>`
     position: fixed;
-    top: ({ $top }) => $toppx;
-    right: ({ $right }) => $rightpx;
+    top: ${({ $top }) => `${$top}px`};
+    right: ${({ $right }) => `${$right}px`};
     display: flex;
     flex-direction: column;
     align-items: stretch;
