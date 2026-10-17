@@ -40,7 +40,7 @@ export default function TicketFooter({
     onReopenTicket,
     canCorrectPayment,
 }: TicketFooterProps) {
-    const { t } = useI18n();
+    const { t, locale } = useI18n();
 
     return (
         <Footer>
@@ -49,18 +49,46 @@ export default function TicketFooter({
                     <label>{t("total")}</label>
                     <data>¥{total.toLocaleString()}</data>
                 </Row>
-                {(ticket.waivedCoverCount ?? 0) > 0 ? <Row>
-                    <small>{ticket.waivedCoverCount} waived / チャージ免除</small>
-                    <small>{ticket.guestCount ?? 0} guests / 来店人数</small>
-                </Row> : null}
+                {(ticket.waivedCoverCount ?? 0) + (ticket.returningGuestCount ?? 0) > 0 ? <>
+                    <Row>
+                        <small>{locale === "ja" ? "来店人数" : "Guests counted"}</small>
+                        <small>{ticket.guestCount ?? 0}</small>
+                    </Row>
+                    {(ticket.waivedCoverCount ?? 0) > 0 && <Row>
+                        <small>{locale === "ja" ? "カバー免除" : "Waived covers"}</small>
+                        <small>{ticket.waivedCoverCount}</small>
+                    </Row>}
+                    {(ticket.returningGuestCount ?? 0) > 0 && <Row>
+                        <small>{locale === "ja" ? "再来店（重複計上なし）" : "Returning guests (not recounted)"}</small>
+                        <small>{ticket.returningGuestCount}</small>
+                    </Row>}
+                </> : null}
                 {ticket.amountPaid !== undefined && ticket.amountPaid > 0 ? <Row>
                     <small>Already paid / 支払済</small>
                     <small>¥{ticket.amountPaid.toLocaleString()}</small>
                 </Row> : null}
                 {ticket.balanceDue !== undefined && ticket.status === "open" ? <Row>
-                    <strong>Balance due / 残額</strong>
+                    <strong>{locale === "ja" ? "お支払い残額" : "Balance due"}</strong>
                     <strong>¥{ticket.balanceDue.toLocaleString()}</strong>
                 </Row> : null}
+                {(ticket.payments?.length ?? 0) > 0 && <details>
+                    <summary style={{ fontSize: "var(--font-size-small)", cursor: "pointer" }}>
+                        {locale === "ja" ? "お支払い履歴" : "Payment history"} ({ticket.payments?.length})
+                    </summary>
+                    <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                        {ticket.payments?.map((payment, index) => (
+                            <li key={index} style={{ paddingBlock: "var(--space-1)" }}>
+                                {t(payment.type)} · ¥{payment.amount.toLocaleString()}
+                                {" · "}
+                                {new Date(payment.paid_at * 1000).toLocaleString(locale === "ja" ? "ja-JP" : "en-US")}
+                                {payment.voided_at != null && <strong style={{ color: "var(--danger-400)" }}>
+                                    {" · "}{locale === "ja" ? "POS記録取消済（返金ではありません）" : "POS-voided (not refunded)"}
+                                    {payment.voided_by ? " · " + payment.voided_by : ""}
+                                </strong>}
+                            </li>
+                        ))}
+                    </ul>
+                </details>}
             </Totals>
 
             <Actions>
