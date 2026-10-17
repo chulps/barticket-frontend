@@ -18,7 +18,7 @@ export type GuestOccupancyTimeline = {
     peak: number;
 };
 
-type ShiftWindow = Pick<ShiftReport, "id" | "status" | "opened_at" | "closed_at" | "guest_count" | "paid_count" | "cancelled_count">;
+type ShiftWindow = Pick<ShiftReport, "id" | "status" | "opened_at" | "closed_at" | "guest_count" | "paid_count" | "cancelled_count" | "paid_total">;
 
 function seconds(value: number | null | undefined): number | null {
     if (value == null || !Number.isFinite(value)) return null;
@@ -71,7 +71,7 @@ export function guestOccupancyTimeline(
     if (
         shift.status === "closed"
         && matching.length === 0
-        && (count(shift.guest_count) > 0 || count(shift.paid_count) > 0 || count(shift.cancelled_count) > 0)
+        && (count(shift.guest_count) > 0 || count(shift.paid_count) > 0 || count(shift.cancelled_count) > 0 || count(shift.paid_total) > 0)
     ) {
         return null;
     }
