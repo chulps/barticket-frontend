@@ -54,8 +54,8 @@ async function revokePushForSession(previousToken: string): Promise<void> {
 export function setToken(token: string | null) {
     const previousToken = localStorage.getItem(TOKEN_KEY);
     if (previousToken && previousToken !== token) {
-        void revokePushForSession(previousToken).catch((error) =>
-            console.warn("Unable to revoke push subscription on sign out", error),
+        void revokePushForSession(previousToken).catch(() =>
+            console.warn("Unable to revoke push subscription on sign out"),
         );
     }
     if (token) localStorage.setItem(TOKEN_KEY, token);
