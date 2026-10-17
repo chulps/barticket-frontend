@@ -34,6 +34,8 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
     });
     const [csv, setCsv] = useState<CsvData | null>(() => temporaryWorkingCopy?.csv ?? null);
     const [csvError, setCsvError] = useState("");
+    const [previewFilter, setPreviewFilter] = useState<"all" | "new" | "conflict" | "match">("all");
+    const [reportNotice, setReportNotice] = useState("");
     const [mapping, setMapping] = useState<Record<string, string>>(() => temporaryWorkingCopy?.mapping ?? {});
     const [extraHourKey, setExtraHourKey] = useState("");
     const [includeHours, setIncludeHours] = useState<string[]>(() => temporaryWorkingCopy?.includeHours ?? []);
@@ -48,6 +50,34 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
         Object.entries(draft.staffHours).some(([name, value]) => value !== String((selected.staff_hours.find(row => row.name === name)?.seconds ?? 0) / 3600))));
     const preview = useMemo(() => csv ? importPreview(csv, mapping, shifts) : null, [csv, mapping, shifts]);
     const hasUnsavedWork = changed || csv !== null;
+    const previewRows = useMemo(() => (preview?.preview ?? []).filter(row =>
+        previewFilter === "all" || row.state === previewFilter
+    ), [preview, previewFilter]);
+    async function copyComparisonReport() {
+        if (!preview || preview.errors.length) return;
+        const comparison = {
+            mode: "READ_ONLY_COMPARISON_NOT_IMPORTED",
+            generated_at: new Date().toISOString(),
+            total_rows: preview.preview.length,
+            new_rows: preview.preview.filter(row => row.state === "new").length,
+            conflicts: preview.preview.filter(row => row.state === "conflict").length,
+            matches: preview.preview.filter(row => row.state === "match").length,
+            rows: preview.preview.map(({ imported, state, differences, existing }) => ({
+                business_date: imported.date,
+                source_line: imported.line,
+                outcome: state,
+                differing_fields: differences,
+                imported: { manager: imported.manager, revenue: imported.revenue, guests: imported.guests, staff_hours_total: imported.staffHours },
+                existing: existing ? { shift_id: existing.id, manager: existing.opened_by, revenue: existing.paid_total, guests: existing.guest_count } : null,
+            })),
+        };
+        try {
+            await navigator.clipboard.writeText(JSON.stringify(comparison, null, 2));
+            setReportNotice(ja ? "比較レポートをコピーしました。DBのレコードは変更されていません。" : "Comparison report copied. No database records were changed.");
+        } catch {
+            setReportNotice(ja ? "コピーできませんでした。クリップボード権限を確認してください。" : "Could not copy. Check your clipboard permissions.");
+        }
+    }
 
     useEffect(() => {
         // Keep a short-lived in-memory restore point when navigating away.
@@ -120,6 +150,8 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
             // Commit a complete replacement only after a successful read/parse.
             // Invalid/malformed files leave the old preview and mappings intact.
             setCsv(parsed);
+            setPreviewFilter("all");
+            setReportNotice("");
             setMapping(defaultCsvMapping(parsed.headers));
             setIncludeHours([]);
             setCsvError("");
@@ -258,12 +290,31 @@ export default function Reconciliation({ shifts, locale, error, initialShiftId }
                 {preview?.errors.length ? <Notice role="alert">{preview.errors.slice(0, 20).map(message => <p key={message}>{message}</p>)}{preview.errors.length > 20 ? <p>+ {preview.errors.length - 20}</p> : null}</Notice> : null}
                 {preview && !preview.errors.length ? <>
                     <p>{ja ? "新規" : "New"}: {preview.preview.filter(row => row.state === "new").length} · {ja ? "差異あり" : "Conflicts"}: {preview.preview.filter(row => row.state === "conflict").length} · {ja ? "一致" : "Matches"}: {preview.preview.filter(row => row.state === "match").length}</p>
+                    <Actions role="group" aria-label={ja ? "比較結果フィルター" : "Comparison result filters"}>
+                        {(["all", "conflict", "new", "match"] as const).map(key => (
+                            <button key={key} type="button" className={previewFilter === key ? "secondary" : "hollow secondary"}
+                                aria-pressed={previewFilter === key} onClick={() => setPreviewFilter(key)}>
+                                {key === "all" ? (ja ? "すべて" : "All")
+                                    : key === "conflict" ? (ja ? "差異のみ" : "Conflicts")
+                                        : key === "new" ? (ja ? "新規のみ" : "New only")
+                                            : (ja ? "一致のみ" : "Matches")}
+                            </button>
+                        ))}
+                    </Actions>
+                    <p className="shift-muted" role="status">{ja ? "表示中" : "Showing"}: {previewRows.length} / {preview.preview.length}</p>
                     <TableWrap><table><thead><tr><th>{text.date}</th><th>{text.manager}</th><th>{text.revenue}</th><th>{text.guests}</th><th>{ja ? "比較結果" : "Comparison"}</th></tr></thead>
-                        <tbody>{preview.preview.map(({ imported, existing, state, differences }) => <tr key={imported.line}>
+                        <tbody>{previewRows.map(({ imported, existing, state, differences }) => <tr key={imported.line}>
                             <td>{imported.date}</td><td>{imported.manager}{existing && existing.opened_by !== imported.manager ? " ← " + existing.opened_by : ""}</td>
                             <td>¥{imported.revenue.toLocaleString()}</td><td>{imported.guests}</td>
                             <td>{state === "new" ? (ja ? "DBに記録なし" : "Not in API") : state === "match" ? (ja ? "一致" : "Match") : differences.join(", ")}</td>
                         </tr>)}</tbody></table></TableWrap>
+                    <Actions>
+                        <button type="button" className="secondary" onClick={() => void copyComparisonReport()}>
+                            {ja ? "比較レポートJSONをコピー" : "Copy comparison JSON"}
+                        </button>
+                        <p>{ja ? "読み取り専用の比較結果です。APIへの送信・インポートは行いません。" : "Read-only comparison report. No API submission or import will occur."}</p>
+                    </Actions>
+                    {reportNotice ? <p role="status">{reportNotice}</p> : null}
                 </> : null}
                 <button type="button" disabled title={ja ? "バックエンド対応待ち" : "Awaiting validated backend import API"}>{ja ? "確認して取り込む（未対応）" : "Commit import — unavailable"}</button>
             </> : null}
