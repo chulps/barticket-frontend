@@ -800,7 +800,8 @@ export default function Analytics() {
                                 <Summary totals={totals} context={copyPeriod(range, month, year, selected, locale)}>
                                     {range !== "day" ? (
                                         <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} onDrillDown={drillIntoBar} />
-                                    ) : selected ? (
+                                    ) : null}
+                                    {range === "day" && selected ? (
                                         <GuestOccupancyChart
                                             shift={selected}
                                             tickets={tickets}
