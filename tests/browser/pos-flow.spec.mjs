@@ -36,7 +36,7 @@ const menu = {
 };
 async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
   const state = { tickets:[ticket()], requests:[], paymentPosts:0,
-    newTicketPosts:0, itemPosts:0, failNextItem:false, failNextPayment:false };
+    newTicketPosts:0, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false };
   await page.addInitScript(({authenticated, locale}) => {
     if(authenticated) localStorage.setItem("barticket_token","NON_PRODUCTION_BROWSER_TEST_TOKEN");
     else localStorage.removeItem("barticket_token");
@@ -93,7 +93,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
         else if(method==="GET")response=found;
         else if(method==="POST" && m[2]==="items"){
           state.itemPosts++;
-          if(state.failNextItem){state.failNextItem=false;status=503;response={detail:"Simulated partial failure"};}
+          if(state.failNextItem || state.itemPosts === state.failItemAt){state.failNextItem=false;status=503;response={detail:"Simulated partial failure"};}
           else{
             const data=json(), menuItem=menu.items.find(i=>i.id===data.menu_item_id);
             const quantity=data.quantity ?? 1, price=menuItem?.prices?.standard ?? 0;
@@ -150,7 +150,7 @@ test("unauthenticated status and failed login never expose a ticket board",async
   const state=await mockedPOS(page,{authenticated:false});
   await page.goto("/");
   await expect(page.getByRole("button",{name:/Sign In/i})).toBeVisible();
-  await page.locator('input[type="email"]').fill("nobody@example.invalid");
+  await page.getByLabel(/Email/i).fill("nobody@example.invalid");
   await page.locator('input[type="password"]').fill("wrong");
   await page.getByRole("button",{name:/Sign In/i}).click();
   await expect(page.getByRole("alert")).toContainText("Invalid test login");
@@ -216,5 +216,35 @@ test("mobile menu search stays visible with long lists, and Japanese close navig
   const close=page.getByRole("button",{name:/チケットを閉じる/});
   await expect(close).toBeVisible();
   await close.click();
-  await expect(page.getByRole("button",{name:/支払い|お支払い/}).first()).toBeVisible();
+  await expect(page.getByRole("button",{name:/会計/}).first()).toBeVisible();
+});
+
+
+test("item price Save commits only on explicit confirmation; Escape cancels",async ({page})=>{
+  const state=await mockedPOS(page);
+  await openTicket(page);
+  await page.getByRole("button",{name:/Adjust price for Highball/i}).click();
+  const amount=page.getByRole("textbox",{name:/New price for Highball/i});
+  await amount.fill("950");
+  await amount.press("Escape");
+  expect(state.tickets[0].items[0].unit_price).toBe(700);
+  await page.getByRole("button",{name:/Adjust price for Highball/i}).click();
+  await page.getByRole("textbox",{name:/New price for Highball/i}).fill("950");
+  await page.getByRole("button",{name:"Save",exact:true}).click();
+  await expect.poll(()=>state.tickets[0].items[0].unit_price).toBe(950);
+});
+
+test("partial multi-item failure leaves unresolved items visible without automatic POST retry",async ({page})=>{
+  const state=await mockedPOS(page);
+  await openTicket(page);
+  state.failItemAt=2;
+  await page.getByRole("button",{name:/Add Item/i}).click();
+  const dialog=page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button",{name:"¥700",exact:true}).first().click();
+  await dialog.getByRole("button",{name:"¥600",exact:true}).first().click();
+  await dialog.getByRole("button",{name:/Save \(2\)/}).click();
+  await expect.poll(()=>state.itemPosts).toBe(2);
+  await expect(dialog.getByRole("alert")).toContainText(/unconfirmed/);
+  expect(state.tickets[0].items.length).toBe(2);
 });
