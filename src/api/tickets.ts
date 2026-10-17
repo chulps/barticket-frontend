@@ -27,6 +27,15 @@ export type ApiTicket = {
     guest_count: number;
     cover_charge_per_person: number;
     cover_charge_total: number;
+    waived_cover_count?: number;
+    // Andrew's merged backend PR #91: audited cover/returning/payment history.
+    returning_guest_count?: number;
+    returning_from_ticket_id?: number | null;
+    amount_paid?: number;
+    balance_due?: number;
+    payments?: { type: PaymentType; amount: number; paid_at: number; voided_at?: number | null; voided_by?: string | null }[];
+    cover_adjusted_by?: string | null;
+    cover_adjustment_reason?: string | null;
     total: number;
     created_at: number;
     paid_at: number | null;
@@ -77,8 +86,19 @@ export function toTicket(api: ApiTicket): Ticket {
         created_by: api.created_by,
         shiftId: api.shift_id,
         payment: api.payment
-            ? { type: api.payment.type, paid_at: api.payment.paid_at }
+            ? { type: api.payment.type, amount: api.payment.amount, paid_at: api.payment.paid_at }
             : null,
+        serverTotal: api.total,
+        coverAdjustedBy: api.cover_adjusted_by ?? null,
+        coverAdjustmentReason: api.cover_adjustment_reason ?? null,
+        guestCount: api.guest_count,
+        waivedCoverCount: api.waived_cover_count ?? 0,
+        coverChargePerPerson: api.cover_charge_per_person,
+        returningGuestCount: api.returning_guest_count ?? 0,
+        returningFromTicketId: api.returning_from_ticket_id ?? null,
+        amountPaid: api.amount_paid,
+        balanceDue: api.balance_due,
+        payments: api.payments,
     };
 }
 
@@ -98,6 +118,17 @@ export const ticketsApi = {
             method: "PATCH",
             body: { name },
         }),
+
+    /** Merged backend PR #91. All guests remain counted; adjustments are audited. */
+    adjustCover: (ticketId: number, adjustment: {
+        returning_guest_count: number;
+        waived_cover_count: number;
+        returning_from_ticket_id: number | null;
+        reason: string;
+    }) => apiRequest<ApiTicket>(`/tickets/${ticketId}/cover`, {
+        method: "PATCH",
+        body: adjustment,
+    }),
 
     setGuests: (ticketId: number, guestCount: number) =>
         apiRequest<ApiTicket>(`/tickets/${ticketId}/guests`, {
@@ -141,6 +172,8 @@ export const ticketsApi = {
     cancel: (ticketId: number) =>
         apiRequest<ApiTicket>(`/tickets/${ticketId}/cancel`, { method: "POST" }),
 
-    reopen: (ticketId: number) =>
-        apiRequest<ApiTicket>(`/tickets/${ticketId}/reopen`, { method: "POST" }),
+    reopen: (ticketId: number, reason: "customer_returned" | "closed_by_mistake" = "customer_returned") =>
+        apiRequest<ApiTicket>(`/tickets/${ticketId}/reopen`, {
+            method: "POST", body: { reason },
+        }),
 };

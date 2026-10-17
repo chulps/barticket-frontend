@@ -11,6 +11,10 @@ type TicketDetailItemProps = {
     name: string;
     unitPrice: number;
     quantity: number;
+    lineSubtotal?: number;
+    isCover?: boolean;
+    onWaiveCover?: () => void;
+    onReturningCustomer?: () => void;
 
     isEditingPrice: boolean;
     pending?: boolean;
@@ -29,6 +33,10 @@ export default function TicketDetailItem({
     name,
     unitPrice,
     quantity,
+    lineSubtotal,
+    isCover = false,
+    onWaiveCover,
+    onReturningCustomer,
     isEditingPrice,
     pending = false,
     onIncrease,
@@ -40,7 +48,8 @@ export default function TicketDetailItem({
     activeTab
 }: TicketDetailItemProps) {
     const { t, locale } = useI18n();
-    const subtotal = unitPrice * quantity;
+    // Net cover subtotal is returned by the server; guest quantity is unchanged.
+    const subtotal = lineSubtotal ?? unitPrice * quantity;
 
     const [priceInput, setPriceInput] = useState(unitPrice.toString());
     const [savingPrice, setSavingPrice] = useState(false);
@@ -123,7 +132,7 @@ export default function TicketDetailItem({
                         </PriceEditActions>
                         {priceError ? <PriceError role="alert">{priceError}</PriceError> : null}
                     </PriceEditForm>
-                ) : isEditable ? (
+                ) : isEditable && !isCover ? (
                     <PriceTrigger type="button" ref={priceTriggerRef}
                         aria-label={locale === "ja" ? name + " の価格を調整" : "Adjust price for " + name}
                         onClick={startEditingPrice}>
@@ -184,7 +193,16 @@ export default function TicketDetailItem({
                 >
                     {(closeMenu) => (
                         <>
-                            <DropdownMenuItem
+                            {isCover ? <>
+                                <DropdownMenuItem onClick={() => { closeMenu(); onWaiveCover?.(); }}>
+                                    <Icon name="CurrencyCircleDollar" />
+                                    {locale === "ja" ? "カバーチャージを免除" : "Waive cover charge"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { closeMenu(); onReturningCustomer?.(); }}>
+                                    <Icon name="ArrowCounterClockwise" />
+                                    {locale === "ja" ? "再来店" : "Returning customer"}
+                                </DropdownMenuItem>
+                            </> : <DropdownMenuItem
                                 onClick={() => {
                                     closeMenu();
                                     startEditingPrice();
@@ -192,9 +210,9 @@ export default function TicketDetailItem({
                             >
                                 <Icon name="CurrencyCircleDollar" />
                                 {t("adjustPrice")}
-                            </DropdownMenuItem>
+                            </DropdownMenuItem>}
 
-                            <DropdownMenuItem
+                            {!isCover ? <DropdownMenuItem
                                 danger
                                 onClick={() => {
                                     closeMenu();
@@ -203,7 +221,7 @@ export default function TicketDetailItem({
                             >
                                 <Icon name="Trash" />
                                 {t("removeItem")}
-                            </DropdownMenuItem>
+                            </DropdownMenuItem> : null}
                         </>
                     )}
                 </DropdownMenu>

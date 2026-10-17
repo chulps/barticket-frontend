@@ -55,6 +55,7 @@ export default function Dashboard({
     ticketsLoading,
     ticketsError,
     updateItemQuantity,
+    adjustCover,
     updateItemPrice,
     addItemToTicket,
     addStaffDrinkToTicket,
@@ -208,12 +209,13 @@ export default function Dashboard({
     return true;
   };
 
-  const handleReopenTicket = async (ticketId: number) => {
-    if (!(await reopenTicket(ticketId))) return;
+  const handleReopenTicket = async (ticketId: number, reason: "customer_returned" | "closed_by_mistake"): Promise<boolean> => {
+    if (!(await reopenTicket(ticketId, reason))) return false;
 
     setActiveTab("open");
     setSelectedTicketId(ticketId);
     setShowTicketDetails(true);
+    return true;
   };
 
   const [lastSelectedTicket, setLastSelectedTicket] = useState<{
@@ -305,6 +307,7 @@ export default function Dashboard({
             menu={menu}
             tickets={tickets}
             onUpdateQuantity={updateItemQuantity}
+            onAdjustCover={adjustCover}
             onUpdatePrice={updateItemPrice}
             onAddItem={addItemToTicket}
             onAddStaffDrink={addStaffDrinkToTicket}
@@ -319,6 +322,7 @@ export default function Dashboard({
             activeTab={activeTab}
             onPayTicket={handlePayTicket}
             onReopenTicket={handleReopenTicket}
+            canCorrectPayment={me?.role === "manager"}
           />
         ) : (
           <EmptyTicketDetails>
