@@ -9,6 +9,7 @@ const hook = source("hooks/useTickets.ts");
 const line = source("components/TicketDetails/TicketItem.tsx");
 const dialog = source("components/TicketDetails/CoverChargeModal.tsx");
 const items = source("components/TicketDetails/TicketItems.tsx");
+const menu = source("components/DropdownMenuItem.tsx");
 
 test("staff waiver changes use backend #92 but do not alter attendance", () => {
     assert.match(api, /\/tickets\/\$\{ticketId\}\/cover-waivers/);
@@ -32,6 +33,8 @@ test("waivers require confirmed open ticket, valid counts and no double submit",
 });
 test("returning-customer linking is not sent to unsupported endpoints", () => {
     assert.match(dialog, /Returning-customer linking and payment history are pending/);
+    assert.match(line, /Returning customer \(API pending\)/);
+    assert.match(menu, /disabled=\{disabled\}/);
     assert.doesNotMatch(api, /\/tickets\/\$\{ticketId\}\/cover\`/);
 });
 test("new UI parses", () => {
