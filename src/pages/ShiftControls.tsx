@@ -93,7 +93,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
     async function perform(action: "open" | "clock-in" | "clock-out") {
         if (mutation.current || lookup.status !== "ready") return;
         if (action === "open" && (shift || !roleCanManage || eligibility !== "allowed")) return;
-        if (action !== "open" && (!shift || stale)) return;
+        if (action !== "open" && (!shift || (stale && action !== "clock-out"))) return;
         mutation.current = true;
         version.current++;
         setPending(action);
@@ -158,7 +158,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
     }
 
     function reviewClose() {
-        if (!shift || !roleCanManage || stale || mutation.current) return;
+        if (!shift || !roleCanManage || mutation.current) return;
         openModal({
             title: ja ? "閉店前の確認" : "Review & close shift",
             closeStyle: "icon",
@@ -189,7 +189,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
                 ? "前の営業日のシフトがまだ開いています。新しい勤務記録を作る前にシフトを確認してください。"
                 : "A previous business day's shift is still open. Review it before recording new hours."}</p> : null}
             {lookup.status === "ready" && !shift ? <p className="shift-muted">{ja ? "営業中のシフトがありません。開始権限のある担当者がシフトを開く必要があります。" : "No shift is open. An authorized shift lead must open one before staff can clock in."}</p> : null}
-            {lookup.status === "ready" && shift && !stale ? <div className="shift-action-row">
+            {lookup.status === "ready" && shift && (!stale || Boolean(activePunch)) ? <div className="shift-action-row">
                 <button type="button" className="secondary" disabled={!!pending}
                     onClick={() => void perform(activePunch ? "clock-out" : "clock-in")}>
                     {pending ? (ja ? "記録中…" : "Recording…") : activePunch ? (ja ? "退勤" : "Clock Out") : (ja ? "出勤" : "Clock In")}
@@ -212,13 +212,13 @@ export default function ShiftControls({ account, locale }: { account: Account; l
                             <small>{shift.business_date} · #{shift.id}</small></div>
                         <p>{ja ? "開始" : "Started"} {formatTime(shift.opened_at)} JST · {shift.opened_by}</p>
                         <div className="shift-action-row">
-                            <button type="button" className="danger" disabled={!!pending || stale} onClick={reviewClose}>
+                            <button type="button" className="danger" disabled={!!pending} onClick={reviewClose}>
                                 {ja ? "閉店前の確認" : "Review & Close Shift"}
                             </button>
                         </div>
                         {stale ? <p className="shift-alert" role="alert">{ja
-                            ? "前の営業日のシフトです。専用の復旧APIができるまではここから閉店できません。"
-                            : "This open shift belongs to a previous business date. Dedicated backend recovery is required."}</p> : null}
+                            ? "前の営業日のシフトです。営業日とスタッフの勤務時間を確認してから閉店してください。"
+                            : "This shift belongs to a previous business day. Review the date and recorded staff hours before closing it."}</p> : null}
                     </> : <>
                         <p>{ja ? "今日の営業日" : "Current business date"}: {today}</p>
                         {eligibility === "allowed" ? <button type="button" className="success" disabled={!!pending} onClick={() => void perform("open")}>
