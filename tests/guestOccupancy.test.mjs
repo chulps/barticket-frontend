@@ -57,7 +57,7 @@ test("current shift timeline splits first-time and returning guests and keeps op
     assert.equal(result?.points.at(-1)?.at, 300);
 });
 
-test("closed shift timeline subtracts paid and cancelled guests and ends at zero", () => {
+test("closed shift timeline excludes cancelled tickets from occupancy", () => {
     const rows = [
         ticket(1, "paid", 120, {
             guestCount: 2,
@@ -70,6 +70,7 @@ test("closed shift timeline subtracts paid and cancelled guests and ends at zero
         }),
         ticket(3, "cancelled", 300, {
             guestCount: 1,
+            returningGuestCount: 1,
             cancelled_at: 320,
         }),
     ];
@@ -77,6 +78,7 @@ test("closed shift timeline subtracts paid and cancelled guests and ends at zero
 
     assert.equal(result?.peak, 5);
     assert.equal(result?.current, 0);
+    assert.equal(result?.points.some((point) => point.at === 300 || point.at === 320), false);
     assert.deepEqual(result?.points.at(-1), {
         at: 400,
         firstTime: 0,
