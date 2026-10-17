@@ -65,7 +65,7 @@ function makeReturningArea(
         path += " H " + x(point.at) + " V " + y(point.total);
     }
     for (let index = points.length - 1; index >= 0; index -= 1) {
-        path += " H " + x(points[index].at) + " V " + y(points[index].firstTime);
+        path += " V " + y(points[index].firstTime) + " H " + x(points[index].at);
     }
     return path + " Z";
 }
