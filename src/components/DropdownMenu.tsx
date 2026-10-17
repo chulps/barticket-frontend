@@ -169,8 +169,8 @@ const Trigger = styled.button`
 `;
 const Menu = styled.div<{ $top: number; $right: number }>`
     position: fixed;
-    top: ({ $top }) => $toppx;
-    right: ({ $right }) => $rightpx;
+    top: ${({ $top }) => `${$top}px`};
+    right: ${({ $right }) => `${$right}px`};
     display: flex;
     flex-direction: column;
     align-items: stretch;
