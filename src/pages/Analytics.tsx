@@ -13,6 +13,7 @@ import TabGroup from "../components/TabGroup";
 import { formatDuration, localeTag, menuLabel, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
 import type { Ticket } from "../types/Ticket";
 import { topSellingItems } from "../components/topSellingItems";
+import GuestOccupancyChart from "../components/GuestOccupancyChart";
 import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 import { analyticsDrillDownTarget, shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
@@ -777,6 +778,12 @@ export default function Analytics() {
                                 updatedAt={lastUpdated}
                                 dateLabel={formatNight(selected.business_date, locale)}
                             />
+                            <GuestOccupancyChart
+                                shift={selected}
+                                tickets={tickets}
+                                now={lastUpdated ?? Math.floor(Date.now() / 1000)}
+                                dateLabel={formatNight(selected.business_date, locale)}
+                            />
                         </>
                     ) : (
                         <>
@@ -798,6 +805,14 @@ export default function Analytics() {
                             </Card>
                             <StaffChart shifts={[selected]} context={copyPeriod(range, month, year, selected, locale)} />
                         </DayBento>
+                    ) : null}
+                    {range === "day" && selected ? (
+                        <GuestOccupancyChart
+                            shift={selected}
+                            tickets={tickets}
+                            now={lastUpdated ?? Math.floor(Date.now() / 1000)}
+                            dateLabel={formatNight(selected.business_date, locale)}
+                        />
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
                     {visible.length > 0 ? <TopSellingPanel shifts={visible} tickets={tickets} context={copyPeriod(range, month, year, selected, locale)} /> : null}
