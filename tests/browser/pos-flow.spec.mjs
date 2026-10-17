@@ -237,7 +237,7 @@ test("mobile menu search stays visible with long lists, and Japanese close navig
   const search=page.getByPlaceholder(/検索/);
   await expect(search).toBeVisible();
   await search.fill("Highball");
-  await expect(page.getByText("Highball").first()).toBeVisible();
+  await expect(page.getByText("ハイボール").first()).toBeVisible();
   await page.goto("/tickets");
   await page.getByRole("button",{name:/Test Walk-in/i}).first().click();
   const close=page.getByRole("button",{name:/チケットを閉じる/});
@@ -286,6 +286,7 @@ test("staff quick waiver preserves all three guests while billing only two cover
       total:2200,amount_paid:0,balance_due:2200,payments:[]});
   await openTicket(page);
   await page.getByRole("button",{name:"Actions for Cover Charge"}).click();
+  await expect(page.getByRole("menu")).toBeVisible();
   await page.getByRole("menuitem",{name:"Waive cover charge"}).click();
   const dialog=page.getByRole("dialog");
   await expect(dialog.getByText(/Guests: 3/)).toBeVisible();
@@ -313,6 +314,7 @@ test("returning visitor references an earlier paid same-shift ticket without dup
   state.tickets.push(source);
   await openTicket(page);
   await page.getByRole("button",{name:"Actions for Cover Charge"}).click();
+  await expect(page.getByRole("menu")).toBeVisible();
   await page.getByRole("menuitem",{name:"Returning customer"}).click();
   const dialog=page.getByRole("dialog");
   await dialog.getByLabel(/Original paid ticket/).selectOption("10");
