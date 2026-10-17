@@ -33,6 +33,22 @@ export function closeBlockers(tickets: readonly ApiTicket[]): ApiTicket[] {
     return tickets.filter(ticket => ticket.status === "open");
 }
 
+/** Compute read-only paid revenue estimates while a shift is still open.
+ * The API persists final totals only on close. */
+export function previewPaidTotals(tickets: readonly ApiTicket[], shiftId: number) {
+    const totals = { paidTotal: 0, cash: 0, card: 0, other: 0, paidCount: 0 };
+    for (const ticket of tickets) {
+        if (ticket.shift_id !== shiftId || ticket.status !== "paid") continue;
+        totals.paidTotal += ticket.total;
+        totals.paidCount++;
+        const method = ticket.payment?.type;
+        if (method === "cash") totals.cash += ticket.total;
+        else if (method === "card") totals.card += ticket.total;
+        else totals.other += ticket.total;
+    }
+    return totals;
+}
+
 export function canManageShift(role: string): boolean {
     // Frontend guard for the proposed manager policy, not an API security boundary.
     return role === "manager";
