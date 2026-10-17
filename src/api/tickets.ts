@@ -27,6 +27,13 @@ export type ApiTicket = {
     guest_count: number;
     cover_charge_per_person: number;
     cover_charge_total: number;
+    waived_cover_count?: number;
+    // Future backend returning-customer and payment-history contract.
+    returning_guest_count?: number;
+    returning_from_ticket_id?: number | null;
+    amount_paid?: number;
+    balance_due?: number;
+    payments?: { type: PaymentType; amount: number; paid_at: number }[];
     total: number;
     created_at: number;
     paid_at: number | null;
@@ -79,6 +86,14 @@ export function toTicket(api: ApiTicket): Ticket {
         payment: api.payment
             ? { type: api.payment.type, paid_at: api.payment.paid_at }
             : null,
+        guestCount: api.guest_count,
+        waivedCoverCount: api.waived_cover_count ?? 0,
+        coverChargePerPerson: api.cover_charge_per_person,
+        returningGuestCount: api.returning_guest_count ?? 0,
+        returningFromTicketId: api.returning_from_ticket_id ?? null,
+        amountPaid: api.amount_paid,
+        balanceDue: api.balance_due,
+        payments: api.payments,
     };
 }
 
@@ -97,6 +112,13 @@ export const ticketsApi = {
         apiRequest<ApiTicket>(`/tickets/${ticketId}`, {
             method: "PATCH",
             body: { name },
+        }),
+
+    /** Backend PR #92. Preserve guest_count and only change billable covers. */
+    setCoverWaivers: (ticketId: number, waivedCoverCount: number) =>
+        apiRequest<ApiTicket>(`/tickets/${ticketId}/cover-waivers`, {
+            method: "PATCH",
+            body: { waived_cover_count: waivedCoverCount },
         }),
 
     setGuests: (ticketId: number, guestCount: number) =>
