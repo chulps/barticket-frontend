@@ -801,6 +801,14 @@ export default function Analytics() {
                         <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} onDrillDown={drillIntoBar} />
                     ) : null}
                     {range === "day" && selected ? (
+                        <GuestOccupancyChart
+                            shift={selected}
+                            tickets={tickets}
+                            now={lastUpdated ?? clockNow ?? selected.opened_at}
+                            dateLabel={formatNight(selected.business_date, locale)}
+                        />
+                    ) : null}
+                    {range === "day" && selected ? (
                         <DayBento>
                             <Card>
                                 <CopyPanelButton locale={locale} text={`${formatNight(selected.business_date, locale)} → ${t("manager")}: ${selected.opened_by}; ${ticketCountsUnavailable(selected) ? (locale === "ja" ? "チケット数は未記録" : "Ticket counts not recorded") : t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}`} />
@@ -814,14 +822,6 @@ export default function Analytics() {
                             </Card>
                             <StaffChart shifts={[selected]} context={copyPeriod(range, month, year, selected, locale)} />
                         </DayBento>
-                    ) : null}
-                    {range === "day" && selected ? (
-                        <GuestOccupancyChart
-                            shift={selected}
-                            tickets={tickets}
-                            now={lastUpdated ?? clockNow ?? selected.opened_at}
-                            dateLabel={formatNight(selected.business_date, locale)}
-                        />
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
                     {visible.length > 0 ? <TopSellingPanel shifts={visible} tickets={tickets} context={copyPeriod(range, month, year, selected, locale)} /> : null}
