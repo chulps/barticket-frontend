@@ -20,8 +20,10 @@ export default function DropdownMenu({
     const triggerRef = useRef<HTMLButtonElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
     const initialFocus = useRef<"first" | "last">("first");
+    const skipFocusReturn = useRef(false);
 
     function closeMenu(restore = true) {
+        skipFocusReturn.current = !restore;
         if (restore && menuRef.current?.contains(document.activeElement)) {
             triggerRef.current?.focus();
         }
@@ -34,6 +36,7 @@ export default function DropdownMenu({
         const rect = triggerRef.current?.getBoundingClientRect();
         if (!rect) return;
         initialFocus.current = focus;
+        skipFocusReturn.current = false;
         setBox({
             top: Math.max(8, rect.bottom + 6),
             right: Math.max(8, window.innerWidth - rect.right),
@@ -65,7 +68,7 @@ export default function DropdownMenu({
         return () => {
             // If the row unmounts while keyboard focus remains in its portal,
             // restore focus to the trigger when it still exists.
-            if (popup.contains(document.activeElement) && trigger.isConnected) trigger.focus();
+            if (!skipFocusReturn.current && popup.contains(document.activeElement) && trigger.isConnected) trigger.focus();
         };
     }, [isOpen]);
 
