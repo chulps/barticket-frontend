@@ -113,7 +113,7 @@ export default function GuestOccupancyChart({ shift, tickets, now, dateLabel }: 
         ].join("\n")
         : dateLabel + " → " + title + ": " + noHistory;
 
-    const plotWidth = Math.max(width, 320);
+    const plotWidth = width || 320;
     const plotHeight = 220;
     const left = 34;
     const right = 10;
