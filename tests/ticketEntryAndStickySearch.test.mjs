@@ -11,13 +11,16 @@ const actions = source("components/TicketDetails/TicketActions.tsx");
 const ticket = source("components/TicketDetails/Ticket.tsx");
 const footer = source("components/TicketDetails/TicketFooter.tsx");
 
-test("Editing ticket name begins empty; submitting blank retains the old name", () => {
-    assert.ok(header.includes('setNameDraft("")'));
+test("Editing ticket name prepopulates current value for keyboard users", () => {
+    assert.ok(header.includes("setNameDraft(ticket.name)"));
+    assert.match(header, /<NameTrigger/);
 });
-test("Ticket name save requires nonblank trimmed text", () => {
+test("Ticket name save requires nonblank trimmed text, and cancel cannot submit", () => {
     assert.match(header, /const next = nameDraft\.trim\(\)/);
     assert.match(header, /if \(next && next !== ticket\.name\) onUpdateName/);
-    assert.match(header, /cancellingName\.current = true/);
+    assert.match(header, /onSubmit=\{saveEditingName\}/);
+    assert.match(header, /onClick=\{cancelEditingName\}/);
+    assert.doesNotMatch(header, /onBlur=\{finishEditingName\}/);
 });
 test("Add-item search clears on selection and stays above its scrollable results", () => {
     assert.match(picker, /addSelection\(previous, item, priceKey\)/);
