@@ -74,7 +74,7 @@ test("close POST is called only from reviewed explicit confirmation", () => {
     assert.match(review, /onClick=\{\(\) => void confirmClose\(\)\}/);
     assert.match(review, /const \[latest, latestTickets\] = await Promise\.all/);
     assert.match(review, /accountApi\.closeShift\(\)/);
-    assert.match(review, /registerCloseGuard\(\(\) => !working\)/);
+    assert.match(review, /registerCloseGuard\(\(\) => !working && !submitInFlight\.current\)/);
 });
 
 test("shift control reloads after focus/remote events without automatically retrying POST", () => {
