@@ -250,3 +250,37 @@ test("partial multi-item failure leaves unresolved items visible without automat
   await expect(dialog.getByRole("alert")).toContainText(/unconfirmed/);
   expect(state.tickets[0].items.length).toBe(2);
 });
+
+test("ticket item action menu keeps original trailing-row placement and flips onscreen for last item", async ({page}) => {
+  await page.setViewportSize({width:375,height:667});
+  const state=await mockedPOS(page);
+  // A long ticket reproduces the original offscreen menu on the final row.
+  // These are historical ticket names, not live menu IDs; otherwise the
+  // client correctly substitutes the catalog name for menu_item_id=3.
+  const extra=Array.from({length:18},(_,n)=>({
+    ...item(201+n, n===17 ? "Last Drink" : "Drink "+(n+1),700),
+    menu_item_id:null,
+  }));
+  state.tickets[0].items.push(...extra);
+  state.tickets[0].total+=extra.reduce((sum,line)=>sum+line.subtotal,0);
+  await page.goto("/tickets");
+  // On mobile the list opens first; tap the ticket to reveal its item details.
+  await page.getByRole("button",{name:/Test Walk-in/i}).first().click();
+  const trigger=page.getByRole("button",{name:"Actions for Last Drink"});
+  await trigger.scrollIntoViewIfNeeded();
+  await trigger.click();
+  const menu=page.getByRole("menu",{name:"Actions for Last Drink"});
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitem",{name:/Adjust Price/i})).toBeVisible();
+  await expect(menu.getByRole("menuitem",{name:/Remove Item/i})).toBeVisible();
+  const bounds=await menu.boundingBox();
+  const viewport=page.viewportSize();
+  expect(bounds).toBeTruthy();
+  expect(bounds.y).toBeGreaterThanOrEqual(0);
+  expect(bounds.y+bounds.height).toBeLessThanOrEqual(viewport.height+1);
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x+bounds.width).toBeLessThanOrEqual(viewport.width+1);
+  expect(state.requests).not.toContain("PATCH /tickets/11/items/218");
+  await menu.getByRole("menuitem",{name:/Adjust Price/i}).click();
+  await expect(page.getByRole("textbox",{name:/New price for Last Drink/})).toBeVisible();
+});

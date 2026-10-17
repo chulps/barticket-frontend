@@ -8,7 +8,8 @@
     "i18n:sync": "node scripts/sync-translations.mjs",
     "build": "node scripts/prepare-pwa.mjs && tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "i18n:menu-audit": "node scripts/audit-live-menu-translations.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
