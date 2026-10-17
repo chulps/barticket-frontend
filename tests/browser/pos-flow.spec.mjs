@@ -258,7 +258,9 @@ test("ticket item action menu keeps original trailing-row placement and flips on
   const extra=Array.from({length:18},(_,n)=>item(201+n, n===17 ? "Last Drink" : "Drink "+(n+1),700));
   state.tickets[0].items.push(...extra);
   state.tickets[0].total+=extra.reduce((sum,line)=>sum+line.subtotal,0);
-  await openTicket(page);
+  await page.goto("/tickets");
+  // On mobile the list opens first; tap the ticket to reveal its item details.
+  await page.getByRole("button",{name:/Test Walk-in/i}).first().click();
   const trigger=page.getByRole("button",{name:"Actions for Last Drink"});
   await trigger.scrollIntoViewIfNeeded();
   await trigger.click();
