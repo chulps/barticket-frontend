@@ -9,7 +9,7 @@ test("Profile never flashes sign-in while account status is loading", () => {
   assert.match(p, /const \[loading, setLoading\] = useState\(true\)/);
   assert.match(p, /if \(!cancelled\) setLoading\(false\)/);
   assert.match(p, /if \(loading\) return <Page/);
-  assert.match(p, /role="status" aria-live="polite"/);
+  assert.match(p, /<RequestState kind="loading"/);
   assert.match(p, /role="alert"/);
   assert.match(p, /disabled=\{busy\}/);
 });
@@ -18,13 +18,13 @@ test("Analytics has distinct loading and retry states on failed fetches", () => 
   const a=src("Analytics.tsx");
   assert.match(a, /setLoading\(false\)/);
   assert.match(a, /signedIn && loading && !shifts/);
-  assert.match(a, /role="status" aria-live="polite"/);
+  assert.match(a, /<RequestState kind="loading"/);
   assert.match(a, /window\.location\.reload\(\)/);
 });
 
 test("Admin displays loading and refresh progress accessibly", () => {
   const a=src("Admin.tsx");
-  assert.match(a, /<p role="status" aria-live="polite">\{t\("loading"\)\}/);
+  assert.match(a, /<RequestState kind="loading" detail=\{t\("loading"\)\}/);
   assert.match(a, /accountsLoading \?/);
 });
 
