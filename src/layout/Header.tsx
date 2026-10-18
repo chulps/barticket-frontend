@@ -496,7 +496,6 @@ const LanguageToggle = styled.div`
   flex-shrink: 0;
   background: none;
   border: none;
-  border-top: 1px solid var(--neutral-700);
   color: var(--neutral-300);
   cursor: pointer;
   padding: var(--space-2);
@@ -509,6 +508,7 @@ const LanguageToggle = styled.div`
     width: 100%;
     box-sizing: border-box;
     justify-content: space-between;
+    border-top: 1px solid var(--neutral-700);
   }
 `;
 
