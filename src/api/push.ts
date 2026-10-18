@@ -1,4 +1,4 @@
-import { API_URL, getDeviceId, getToken } from "./client";
+import { API_URL, getDeviceId, getToken, waitForPushCleanup } from "./client";
 
 type PushKeys = { p256dh: string; auth: string };
 type PushSubscriptionPayload = { endpoint: string; keys: PushKeys };
@@ -43,26 +43,35 @@ async function pushRequest<T>(path: string, method = "GET", body?: unknown): Pro
 
 export async function getPushEnabled(): Promise<boolean> {
   if (!supportsPush()) return false;
+  await waitForPushCleanup();
   const registration = await registerBarTicketWorker();
-  return Boolean(await registration?.pushManager.getSubscription());
+  const subscription = await registration?.pushManager.getSubscription();
+  if (!subscription || Notification.permission !== "granted") return false;
+  const status = await pushRequest<{ enabled: boolean }>("/subscriptions/status", "POST", { endpoint: subscription.endpoint });
+  return status.enabled;
 }
 
 export async function enablePush(): Promise<void> {
   if (!supportsPush()) throw new Error("This browser does not support web push notifications");
   if (Notification.permission === "denied") throw new Error("Notifications are blocked in your device settings");
-  const registration = await registerBarTicketWorker();
-  if (!registration) throw new Error("Unable to register service worker");
+  // Request permission synchronously from the user's tap, before awaits can
+  // lose the gesture on iOS Home Screen apps.
   const permission = await Notification.requestPermission();
   if (permission !== "granted") throw new Error("Notification permission was not granted");
+  await waitForPushCleanup();
+  const registration = await registerBarTicketWorker();
+  if (!registration) throw new Error("Unable to register service worker");
+  await navigator.serviceWorker.ready;
   const { public_key } = await pushRequest<{ public_key: string }>("/vapid-public-key");
-  const subscription = await registration.pushManager.subscribe({
+  const existing = await registration.pushManager.getSubscription();
+  const subscription = existing ?? await registration.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: decodeBase64Url(public_key),
   });
   try {
     await pushRequest("/subscriptions", "POST", subscription.toJSON() as PushSubscriptionPayload);
   } catch (error) {
-    await subscription.unsubscribe();
+    if (!existing) await subscription.unsubscribe();
     throw error;
   }
 }

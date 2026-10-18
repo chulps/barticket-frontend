@@ -24,6 +24,8 @@ export const API_URL = (configuredApiUrl || "http://localhost:8000").replace(/\/
 
 const TOKEN_KEY = "barticket_token";
 const DEVICE_KEY = "barticket_device_id";
+let pushCleanup: Promise<void> = Promise.resolve();
+export const waitForPushCleanup = () => pushCleanup;
 
 export function getDeviceId(): string {
     let id = localStorage.getItem(DEVICE_KEY);
@@ -43,18 +45,21 @@ async function revokePushForSession(previousToken: string): Promise<void> {
     const registration = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL);
     const subscription = await registration?.pushManager.getSubscription();
     if (!subscription) return;
-    const response = await fetch(`${API_URL}/push/subscriptions`, {
+    try {
+      await fetch(`${API_URL}/push/subscriptions`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${previousToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ endpoint: subscription.endpoint }),
-    });
-    if (response.ok) await subscription.unsubscribe();
+      });
+    } finally {
+      await subscription.unsubscribe();
+    }
 }
 
 export function setToken(token: string | null) {
     const previousToken = localStorage.getItem(TOKEN_KEY);
     if (previousToken && previousToken !== token) {
-        void revokePushForSession(previousToken).catch(() =>
+        pushCleanup = pushCleanup.then(() => revokePushForSession(previousToken)).catch(() =>
             console.warn("Unable to revoke push subscription on sign out"),
         );
     }

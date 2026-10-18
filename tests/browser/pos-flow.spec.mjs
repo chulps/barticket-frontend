@@ -455,3 +455,58 @@ test("public menu never exposes archive, restore or full edit controls",async ({
   expect(state.requests).not.toContain("GET /menu/archived");
   expect(state.requests.some(key=>key.includes("PATCH /menu/items/"))).toBe(false);
 });
+
+test("socket updates replace polling, failures restore it, and reconnect fetches missed changes", async ({page}) => {
+  test.setTimeout(60000);
+  const state=await mockedPOS(page);
+  const sockets=[];
+  let ready=true, cursor=0;
+  await page.routeWebSocket("ws://127.0.0.1:8765/realtime/ws", socket => {
+    sockets.push(socket);
+    socket.onMessage(raw => {
+      const auth=JSON.parse(String(raw));
+      expect(auth.type).toBe("authenticate");
+      expect(auth.token).toBe("NON_PRODUCTION_BROWSER_TEST_TOKEN");
+      if(ready) socket.send(JSON.stringify({type:"ready",version:1,cursor}));
+    });
+  });
+  await page.goto("/tickets");
+  await expect(page.getByText("Test Walk-in").first()).toBeVisible();
+  await expect.poll(()=>sockets.length).toBeGreaterThan(0);
+  const send = (type, scopes=[]) => sockets.at(-1).send(JSON.stringify({type,version:1,cursor,scopes}));
+  const heartbeats=setInterval(()=>{if(ready)send("heartbeat");},4000);
+  try {
+    state.tickets[0].name="Remote socket update"; cursor++;
+    send("invalidate",["tickets"]);
+    await expect(page.getByText("Remote socket update").first()).toBeVisible();
+    await page.waitForTimeout(300);
+    const count=()=>state.requests.filter(x=>x==="GET /tickets").length;
+    const initial=count();
+    await page.waitForTimeout(10500);
+    expect(count()).toBe(initial);
+    ready=false;
+    sockets.at(-1).close({code:1011,reason:"simulated unavailable socket"});
+    await expect.poll(count).toBeGreaterThan(initial);
+    const afterDisconnect=count();
+    await page.clock.install();
+    await page.clock.fastForward(21000);
+    await expect.poll(count).toBeGreaterThan(afterDisconnect);
+    state.tickets[0].name="Missed while disconnected"; cursor++;
+    ready=true; send("ready");
+    await page.clock.fastForward(1000);
+    await expect(page.getByText("Missed while disconnected").first()).toBeVisible();
+    expect(state.paymentPosts).toBe(0);
+    expect(state.newTicketPosts).toBe(0);
+  } finally { clearInterval(heartbeats); }
+});
+
+test("notification ticket URL opens the requested paid ticket", async ({page}) => {
+  const state=await mockedPOS(page);
+  const paid=ticket(42); paid.status="paid"; paid.name="Paid notification ticket";
+  paid.paid_at=now(); paid.payment={type:"cash",amount:700,paid_at:paid.paid_at};
+  state.tickets.push(paid);
+  await page.goto("/tickets?ticket=42");
+  await expect(page.getByRole("button",{name:/Reopen Ticket/i})).toBeVisible();
+  await expect(page.getByText("Paid notification ticket").first()).toBeVisible();
+  expect(state.paymentPosts).toBe(0);
+});

@@ -3,6 +3,7 @@
 // import react stuff
 import styled from "styled-components";
 import { isApiAvailable } from "./api/client";
+import { shouldPoll, startRealtime, subscribeRealtime } from "./api/realtime";
 import { useI18n } from "./i18n";
 import {
   BrowserRouter,
@@ -37,6 +38,7 @@ import { createSingleFlightRefresh } from "./hooks/singleFlightRefresh";
 
 export default function App() {
   const { locale } = useI18n();
+  useEffect(() => startRealtime(), []);
   const [apiAvailable, setApiAvailable] = useState(isApiAvailable);
   useEffect(() => {
     const updateStatus = () => setApiAvailable(isApiAvailable());
@@ -81,11 +83,13 @@ export default function App() {
     void checkAuth();
     window.addEventListener("barticket-auth", checkAuth);
     window.addEventListener("barticket-api-restored", checkAuth);
+    window.addEventListener("barticket-session-expired", checkAuth);
     window.addEventListener("storage", onStorage);
     return () => {
       version++;
       window.removeEventListener("barticket-auth", checkAuth);
       window.removeEventListener("barticket-api-restored", checkAuth);
+      window.removeEventListener("barticket-session-expired", checkAuth);
       window.removeEventListener("storage", onStorage);
     };
   }, []);
@@ -202,11 +206,13 @@ export default function App() {
     });
     const load = () => reader.request();
     load();
-    const timer = window.setInterval(load, 20000);
+    const timer = window.setInterval(() => { if (shouldPoll()) load(); }, 20000);
+    const unsubscribeRealtime = subscribeRealtime(["menu"], load);
     window.addEventListener("barticket-notices", load);
     window.addEventListener("barticket-retry-menu", load);
     window.addEventListener("online", load);
     return () => {
+      unsubscribeRealtime();
       reader.dispose();
       window.clearInterval(timer);
       window.removeEventListener("barticket-notices", load);

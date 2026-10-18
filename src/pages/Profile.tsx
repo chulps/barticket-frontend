@@ -1,3 +1,4 @@
+import { shouldPoll, subscribeRealtime } from "../api/realtime";
 import { useEffect, useState } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
@@ -55,7 +56,11 @@ export default function Profile() {
             }
         }
         load();
+        const unsubscribeRealtime = subscribeRealtime(["session", "users"], load);
+        const poll = window.setInterval(() => { if (shouldPoll()) void load(); }, 20000);
         return () => {
+            unsubscribeRealtime();
+            window.clearInterval(poll);
             cancelled = true;
         };
     }, []);

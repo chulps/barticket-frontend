@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 // import npm packages
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 // import UI components
 import TicketDetails from "../components/TicketDetails/Ticket"
@@ -21,6 +21,7 @@ import { useTickets } from "../hooks/useTickets"; // (business logic for creatin
 import { useI18n } from "../i18n";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { getToken } from "../api/client";
+import { shouldPoll, subscribeRealtime } from "../api/realtime";
 import { ticketVisibleOnBoard, type ShiftLookup } from "./ticketBoardVisibility";
 import { resolveVisibleSelection } from "./ticketBoardSelection";
 
@@ -37,6 +38,10 @@ export default function Dashboard({
   menuError,
 }: DashboardProps) {
   const { t, locale } = useI18n();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTicket = Number(searchParams.get("ticket"));
+  const notificationTicketId = Number.isSafeInteger(requestedTicket) && requestedTicket > 0 ? requestedTicket : null;
+  const openedNotification = useRef<number | null>(null);
 
   // States
   const [activeTab, setActiveTab] = useState<"open" | "paid" | "cancelled">("open");
@@ -68,6 +73,22 @@ export default function Dashboard({
   } = useTickets();
 
   useEffect(() => {
+    if (ticketsLoading || notificationTicketId === null || openedNotification.current === notificationTicketId) return;
+    const ticket = tickets.find(row => row.id === notificationTicketId);
+    if (!ticket) return;
+    let cancelled = false;
+    // Synchronize the external notification URL after the snapshot arrives.
+    queueMicrotask(() => {
+      if (cancelled) return;
+      openedNotification.current = notificationTicketId;
+      setActiveTab(ticket.status);
+      setSelectedTicketId(ticket.id);
+      setShowTicketDetails(true);
+    });
+    return () => { cancelled = true; };
+  }, [tickets, ticketsLoading, notificationTicketId]);
+
+  useEffect(() => {
     let cancelled = false;
     let requestVersion = 0;
     async function load() {
@@ -95,7 +116,8 @@ export default function Dashboard({
       }
     }
     void load();
-    const timer = window.setInterval(load, 20000);
+    const timer = window.setInterval(() => { if (shouldPoll()) void load(); }, 20000);
+    const unsubscribeRealtime = subscribeRealtime(["shift", "session", "users"], load);
     window.addEventListener("focus", load);
     window.addEventListener("barticket-auth", load);
     window.addEventListener("barticket-api-restored", load);
@@ -104,6 +126,7 @@ export default function Dashboard({
     return () => {
       cancelled = true;
       requestVersion++;
+      unsubscribeRealtime();
       window.clearInterval(timer);
       window.removeEventListener("focus", load);
       window.removeEventListener("barticket-auth", load);
@@ -122,7 +145,7 @@ export default function Dashboard({
   // Open tickets retain their all-shift recovery policy. Closed tickets
   // must belong to a confirmed active shift; loading/errors fail closed.
   const ticketsForTab = (tab: Ticket["status"]) => tickets.filter((ticket) =>
-    ticketVisibleOnBoard(ticket, tab, shiftLookup)
+    ticketVisibleOnBoard(ticket, tab, shiftLookup) || (ticket.id === notificationTicketId && ticket.status === tab)
   );
   const visibleTickets = ticketsForTab(activeTab);
 
@@ -313,7 +336,14 @@ export default function Dashboard({
             onAddStaffDrink={addStaffDrinkToTicket}
             onRemoveItem={removeItemFromTicket}
             onUpdateName={updateTicketName}
-            onClose={() => setShowTicketDetails(false)}
+            onClose={() => {
+              setShowTicketDetails(false);
+              if (notificationTicketId !== null) {
+                const next = new URLSearchParams(searchParams);
+                next.delete("ticket");
+                setSearchParams(next, { replace: true });
+              }
+            }}
             onPrevious={selectPreviousTicket}
             onNext={selectNextTicket}
             hasPrevious={currentIndex > 0}

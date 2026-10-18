@@ -7,6 +7,7 @@ import FxxkupLogo from "../components/FxxkupLogo"
 import { NavLink as RouterNavLink } from "react-router-dom"
 import { accountApi } from "../api/account";
 import { getToken } from "../api/client";
+import { shouldPoll, subscribeRealtime } from "../api/realtime";
 import { listNotices } from "../api/notices";
 import { useI18n } from "../i18n";
 
@@ -59,13 +60,15 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       }
     }
     void loadRole();
-    const timer = window.setInterval(loadRole, 20000);
+    const timer = window.setInterval(() => { if (shouldPoll()) void loadRole(); }, 20000);
+    const unsubscribeRealtime = subscribeRealtime(["session", "users", "shift"], loadRole);
     window.addEventListener("barticket-auth", loadRole);
     window.addEventListener("barticket-shift-updated", loadRole);
     window.addEventListener("focus", loadRole);
     return () => {
       cancelled = true;
       generation++;
+      unsubscribeRealtime();
       window.clearInterval(timer);
       window.removeEventListener("barticket-auth", loadRole);
       window.removeEventListener("barticket-shift-updated", loadRole);
@@ -113,11 +116,13 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       }
     }
     load();
-    const timer = window.setInterval(load, 20000);
+    const timer = window.setInterval(() => { if (shouldPoll()) void load(); }, 20000);
+    const unsubscribeRealtime = subscribeRealtime(["notices", "shift"], load);
     window.addEventListener("barticket-notices", load);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      unsubscribeRealtime();
       window.removeEventListener("barticket-notices", load);
     };
   }, [canSeeNotices]);

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { shouldPoll, subscribeRealtime } from "../api/realtime";
+import { useState, useEffect } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
 
@@ -55,6 +56,21 @@ export default function Menu({
   const [archivedLoading, setArchivedLoading] = useState(false);
   const [archivedError, setArchivedError] = useState("");
   const [restoringId, setRestoringId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!authenticated || !archivedMode) return;
+    let cancelled = false;
+    const refreshArchive = async () => {
+      if (restoringId !== null) return false;
+      try {
+        const result = await getArchivedMenuItems();
+        if (!cancelled) setArchivedItems(result.items);
+      } catch { /* Keep the current archive and its existing error UI. */ }
+    };
+    const unsubscribeRealtime = subscribeRealtime(["menu"], refreshArchive);
+    const poll = window.setInterval(() => { if (shouldPoll()) void refreshArchive(); }, 20000);
+    return () => { cancelled = true; unsubscribeRealtime(); window.clearInterval(poll); };
+  }, [authenticated, archivedMode, restoringId]);
 
   async function viewArchive() {
     if (!authenticated || archivedLoading) return;

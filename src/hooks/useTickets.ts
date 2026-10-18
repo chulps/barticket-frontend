@@ -1,3 +1,4 @@
+import { shouldPoll, subscribeRealtime } from "../api/realtime";
 // useTickets.ts
 import { useEffect, useRef, useState } from "react";
 
@@ -133,8 +134,7 @@ export function useTickets() {
     return settled;
   };
 
-  // Refresh from the existing REST endpoint so other devices' changes appear
-  // without a backend subscription or WebSocket connection.
+  // Read authoritative snapshots on socket events, with polling as fallback.
   useEffect(() => {
     let cancelled = false;
     let fetching = false;
@@ -143,7 +143,7 @@ export function useTickets() {
     let lastRefreshAt = 0;
 
     const refresh = async () => {
-      if (cancelled || fetching || document.visibilityState === "hidden" || pendingWrites.current > 0) return;
+      if (cancelled || fetching || document.visibilityState === "hidden" || pendingWrites.current > 0) return false;
       fetching = true;
       lastRefreshAt = Date.now();
       const revision = localRevision.current;
@@ -155,7 +155,7 @@ export function useTickets() {
           pendingWrite: pendingWrites.current > 0,
           cancelled,
         });
-        if (loaded === null) return;
+        if (loaded === null) return false;
         setTicketsError(false);
         // Never overwrite a name being edited or awaiting its debounced save.
         const next = loaded.map((ticket) => {
@@ -184,10 +184,11 @@ export function useTickets() {
     // make a network request on every tick.
     const timer = window.setInterval(() => {
       const now = Date.now();
-      if (isTicketRefreshDue(now, lastActivityAt, lastRefreshAt, document.visibilityState === "visible")) {
+      if (shouldPoll() && isTicketRefreshDue(now, lastActivityAt, lastRefreshAt, document.visibilityState === "visible")) {
         void refresh();
       }
     }, ACTIVE_REFRESH_MS);
+    const unsubscribeRealtime = subscribeRealtime(["tickets"], refresh);
     const markActivity = () => { lastActivityAt = Date.now(); };
     const onFocus = () => {
       markActivity();
@@ -209,6 +210,7 @@ export function useTickets() {
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      unsubscribeRealtime();
       window.removeEventListener("pointerdown", markActivity);
       window.removeEventListener("keydown", markActivity);
       window.removeEventListener("focus", onFocus);

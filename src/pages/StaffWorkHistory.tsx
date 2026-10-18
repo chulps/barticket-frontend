@@ -1,3 +1,4 @@
+import { shouldPoll, subscribeRealtime } from "../api/realtime";
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 
@@ -65,7 +66,9 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
             }
         }
         void load();
-        return () => { cancelled = true; };
+        const unsubscribeRealtime = subscribeRealtime(["analytics", "shift"], load);
+        const poll = window.setInterval(() => { if (shouldPoll()) void load(); }, 20000);
+        return () => { cancelled = true; unsubscribeRealtime(); window.clearInterval(poll); };
     }, [userId, refreshKey, ja]);
 
     const rows = useMemo(() => buildStaffActivity(userId, closed, current), [userId, closed, current]);
