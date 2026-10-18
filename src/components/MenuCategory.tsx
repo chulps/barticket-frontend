@@ -1,6 +1,7 @@
 import styled from "styled-components";
 
 import type { MenuItem, Prices } from "../types/Menu";
+import type { MenuItemEdit } from "../api/menu";
 import MenuItemRow from "./MenuItemRow"
 import { menuLabel, useI18n } from "../i18n";
 
@@ -10,6 +11,8 @@ type MenuCategoryProps = {
   subcategories: Record<string, MenuItem[]>;
   onToggleStock?: (item: MenuItem) => void;
   onSavePrices?: (item: MenuItem, prices: Prices) => Promise<void>;
+  onSaveItem?: (item: MenuItem, input: MenuItemEdit) => Promise<boolean>;
+  onArchive?: (item: MenuItem) => Promise<boolean>;
   pendingMenuIds?: number[];
   categories?: string[];
   allSubcategories?: string[];
@@ -20,6 +23,8 @@ export default function MenuCategory({
   subcategories,
   onToggleStock,
   onSavePrices,
+  onSaveItem,
+  onArchive,
   pendingMenuIds = [],
   categories = [],
   allSubcategories = [],
@@ -43,6 +48,8 @@ export default function MenuCategory({
                   item={item}
                   onToggle={onToggleStock}
                   onSavePrices={onSavePrices}
+                  onSaveItem={onSaveItem}
+                  onArchive={onArchive}
                   pending={pendingMenuIds.includes(item.id)}
                   categories={categories}
                   subcategories={allSubcategories}

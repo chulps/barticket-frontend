@@ -9,6 +9,8 @@ export type MenuItem = {
     id: number;
 
     inStock?: boolean;
+    /** Soft-deleted menu entries appear in the authenticated archive view only. */
+    archived?: boolean;
 
     category: string;
     subcategory?: string;

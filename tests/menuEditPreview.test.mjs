@@ -13,10 +13,13 @@ test("menu edit draft accepts digits and rejects non-numeric price strings",()=>
  assert.equal(/^\d+$/.test("-20"),false);
  assert.equal(/^\d+$/.test("12.5"),false);
 });
-test("edit preview cannot POST the missing item-update endpoint",()=>{
- assert.match(source,/if \(editingItem\) return;/);
- assert.match(source,/Save — unavailable/);
- assert.match(source,/Copy draft JSON/);
+test("edit uses the same prefilled Add Item form and saves through the confirmed update callback",()=>{
+ assert.match(source,/editingItem\?\.name \?\? ""/);
+ assert.match(source,/editingItem\?\.category \?\? ""/);
+ assert.match(source,/editingItem\?\.prices/);
+ assert.match(source,/await onSaved\(editingItem, input\)/);
+ assert.match(source,/createMenuItem\(input\)/);
+ assert.doesNotMatch(source,/Save — unavailable|preview never writes|Copy draft JSON/);
 });
 test("menu edit form parses",()=>{
  const parsed=ts.createSourceFile("MenuItemForm.tsx",source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
