@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
 
@@ -13,10 +13,12 @@ import TabGroup from "../components/TabGroup";
 import { formatDuration, localeTag, menuLabel, readLocale, translate, useI18n, type Locale, type MessageKey } from "../i18n";
 import type { Ticket } from "../types/Ticket";
 import { topSellingItems } from "../components/topSellingItems";
+import GuestOccupancyChart from "../components/GuestOccupancyChart";
 import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 import { analyticsDrillDownTarget, shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
 import { groupAnalyticsTickets } from "./analyticsTicketGroups";
+import { ticketDataForClipboard, ticketListDataForClipboard } from "./ticketDataExport";
 import OpenShiftOverview from "./OpenShiftOverview";
 import AnalyticsReportActions from "../components/AnalyticsReportActions";
 import { createAnalyticsTextReport } from "./analyticsTextReport";
@@ -491,6 +493,7 @@ export default function Analytics() {
     const [team, setTeam] = useState<Account[] | null>(null);
     const [notices, setNotices] = useState<NoticeList | null>(null);
     const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+    const [clockNow, setClockNow] = useState<number | null>(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
     const [range, setRange] = useState<Range>("day");
@@ -499,6 +502,13 @@ export default function Analytics() {
     const [dayId, setDayId] = useState<number | null>(null);
     const [pickedDate, setPickedDate] = useState("");
     const signedIn = getToken() !== null;
+
+    useEffect(() => {
+        const updateClock = () => setClockNow(Math.floor(Date.now() / 1000));
+        updateClock();
+        const timer = window.setInterval(updateClock, 10_000);
+        return () => window.clearInterval(timer);
+    }, []);
 
     useEffect(() => {
         if (!signedIn) return;
@@ -777,13 +787,30 @@ export default function Analytics() {
                                 updatedAt={lastUpdated}
                                 dateLabel={formatNight(selected.business_date, locale)}
                             />
+                            <GuestOccupancyChart
+                                shift={selected}
+                                tickets={tickets}
+                                now={lastUpdated ?? clockNow ?? selected.opened_at}
+                                dateLabel={formatNight(selected.business_date, locale)}
+                            />
                         </>
                     ) : (
                         <>
-                            {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : <Summary totals={totals} context={copyPeriod(range, month, year, selected, locale)} />}
-                    {range !== "day" && visible.length > 0 ? (
-                        <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} onDrillDown={drillIntoBar} />
-                    ) : null}
+                            {visible.length === 0 ? <p>{t("noNightsInRange")}</p> : (
+                                <Summary totals={totals} context={copyPeriod(range, month, year, selected, locale)}>
+                                    {range !== "day" ? (
+                                        <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} onDrillDown={drillIntoBar} />
+                                    ) : null}
+                                    {range === "day" && selected ? (
+                                        <GuestOccupancyChart
+                                            shift={selected}
+                                            tickets={tickets}
+                                            now={lastUpdated ?? clockNow ?? selected.opened_at}
+                                            dateLabel={formatNight(selected.business_date, locale)}
+                                        />
+                                    ) : null}
+                                </Summary>
+                            )}
                     {range === "day" && selected ? (
                         <DayBento>
                             <Card>
@@ -904,6 +931,8 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
     ] as const;
     const missingNights = shifts.filter(ticketCountsUnavailable).length;
     const count = groups.paid.length + groups.cancelled.length;
+    const ticketDataLabel = locale === "ja" ? "チケットデータをコピー" : "Copy ticket data";
+    const paidTicketDataLabel = locale === "ja" ? "支払済みチケットデータをコピー" : "Copy all paid ticket data";
 
     return (
         <TicketLog>
@@ -919,6 +948,13 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
                     <TicketStatusHeading>
                         <h3>{section.title}</h3>
                         <span aria-label={`${section.title}: ${section.rows.length}`}>{section.rows.length}</span>
+                        {section.id === "paid" ? (
+                            <CopyPanelButton
+                                text={JSON.stringify(ticketListDataForClipboard(groups.paid, dates), null, 2)}
+                                locale={locale}
+                                label={paidTicketDataLabel}
+                            />
+                        ) : null}
                     </TicketStatusHeading>
                     {section.rows.map((ticket) => {
                         const date = dates.get(ticket.shiftId ?? 0);
@@ -929,24 +965,31 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
                         const open = openId === ticket.id;
                         return (
                             <TicketCard key={ticket.id}>
-                                <TicketRow
-                                    type="button"
-                                    aria-expanded={open}
-                                    onClick={() => setOpenId(open ? null : ticket.id)}
-                                >
-                                    <span>
-                                        <span>{ticket.name || `#${ticket.id}`}</span>
-                                        <small>
-                                            {date ? formatNight(date, locale) : ""}
-                                            {date ? " · " : ""}
-                                            {detail}
-                                        </small>
-                                    </span>
-                                    <span>
-                                        <strong>{yen(total)}</strong>
-                                        <Icon name={open ? "CaretDown" : "CaretRight"} size="1.6rem" />
-                                    </span>
-                                </TicketRow>
+                                <TicketCardHeader>
+                                    <TicketRow
+                                        type="button"
+                                        aria-expanded={open}
+                                        onClick={() => setOpenId(open ? null : ticket.id)}
+                                    >
+                                        <span>
+                                            <span>{ticket.name || `#${ticket.id}`}</span>
+                                            <small>
+                                                {date ? formatNight(date, locale) : ""}
+                                                {date ? " · " : ""}
+                                                {detail}
+                                            </small>
+                                        </span>
+                                        <span>
+                                            <strong>{yen(total)}</strong>
+                                            <Icon name={open ? "CaretDown" : "CaretRight"} size="1.6rem" />
+                                        </span>
+                                    </TicketRow>
+                                    <CopyPanelButton
+                                        text={JSON.stringify(ticketDataForClipboard(ticket, date ?? null), null, 2)}
+                                        locale={locale}
+                                        label={ticketDataLabel}
+                                    />
+                                </TicketCardHeader>
                                 {open ? (
                                     <ItemList>
                                         {ticket.items.map((item) => (
@@ -967,12 +1010,13 @@ function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Tic
     );
 }
 
-function Summary({ totals, context }: { totals: Totals; context: string }) {
+function Summary({ totals, context, children }: { totals: Totals; context: string; children: ReactNode }) {
     const { t, locale } = useI18n();
     const allPaymentTypesMissing = totals.unknownPayment > 0 &&
         totals.cash + totals.card + totals.other === 0;
     const knownPayment = (amount: number) => allPaymentTypesMissing ? "—" : yen(amount);
     return (
+        <>
         <Grid>
             <Stat $lead>
                 <StatHeader>
@@ -994,6 +1038,9 @@ function Summary({ totals, context }: { totals: Totals; context: string }) {
                 </StatHeader>
                 <strong>{totals.guests}</strong>
             </Stat>
+        </Grid>
+        {children}
+        <Grid>
             <Stat>
                 <StatHeader>
 
@@ -1084,6 +1131,7 @@ function Summary({ totals, context }: { totals: Totals; context: string }) {
                 <strong>{formatDuration(locale, totals.seconds)}</strong>
             </Stat>
         </Grid>
+        </>
     );
 }
 
@@ -1220,6 +1268,10 @@ const TicketStatusHeading = styled.div`
         color: var(--neutral-400);
         font-size: var(--font-size-small);
     }
+
+    > span:last-child {
+        margin-left: auto;
+    }
 `;
 
 const TicketCard = styled.div`
@@ -1228,8 +1280,17 @@ const TicketCard = styled.div`
     min-width: 0;
 `;
 
+const TicketCardHeader = styled.div`
+    display: flex;
+    align-items: center;
+    gap: var(--space-0);
+    padding-right: var(--space-1);
+`;
+
 const TicketRow = styled.button`
-    width: 100%;
+    width: auto;
+    flex: 1;
+    min-width: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;

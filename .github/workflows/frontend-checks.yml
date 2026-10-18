@@ -28,7 +28,12 @@ jobs:
         if: github.head_ref == 'feature/cover-waivers-returning-customers-v2'
         run: node scripts/verify-live-cover-contract.mjs
       - name: Frontend unit tests
+        # The menu editor may ship only after Andrew's backend is deployed.
+        # This gate performs GETs only; it never edits production menu data.
         run: node --test tests/*.test.mjs
+      - name: Verify deployed menu editor API (read-only)
+        if: github.head_ref == 'feature/menu-item-edit-archive-restore-81'
+        run: node scripts/verify-live-menu-contract.mjs
       - name: Frontend security source audit
         run: node scripts/audit-frontend-security.mjs
       - name: TypeScript and production build

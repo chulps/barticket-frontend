@@ -2,16 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import Icon from "./Icon";
 
-export function CopyPanelButton({ text, locale }: { text: string; locale: "en" | "ja" }) {
+export function CopyPanelButton({ text, locale, label }: { text: string; locale: "en" | "ja"; label?: string }) {
     const [copied, setCopied] = useState(false);
     const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const buttonLabel = label ?? (locale === "ja" ? "パネルをコピー" : "Copy panel");
     useEffect(() => () => { if (timeout.current) clearTimeout(timeout.current); }, []);
     return (
         <CopyWrapper>
             <CopyControl
                 type="button"
-                title={locale === "ja" ? "コピー" : "Copy panel"}
-                aria-label={locale === "ja" ? "パネルをコピー" : "Copy panel"}
+                title={buttonLabel}
+                aria-label={buttonLabel}
                 onClick={async () => {
                     try {
                         await navigator.clipboard.writeText(text);
