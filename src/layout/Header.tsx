@@ -128,8 +128,23 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         <FxxkupLogo />
       </Logo>
 
+      {authenticated ? (
+        <MobilePrimary aria-label={locale === "ja" ? "メインナビゲーション" : "Primary navigation"}>
+          <MobilePrimaryLink to="/tickets" aria-label={t("tickets")} title={t("tickets")} onClick={() => setIsOpen(false)}>
+            {({ isActive }) => <Icon name="ListDashes" weight={isActive ? "fill" : "regular"} />}
+          </MobilePrimaryLink>
+          <MobilePrimaryLink to="/menu" aria-label={t("drinkMenu")} title={t("drinkMenu")} onClick={() => setIsOpen(false)}>
+            {({ isActive }) => <Icon name="Book" weight={isActive ? "fill" : "regular"} />}
+          </MobilePrimaryLink>
+        </MobilePrimary>
+      ) : null}
+
       {authenticated ? <Hamburger
         ref={menuButtonRef}
+        type="button"
+        aria-label={locale === "ja" ? "ナビゲーションメニュー" : "Navigation menu"}
+        aria-expanded={isOpen}
+        aria-controls="main-navigation"
         className="hollow secondary"
         onClick={() => setIsOpen(!isOpen)}
       >
@@ -137,9 +152,9 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         {alertCount > 0 ? <MenuBadge>{alertCount}</MenuBadge> : null}
       </Hamburger> : null}
 
-      <Nav ref={navRef} $isOpen={isOpen} $authenticated={authenticated}>
+      <Nav id="main-navigation" ref={navRef} $isOpen={isOpen} $authenticated={authenticated}>
         {authenticated ? <NavTabs>
-        <NavLink
+        <PrimaryNavLink
           onClick={() => setIsOpen(false)}
           to="/tickets">
           {({ isActive }) => (
@@ -151,9 +166,9 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
               {t("tickets")}
             </>
           )}
-        </NavLink>
+        </PrimaryNavLink>
 
-        <NavLink
+        <PrimaryNavLink
           onClick={() => setIsOpen(false)}
           to="/menu">
           {({ isActive }) => (
@@ -165,18 +180,18 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
               {t("drinkMenu")}
             </>
           )}
-        </NavLink>
+        </PrimaryNavLink>
 
         <SecondaryNavLink
           onClick={() => setIsOpen(false)}
-          to="/analytics">
+          to="/profile">
           {({ isActive }) => (
             <>
               <Icon
-                name="ChartDonut"
+                name="UserCircle"
                 weight={isActive ? "fill" : "regular"}
               />
-              {t("analytics")}
+              {userName ?? t("profile")}
             </>
           )}
         </SecondaryNavLink>
@@ -198,6 +213,20 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           </SecondaryNavLink>
         ) : null}
 
+        <SecondaryNavLink
+          onClick={() => setIsOpen(false)}
+          to="/analytics">
+          {({ isActive }) => (
+            <>
+              <Icon
+                name="ChartDonut"
+                weight={isActive ? "fill" : "regular"}
+              />
+              {t("analytics")}
+            </>
+          )}
+        </SecondaryNavLink>
+
         {isManager ? (
           <SecondaryNavLink onClick={() => setIsOpen(false)} to="/admin">
             {({ isActive }) => (
@@ -208,21 +237,6 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
             )}
           </SecondaryNavLink>
         ) : null}
-
-        <SecondaryNavLink
-          onClick={() => setIsOpen(false)}
-          to="/profile">
-          {({ isActive }) => (
-            <>
-              <Icon
-                name="UserCircle"
-                weight={isActive ? "fill" : "regular"}
-              />
-              {userName ?? t("profile")}
-            </>
-          )}
-        </SecondaryNavLink>
-
         </NavTabs> : (
           <PublicMenuLink to="/menu" onClick={() => setIsOpen(false)}>
             <Icon name="Book" />
@@ -311,6 +325,33 @@ const Navbar = styled.header`
 
 const Logo = styled.h1`
   color: white;
+  @media (max-width: 768px) { display: none; }
+`;
+
+const MobilePrimary = styled.nav`
+  display: none;
+  @media (max-width: 768px) {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+`;
+
+const MobilePrimaryLink = styled(RouterNavLink)`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: var(--space-1);
+  border-radius: var(--space-1);
+  color: var(--neutral-300);
+  text-decoration: none;
+  &:hover, &:focus-visible, &[aria-current="page"] {
+    color: white;
+    background: var(--neutral-800);
+  }
+  &:focus-visible { outline: 2px solid white; }
 `;
 
 const Hamburger = styled.button`
@@ -597,6 +638,10 @@ const NavLink = styled(RouterNavLink)`
 
   }
 `;
+const PrimaryNavLink = styled(NavLink)`
+  @media (max-width: 768px) { display: none; }
+`;
+
 const SecondaryNavLink = styled(NavLink)`
   @media (min-width: 769px) {
     display: none;
