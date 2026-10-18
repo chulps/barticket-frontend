@@ -32,7 +32,9 @@ than inferred from a browser subscription alone. The permission prompt starts
 directly from the user's tap. Existing subscriptions can be re-registered after
 the backend migration. Sign-out browser cleanup is serialized before a new
 account subscribes. The worker refreshes foreground clients and displays OS
-alerts for background/closed apps. Taps route to an exact ticket (including paid
+alerts for every delivered push, as Safari requires for userVisibleOnly
+subscriptions (silently dropping foreground pushes can revoke permission).
+Notification tags coalesce updates to the same ticket. Taps route to an exact ticket (including paid
 tickets), the menu for stock, or Profile for shift/punch changes. Routes remain
 inside the GitHub Pages base path. English and Japanese settings explain iPhone
 installation and blocked permission states.

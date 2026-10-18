@@ -85,8 +85,30 @@ export default function Admin() {
         }
         const reload = () => { void load(); };
         void load();
-        const unsubscribeRealtime = subscribeRealtime(["session", "users"], load);
-        const poll = window.setInterval(() => { if (shouldPoll()) void load(); }, 20000);
+        // Keep the mounted forms while revalidating a healthy session. An
+        // actual auth change still runs the fail-closed load above.
+        async function refreshLive() {
+            const request = ++generation;
+            const token = getToken();
+            if (!token) { void load(); return; }
+            try {
+                const account = await accountApi.me();
+                const members = account.role === "manager" ? await accountApi.listUsers() : [];
+                if (cancelled || request !== generation || getToken() !== token) return;
+                setMe(account);
+                setTeam(members);
+                setError("");
+            } catch (err) {
+                if (cancelled || request !== generation || getToken() !== token) return;
+                setMe(null);
+                setTeam([]);
+                setError(err instanceof ApiError ? err.message : String(err));
+            } finally {
+                if (!cancelled && request === generation && getToken() === token) setLoading(false);
+            }
+        }
+        const unsubscribeRealtime = subscribeRealtime(["session", "users"], refreshLive);
+        const poll = window.setInterval(() => { if (shouldPoll()) void refreshLive(); }, 20000);
         window.addEventListener("barticket-auth", reload);
         window.addEventListener("focus", reload);
         return () => {

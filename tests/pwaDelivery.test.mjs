@@ -18,9 +18,9 @@ function setup(visible = false) {
   return { shown, messages, navigated, push, click };
 }
 
-test("foreground push refreshes the app without duplicating an OS alert", async () => {
+test("foreground push refreshes the app and honors Safari's user-visible requirement", async () => {
   const s = setup(true); await s.push({ type: "ticket_created", ticket_id: 42, title: "New ticket" });
-  assert.equal(s.messages.length, 1); assert.equal(s.shown.length, 0);
+  assert.equal(s.messages.length, 1); assert.equal(s.shown.length, 1);
 });
 
 test("background ticket push opens the exact ticket under the Pages base path", async () => {

@@ -67,6 +67,7 @@ export default function Menu({
         if (!cancelled) setArchivedItems(result.items);
       } catch { /* Keep the current archive and its existing error UI. */ }
     };
+    void refreshArchive();
     const unsubscribeRealtime = subscribeRealtime(["menu"], refreshArchive);
     const poll = window.setInterval(() => { if (shouldPoll()) void refreshArchive(); }, 20000);
     return () => { cancelled = true; unsubscribeRealtime(); window.clearInterval(poll); };

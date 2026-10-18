@@ -12,9 +12,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     await Promise.all(windows.map((client) => client.postMessage({ type: "barticket-push", eventType: type })));
-    // The open app updates from sockets/worker invalidations. Show an OS
-    // notification when the app is in the background or closed.
-    if (windows.some((client) => client.visibilityState === "visible")) return;
+    // Safari requires every delivered userVisibleOnly push to display a
+    // notification, including when a window is visible. Never silently drop it.
     await self.registration.showNotification(title, {
     body,
     icon: new URL("favicon.svg", self.registration.scope).href,

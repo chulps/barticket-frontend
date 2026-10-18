@@ -518,6 +518,7 @@ export default function Analytics() {
         let latestRequest = 0;
         let timer: number | null = null;
         let unsubscribeRealtime = () => {};
+        let unsubscribeAccount = () => {};
 
         async function refresh() {
             const request = ++latestRequest;
@@ -583,7 +584,14 @@ export default function Analytics() {
                 window.addEventListener("barticket-notices", refresh);
                 window.addEventListener("barticket-api-restored", refresh);
                 timer = window.setInterval(() => { if (shouldPoll()) void refresh(); }, 20000);
-                unsubscribeRealtime = subscribeRealtime(["analytics", "shift", "users", "session"], refresh);
+                unsubscribeRealtime = subscribeRealtime(["analytics", "shift"], refresh);
+                unsubscribeAccount = subscribeRealtime(["users", "session"], async () => {
+                    const current = await accountApi.me();
+                    const members = current.role === "manager" ? await accountApi.listUsers() : null;
+                    if (cancelled) return;
+                    setAccount(current);
+                    setTeam(members);
+                });
                 await refresh();
             } catch (err: unknown) {
                 if (cancelled) return;
@@ -603,6 +611,7 @@ export default function Analytics() {
             cancelled = true;
             if (timer !== null) window.clearInterval(timer);
             unsubscribeRealtime();
+            unsubscribeAccount();
             window.removeEventListener("focus", refresh);
             window.removeEventListener("barticket-push", refresh);
             window.removeEventListener("barticket-notices", refresh);

@@ -157,7 +157,7 @@ test("Live dashboard displays only when selected Daily shift is open; archived l
     assert.match(analytics, /<OpenShiftOverview[\s\S]*?shift=\{selected\}[\s\S]*?notices=\{notices\}/);
     assert.match(analytics, /\) : \(\s*<>[\s\S]*?<Summary totals=\{totals\}/);
     assert.match(analytics, /window\.setInterval\([\s\S]*?shouldPoll\(\)[\s\S]*?refresh\(\)[\s\S]*?20000\)/);
-    assert.match(analytics, /subscribeRealtime\(\["analytics", "shift", "users", "session"\], refresh\)/);
+    assert.match(analytics, /subscribeRealtime\(\["analytics", "shift"\], refresh\)/);
     assert.match(analytics, /window\.addEventListener\("focus", refresh\)/);
     assert.match(analytics, /window\.addEventListener\("barticket-push", refresh\)/);
     assert.match(analytics, /const selected = currentReport\?\.id === dayId\s*\? currentReport\s*: \(shifts \?\? \[\]\)\.find/);

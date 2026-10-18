@@ -470,6 +470,7 @@ test("socket updates replace polling, failures restore it, and reconnect fetches
       if(ready) socket.send(JSON.stringify({type:"ready",version:1,cursor}));
     });
   });
+  await page.clock.install();
   await page.goto("/tickets");
   await expect(page.getByText("Test Walk-in").first()).toBeVisible();
   await expect.poll(()=>sockets.length).toBeGreaterThan(0);
@@ -488,8 +489,7 @@ test("socket updates replace polling, failures restore it, and reconnect fetches
     sockets.at(-1).close({code:1011,reason:"simulated unavailable socket"});
     await expect.poll(count).toBeGreaterThan(initial);
     const afterDisconnect=count();
-    await page.clock.install();
-    await page.clock.fastForward(21000);
+    await page.clock.fastForward(11000);
     await expect.poll(count).toBeGreaterThan(afterDisconnect);
     state.tickets[0].name="Missed while disconnected"; cursor++;
     ready=true; send("ready");
