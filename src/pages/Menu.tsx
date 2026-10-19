@@ -7,6 +7,7 @@ import SearchBar from "../components/MenuSearchBar";
 import MenuCategory from "../components/MenuCategory";
 import MenuItemForm from "../components/MenuItemForm";
 import Icon from "../components/Icon";
+import DataDownload from "../components/DataDownload";
 
 // import Menu data types
 import type { MenuData, MenuItem, Prices } from "../types/Menu";
@@ -199,6 +200,8 @@ export default function Menu({
           </AddButton>}
         </HeaderActions> : null}
       </MenuHeader>
+
+      {authenticated ? <DataDownload locale={locale} scope="menu" /> : null}
 
       <StickySearch>
         <SearchBar value={searchTerm} onChange={setSearchTerm} />

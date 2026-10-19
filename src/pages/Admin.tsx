@@ -9,6 +9,7 @@ import TabGroup from "../components/TabGroup";
 import { useI18n } from "../i18n";
 import { confirmAccountRole } from "./adminAccountRole";
 import AdminTeam from "./AdminTeam";
+import DataDownload from "../components/DataDownload";
 import AdminAuditHistory from "./AdminAuditHistory";
 
 /**
@@ -172,6 +173,7 @@ export default function Admin() {
                 <h1>{locale === "ja" ? "管理" : "Admin"}</h1>
                 <p>{locale === "ja" ? "管理者向けのアカウント管理画面です。" : "Manager-only account management."}</p>
             </header>
+            <DataDownload locale={locale} scope="admin" />
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             <TabGroup
                 tabs={[

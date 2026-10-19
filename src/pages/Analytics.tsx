@@ -21,6 +21,7 @@ import { groupAnalyticsTickets } from "./analyticsTicketGroups";
 import { ticketDataForClipboard, ticketListDataForClipboard } from "./ticketDataExport";
 import OpenShiftOverview from "./OpenShiftOverview";
 import AnalyticsReportActions from "../components/AnalyticsReportActions";
+import DataDownload from "../components/DataDownload";
 import { createAnalyticsTextReport } from "./analyticsTextReport";
 
 type Range = "all" | "year" | "month" | "day";
@@ -771,6 +772,7 @@ export default function Analytics() {
                             </StepButton>
                         </DayNavigator>
                     ) : null}
+                    {range === "all" && account.role === "manager" ? <DataDownload locale={locale} /> : null}
                     <AnalyticsReportActions
                         key={[range, month, year, range === "day" ? dayId : null].join(":")}
                         textEn={reportText("en")}
