@@ -4,6 +4,7 @@ type DropdownMenuItemProps = {
     children: React.ReactNode;
     onClick?: () => void;
     danger?: boolean;
+    warning?: boolean;
     closeMenu?: () => void;
 };
 
@@ -11,6 +12,7 @@ export default function DropdownMenuItem({
     children,
     onClick,
     danger = false,
+    warning = false,
     closeMenu,
 }: DropdownMenuItemProps) {
     return (
@@ -22,6 +24,7 @@ export default function DropdownMenuItem({
                 onClick?.();
             }}
             $danger={danger}
+            $warning={warning}
         >
             {children}
         </Item>
@@ -29,7 +32,7 @@ export default function DropdownMenuItem({
 }
 
 
-const Item = styled.button<{ $danger: boolean }>`
+const Item = styled.button<{ $danger: boolean; $warning: boolean }>`
     && {
         width: 100%;
         min-width: max-content;
@@ -52,10 +55,12 @@ const Item = styled.button<{ $danger: boolean }>`
         height: 1em;
     }
 
-    color: ${({ $danger }) =>
+    color: ${({ $danger, $warning }) =>
         $danger
             ? "var(--danger)"
-            : "inherit"};
+            : $warning
+              ? "var(--warning)"
+              : "inherit"};
 
     border-radius: var(--space-1);
 
