@@ -27,6 +27,7 @@ export function createSingleFlightRefresh<T>(callbacks: {
       .then(
         data => {
           if (!disposed && revision === callbacks.currentRevision()) callbacks.onSnapshot(data);
+          else if (!disposed) queued = true;
         },
         error => {
           if (!disposed && revision === callbacks.currentRevision()) callbacks.onError(error);

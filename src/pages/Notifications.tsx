@@ -4,6 +4,7 @@ import styled from "styled-components";
 import { accountApi } from "../api/account";
 import PushSettings from "../components/PushSettings";
 import { ApiError, getToken } from "../api/client";
+import { shouldPoll, subscribeRealtime } from "../api/realtime";
 import { listNotices, restockNotice, type NoticeList } from "../api/notices";
 import { menuLabel, useI18n, type Locale } from "../i18n";
 import { dismissRestockNotice } from "../hooks/optimisticOperations";
@@ -31,7 +32,7 @@ export default function Notifications() {
     useEffect(() => {
         let cancelled = false;
         async function load() {
-            if (pendingRestock.current) return;
+            if (pendingRestock.current) return false;
             const startedAt = revision.current;
             try {
                 const data = await listNotices();
@@ -41,7 +42,7 @@ export default function Notifications() {
                     pendingWrite: pendingRestock.current,
                     cancelled,
                 });
-                if (safe === null) return;
+                if (safe === null) return false;
                 setDenied(false);
                 setLoadFailed(false);
                 setNotices(safe);
@@ -66,13 +67,15 @@ export default function Notifications() {
                 if (!cancelled) setIsManager(false);
             });
         }
-        const timer = window.setInterval(load, 20000);
+        const timer = window.setInterval(() => { if (shouldPoll()) void load(); }, 20000);
+        const unsubscribeRealtime = subscribeRealtime(["notices", "shift", "session"], load);
         window.addEventListener("barticket-auth", load);
         window.addEventListener("barticket-notices", load);
         window.addEventListener("barticket-api-restored", load);
         return () => {
             cancelled = true;
             window.clearInterval(timer);
+            unsubscribeRealtime();
             window.removeEventListener("barticket-auth", load);
             window.removeEventListener("barticket-notices", load);
             window.removeEventListener("barticket-api-restored", load);

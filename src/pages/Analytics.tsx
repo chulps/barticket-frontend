@@ -5,6 +5,7 @@ import RequestState from "../components/RequestState";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ticketsApi, toTicket } from "../api/tickets";
 import { ApiError, getToken } from "../api/client";
+import { shouldPoll, subscribeRealtime } from "../api/realtime";
 import { listNotices, type NoticeList } from "../api/notices";
 import { BarChart, DonutChart, HorizontalBarChart, CopyPanelButton, type TimeBar } from "../components/AnalyticsCharts";
 import AnalyticsDatePicker from "../components/AnalyticsDatePicker";
@@ -516,6 +517,8 @@ export default function Analytics() {
         let initiallySelected = false;
         let latestRequest = 0;
         let timer: number | null = null;
+        let unsubscribeRealtime = () => {};
+        let unsubscribeAccount = () => {};
 
         async function refresh() {
             const request = ++latestRequest;
@@ -580,7 +583,15 @@ export default function Analytics() {
                 window.addEventListener("barticket-push", refresh);
                 window.addEventListener("barticket-notices", refresh);
                 window.addEventListener("barticket-api-restored", refresh);
-                timer = window.setInterval(refresh, 20000);
+                timer = window.setInterval(() => { if (shouldPoll()) void refresh(); }, 20000);
+                unsubscribeRealtime = subscribeRealtime(["analytics", "shift"], refresh);
+                unsubscribeAccount = subscribeRealtime(["users", "session"], async () => {
+                    const current = await accountApi.me();
+                    const members = current.role === "manager" ? await accountApi.listUsers() : null;
+                    if (cancelled) return;
+                    setAccount(current);
+                    setTeam(members);
+                });
                 await refresh();
             } catch (err: unknown) {
                 if (cancelled) return;
@@ -599,6 +610,8 @@ export default function Analytics() {
         return () => {
             cancelled = true;
             if (timer !== null) window.clearInterval(timer);
+            unsubscribeRealtime();
+            unsubscribeAccount();
             window.removeEventListener("focus", refresh);
             window.removeEventListener("barticket-push", refresh);
             window.removeEventListener("barticket-notices", refresh);

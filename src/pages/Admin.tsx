@@ -1,3 +1,4 @@
+import { shouldPoll, subscribeRealtime } from "../api/realtime";
 import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, useMatch, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
@@ -84,11 +85,37 @@ export default function Admin() {
         }
         const reload = () => { void load(); };
         void load();
+        // Keep the mounted forms while revalidating a healthy session. An
+        // actual auth change still runs the fail-closed load above.
+        async function refreshLive() {
+            const request = ++generation;
+            const token = getToken();
+            if (!token) { void load(); return; }
+            try {
+                const account = await accountApi.me();
+                const members = account.role === "manager" ? await accountApi.listUsers() : [];
+                if (cancelled || request !== generation || getToken() !== token) return;
+                setMe(account);
+                setTeam(members);
+                setError("");
+            } catch (err) {
+                if (cancelled || request !== generation || getToken() !== token) return;
+                setMe(null);
+                setTeam([]);
+                setError(err instanceof ApiError ? err.message : String(err));
+            } finally {
+                if (!cancelled && request === generation && getToken() === token) setLoading(false);
+            }
+        }
+        const unsubscribeRealtime = subscribeRealtime(["session", "users"], refreshLive);
+        const poll = window.setInterval(() => { if (shouldPoll()) void refreshLive(); }, 20000);
         window.addEventListener("barticket-auth", reload);
         window.addEventListener("focus", reload);
         return () => {
             cancelled = true;
             generation++;
+            unsubscribeRealtime();
+            window.clearInterval(poll);
             window.removeEventListener("barticket-auth", reload);
             window.removeEventListener("focus", reload);
         };

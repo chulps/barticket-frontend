@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError } from "../api/client";
+import { shouldPoll, subscribeRealtime } from "../api/realtime";
 import { useModal } from "../hooks/useModal";
 import ShiftCloseReview from "./ShiftCloseReview";
 import { businessDateJst, canManageShift, currentPunch, workedSeconds } from "./shiftControlPolicy";
@@ -39,7 +40,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
     const yen = (value: number) => "¥" + value.toLocaleString("ja-JP");
 
     const refresh = useCallback(async () => {
-        if (mutation.current) return;
+        if (mutation.current) return false;
         const request = ++version.current;
         try {
             const current = await accountApi.currentShift();
@@ -72,8 +73,9 @@ export default function ShiftControls({ account, locale }: { account: Account; l
 
     useEffect(() => {
         mounted.current = true;
-        void refresh();
-        const poll = window.setInterval(() => void refresh(), 20000);
+        queueMicrotask(() => { if (mounted.current) void refresh(); });
+        const poll = window.setInterval(() => { if (shouldPoll()) void refresh(); }, 20000);
+        const unsubscribeRealtime = subscribeRealtime(["shift", "session"], refresh);
         const tick = window.setInterval(() => setNow(Date.now()), 15000);
         const onRefresh = () => void refresh();
         window.addEventListener("focus", onRefresh);
@@ -82,6 +84,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
         return () => {
             mounted.current = false;
             version.current++;
+            unsubscribeRealtime();
             window.clearInterval(poll);
             window.clearInterval(tick);
             window.removeEventListener("focus", onRefresh);
