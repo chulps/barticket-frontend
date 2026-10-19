@@ -1,7 +1,6 @@
 import styled from "styled-components";
 
 import MenuPrice from "./MenuPrice";
-import MenuPriceEditor from "./MenuPriceEditor";
 import MenuItemForm from "./MenuItemForm";
 import MenuItemArchiveDialog from "./MenuItemArchiveDialog";
 import DropdownMenu from "./DropdownMenu";
@@ -12,8 +11,6 @@ import type { MenuItem, Prices } from "../types/Menu";
 import type { MenuItemEdit } from "../api/menu";
 import { menuLabel, useI18n } from "../i18n";
 import { useModal } from "../hooks/useModal";
-
-const PRICE_KEYS = ["standard", "15ml", "30ml"] as const;
 
 type MenuItemRowProps = {
     item: MenuItem;
@@ -30,7 +27,6 @@ export default function MenuItemRow({
     item,
     pending = false,
     onToggle,
-    onSavePrices,
     onSaveItem,
     onArchive,
     categories = [],
@@ -39,22 +35,6 @@ export default function MenuItemRow({
     const { t, locale } = useI18n();
     const { openModal } = useModal();
     const unavailable = item.inStock === false;
-    const canEditPrice = PRICE_KEYS.some((key) => item.prices?.[key] !== undefined);
-
-    function openPriceEditor() {
-        if (!onSavePrices || pending) return;
-        openModal({
-            title: menuLabel(locale, item.name),
-            maxWidth: "420px",
-            fitContent: true,
-            content: (
-                <MenuPriceEditor
-                    item={item}
-                    onSave={(prices) => onSavePrices(item, prices)}
-                />
-            ),
-        });
-    }
 
     function openEdit() {
         if (!onSaveItem || pending) return;
@@ -111,35 +91,25 @@ export default function MenuItemRow({
                 >
                     {(closeMenu) => (
                         <>
+                            {onSaveItem ? <DropdownMenuItem onClick={() => { closeMenu(); openEdit(); }}>
+                                <Icon name="PencilSimple" />
+                                {locale === "ja" ? "商品を編集" : "Edit Item"}
+                            </DropdownMenuItem> : null}
                             <DropdownMenuItem
-                                danger={!unavailable}
+                                warning={!unavailable}
                                 onClick={() => {
                                     closeMenu();
                                     onToggle(item);
                                 }}
                             >
-                                <Icon name={unavailable ? "CheckCircle" : "Prohibit"} size="1em" />
+                                <Icon name={unavailable ? "CheckCircle" : "Warning"} size="1em" />
                                 {unavailable ? t("markInStock") : t("markOutOfStock")}
                             </DropdownMenuItem>
-                            {onSaveItem ? <DropdownMenuItem onClick={() => { closeMenu(); openEdit(); }}>
-                                <Icon name="PencilSimple" />
-                                {locale === "ja" ? "商品を編集" : "Edit Item"}
-                            </DropdownMenuItem> : null}
                             {onArchive ? <DropdownMenuItem danger onClick={() => { closeMenu(); openArchive(); }}>
                                 <Icon name="Archive" />
                                 {locale === "ja" ? "商品をアーカイブ" : "Archive Item"}
                             </DropdownMenuItem> : null}
-                            {canEditPrice && onSavePrices ? (
-                                <DropdownMenuItem
-                                    onClick={() => {
-                                        closeMenu();
-                                        openPriceEditor();
-                                    }}
-                                >
-                                    <Icon name="CurrencyCircleDollar" />
-                                    {t("adjustPrice")}
-                                </DropdownMenuItem>
-                            ) : null}
+
                         </>
                     )}
                 </DropdownMenu>

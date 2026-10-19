@@ -407,6 +407,17 @@ test("full menu edit uses the prefilled Add Item form and updates only the catal
   const oldSnapshot=structuredClone(state.tickets[0].items[0]);
   await page.goto("/menu");
   await page.getByRole("button",{name:"Actions for Highball"}).click();
+  await expect(page.getByRole("menuitem")).toHaveText(["Edit Item", "Mark out of stock", "Archive Item"]);
+  const warningColor = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--warning)";
+    document.body.appendChild(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  await expect(page.getByRole("menuitem", { name: "Mark out of stock", exact: true })).toHaveCSS("color", warningColor);
+  await page.screenshot({ path: "/tmp/barticket-menu-actions.png" });
   await page.getByRole("menuitem",{name:"Edit Item"}).click();
   const editor=page.getByRole("dialog");
   await expect(editor).toBeVisible();
