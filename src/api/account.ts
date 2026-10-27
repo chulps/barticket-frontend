@@ -33,6 +33,10 @@ export type ShiftReport = {
     guest_count: number;
     paid_count: number;
     cancelled_count: number;
+    receivable_count?: number;
+    receivable_billed_total?: number;
+    receivable_collected_total?: number;
+    receivable_outstanding_total?: number;
     staff_hours: { user_id: number; name: string; seconds: number }[];
     staff_drinks?: { ticket_id: number; staff_id: number | null; staff_name: string; menu_item_id: number | null; drink_name: string; price_key: string; unit_price: number; quantity: number; revenue: number }[];
     stockouts?: { item: string; at: number; by: string }[];
@@ -114,6 +118,17 @@ export const accountApi = {
     }),
 
     closeShift: () => apiRequest<ShiftReport>("/shifts/close", { method: "POST" }),
+
+    closeReadiness: () => apiRequest<{
+        shift: { id: number; business_date: string; status: "open" | "closed" } | null;
+        can_close: boolean;
+        blockers: { code: string; ticket_id?: number; name?: string; balance_due?: number; message: string }[];
+        open_ticket_count: number;
+        clocked_in_staff: { user_id: number; name: string; clock_in: number }[];
+        finalized_totals: { collected_total: number; cash_total: number; card_total: number; other_total: number };
+        approved_carry_forwards: { ticket_id: number; name: string; reason: string; billed_total: number; collected_total: number; remaining_total: number }[];
+        receivables: { count: number; billed_total: number; collected_total: number; outstanding_total: number };
+    }>("/shifts/close-readiness"),
 
     clockIn: () => apiRequest<ShiftReport>("/shifts/clock-in", { method: "POST" }),
 

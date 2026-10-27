@@ -20,6 +20,7 @@ import Admin from "./pages/Admin";
 import Menu from "./pages/Menu";
 import Analytics from "./pages/Analytics";
 import Notifications from "./pages/Notifications";
+import Receivables from "./pages/Receivables";
 import ModalHost from "./components/ModalHost"
 import MutationToastHost from "./components/MutationToastHost";
 import { ModalProvider } from "./context/ModalProvider";
@@ -275,6 +276,7 @@ export default function App() {
 
           <Route path="/analytics" element={authenticated === null ? null : authenticated ? <Analytics /> : <Navigate to="/" replace />} />
           <Route path="/notifications" element={authenticated === null ? null : authenticated ? <Notifications /> : <Navigate to="/" replace />} />
+          <Route path="/receivables" element={authenticated === null ? null : authenticated ? <Receivables /> : <Navigate to="/" replace />} />
         </Routes>
 
         <ModalHost />

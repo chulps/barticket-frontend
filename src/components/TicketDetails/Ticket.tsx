@@ -58,7 +58,11 @@ type TicketDetailsProps = {
     onPayTicket: (
         ticketId: number,
         paymentType: PaymentType,
+        amount: number,
+        idempotencyKey?: string,
     ) => Promise<boolean>;
+
+    onDeferTicket: (ticketId: number, body: { reason: string; confirmed_balance: number; note?: string; follow_up_date?: string }) => Promise<boolean>;
 
     onClose: () => void;
     onPrevious: () => void;
@@ -87,6 +91,7 @@ export default function TicketDetails({
     onCancelTicket,
     activeTab,
     onPayTicket,
+    onDeferTicket,
     onClose,
     onPrevious,
     onNext,
@@ -165,7 +170,8 @@ export default function TicketDetails({
                 activeTab={activeTab}
                 total={total}
                 onCancelTicket={(id) => { setClosingTicketId(null); onCancelTicket(id); }}
-                onPayTicket={(id, method) => { setClosingTicketId(null); return onPayTicket(id, method); }}
+                onPayTicket={(id, method, amount, key) => { setClosingTicketId(null); return onPayTicket(id, method, amount, key); }}
+                onDeferTicket={(id, body) => { setClosingTicketId(null); return onDeferTicket(id, body); }}
                 onReopenTicket={(id, reason) => { setClosingTicketId(null); return onReopenTicket(id, reason); }}
                 canCorrectPayment={canCorrectPayment}
             />

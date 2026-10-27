@@ -18,7 +18,7 @@ test("pay and cancel require an existing confirmed open ticket, reopen a closed 
 test("rename is queued before terminal lock and terminal operations bypass only that lock",()=>{
   assert.match(hook,/flushRename\(ticketId\);\s*terminalPending\.current\.add\(ticketId\)/);
   assert.match(hook,/\.finally\(\(\) => terminalPending\.current\.delete\(ticketId\)\)/);
-  assert.match(hook,/ticketsApi\.pay\(ticketId, paymentType\), undefined, true/);
+  assert.match(hook,/ticketsApi\.pay\(ticketId, paymentType, amount, idempotencyKey\), undefined, true/);
   assert.match(payment,/if \(pending\.current\) return/);
   assert.doesNotMatch(hook,/setInterval\(\(\) => ticketsApi\.pay/);
 });

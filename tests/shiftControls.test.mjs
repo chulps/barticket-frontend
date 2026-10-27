@@ -72,7 +72,8 @@ test("close POST is called only from reviewed explicit confirmation", () => {
     assert.match(review, /submitInFlight\.current = true/);
     assert.match(review, /err\.status >= 500/);
     assert.match(review, /onClick=\{\(\) => void confirmClose\(\)\}/);
-    assert.match(review, /const \[latest, latestTickets\] = await Promise\.all/);
+    assert.match(review, /const \[latest, latestTickets, ready\] = await Promise\.all/);
+    assert.match(review, /if \(!ready\.can_close \|\| closeBlockers\(latestTickets\)\.length\)/);
     assert.match(review, /accountApi\.closeShift\(\)/);
     assert.match(review, /registerCloseGuard\(\(\) => !working && !submitInFlight\.current\)/);
 });

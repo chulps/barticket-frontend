@@ -22,7 +22,10 @@ type TicketFooterProps = {
     onPayTicket: (
         ticketId: number,
         paymentType: PaymentType,
+        amount: number,
+        idempotencyKey?: string,
     ) => Promise<boolean>;
+    onDeferTicket: (ticketId: number, body: { reason: string; confirmed_balance: number; note?: string; follow_up_date?: string }) => Promise<boolean>;
 
     onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => Promise<boolean>;
     canCorrectPayment: boolean;
@@ -37,6 +40,7 @@ export default function TicketFooter({
     total,
     onCancelTicket,
     onPayTicket,
+    onDeferTicket,
     onReopenTicket,
     canCorrectPayment,
 }: TicketFooterProps) {
@@ -80,15 +84,28 @@ export default function TicketFooter({
                             <li key={index} style={{ paddingBlock: "var(--space-1)" }}>
                                 {t(payment.type)} · ¥{payment.amount.toLocaleString()}
                                 {" · "}
-                                {new Date(payment.paid_at * 1000).toLocaleString(locale === "ja" ? "ja-JP" : "en-US")}
+                                {new Date(payment.paid_at * 1000).toLocaleString(locale === "ja" ? "ja-JP" : "en-US", { timeZone: "Asia/Tokyo" })}
+                                {payment.collection_business_date ? ` · ${payment.collection_business_date}` : ""}
+                                {payment.collected_by ? ` · ${payment.collected_by}` : ""}
                                 {payment.voided_at != null && <strong style={{ color: "var(--danger-400)" }}>
                                     {" · "}{locale === "ja" ? "POS記録取消済（返金ではありません）" : "POS-voided (not refunded)"}
                                     {payment.voided_by ? " · " + payment.voided_by : ""}
+                                    {payment.void_reason ? " · " + payment.void_reason : ""}
                                 </strong>}
                             </li>
                         ))}
                     </ul>
                 </details>}
+                {ticket.serviceStatus === "completed" && ticket.deferredAt ? <section aria-label={locale === "ja" ? "未払い情報" : "Unpaid balance details"}>
+                    <p><strong>{locale === "ja" ? "サービス営業日" : "Service date"}:</strong> {ticket.serviceBusinessDate ?? "—"}</p>
+                    <p><strong>{locale === "ja" ? "状態" : "Settlement"}:</strong> {ticket.settlementStatus ?? "outstanding"}</p>
+                    <p><strong>{locale === "ja" ? "理由" : "Reason"}:</strong> {ticket.unpaidReason ?? "—"}</p>
+                    {ticket.followUpDate ? <p><strong>{locale === "ja" ? "フォロー日" : "Follow-up"}:</strong> {ticket.followUpDate}</p> : null}
+                    {ticket.unpaidNote ? <p><strong>{locale === "ja" ? "スタッフメモ" : "Staff note"}:</strong> {ticket.unpaidNote}</p> : null}
+                    {(ticket.writeOffs?.length ?? 0) > 0 ? <ul>{ticket.writeOffs?.map((row, index) => <li key={index}>
+                        {locale === "ja" ? "免除" : "Written off"} · ¥{row.amount.toLocaleString()} · {row.reason} · {row.written_off_by}
+                    </li>)}</ul> : null}
+                </section> : null}
             </Totals>
 
             <Actions>
@@ -101,6 +118,7 @@ export default function TicketFooter({
                     activeTab={activeTab}
                     onCancelTicket={onCancelTicket}
                     onPayTicket={onPayTicket}
+                    onDeferTicket={onDeferTicket}
                     onReopenTicket={onReopenTicket}
                     canCorrectPayment={canCorrectPayment}
                 />

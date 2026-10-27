@@ -443,8 +443,22 @@ export function useTickets() {
     terminalMutation(ticketId, "open", () => enqueue(ticketId, () => ticketsApi.cancel(ticketId), undefined, true))
       .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票をキャンセルしました" : "Ticket cancelled"); return saved; });
 
-  const payTicket = (ticketId: number, paymentType: PaymentType) =>
-    terminalMutation(ticketId, "open", () => enqueue(ticketId, () => ticketsApi.pay(ticketId, paymentType), undefined, true));
+  const payTicket = (ticketId: number, paymentType: PaymentType, amount?: number, idempotencyKey?: string) =>
+    terminalMutation(ticketId, "open", () => enqueue(ticketId, () =>
+      ticketsApi.pay(ticketId, paymentType, amount, idempotencyKey), undefined, true));
+
+  const deferTicket = (ticketId: number, body: {
+    reason: string; confirmed_balance: number; note?: string; follow_up_date?: string;
+  }) => terminalMutation(ticketId, "open", () =>
+    enqueue(ticketId, () => ticketsApi.deferPayment(ticketId, body), undefined, true))
+      .then(saved => {
+        if (saved) {
+          notifyMutation("success", locale === "ja" ? "未払い残高を繰り越しました" : "Unpaid balance carried forward");
+          window.dispatchEvent(new Event("barticket-retry-tickets"));
+          window.dispatchEvent(new Event("barticket-shift-updated"));
+        }
+        return saved !== null;
+      });
 
   const reopenTicket = (ticketId: number, reason: "customer_returned" | "closed_by_mistake" = "customer_returned") =>
     terminalMutation(ticketId, "closed", () => enqueue(ticketId, () => ticketsApi.reopen(ticketId, reason), undefined, true))
@@ -464,6 +478,7 @@ export function useTickets() {
     createTicket,
     cancelTicket,
     payTicket,
+    deferTicket,
     reopenTicket,
   };
 }
