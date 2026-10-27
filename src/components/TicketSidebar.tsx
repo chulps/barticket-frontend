@@ -5,7 +5,7 @@ import { useState } from "react";
 
 // import npm packages
 import styled from "styled-components";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
 import { Link } from "react-router-dom";
 
 // import types
