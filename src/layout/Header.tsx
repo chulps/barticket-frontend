@@ -268,7 +268,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         <MoreWrap ref={moreRef}>
           <MoreButton
             type="button"
-            aria-label="More navigation options"
+            aria-label={locale === "ja" ? "その他のナビゲーション" : "More navigation options"}
             aria-expanded={moreOpen}
             aria-controls="desktop-more-menu"
             onClick={() => setMoreOpen((open) => !open)}
