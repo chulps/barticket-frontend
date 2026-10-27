@@ -596,3 +596,37 @@ test("Japanese My Time Clock remains readable and tappable at phone width",async
   await expect(clockOut).toBeVisible();
   await expect(clockOut).toHaveCSS("min-height","44px");
 });
+
+
+test("mobile picker traps focus, contains its scroll and restores focus after Escape",async ({page})=>{
+  await page.setViewportSize({width:375,height:667});
+  const state=await mockedPOS(page);
+  state.activeMenu.items=Array.from({length:24},(_,index)=>({
+    id:100+index,name:`Mobile item ${index+1}`,category:"Whisky",
+    prices:{standard:700+index},inStock:true,
+  }));
+  await openTicket(page);
+
+  const trigger=page.getByRole("button",{name:/Add Item/i});
+  await trigger.click();
+  const dialog=page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute("aria-modal","true");
+  await expect.poll(()=>page.evaluate(()=>document.activeElement && document.querySelector('[role="dialog"]')?.contains(document.activeElement))).toBe(true);
+  expect(await page.evaluate(()=>document.body.style.overflow)).toBe("hidden");
+  expect(await dialog.evaluate(element=>Array.from(element.querySelectorAll("div")).some(node=>
+    getComputedStyle(node).overflowY==="auto" && node.scrollHeight>node.clientHeight
+  ))).toBe(true);
+
+  const first=dialog.locator("button").first();
+  await expect(first).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(dialog.getByRole("button",{name:"¥723",exact:true})).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(first).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(await page.evaluate(()=>document.body.style.overflow)).toBe("");
+});
