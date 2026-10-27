@@ -23,10 +23,10 @@ test("validator rejects missing configuration without revealing an invalid value
   assert.equal((run.stdout + run.stderr).includes(secretLike), false);
 });
 
-test("workflow validates the secret-sourced API origin before building", () => {
+test("workflow validates the variable-sourced API origin before building", () => {
   const workflow = readFileSync(new URL("../.github/workflows/deploy.yml", import.meta.url), "utf8");
   const client = readFileSync(new URL("../src/api/client.ts", import.meta.url), "utf8");
   assert.ok(workflow.indexOf("node scripts/validate-api-url.mjs") < workflow.indexOf("npm run build"));
-  assert.match(workflow, /VITE_API_URL: \$\{\{ secrets\.VITE_API_URL \}\}/);
+  assert.match(workflow, /VITE_API_URL: \$\{\{ vars\.VITE_API_URL \}\}/);
   assert.match(client, /import\.meta\.env\.PROD && !configuredApiUrl/);
 });
