@@ -4,6 +4,7 @@
 import styled from "styled-components";
 import { isApiAvailable } from "./api/client";
 import { useI18n } from "./i18n";
+import { notifyMutation } from "./utils/mutationFeedback";
 import {
   BrowserRouter,
   Routes,
@@ -36,7 +37,7 @@ import { createSingleFlightRefresh } from "./hooks/singleFlightRefresh";
 
 
 export default function App() {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const [apiAvailable, setApiAvailable] = useState(isApiAvailable);
   useEffect(() => {
     const updateStatus = () => setApiAvailable(isApiAvailable());
@@ -127,6 +128,17 @@ export default function App() {
       const result = await send();
       menuRevision.current++;
       mergeMenuItem(result);
+      const oldPrices = before.prices ?? {};
+      const newPrices = result.prices ?? {};
+      const ticketLinesChanged = before.name !== result.name ||
+        (["standard", "15ml", "30ml"] as const)
+          .some(key => oldPrices[key] !== newPrices[key]);
+      if (ticketLinesChanged) {
+        // The backend has committed ticket snapshots and totals. Re-read them
+        // immediately on this device; other devices receive backend push or poll.
+        window.dispatchEvent(new Event("barticket-push"));
+        notifyMutation("info", t("menuTicketsMayHaveChanged"));
+      }
       return true;
     } catch (error) {
       menuRevision.current++;

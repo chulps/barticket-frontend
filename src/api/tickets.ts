@@ -17,6 +17,7 @@ type ApiTicketItem = {
     quantity: number;
     unit_price: number;
     subtotal: number;
+    price_override?: boolean;
 };
 
 export type ApiTicket = {
@@ -75,6 +76,7 @@ export function toTicket(api: ApiTicket): Ticket {
                 unit_price: item.unit_price,
                 quantity: item.quantity,
                 subtotal: item.subtotal,
+                price_override: item.price_override ?? false,
                 staff_drink: item.staff_drink,
                 staff_name: item.staff_name,
                 drink_name: item.drink_name,

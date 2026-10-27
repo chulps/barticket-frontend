@@ -281,7 +281,7 @@ export function useTickets() {
     const saved = await enqueue(ticketId, () =>
       ticketsApi.updateItem(ticketId, itemId, { unit_price: price }),
       ticket => ({ ...ticket, items: ticket.items.map(item => item.id === itemId
-        ? { ...item, unit_price: price, subtotal: item.quantity * price } : item) }),
+        ? { ...item, unit_price: price, price_override: true, subtotal: item.quantity * price } : item) }),
     );
     if (saved) notifyMutation("success", locale === "ja" ? "価格を保存しました" : "Price saved");
     return saved !== null;
@@ -302,6 +302,7 @@ export function useTickets() {
       ticket => ({ ...ticket, items: [...ticket.items, {
         id: temporaryId, type: "menu", menu_item_id: menuItem.id, price_key: priceKey,
         name: menuItem.name, unit_price: price, quantity, subtotal: price * quantity,
+        price_override: false,
       }] })).then(saved => saved !== null);
   };
 

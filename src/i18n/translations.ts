@@ -28,6 +28,8 @@ const en = {
     coverCharge: "Cover Charge",
     ticketNumber: "Ticket #{id}",
     priceEach: "¥{price} each",
+    customPrice: "Custom price",
+    menuTicketsMayHaveChanged: "Menu saved. Active ticket names or totals may have changed.",
 
     items: "Items",
     qty: "QTY",
@@ -193,6 +195,8 @@ const ja: { [K in keyof typeof en]: string } = {
     coverCharge: "カバーチャージ",
     ticketNumber: "伝票 #{id}",
     priceEach: "各 ¥{price}",
+    customPrice: "個別価格",
+    menuTicketsMayHaveChanged: "メニューを保存しました。未会計伝票の商品名や合計が更新されている場合があります。",
 
     items: "商品",
     qty: "数量",
