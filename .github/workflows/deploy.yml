@@ -32,14 +32,14 @@ jobs:
       - name: Validate production API origin
         run: node scripts/validate-api-url.mjs
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
 
       - name: Build
         run: npm run build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
-          # Set under Settings > Secrets and variables > Actions > Secrets.
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          # API origins are public client-side configuration, not credentials.
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
           # UI allowlist IDs are public client-side values, not authorization.
           # Leave unset until real user IDs are verified. Private pay APIs must
           # enforce a separate server-side Chuck/Nori manager policy.
