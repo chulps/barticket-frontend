@@ -605,12 +605,12 @@ test("mobile picker traps focus, contains its scroll and restores focus after Es
     prices:{standard:700+index},inStock:true,
   }));
   await openTicket(page);
-  await page.setViewportSize({width:375,height:667});
 
   const trigger=page.getByRole("button",{name:/Add Item/i});
   await trigger.click();
   const dialog=page.getByRole("dialog");
   await expect(dialog).toBeVisible();
+  await page.setViewportSize({width:375,height:667});
   await expect(dialog).toHaveAttribute("aria-modal","true");
   await expect.poll(()=>page.evaluate(()=>document.activeElement && document.querySelector('[role="dialog"]')?.contains(document.activeElement))).toBe(true);
   expect(await page.evaluate(()=>document.body.style.overflow)).toBe("hidden");
