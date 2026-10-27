@@ -5,7 +5,7 @@ import { useState } from "react";
 
 // import npm packages
 import styled from "styled-components";
-import { motion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react";
 import { Link } from "react-router-dom";
 
 // import types
@@ -68,6 +68,7 @@ export default function TicketSidebar({
 
   const isEditable = activeTab === "open";
   const { t } = useI18n();
+  const prefersReducedMotion = useReducedMotion();
 
   // setup states
   const tabOrder = ["open", "paid", "cancelled"] as const;
@@ -129,22 +130,10 @@ export default function TicketSidebar({
             {!nightOpen && activeTab !== "open" ? t("closedNightTickets") : emptyMessages[activeTab]}
           </EmptyTicketDetails>
         ) : (
-          visibleTickets.map((ticket, index) => (
-            <motion.div
-              key={`${activeTab}-${ticket.id}`}
-              initial={{
-                opacity: 0,
-                x: direction * 24,
-              }}
-              animate={{
-                opacity: 1,
-                x: 0,
-              }}
-              transition={{
-                delay: index * 0.04,
-                duration: 0.18,
-              }}
-            >
+          visibleTickets.map((ticket, index) => {
+            const animateEntrance = !prefersReducedMotion && index < 8;
+
+            return (
               <TicketListItem
                 key={`${activeTab}-${ticket.id}`}
                 ticketId={ticket.id}
@@ -153,25 +142,19 @@ export default function TicketSidebar({
                 createdAt={ticket.created_at}
                 createdBy={ticket.created_by}
                 selected={ticket.id === selectedTicketId}
-
-                initial={{
-                  opacity: 0,
-                  x: -direction * 24,
-                }}
-
-                animate={{
-                  opacity: 1,
-                  x: 0,
-                }}
-
-                transition={{
-                  delay: index * 0.04,
-                  type: "spring",
-                  stiffness: 500,
-                  damping: 32,
-                  mass: 0.7,
-                }}
-
+                {...(animateEntrance
+                  ? {
+                      initial: { opacity: 0, x: -direction * 24 },
+                      animate: { opacity: 1, x: 0 },
+                      transition: {
+                        delay: index * 0.04,
+                        type: "spring" as const,
+                        stiffness: 500,
+                        damping: 32,
+                        mass: 0.7,
+                      },
+                    }
+                  : {})}
                 onClick={() => {
                   setSelectedTicketId(ticket.id);
 
@@ -183,8 +166,8 @@ export default function TicketSidebar({
                   setShowTicketDetails(true);
                 }}
               />
-            </motion.div>
-          ))
+            );
+          })
         )}
       </TicketList>
     </SidebarContainer>
