@@ -23,6 +23,7 @@ export type Ticket = {
     staff_name?: string;
     drink_name?: string;
     price_key?: string;
+    price_override?: boolean;
 
     name: string;
     unit_price: number;

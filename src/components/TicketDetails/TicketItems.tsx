@@ -152,6 +152,7 @@ export default function TicketItems({
                         unitPrice={item.unit_price}
                         quantity={item.quantity}
                         lineSubtotal={item.subtotal}
+                        priceOverride={item.price_override === true}
                         isCover={item.type === "cover"}
                         onWaiveCover={item.type === "cover" ? () => openCoverAdjustment("waiver") : undefined}
                         onReturningCustomer={item.type === "cover" ? () => openCoverAdjustment("returning") : undefined}

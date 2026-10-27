@@ -12,6 +12,7 @@ type TicketDetailItemProps = {
     unitPrice: number;
     quantity: number;
     lineSubtotal?: number;
+    priceOverride?: boolean;
     isCover?: boolean;
     onWaiveCover?: () => void;
     onReturningCustomer?: () => void;
@@ -34,6 +35,7 @@ export default function TicketDetailItem({
     unitPrice,
     quantity,
     lineSubtotal,
+    priceOverride = false,
     isCover = false,
     onWaiveCover,
     onReturningCustomer,
@@ -103,6 +105,7 @@ export default function TicketDetailItem({
         <Container>
             <Info $editing={isEditingPrice}>
                 <Name>{name}{pending ? (locale === "ja" ? " · 保存中…" : " · Saving…") : ""}</Name>
+                {priceOverride ? <PriceOverride title={t("customPrice")}>{t("customPrice")}</PriceOverride> : null}
                 {isEditingPrice ? (
                     <PriceEditForm onSubmit={(event) => void savePrice(event)}>
                         <PriceInput
@@ -266,6 +269,14 @@ const Name = styled.p`
 
 const PriceReadOnly = styled.small`
     color: var(--neutral-400);
+`;
+const PriceOverride = styled.small`
+    align-self: flex-start;
+    color: var(--warning-300, #fbbf24);
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    padding: 0.05rem 0.35rem;
+    line-height: 1.25;
 `;
 const PriceTrigger = styled.button`
     color: var(--neutral-400);
