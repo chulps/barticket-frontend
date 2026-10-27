@@ -21,7 +21,7 @@ export function isValidProductionApiUrl(value) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (!isValidProductionApiUrl(process.env.VITE_API_URL)) {
     // Never print the value: it may have been set to a credential by mistake.
-    console.error("Invalid or missing VITE_API_URL: configure an HTTPS API origin in GitHub Actions Secrets.");
+    console.error("Invalid or missing VITE_API_URL: configure an HTTPS API origin in GitHub Actions Variables.");
     process.exitCode = 1;
   }
 }
