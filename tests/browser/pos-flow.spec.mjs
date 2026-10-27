@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 6110)
-Total output lines: 487
-
 import { test, expect } from "@playwright/test";
 
 const MOCK_ORIGIN = "http://127.0.0.1:8765";
@@ -201,7 +198,98 @@ async function openTicket(page) {
 }
 async function closeStep(page){
   await page.getByRole("button",{name:/Close ticket/i}).click();
-  await expect(page.getByRole("button",{name:/…1110 tokens truncated…t dialog.getByRole("button",{name:/保存/}).click();
+  await expect(page.getByRole("button",{name:/Take Payment/i})).toBeVisible();
+}
+
+test("unauthenticated status and failed login never expose a ticket board",async ({page})=>{
+  const state=await mockedPOS(page,{authenticated:false});
+  await page.goto("/");
+  await expect(page.getByRole("button",{name:/Sign In/i})).toBeVisible();
+  await page.getByLabel(/Email/i).fill("nobody@example.invalid");
+  await page.locator('input[type="password"]').fill("wrong");
+  await page.getByRole("button",{name:/Sign In/i}).click();
+  await expect(page.getByRole("alert")).toContainText("Invalid test login");
+  expect(state.requests).not.toContain("POST /tickets");
+});
+
+test("create ticket is a single POST even on rapid double activation",async ({page})=>{
+  const state=await mockedPOS(page);
+  await openTicket(page);
+  const create=page.getByRole("button",{name:/New Ticket/i});
+  await create.dblclick();
+  await expect.poll(()=>state.newTicketPosts).toBe(1);
+  await expect(page.getByText("#13").first()).toBeVisible();
+});
+
+test("close stage, cancel confirmation and Back do not write until confirmed",async ({page})=>{
+  const state=await mockedPOS(page);
+  await openTicket(page);
+  await closeStep(page);
+  await page.getByRole("button",{name:/Back/i}).last().click();
+  await expect(page.getByRole("button",{name:/Close ticket/i})).toBeVisible();
+  await closeStep(page);
+  await page.getByRole("button",{name:/Cancel Ticket/i}).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button",{name:"No",exact:true}).click();
+  expect(state.tickets[0].status).toBe("open");
+  await page.getByRole("button",{name:/Cancel Ticket/i}).click();
+  await page.getByRole("button",{name:/Yes, cancel ticket/i}).click();
+  await expect.poll(()=>state.tickets[0].status).toBe("cancelled");
+});
+
+test("payment conflict displays an error without duplicate POST, then paid/reopen succeeds",async ({page})=>{
+  const state=await mockedPOS(page);
+  await openTicket(page);
+  await closeStep(page);
+  await page.getByRole("button",{name:/Take Payment/i}).click();
+  const dialog=page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  state.failNextPayment=true;
+  const confirm=dialog.getByRole("button",{name:/Confirm Payment/i});
+  await confirm.dblclick();
+  await expect.poll(()=>state.paymentPosts).toBe(1);
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  await confirm.click();
+  await expect.poll(()=>state.tickets[0].status).toBe("paid");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button",{name:"Paid"}).click();
+  await expect(page.getByRole("button",{name:/Reopen Ticket/i})).toBeVisible();
+  await page.getByRole("button",{name:/Reopen Ticket/i}).click();
+  await page.getByRole("dialog").getByRole("button",{name:/Customer returned/i}).click();
+  await expect.poll(()=>state.tickets[0].status).toBe("open");
+});
+
+test("mobile menu search stays visible with long lists, and Japanese close navigation works",async ({page})=>{
+  await page.setViewportSize({width:375,height:667});
+  await mockedPOS(page,{locale:"ja"});
+  await page.goto("/menu");
+  const search=page.getByPlaceholder(/検索/);
+  await expect(search).toBeVisible();
+  await search.fill("Highball");
+  await expect(page.getByText("Highball").first()).toBeVisible();
+  await page.goto("/tickets");
+  await page.getByRole("button",{name:/Test Walk-in/i}).first().click();
+  const close=page.getByRole("button",{name:/チケットを閉じる/});
+  await expect(close).toBeVisible();
+  await close.click();
+  await expect(page.getByRole("button",{name:/会計/}).first()).toBeVisible();
+});
+
+test("Japanese add-item controls expose localized names and failure guidance",async ({page})=>{
+  const state=await mockedPOS(page,{locale:"ja"});
+  await page.goto("/tickets");
+  state.delayTicketCreate=true;
+  await page.getByRole("button",{name:"新規伝票"}).click();
+  await expect(page.getByText("伝票を作成中…",{exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:/新規伝票/})).toBeVisible();
+  state.delayTicketCreate=false;
+  await page.getByRole("button",{name:"商品を追加"}).click();
+  const dialog=page.getByRole("dialog");
+  await dialog.getByRole("button",{name:"¥700",exact:true}).first().click();
+  await expect(dialog.getByRole("button",{name:"数量を減らす"})).toBeVisible();
+  await expect(dialog.getByRole("button",{name:"数量を増やす"})).toBeVisible();
+  state.failNextItem=true;
+  await dialog.getByRole("button",{name:/保存/}).click();
   await expect(dialog.getByRole("alert")).toContainText("未確認");
 });
 
