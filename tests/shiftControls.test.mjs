@@ -10,13 +10,22 @@ const output = ts.transpileModule(src("pages/shiftControlPolicy.ts"), {
 }).outputText;
 const mod = { exports: {} };
 runInNewContext(output, { module: mod, exports: mod.exports, Intl, Date });
-const { businessDateJst, currentPunch, workedSeconds, closeBlockers, previewPaidTotals, canManageShift } = mod.exports;
+const { businessDateJst, shouldPromptNoonReview, currentPunch, workedSeconds, closeBlockers, previewPaidTotals, canManageShift } = mod.exports;
 
 test("business day rolls at noon JST, never at midnight", () => {
     assert.equal(businessDateJst(Date.parse("2026-10-16T14:59:59Z")), "2026-10-16"); // 23:59 JST
     assert.equal(businessDateJst(Date.parse("2026-10-16T15:00:00Z")), "2026-10-16"); // 00:00 JST
     assert.equal(businessDateJst(Date.parse("2026-10-17T02:59:59Z")), "2026-10-16"); // 11:59 JST
     assert.equal(businessDateJst(Date.parse("2026-10-17T03:00:00Z")), "2026-10-17"); // noon JST
+});
+
+test("manager noon review starts at 11:30 JST for the active business date", () => {
+    const businessDate = "2026-10-16";
+    assert.equal(shouldPromptNoonReview(Date.parse("2026-10-17T02:29:00Z"), businessDate), false);
+    assert.equal(shouldPromptNoonReview(Date.parse("2026-10-17T02:30:00Z"), businessDate), true);
+    assert.equal(shouldPromptNoonReview(Date.parse("2026-10-17T02:59:00Z"), businessDate), true);
+    assert.equal(shouldPromptNoonReview(Date.parse("2026-10-17T03:00:00Z"), businessDate), false);
+    assert.equal(shouldPromptNoonReview(Date.parse("2026-10-17T02:30:00Z"), "2026-10-17"), false);
 });
 
 test("clock status and elapsed time come from recorded punches, including multiple intervals", () => {
@@ -76,6 +85,12 @@ test("close POST is called only from reviewed explicit confirmation", () => {
     assert.match(review, /if \(!ready\.can_close \|\| closeBlockers\(latestTickets\)\.length\)/);
     assert.match(review, /accountApi\.closeShift\(\)/);
     assert.match(review, /registerCloseGuard\(\(\) => !working && !submitInFlight\.current\)/);
+    assert.match(review, /allowKeepOpen/);
+    assert.match(review, /accountApi\.keepShiftOpen\(shiftId, reason\)/);
+    const header = src("layout/Header.tsx");
+    assert.match(header, /shouldPromptNoonReview/);
+    assert.match(header, /barticket:noon-review/);
+    assert.match(header, /allowKeepOpen/);
 });
 
 test("shift control reloads after focus/remote events without automatically retrying POST", () => {

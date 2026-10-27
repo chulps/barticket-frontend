@@ -14,6 +14,20 @@ export function businessDateJst(nowMs: number): string {
     return new Date(Date.UTC(year, month - 1, day - (hour < 12 ? 1 : 0))).toISOString().slice(0, 10);
 }
 
+/** Prompt managers during the half hour before the JST business-date rollover. */
+export function shouldPromptNoonReview(nowMs: number, shiftBusinessDate: string): boolean {
+    const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit",
+        day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(new Date(nowMs));
+    const get = (type: string) => Number(parts.find(p => p.type === type)?.value ?? 0);
+    const year = get("year"), month = get("month"), day = get("day");
+    const hour = get("hour"), minute = get("minute");
+    const today = new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10);
+    return shiftBusinessDate === businessDateJst(nowMs) && today !== shiftBusinessDate
+        && hour === 11 && minute >= 30;
+}
+
 export function currentPunch(shift: ShiftReport | null, userId: number) {
     return [...(shift?.punches ?? [])].reverse()
         .find(punch => punch.user_id === userId && punch.clock_out === null) ?? null;

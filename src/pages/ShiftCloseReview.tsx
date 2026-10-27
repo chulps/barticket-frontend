@@ -15,9 +15,11 @@ type Props = {
     onClosed: (closed: ShiftReport) => void;
     allowStale?: boolean;
     businessDate: string;
+    allowKeepOpen?: boolean;
+    onKeptOpen?: (shift: ShiftReport) => void;
 };
 
-export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale = false, businessDate }: Props) {
+export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale = false, businessDate, allowKeepOpen = false, onKeptOpen }: Props) {
     const ja = locale === "ja";
     const navigate = useNavigate();
     const { forceCloseModal, registerCloseGuard } = useModal();
@@ -29,6 +31,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
     const [acknowledged, setAcknowledged] = useState(false);
     const [error, setError] = useState("");
     const [uncertain, setUncertain] = useState(false);
+    const [keepOpenReason, setKeepOpenReason] = useState("");
 
     const getActiveShift = useCallback(async (): Promise<ShiftReport | null> => {
         if (allowStale) {
@@ -120,6 +123,35 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
         }
     }
 
+    async function confirmKeepOpen() {
+        const reason = keepOpenReason.trim();
+        if (!allowKeepOpen || !preview || !reason || working || uncertain || submitInFlight.current) return;
+        submitInFlight.current = true;
+        setWorking(true);
+        setError("");
+        try {
+            const kept = await accountApi.keepShiftOpen(shiftId, reason);
+            onKeptOpen?.(kept);
+            forceCloseModal();
+        } catch (err) {
+            const ambiguous = !(err instanceof ApiError) || err.status >= 500;
+            setUncertain(ambiguous);
+            setError(ambiguous
+                ? (ja ? "結果を確認できません。シフトが保留された可能性があります。状態を再読み込みしてください。再送信はしません。" : "The result is unknown. The shift may have been kept open. Refresh its status before taking another action; this request will not be resent.")
+                : (ja ? "シフトを保留できませんでした。" : "Could not keep the shift open.") + " (" + err.message + ")");
+            try {
+                const [latest, ready] = await Promise.all([getActiveShift(), accountApi.closeReadiness()]);
+                if (latest?.id === shiftId && ready.shift?.id === shiftId) {
+                    setPreview(current => current ? { ...current, shift: latest } : current);
+                    setReadiness(ready);
+                }
+            } catch { /* Keep the original error visible; never replay an ambiguous POST. */ }
+        } finally {
+            submitInFlight.current = false;
+            setWorking(false);
+        }
+    }
+
     function goToTickets() {
         forceCloseModal();
         navigate("/tickets");
@@ -159,13 +191,24 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
                 <p>{ja ? "閉店しても債権は消えず、後日の回収はこの営業日の売上や来店人数を変更しません。" : "Closing does not erase the debt. Later collections do not alter this shift's service sales or guest count."}</p>
             </div> : null}
             <div className="shift-warning">
-                <strong>{ja ? "勤務中のスタッフ" : "People currently clocked in"}: {active.length}</strong>
-                {active.length ? <ul>{active.map(punch => <li key={punch.user_id}>{punch.name}</li>)}</ul>
+                <strong>{ja ? "勤務中のスタッフ" : "People currently clocked in"}: {readiness?.automatic_clock_out.will_clock_out_count ?? active.length}</strong>
+                {(readiness?.automatic_clock_out.will_clock_out_staff ?? active).length ? <ul>{(readiness?.automatic_clock_out.will_clock_out_staff ?? active).map(punch => <li key={punch.user_id}>{punch.name}</li>)}</ul>
                     : <p>{ja ? "全員退勤済みです。" : "No one is clocked in."}</p>}
                 <p>{ja
                     ? "現在のサーバー仕様では、シフトを閉じると勤務中の全員が自動退勤となります。勤務時間に影響するため確認してください。"
                     : "Under the current server behavior, closing the shift clocks out everyone still working. This affects recorded working hours."}</p>
             </div>
+            {allowKeepOpen ? <div className="shift-warning">
+                <strong>{ja ? "シフトを正午以降も継続" : "Keep the shift open past noon"}</strong>
+                <p>{ja ? "続行する理由を記録してください。正午にスタッフは自動退勤し、シフトの終了には管理者が必要です。" : "Record why the shift must continue. Staff will still be clocked out at noon, and a manager will be required to close the shift."}</p>
+                <label>
+                    <span>{ja ? "継続理由（必須）" : "Reason (required)"}</span>
+                    <textarea maxLength={255} value={keepOpenReason} onChange={event => setKeepOpenReason(event.target.value)} disabled={working || uncertain} required />
+                </label>
+                <button type="button" className="secondary" disabled={working || uncertain || !keepOpenReason.trim()} onClick={() => void confirmKeepOpen()}>
+                    {ja ? "理由を記録してシフトを継続" : "Record reason & keep shift open"}
+                </button>
+            </div> : null}
             <label className="shift-ack">
                 <input type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} disabled={working || uncertain} />
                 <span>{ja

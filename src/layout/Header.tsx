@@ -6,9 +6,13 @@ import Icon from "../components/Icon";
 import FxxkupLogo from "../components/FxxkupLogo"
 import { NavLink as RouterNavLink } from "react-router-dom"
 import { accountApi } from "../api/account";
+import type { ShiftReport } from "../api/account";
 import { getToken } from "../api/client";
 import { listNotices } from "../api/notices";
 import { useI18n } from "../i18n";
+import { useModal } from "../hooks/useModal";
+import ShiftCloseReview from "../pages/ShiftCloseReview";
+import { businessDateJst, shouldPromptNoonReview } from "../pages/shiftControlPolicy";
 
 export default function Header({ authenticated }: { authenticated: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -18,9 +22,14 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [isManager, setIsManager] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
+  const [shiftForNoonReview, setShiftForNoonReview] = useState<ShiftReport | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [clockedIn, setClockedIn] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
+  const promptedNoonShifts = useRef(new Set<string>());
   const { t, locale, setLocale } = useI18n();
+  const { modal, openModal } = useModal();
   const canSeeNotices = isManager || clockedIn;
 
   useEffect(() => {
@@ -33,6 +42,8 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         if (!cancelled) {
           setIsManager(false);
           setUserName(null);
+          setUserId(null);
+          setShiftForNoonReview(null);
           setClockedIn(false);
           setAlertCount(0);
           setIsOpen(false);
@@ -46,6 +57,8 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         if (cancelled || request !== generation || getToken() !== token) return;
         setIsManager(me.role === "manager");
         setUserName(me.name.trim() || null);
+        setUserId(me.id);
+        setShiftForNoonReview(shift);
         setClockedIn(
           Boolean(shift?.punches.some((punch) => punch.user_id === me.id && punch.clock_out === null)),
         );
@@ -53,6 +66,8 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         if (!cancelled && request === generation && getToken() === token) {
           setIsManager(false);
           setUserName(null);
+          setUserId(null);
+          setShiftForNoonReview(null);
           setClockedIn(false);
           setAlertCount(0);
         }
@@ -72,6 +87,51 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       window.removeEventListener("focus", loadRole);
     };
   }, []);
+
+  useEffect(() => {
+    const tick = () => setNowMs(Date.now());
+    const timer = window.setInterval(tick, 10000);
+    window.addEventListener("focus", tick);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", tick);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isManager || userId === null || !shiftForNoonReview || shiftForNoonReview.status !== "open") return;
+    const businessDate = businessDateJst(nowMs);
+    if (shiftForNoonReview.business_date !== businessDate || !shouldPromptNoonReview(nowMs, shiftForNoonReview.business_date)) return;
+    const promptKey = `barticket:noon-review:${userId}:${shiftForNoonReview.business_date}`;
+    if (modal || promptedNoonShifts.current.has(promptKey)) return;
+    try {
+      if (window.localStorage.getItem(promptKey)) return;
+      window.localStorage.setItem(promptKey, "shown");
+    } catch { /* A mounted-session ref below is unnecessary once the modal opens. */ }
+    promptedNoonShifts.current.add(promptKey);
+    const shiftId = shiftForNoonReview.id;
+    openModal({
+      title: locale === "ja" ? "正午のシフト確認" : "11:30 shift review",
+      fitContent: true,
+      maxWidth: "720px",
+      content: <ShiftCloseReview
+        shiftId={shiftId}
+        locale={locale}
+        businessDate={businessDate}
+        allowKeepOpen
+        onClosed={() => {
+          setShiftForNoonReview(null);
+          window.dispatchEvent(new Event("barticket-shift-updated"));
+        }}
+        onKeptOpen={(kept) => {
+          setShiftForNoonReview(kept);
+          window.dispatchEvent(new Event("barticket-shift-updated"));
+        }}
+      />,
+    });
+  }, [isManager, locale, modal, nowMs, openModal, shiftForNoonReview, userId]);
 
   useEffect(() => {
     if (!isOpen) return;
