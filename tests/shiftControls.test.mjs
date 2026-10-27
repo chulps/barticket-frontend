@@ -56,7 +56,7 @@ test("previewed paid totals only use paid tickets from the current shift", () =>
     assert.equal(result.paidCount, 3);
 });
 
-test("legacy staff access is preserved until backend enforces lifecycle authorization", () => {
+test("authenticated staff and managers can manage venue shifts", () => {
     assert.equal(canManageShift("staff"), true);
     assert.equal(canManageShift("manager"), true);
     assert.equal(canManageShift("visitor"), false);
@@ -103,10 +103,19 @@ test("tickets provides an explicit read-only time clock status and profile entry
     assert.match(dashboard, /Shift status unverified/);
 });
 
-test("staff opening requires explicit acknowledgement; manager history remains gated", () => {
+test("start, join, reopen and stale recovery follow the backend shift contract", () => {
     const control = src("pages/ShiftControls.tsx");
-    assert.match(control, /!current && account\.role === "manager"/);
-    assert.match(control, /action === "open" && account\.role === "staff"/);
-    assert.match(control, /window\.confirm/);
-    assert.match(control, /if \(account\.role === "manager"\) \{/);
+    const account = src("api/account.ts");
+    assert.match(control, /result\.operation === "joined"/);
+    assert.match(control, /Started a new shift/);
+    assert.match(control, /action === "reopen" && \(account\.role !== "manager"/);
+    assert.match(control, /conflict\?\.code === "STALE_OPEN_SHIFT"/);
+    assert.match(control, /action === "open" && \(shift \|\| stale \|\| closedToday \|\| eligibility !== "allowed"\)/);
+    assert.match(control, /Could not verify shift history/);
+    assert.match(control, /lookup\.status === "ready" && !shift && !staleInfo/);
+    assert.match(account, /reopenShift: [\s\S]*?confirmed: true, reason/);
+    assert.match(account, /shiftHistory: .*"\/shifts"/);
+    assert.match(control, /Previous shift needs review/);
+    assert.match(control, /Review & recover shift/);
+    assert.match(control, /Clock in after the shift opens/);
 });

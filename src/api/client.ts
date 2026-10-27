@@ -65,10 +65,12 @@ export function setToken(token: string | null) {
 
 export class ApiError extends Error {
     status: number;
+    detail: unknown;
 
-    constructor(status: number, message: string) {
+    constructor(status: number, message: string, detail?: unknown) {
         super(message);
         this.status = status;
+        this.detail = detail;
     }
 }
 
@@ -98,13 +100,21 @@ export async function apiRequest<T>(
 
     if (!res.ok) {
         let message = `Request failed (${res.status})`;
+        let detail: unknown;
         try {
             const data = await res.json();
-            if (typeof data.detail === "string") message = data.detail;
+            if (data && typeof data === "object" && "detail" in data) {
+                detail = data.detail;
+                if (typeof data.detail === "string") message = data.detail;
+                else if (data.detail && typeof data.detail === "object" &&
+                    "message" in data.detail && typeof data.detail.message === "string") {
+                    message = data.detail.message;
+                }
+            }
         } catch {
             // Non-JSON error body; keep the status message.
         }
-        throw new ApiError(res.status, message);
+        throw new ApiError(res.status, message, detail);
     }
 
     return res.json();
