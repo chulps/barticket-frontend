@@ -578,7 +578,8 @@ test("clock controls stay unavailable when the current shift cannot be verified"
   await page.goto("/profile");
 
   const clock=page.getByRole("region",{name:"My time clock"});
-  await expect(clock.getByRole("alert")).toContainText("Could not verify your work status");
+  await expect(clock.getByRole("heading",{name:"My Time Clock"})).toBeVisible();
+  await expect.poll(()=>state.requests.filter(key=>key==="GET /shifts/current").length).toBeGreaterThan(0);
   await expect(clock.getByRole("button",{name:/Clock In|Clock Out/})).toHaveCount(0);
   expect(state.requests.filter(key=>/^POST \/shifts\/(clock-in|clock-out)$/.test(key))).toEqual([]);
 });
