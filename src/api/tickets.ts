@@ -34,7 +34,18 @@ export type ApiTicket = {
     returning_from_ticket_id?: number | null;
     amount_paid?: number;
     balance_due?: number;
-    payments?: { type: PaymentType; amount: number; paid_at: number; voided_at?: number | null; voided_by?: string | null }[];
+    payments?: NonNullable<Ticket["payments"]>;
+    service_status?: Ticket["serviceStatus"];
+    settlement_status?: Ticket["settlementStatus"];
+    service_business_date?: string | null;
+    unpaid_reason?: string | null;
+    unpaid_note?: string | null;
+    follow_up_date?: string | null;
+    deferred_at?: number | null;
+    deferred_by?: string | null;
+    written_off_amount?: number;
+    write_offs?: NonNullable<Ticket["writeOffs"]>;
+    receivable_history?: NonNullable<Ticket["receivableHistory"]>;
     cover_adjusted_by?: string | null;
     cover_adjustment_reason?: string | null;
     total: number;
@@ -101,6 +112,17 @@ export function toTicket(api: ApiTicket): Ticket {
         amountPaid: api.amount_paid,
         balanceDue: api.balance_due,
         payments: api.payments,
+        serviceStatus: api.service_status,
+        settlementStatus: api.settlement_status,
+        serviceBusinessDate: api.service_business_date,
+        unpaidReason: api.unpaid_reason,
+        unpaidNote: api.unpaid_note,
+        followUpDate: api.follow_up_date,
+        deferredAt: api.deferred_at,
+        deferredBy: api.deferred_by,
+        writtenOffAmount: api.written_off_amount,
+        writeOffs: api.write_offs,
+        receivableHistory: api.receivable_history,
     };
 }
 
@@ -165,11 +187,25 @@ export const ticketsApi = {
             method: "DELETE",
         }),
 
-    pay: (ticketId: number, method: PaymentType) =>
+    pay: (ticketId: number, method: PaymentType, amount?: number, idempotencyKey?: string) =>
         apiRequest<ApiTicket>(`/tickets/${ticketId}/pay`, {
             method: "POST",
-            body: { method },
+            body: { method, ...(amount === undefined ? {} : { amount }) },
+            ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
         }),
+
+    receivables: (query = "") => apiRequest<{ items: ApiTicket[]; offset: number; limit: number; total: number }>(`/tickets/receivables${query}`),
+
+    deferPayment: (ticketId: number, body: { reason: string; confirmed_balance: number; note?: string; follow_up_date?: string }) =>
+        apiRequest<ApiTicket>(`/tickets/${ticketId}/defer-payment`, { method: "POST", body }),
+
+    writeOff: (ticketId: number, body: { amount: number; reason: string }, idempotencyKey: string) =>
+        apiRequest<ApiTicket>(`/tickets/${ticketId}/write-off`, {
+            method: "POST", body, headers: { "Idempotency-Key": idempotencyKey },
+        }),
+
+    voidPayment: (ticketId: number, paymentId: number, reason: string) =>
+        apiRequest<ApiTicket>(`/tickets/${ticketId}/payments/${paymentId}/void`, { method: "POST", body: { reason } }),
 
     cancel: (ticketId: number) =>
         apiRequest<ApiTicket>(`/tickets/${ticketId}/cancel`, { method: "POST" }),

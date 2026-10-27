@@ -5,6 +5,7 @@ import Icon from "../Icon";
 import PaymentModal from "../PaymentModal";
 import ReceiptPreview from "./ReceiptPreview";
 import ReopenTicketModal from "./ReopenTicketModal";
+import DeferPaymentModal from "./DeferPaymentModal";
 
 // Types
 import type { PaymentType, Ticket } from "../../types/Ticket";
@@ -25,7 +26,10 @@ type TicketActionsProps = {
     onPayTicket: (
         ticketId: number,
         paymentType: PaymentType,
+        amount: number,
+        idempotencyKey?: string,
     ) => Promise<boolean>;
+    onDeferTicket: (ticketId: number, body: { reason: string; confirmed_balance: number; note?: string; follow_up_date?: string }) => Promise<boolean>;
 
     onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => Promise<boolean>;
     canCorrectPayment: boolean;
@@ -39,6 +43,7 @@ export default function TicketActions({
     activeTab,
     onCancelTicket,
     onPayTicket,
+    onDeferTicket,
     onReopenTicket,
     canCorrectPayment,
 }: TicketActionsProps) {
@@ -95,8 +100,8 @@ export default function TicketActions({
                             content: (
                                 <PaymentModal
                                     ticket={ticket}
-                                    onConfirm={(paymentType) =>
-                                        onPayTicket(ticket.id, paymentType)
+                            onConfirm={(paymentType, amount, key) =>
+                                        onPayTicket(ticket.id, paymentType, amount, key)
                                     }
                                 />
                             ),
@@ -106,6 +111,13 @@ export default function TicketActions({
                     <Icon name="Money" />
                     {t("takePayment")}
                 </ActionButton>
+                {ticket.serviceStatus !== "completed" ? <ActionButton className="hollow" onClick={() => openModal({
+                    title: locale === "ja" ? "未払い残高を繰り越す" : "Carry forward unpaid balance",
+                    maxWidth: "520px",
+                    content: <DeferPaymentModal ticket={ticket} onDefer={body => onDeferTicket(ticket.id, body)} />,
+                })}>
+                    {locale === "ja" ? "未払いとして保存" : "Mark unpaid / carry balance"}
+                </ActionButton> : null}
             </ButtonActions>
         );
     }

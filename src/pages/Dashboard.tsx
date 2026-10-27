@@ -64,6 +64,7 @@ export default function Dashboard({
     createTicket,
     cancelTicket,
     payTicket,
+    deferTicket,
     reopenTicket
   } = useTickets();
 
@@ -200,13 +201,27 @@ export default function Dashboard({
   const handlePayTicket = async (
     ticketId: number,
     paymentType: PaymentType,
+    amount: number,
+    idempotencyKey?: string,
   ) => {
-    if (!(await payTicket(ticketId, paymentType))) return false;
+    const current = tickets.find(ticket => ticket.id === ticketId);
+    if (!(await payTicket(ticketId, paymentType, amount, idempotencyKey))) return false;
 
-    setActiveTab("paid");
+    const partialReceivable = current?.serviceStatus === "completed" && amount < (current.balanceDue ?? 0);
+    setActiveTab(partialReceivable ? "open" : "paid");
     setSelectedTicketId(ticketId);
     setShowTicketDetails(true);
     return true;
+  };
+
+  const handleDeferTicket = async (ticketId: number, body: { reason: string; confirmed_balance: number; note?: string; follow_up_date?: string }) => {
+    const saved = await deferTicket(ticketId, body);
+    if (saved) {
+      setActiveTab("open");
+      setSelectedTicketId(ticketId);
+      setShowTicketDetails(true);
+    }
+    return saved;
   };
 
   const handleReopenTicket = async (ticketId: number, reason: "customer_returned" | "closed_by_mistake"): Promise<boolean> => {
@@ -323,6 +338,7 @@ export default function Dashboard({
             onCancelTicket={handleCancelTicket}
             activeTab={activeTab}
             onPayTicket={handlePayTicket}
+            onDeferTicket={handleDeferTicket}
             onReopenTicket={handleReopenTicket}
             canCorrectPayment={me?.role === "manager"}
           />

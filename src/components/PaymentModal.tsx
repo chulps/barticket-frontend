@@ -14,7 +14,7 @@ type IconName = React.ComponentProps<typeof Icon>["name"];type PaymentType = "ca
 
 type PaymentModalProps = {
     ticket: Ticket;
-    onConfirm: (paymentType: PaymentType) => Promise<boolean>;
+    onConfirm: (paymentType: PaymentType, amount: number, idempotencyKey?: string) => Promise<boolean>;
 };
 
 
@@ -63,6 +63,7 @@ export default function PaymentModal({
         methodButtons.current[next]?.focus();
     }
     const [saving, setSaving] = useState(false);
+    const [attempted, setAttempted] = useState(false);
     const [error, setError] = useState("");
 
     const ticketTotal = ticket.serverTotal ?? ticket.items.reduce(
@@ -72,14 +73,19 @@ export default function PaymentModal({
     // #91 charges ONLY the outstanding balance when an already-paid customer
     // returns. Never display the historical total as the next amount to collect.
     const total = ticket.balanceDue ?? Math.max(0, ticketTotal - (ticket.amountPaid ?? 0));
+    const isReceivable = ticket.serviceStatus === "completed" && ticket.deferredAt != null;
+    const [amount, setAmount] = useState(String(total));
+    const idempotencyKey = useRef(isReceivable ? crypto.randomUUID() : undefined);
+    const numericAmount = Number(amount);
 
     const handleConfirm = async () => {
         if (pending.current) return;
         pending.current = true;
+        setAttempted(true);
         setSaving(true);
         setError("");
         try {
-            const confirmed = await onConfirm(paymentType);
+            const confirmed = await onConfirm(paymentType, numericAmount, idempotencyKey.current);
             if (confirmed) setStep("success");
             else setError(locale === "ja" ? "お支払いを確認できませんでした。再試行前にチケットの状態を確認してください。" : "Payment not confirmed. Check the ticket before retrying.");
         } catch {
@@ -100,7 +106,7 @@ export default function PaymentModal({
                 <h3>{t("paymentComplete")}</h3>
 
                 <SuccessTotal>
-                    ¥{total.toLocaleString()}
+                    ¥{(isReceivable ? numericAmount : total).toLocaleString()}
                 </SuccessTotal>
 
                 <p>{t(paymentType)}</p>
@@ -117,7 +123,12 @@ export default function PaymentModal({
                 <Amount>
                     ¥{total.toLocaleString()}
                 </Amount>
-                <small>{t("receivePayment")}</small>
+                {isReceivable ? <label style={{ display: "grid", gap: "var(--space-1)", marginTop: "var(--space-2)" }}>
+                    <span>{locale === "ja" ? "今回受け取る金額" : "Amount collected now"}</span>
+                    <input type="number" min={1} max={total} step={1} inputMode="numeric"
+                        value={amount} onChange={event => setAmount(event.target.value)} disabled={saving || attempted} />
+                    <small>{locale === "ja" ? "残高までの一部支払いを記録できます。" : "Record a partial payment up to the remaining balance."}</small>
+                </label> : <small>{t("receivePayment")}</small>}
             </TotalContainer>
 
             <Methods role="group" aria-label={t("receivePayment")}>
@@ -128,7 +139,7 @@ export default function PaymentModal({
                         ref={node => { methodButtons.current[index] = node; }}
                         aria-pressed={paymentType === method.type}
                         $active={paymentType === method.type}
-                        disabled={saving}
+                        disabled={saving || (attempted && isReceivable)}
                         onKeyDown={event => handleMethodArrow(event, index)}
                         onClick={() => setPaymentType(method.type)}
                     >
@@ -150,8 +161,9 @@ export default function PaymentModal({
                     {t("cancel")}
                 </button>
 
-                <button disabled={saving} onClick={() => void handleConfirm()}>
-                    {saving ? (locale === "ja" ? "処理中…" : "Processing…") : t("confirmPayment")}
+                <button disabled={saving || !Number.isSafeInteger(numericAmount) || numericAmount < 1 || numericAmount > total} onClick={() => void handleConfirm()}>
+                    {saving ? (locale === "ja" ? "処理中…" : "Processing…") : attempted && isReceivable
+                        ? (locale === "ja" ? "同じ記録を安全に再確認" : "Safely retry same collection") : t("confirmPayment")}
                 </button>
             </Footer>
         </Container>

@@ -227,6 +227,10 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           )}
         </SecondaryNavLink>
 
+        <SecondaryNavLink onClick={() => setIsOpen(false)} to="/receivables">
+          {({ isActive }) => <><Icon name="HandCoins" weight={isActive ? "fill" : "regular"} />{locale === "ja" ? "未払い伝票" : "Unpaid tickets"}</>}
+        </SecondaryNavLink>
+
         {isManager ? (
           <SecondaryNavLink onClick={() => setIsOpen(false)} to="/admin">
             {({ isActive }) => (

@@ -30,7 +30,7 @@ export function workedSeconds(shift: ShiftReport | null, userId: number, nowSeco
 /** Existing backend blocks close for every open ticket (including old/unassigned).
  * Keep the client preview conservative until backend #87 adds scoped readiness. */
 export function closeBlockers(tickets: readonly ApiTicket[]): ApiTicket[] {
-    return tickets.filter(ticket => ticket.status === "open");
+    return tickets.filter(ticket => ticket.status === "open" && (ticket.service_status ?? "active") === "active");
 }
 
 /** Compute read-only paid revenue estimates while a shift is still open.

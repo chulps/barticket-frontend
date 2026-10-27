@@ -76,9 +76,10 @@ export class ApiError extends Error {
 
 export async function apiRequest<T>(
     path: string,
-    options: { method?: string; body?: unknown } = {},
+    options: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
 ): Promise<T> {
     const headers: Record<string, string> = { "X-BarTicket-Device": getDeviceId() };
+    Object.assign(headers, options.headers);
     const token = getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
     if (options.body !== undefined) headers["Content-Type"] = "application/json";
