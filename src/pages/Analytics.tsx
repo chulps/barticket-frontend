@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
 
@@ -18,6 +18,7 @@ import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 import { analyticsDrillDownTarget, shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
 import { groupAnalyticsTickets } from "./analyticsTicketGroups";
+import { createRefreshCoordinator } from "./analyticsRefresh";
 import { ticketDataForClipboard, ticketListDataForClipboard } from "./ticketDataExport";
 import OpenShiftOverview from "./OpenShiftOverview";
 import AnalyticsReportActions from "../components/AnalyticsReportActions";
@@ -514,11 +515,10 @@ export default function Analytics() {
         if (!signedIn) return;
         let cancelled = false;
         let initiallySelected = false;
-        let latestRequest = 0;
         let timer: number | null = null;
 
-        async function refresh() {
-            const request = ++latestRequest;
+        async function loadLatest() {
+            if (cancelled) return;
             try {
                 const [rows, current, ticketRows, stock] = await Promise.all([
                     accountApi.closedShifts(),
@@ -526,8 +526,7 @@ export default function Analytics() {
                     ticketsApi.list(),
                     listNotices().catch(() => null),
                 ]);
-                // Do not apply an old response after a more recent refresh.
-                if (cancelled || request !== latestRequest) return;
+                if (cancelled) return;
                 const ordered = [...rows].sort((a, b) => b.business_date.localeCompare(a.business_date));
                 setShifts(ordered);
                 setOpenShift(current);
@@ -550,7 +549,7 @@ export default function Analytics() {
                     }
                 }
             } catch (err: unknown) {
-                if (cancelled || request !== latestRequest) return;
+                if (cancelled) return;
                 setLoading(false);
                 if (err instanceof ApiError && err.status === 403) {
                     setError(readLocale() === "ja"
@@ -561,6 +560,8 @@ export default function Analytics() {
                 }
             }
         }
+
+        const refresh = createRefreshCoordinator(loadLatest);
 
         async function start() {
             try {
@@ -606,13 +607,20 @@ export default function Analytics() {
         };
     }, [signedIn]);
 
-    const monthShifts = (shifts ?? []).filter((shift) => monthKey(shift.business_date) === month);
-    const yearShifts = (shifts ?? []).filter((shift) => yearKey(shift.business_date) === year);
-    const currentReport = liveAnalyticsShift(openShift, tickets);
-    const selected = currentReport?.id === dayId
+    const monthShifts = useMemo(
+        () => (shifts ?? []).filter((shift) => monthKey(shift.business_date) === month),
+        [shifts, month],
+    );
+    const yearShifts = useMemo(
+        () => (shifts ?? []).filter((shift) => yearKey(shift.business_date) === year),
+        [shifts, year],
+    );
+    const currentReport = useMemo(() => liveAnalyticsShift(openShift, tickets), [openShift, tickets]);
+    const selected = useMemo(() => currentReport?.id === dayId
         ? currentReport
-        : (shifts ?? []).find((shift) => shift.id === dayId) ?? null;
-    const visible =
+        : (shifts ?? []).find((shift) => shift.id === dayId) ?? null,
+    [currentReport, dayId, shifts]);
+    const visible = useMemo(() =>
         range === "all"
             ? (shifts ?? [])
             : range === "year"
@@ -621,12 +629,17 @@ export default function Analytics() {
                 ? monthShifts
                 : selected
                   ? [selected]
-                  : [];
-    const totals = summarize(visible);
+                  : [],
+    [monthShifts, range, selected, shifts, yearShifts]);
+    const totals = useMemo(() => summarize(visible), [visible]);
     // Keep staff drink data in generated text reports; remove only the on-screen panel.
-    const staffShifts = staffDrinkShifts(visible, openShift, range, month, year, pickedDate);
-    const soldItems = range === "day" && selected?.status === "open" ? [] :
-        topSellingItems(tickets, new Set(visible.map((shift) => shift.id)));
+    const staffShifts = useMemo(
+        () => staffDrinkShifts(visible, openShift, range, month, year, pickedDate),
+        [month, openShift, pickedDate, range, visible, year],
+    );
+    const soldItems = useMemo(() => range === "day" && selected?.status === "open" ? [] :
+        topSellingItems(tickets, new Set(visible.map((shift) => shift.id))),
+    [range, selected?.status, tickets, visible]);
     function reportText(reportLocale: Locale) {
         return createAnalyticsTextReport({
             range,
@@ -827,7 +840,7 @@ export default function Analytics() {
                         </DayBento>
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
-                    {visible.length > 0 ? <TopSellingPanel shifts={visible} tickets={tickets} context={copyPeriod(range, month, year, selected, locale)} /> : null}
+                    {visible.length > 0 ? <TopSellingPanel items={soldItems} context={copyPeriod(range, month, year, selected, locale)} /> : null}
                     {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} /> : null}
                         </>
                     )}
@@ -837,10 +850,10 @@ export default function Analytics() {
     );
 }
 
-function TopSellingPanel({ shifts, tickets, context }: { shifts: ShiftReport[]; tickets: Ticket[]; context: string }) {
+function TopSellingPanel({ items, context }: { items: ReturnType<typeof topSellingItems>; context: string }) {
     const { locale } = useI18n();
     const heading = locale === "ja" ? "売上数量 TOP 3" : "Top 3 Selling Items";
-    const rows = topSellingItems(tickets, new Set(shifts.map(shift => shift.id)));
+    const rows = items;
     const quantityLabel = locale === "ja" ? "杯数" : "Units";
     const revenueLabel = locale === "ja" ? "売上" : "Revenue";
     const noItems = locale === "ja" ? "この期間に販売された商品はありません" : "No sold items for this period";
@@ -923,8 +936,11 @@ function Stockouts({ shifts }: { shifts: ShiftReport[] }) {
 function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Ticket[] }) {
     const { t, locale } = useI18n();
     const [openId, setOpenId] = useState<number | null>(null);
-    const dates = new Map(shifts.map((shift) => [shift.id, shift.business_date]));
-    const groups = groupAnalyticsTickets(tickets, dates);
+    const dates = useMemo(
+        () => new Map(shifts.map((shift) => [shift.id, shift.business_date])),
+        [shifts],
+    );
+    const groups = useMemo(() => groupAnalyticsTickets(tickets, dates), [dates, tickets]);
     const sections = [
         { id: "paid", title: t("paid"), rows: groups.paid },
         { id: "cancelled", title: t("cancelled"), rows: groups.cancelled },

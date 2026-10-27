@@ -37,6 +37,7 @@ const menu = {
 async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
   const state = { tickets:[ticket()], requests:[], paymentPosts:0,
     newTicketPosts:0, delayTicketCreate:false, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
+    analyticsReads:0, delayAnalyticsReads:false, analyticsShifts:[],
     activeMenu:structuredClone(menu), archivedItems:[], editedMenuItems:0, archivedChanges:0 };
   await page.addInitScript(({authenticated, locale}) => {
     if(authenticated) localStorage.setItem("barticket_token","NON_PRODUCTION_BROWSER_TEST_TOKEN");
@@ -110,7 +111,11 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
     else if(key==="GET /tickets") response=state.tickets;
     else if(key==="GET /users") response=[account];
     else if(key==="GET /users/recipients") response=[{id:7,name:account.name}];
-    else if(key==="GET /analytics/shifts") response=[];
+    else if(key==="GET /analytics/shifts") {
+      state.analyticsReads++;
+      if(state.delayAnalyticsReads) await new Promise(resolve=>setTimeout(resolve,500));
+      response=state.analyticsShifts;
+    }
     else if(key==="GET /notices") response={notices:[]};
     else if(key==="POST /tickets"){
       state.newTicketPosts++;
@@ -484,4 +489,62 @@ test("public menu never exposes archive, restore or full edit controls",async ({
   await expect(page.getByRole("button",{name:"Actions for Highball"})).toHaveCount(0);
   expect(state.requests).not.toContain("GET /menu/archived");
   expect(state.requests.some(key=>key.includes("PATCH /menu/items/"))).toBe(false);
+});
+
+test("Analytics coalesces focus and push bursts and does not refetch on range changes",async ({page})=>{
+  const state=await mockedPOS(page);
+  state.delayAnalyticsReads=true;
+  await page.goto("/analytics");
+  await expect.poll(()=>state.analyticsReads).toBe(1);
+
+  await page.evaluate(()=>{
+    window.dispatchEvent(new Event("focus"));
+    window.dispatchEvent(new Event("barticket-push"));
+    window.dispatchEvent(new Event("barticket-notices"));
+    window.dispatchEvent(new Event("barticket-api-restored"));
+  });
+  await expect.poll(()=>state.analyticsReads).toBe(2);
+  await page.waitForTimeout(650);
+  expect(state.analyticsReads).toBe(2);
+
+  await page.getByRole("button",{name:"Monthly"}).click();
+  await page.waitForTimeout(100);
+  expect(state.analyticsReads).toBe(2);
+});
+
+test("Analytics renders a repeatable 100-shift, 1000-ticket fixture responsively",async ({page})=>{
+  const state=await mockedPOS(page);
+  state.analyticsShifts=Array.from({length:100},(_,index)=>({
+    ...shift(),
+    id:100+index,
+    business_date:new Date(Date.UTC(2026,0,1+index)).toISOString().slice(0,10),
+    status:"closed",
+    paid_total:25_000+index,
+    cash_total:25_000+index,
+    paid_count:10,
+    cancelled_count:0,
+  }));
+  state.tickets=Array.from({length:1000},(_,index)=>({
+    ...ticket(1000+index),
+    name:`Fixture ticket ${index}`,
+    status:"paid",
+    shift_id:100+(index%100),
+    created_at:now()-index,
+    paid_at:now()-index,
+    items:[item(5000+index,"Highball",700)],
+  }));
+
+  const navigationStarted=Date.now();
+  await page.goto("/analytics");
+  await page.getByRole("button",{name:"All time"}).waitFor();
+  const navigationMs=Date.now()-navigationStarted;
+
+  const allTimeStarted=Date.now();
+  await page.getByRole("button",{name:"All time"}).click();
+  await expect(page.getByRole("heading",{name:"Top 3 Selling Items"})).toBeVisible();
+  await expect(page.getByText("Fixture ticket 999")).toBeVisible();
+  const allTimeRenderMs=Date.now()-allTimeStarted;
+  console.log(`Analytics fixture baseline: ${state.analyticsShifts.length} shifts, ${state.tickets.length} tickets; navigation ${navigationMs}ms; all-time render ${allTimeRenderMs}ms`);
+  expect(navigationMs).toBeLessThan(10_000);
+  expect(allTimeRenderMs).toBeLessThan(10_000);
 });
