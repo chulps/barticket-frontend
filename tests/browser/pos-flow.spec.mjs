@@ -605,7 +605,8 @@ test("mobile picker traps focus, contains its scroll and restores focus after Es
     id:100+index,name:`Mobile item ${index+1}`,category:"Whisky",
     prices:{standard:700+index},inStock:true,
   }));
-  await openTicket(page);
+  await page.goto("/tickets");
+  await page.getByRole("button",{name:/Test Walk-in/i}).first().click();
 
   const trigger=page.getByRole("button",{name:/Add Item/i});
   await trigger.click();
