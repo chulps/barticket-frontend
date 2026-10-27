@@ -63,7 +63,7 @@ export default function MenuItemRow({
                     <NameLine>
                         <ItemName>{menuLabel(locale, item.name)}</ItemName>
                         {unavailable ? <OutOfStock>{t("outOfStock")}</OutOfStock> : null}
-                        {pending ? <Pending role="status">Saving…</Pending> : null}
+                        {pending ? <Pending role="status">{locale === "ja" ? "保存中…" : "Saving…"}</Pending> : null}
                     </NameLine>
                     {item.brand || item.volume ? (
                         <Meta>

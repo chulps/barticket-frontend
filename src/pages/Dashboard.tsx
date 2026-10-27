@@ -299,7 +299,9 @@ export default function Dashboard({
 
       <Content $open={showCurrentDetails}>
         {selectedTicket?.id && selectedTicket.id < 0 ? (
-          <EmptyTicketDetails role="status" aria-live="polite">Creating ticket…</EmptyTicketDetails>
+          <EmptyTicketDetails role="status" aria-live="polite">
+            {locale === "ja" ? "伝票を作成中…" : "Creating ticket…"}
+          </EmptyTicketDetails>
         ) : selectedTicket ? (
           <TicketDetails
             key={selectedTicket.id}

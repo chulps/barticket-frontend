@@ -102,7 +102,7 @@ export default function TicketDetailItem({
     return (
         <Container>
             <Info $editing={isEditingPrice}>
-                <Name>{name}{pending ? " · Saving…" : ""}</Name>
+                <Name>{name}{pending ? (locale === "ja" ? " · 保存中…" : " · Saving…") : ""}</Name>
                 {isEditingPrice ? (
                     <PriceEditForm onSubmit={(event) => void savePrice(event)}>
                         <PriceInput

@@ -129,10 +129,10 @@ export default function AddItemPicker({ menu, tickets, onAddItem, onAddStaffDrin
                         {selectedItems.map(({ item, priceKey, quantity }) => (
                             <Selection key={item.id + "-" + priceKey}>
                                 <SelectionLabel>{menuLabel(locale, item.name)}{priceKey !== "standard" ? " · " + priceKey : ""}</SelectionLabel>
-                                <QuantityButton type="button" aria-label="Decrease quantity"
+                                <QuantityButton type="button" aria-label={locale === "ja" ? "数量を減らす" : "Decrease quantity"}
                                     disabled={saving} onClick={() => setSelectedItems((current) => changeSelectionQuantity(current, item.id, priceKey, -1))}>−</QuantityButton>
-                                <span aria-label="Quantity">{quantity}</span>
-                                <QuantityButton type="button" aria-label="Increase quantity" disabled={saving || quantity >= 99}
+                                <span aria-label={locale === "ja" ? "数量" : "Quantity"}>{quantity}</span>
+                                <QuantityButton type="button" aria-label={locale === "ja" ? "数量を増やす" : "Increase quantity"} disabled={saving || quantity >= 99}
                                     onClick={() => setSelectedItems((current) => changeSelectionQuantity(current, item.id, priceKey, 1))}>+</QuantityButton>
                             </Selection>
                         ))}

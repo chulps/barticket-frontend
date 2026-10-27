@@ -36,7 +36,7 @@ const menu = {
 };
 async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
   const state = { tickets:[ticket()], requests:[], paymentPosts:0,
-    newTicketPosts:0, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
+    newTicketPosts:0, delayTicketCreate:false, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
     activeMenu:structuredClone(menu), archivedItems:[], editedMenuItems:0, archivedChanges:0 };
   await page.addInitScript(({authenticated, locale}) => {
     if(authenticated) localStorage.setItem("barticket_token","NON_PRODUCTION_BROWSER_TEST_TOKEN");
@@ -114,6 +114,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
     else if(key==="GET /notices") response={notices:[]};
     else if(key==="POST /tickets"){
       state.newTicketPosts++;
+      if(state.delayTicketCreate) await new Promise(resolve=>setTimeout(resolve,700));
       const created=ticket(12+state.newTicketPosts);
       created.name="New walk-in";
       created.items=[];
@@ -272,6 +273,24 @@ test("mobile menu search stays visible with long lists, and Japanese close navig
   await expect(close).toBeVisible();
   await close.click();
   await expect(page.getByRole("button",{name:/会計/}).first()).toBeVisible();
+});
+
+test("Japanese add-item controls expose localized names and failure guidance",async ({page})=>{
+  const state=await mockedPOS(page,{locale:"ja"});
+  await page.goto("/tickets");
+  state.delayTicketCreate=true;
+  await page.getByRole("button",{name:"新規伝票"}).click();
+  await expect(page.getByText("伝票を作成中…",{exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:/新規伝票/})).toBeVisible();
+  state.delayTicketCreate=false;
+  await page.getByRole("button",{name:"商品を追加"}).click();
+  const dialog=page.getByRole("dialog");
+  await dialog.getByRole("button",{name:"¥700",exact:true}).first().click();
+  await expect(dialog.getByRole("button",{name:"数量を減らす"})).toBeVisible();
+  await expect(dialog.getByRole("button",{name:"数量を増やす"})).toBeVisible();
+  state.failNextItem=true;
+  await dialog.getByRole("button",{name:/保存/}).click();
+  await expect(dialog.getByRole("alert")).toContainText("未確認");
 });
 
 
