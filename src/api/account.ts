@@ -119,12 +119,23 @@ export const accountApi = {
 
     closeShift: () => apiRequest<ShiftReport>("/shifts/close", { method: "POST" }),
 
+    keepShiftOpen: (shiftId: number, reason: string) => apiRequest<ShiftReport>(`/shifts/${shiftId}/keep-open`, {
+        method: "POST", body: { reason },
+    }),
+
     closeReadiness: () => apiRequest<{
         shift: { id: number; business_date: string; status: "open" | "closed" } | null;
         can_close: boolean;
         blockers: { code: string; ticket_id?: number; name?: string; balance_due?: number; message: string }[];
         open_ticket_count: number;
         clocked_in_staff: { user_id: number; name: string; clock_in: number }[];
+        automatic_clock_out: {
+            will_clock_out_count: number;
+            will_clock_out_staff: { user_id: number; name: string; clock_in: number }[];
+            source: string;
+        };
+        manager_keep_open: boolean;
+        manager_keep_open_history: { kept_open_at: number; kept_open_by: string; kept_open_by_user_id: number; reason: string }[];
         finalized_totals: { collected_total: number; cash_total: number; card_total: number; other_total: number };
         approved_carry_forwards: { ticket_id: number; name: string; reason: string; billed_total: number; collected_total: number; remaining_total: number }[];
         receivables: { count: number; billed_total: number; collected_total: number; outstanding_total: number };
