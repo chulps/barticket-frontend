@@ -50,8 +50,7 @@ export function previewPaidTotals(tickets: readonly ApiTicket[], shiftId: number
 }
 
 export function canManageShift(role: string): boolean {
-    // Preserve the deployed API's existing authenticated-staff shift operations
-    // until backend #86 defines/enforces actual shift-lead authorization.
-    // This is never a security boundary.
+    // Backend #19 allows any authenticated staff member to start/join and close
+    // after blockers are resolved. This is only a UI capability check.
     return role === "manager" || role === "staff";
 }

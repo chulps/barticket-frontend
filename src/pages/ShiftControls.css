@@ -29,6 +29,10 @@
 .shift-ack { display: flex; align-items: flex-start; gap: var(--space-1); cursor: pointer; }
 .shift-ack input { width: auto; margin-top: 0.3em; flex-shrink: 0; }
 .shift-closed-summary { border-top: 1px solid var(--neutral-700); padding-top: var(--space-1); }
+.shift-reopen-review { border: 1px solid var(--neutral-600); border-radius: 8px; padding: var(--space-2); display: grid; gap: var(--space-1); }
+.shift-reopen-review p { margin: 0; }
+.shift-reopen-reason { display: grid; gap: 6px; }
+.shift-reopen-reason textarea { width: 100%; min-height: 80px; resize: vertical; }
 @media (min-width: 640px) {
     .shift-action-row { flex-direction: row; }
     .shift-action-row button { flex: 1; }

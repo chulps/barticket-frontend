@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { accountApi, type ShiftReport } from "../api/account";
 import { ApiError } from "../api/client";
 import { ticketsApi, type ApiTicket } from "../api/tickets";
 import { useModal } from "../hooks/useModal";
-import { closeBlockers, previewPaidTotals, businessDateJst } from "./shiftControlPolicy";
+import { closeBlockers, previewPaidTotals } from "./shiftControlPolicy";
 import "./ShiftControls.css";
 
 type Preview = { shift: ShiftReport; tickets: ApiTicket[] };
@@ -12,9 +12,11 @@ type Props = {
     shiftId: number;
     locale: string;
     onClosed: (closed: ShiftReport) => void;
+    allowStale?: boolean;
+    businessDate: string;
 };
 
-export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
+export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale = false, businessDate }: Props) {
     const ja = locale === "ja";
     const navigate = useNavigate();
     const { forceCloseModal, registerCloseGuard } = useModal();
@@ -26,11 +28,19 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
     const [error, setError] = useState("");
     const [uncertain, setUncertain] = useState(false);
 
+    const getActiveShift = useCallback(async (): Promise<ShiftReport | null> => {
+        if (allowStale) {
+            const shifts = await accountApi.shiftHistory();
+            return shifts.find(row => row.id === shiftId && row.status === "open") ?? null;
+        }
+        return accountApi.currentShift();
+    }, [allowStale, shiftId]);
+
     useEffect(() => {
         let active = true;
         async function read() {
             try {
-                const [current, tickets] = await Promise.all([accountApi.currentShift(), ticketsApi.list()]);
+                const [current, tickets] = await Promise.all([getActiveShift(), ticketsApi.list()]);
                 if (!active) return;
                 if (!current || current.status !== "open" || current.id !== shiftId) {
                     setPreview(null);
@@ -46,7 +56,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
         }
         void read();
         return () => { active = false; };
-    }, [shiftId, ja]);
+    }, [getActiveShift, ja, shiftId]);
 
     useEffect(() => {
         registerCloseGuard(() => !working && !submitInFlight.current);
@@ -56,7 +66,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
     const blockers = closeBlockers(preview?.tickets ?? []);
     const active = preview?.shift.punches.filter(punch => punch.clock_out === null) ?? [];
     const live = preview ? previewPaidTotals(preview.tickets, preview.shift.id) : null;
-    const stale = Boolean(preview && preview.shift.business_date !== businessDateJst(Date.now()));
+    const stale = Boolean(preview && preview.shift.business_date !== businessDate);
     const yen = (n: number) => "¥" + n.toLocaleString("ja-JP");
 
     async function confirmClose() {
@@ -67,7 +77,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
         try {
             // Recheck directly before the write; backend #87 must still provide
             // transactional final validation against racing ticket mutations.
-            const [latest, latestTickets] = await Promise.all([accountApi.currentShift(), ticketsApi.list()]);
+            const [latest, latestTickets] = await Promise.all([getActiveShift(), ticketsApi.list()]);
             if (!latest || latest.status !== "open" || latest.id !== shiftId) {
                 setPreview(null);
                 setError(ja ? "シフトの状態が変わりました。再確認してください。" : "The active shift changed. Review it again before closing.");
@@ -91,7 +101,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
                 ? (ja ? "結果を確認できません。閉店済みの可能性があります。シフト状況を再読み込みして確認してください。再送信はしません。" : "Outcome unknown: the shift may already be closed. Refresh its status before taking another action. The close request will not be resent.")
                 : (ja ? "閉店できませんでした。未会計伝票とスタッフの状態を確認してください。" : "Close was rejected. Check open tickets and current staff status.") + " (" + err.message + ")");
             try {
-                const current = await accountApi.currentShift();
+                const current = await getActiveShift();
                 if (current?.id === shiftId) {
                     const tickets = await ticketsApi.list();
                     setPreview({ shift: current, tickets });
@@ -146,8 +156,12 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed }: Props) {
             <label className="shift-ack">
                 <input type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} disabled={working || uncertain} />
                 <span>{ja
-                    ? "未会計伝票がないことと、自動退勤の影響を確認しました。"
-                    : "I have reviewed unresolved tickets and understand the automatic clock-outs."}</span>
+                    ? stale
+                        ? "前の営業日、未会計伝票、自動退勤の影響を確認し、復旧のためにシフトを閉じることを確認しました。"
+                        : "未会計伝票がないことと、自動退勤の影響を確認しました。"
+                    : stale
+                        ? "I verified the previous business date, open tickets, and automatic clock-out effects, and confirm closing this shift for recovery."
+                        : "I have reviewed unresolved tickets and understand the automatic clock-outs."}</span>
             </label>
             <div className="shift-action-row">
                 <button type="button" className="hollow secondary" disabled={working} onClick={forceCloseModal}>{ja ? "キャンセル" : "Cancel"}</button>

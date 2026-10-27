@@ -20,6 +20,7 @@ export type ShiftReport = {
     id: number;
     business_date: string;
     status: "open" | "closed";
+    operation?: "started" | "joined" | "reopened";
     opened_at: number;
     closed_at: number | null;
     opened_by: string;
@@ -36,6 +37,22 @@ export type ShiftReport = {
     staff_drinks?: { ticket_id: number; staff_id: number | null; staff_name: string; menu_item_id: number | null; drink_name: string; price_key: string; unit_price: number; quantity: number; revenue: number }[];
     stockouts?: { item: string; at: number; by: string }[];
     punches: ShiftPunch[];
+    reopen_history?: {
+        id: number;
+        reopened_at: number;
+        reopened_by: string;
+        reason: string;
+        previous_closed_at: number;
+        previous_closed_by: string | null;
+        previous_paid_total: number;
+        previous_cash_total: number;
+        previous_card_total: number;
+        previous_other_total: number;
+        previous_cover_total: number;
+        previous_guest_count: number;
+        previous_paid_count: number;
+        previous_cancelled_count: number;
+    }[];
 };
 
 type Session = { token: string; user: Account };
@@ -92,6 +109,10 @@ export const accountApi = {
 
     openShift: () => apiRequest<ShiftReport>("/shifts/open", { method: "POST" }),
 
+    reopenShift: (shiftId: number, reason: string) => apiRequest<ShiftReport>(`/shifts/${shiftId}/reopen`, {
+        method: "POST", body: { confirmed: true, reason },
+    }),
+
     closeShift: () => apiRequest<ShiftReport>("/shifts/close", { method: "POST" }),
 
     clockIn: () => apiRequest<ShiftReport>("/shifts/clock-in", { method: "POST" }),
@@ -99,4 +120,6 @@ export const accountApi = {
     clockOut: () => apiRequest<ShiftReport>("/shifts/clock-out", { method: "POST" }),
 
     closedShifts: () => apiRequest<ShiftReport[]>("/analytics/shifts"),
+
+    shiftHistory: () => apiRequest<ShiftReport[]>("/shifts"),
 };
