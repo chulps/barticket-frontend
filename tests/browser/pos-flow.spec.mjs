@@ -599,14 +599,13 @@ test("Japanese My Time Clock remains readable and tappable at phone width",async
 
 
 test("mobile picker traps focus, contains its scroll and restores focus after Escape",async ({page})=>{
-  await page.setViewportSize({width:375,height:667});
   const state=await mockedPOS(page);
   state.activeMenu.items=Array.from({length:24},(_,index)=>({
     id:100+index,name:`Mobile item ${index+1}`,category:"Whisky",
     prices:{standard:700+index},inStock:true,
   }));
-  await page.goto("/tickets");
-  await page.getByRole("button",{name:/Test Walk-in/i}).first().click();
+  await openTicket(page);
+  await page.setViewportSize({width:375,height:667});
 
   const trigger=page.getByRole("button",{name:/Add Item/i});
   await trigger.click();
