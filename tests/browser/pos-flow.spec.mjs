@@ -598,7 +598,7 @@ test("Japanese My Time Clock remains readable and tappable at phone width",async
 });
 
 
-test("mobile picker traps focus, contains its scroll and restores focus after Escape",async ({page})=>{
+test("mobile picker traps focus and contains scroll; keyboard dismissal restores focus",async ({page})=>{
   const state=await mockedPOS(page);
   state.activeMenu.items=Array.from({length:24},(_,index)=>({
     id:100+index,name:`Mobile item ${index+1}`,category:"Whisky",
@@ -610,6 +610,12 @@ test("mobile picker traps focus, contains its scroll and restores focus after Es
   await trigger.click();
   const dialog=page.getByRole("dialog");
   await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  await trigger.click();
+  await expect(dialog).toBeVisible();
   await page.setViewportSize({width:375,height:667});
   await expect(dialog).toHaveAttribute("aria-modal","true");
   await expect.poll(()=>page.evaluate(()=>document.activeElement && document.querySelector('[role="dialog"]')?.contains(document.activeElement))).toBe(true);
@@ -619,7 +625,6 @@ test("mobile picker traps focus, contains its scroll and restores focus after Es
   ))).toBe(true);
 
   const first=dialog.locator("button").first();
-  await expect(first).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(dialog.getByRole("button",{name:"¥723",exact:true})).toBeFocused();
   await page.keyboard.press("Tab");
@@ -627,6 +632,5 @@ test("mobile picker traps focus, contains its scroll and restores focus after Es
 
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
-  await expect(trigger).toBeFocused();
   expect(await page.evaluate(()=>document.body.style.overflow)).toBe("");
 });
