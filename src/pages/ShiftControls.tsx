@@ -108,6 +108,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
         const tick = window.setInterval(() => setNow(Date.now()), 15000);
         const onRefresh = () => void refresh();
         window.addEventListener("focus", onRefresh);
+        window.addEventListener("barticket-auth", onRefresh);
         window.addEventListener("barticket-api-restored", onRefresh);
         window.addEventListener("barticket-shift-updated", onRefresh);
         return () => {
@@ -117,6 +118,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
             window.clearInterval(poll);
             window.clearInterval(tick);
             window.removeEventListener("focus", onRefresh);
+            window.removeEventListener("barticket-auth", onRefresh);
             window.removeEventListener("barticket-api-restored", onRefresh);
             window.removeEventListener("barticket-shift-updated", onRefresh);
         };
@@ -161,10 +163,18 @@ export default function ShiftControls({ account, locale }: { account: Account; l
                     ? (ja ? "前の営業日のシフトが残っています。開始や再開はせず、内容を確認してください。" : "A previous business day's shift is still open. Review it before starting or reopening another shift.")
                     : (ja ? "本日のシフトはすでに閉店しています。再開する場合は管理者が理由を記録してください。" : "Today's shift is already closed. A manager must record a reason to reopen it."));
             } else {
-                const unknown = !(err instanceof ApiError);
-                setError(unknown
-                    ? (ja ? "通信エラーのため結果が不明です。自動で再送信せず、サーバーの状態を再確認します。" : "Connection interrupted. The result may have committed. This action will not be resent automatically.")
-                    : (ja ? "操作できません。シフト状態と権限を確認してください。" : "Action rejected. Check your permissions and shift state.") + " (" + err.message + ")");
+                const uncertain = !(err instanceof ApiError) || err.status === 408 || err.status >= 500;
+                const message = uncertain
+                    ? (ja ? "結果がまだ確定できません。シフトと打刻の状態をサーバーから再確認します。操作は自動で再送信しません。" : "The result is uncertain. I’m checking the shift and punch state with the server; this action will not be resent automatically.")
+                    : err instanceof ApiError && err.status === 401
+                        ? (ja ? "ログインの有効期限が切れました。再ログインしてからシフト状態を確認してください。" : "Your sign-in has expired. Sign in again, then verify the shift state.")
+                        : err instanceof ApiError && err.status === 403
+                            ? action === "reopen"
+                                ? (ja ? "シフトを再開できるのは管理者だけです。管理者アカウントで操作してください。" : "Only a manager can reopen a shift. Use a manager account to continue.")
+                                : (ja ? "このアカウントでは操作が許可されていません。ログイン状態を確認するか管理者に相談してください。" : "This account is not allowed to perform that action. Check your sign-in or contact a manager.")
+                            : (ja ? "操作を拒否されました。シフト状態を確認してください。" : "The action was rejected. Check the shift state.") +
+                                (err instanceof ApiError ? " (" + err.message + ")" : "");
+                setError(message);
                 setLookup({ status: "loading", shift: null });
             }
         } finally {

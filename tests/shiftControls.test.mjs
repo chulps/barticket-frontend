@@ -80,6 +80,7 @@ test("close POST is called only from reviewed explicit confirmation", () => {
 test("shift control reloads after focus/remote events without automatically retrying POST", () => {
     const control = src("pages/ShiftControls.tsx");
     assert.match(control, /window\.addEventListener\("focus", onRefresh\)/);
+    assert.match(control, /window\.addEventListener\("barticket-auth", onRefresh\)/);
     assert.match(control, /window\.addEventListener\("barticket-shift-updated", onRefresh\)/);
     assert.match(control, /version\.current/);
     assert.match(control, /mutation\.current/);
@@ -118,4 +119,17 @@ test("start, join, reopen and stale recovery follow the backend shift contract",
     assert.match(control, /Previous shift needs review/);
     assert.match(control, /Review & recover shift/);
     assert.match(control, /Clock in after the shift opens/);
+});
+
+test("uncertain writes reconcile server state without replay; permission failures are localized", () => {
+    const control = src("pages/ShiftControls.tsx");
+    assert.match(control, /err\.status === 408 \|\| err\.status >= 500/);
+    assert.match(control, /this action will not be resent automatically/);
+    assert.match(control, /refresh\(\)/);
+    assert.match(control, /err\.status === 401/);
+    assert.match(control, /err\.status === 403/);
+    assert.match(control, /Only a manager can reopen a shift/);
+    assert.match(control, /このアカウントでは操作が許可されていません/);
+    assert.match(control, /setPending\(action\)/);
+    assert.match(control, /setPending\(""\)/);
 });
