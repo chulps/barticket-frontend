@@ -14,8 +14,8 @@ export function StaffDetails({ people, shifts, locale }: { people: Account[]; sh
     return <Panel>
         <h2>{ja ? "スタッフディレクトリ" : "Staff directory"}</h2>
         <p>{ja ? "現在有効なアカウントと、APIで確認できる勤務記録のみ表示します。" : "Active accounts and recorded shift activity only. Historical staffing data may be incomplete."}</p>
-        <Controls><input aria-label="Search staff" placeholder={ja ? "名前・メールで検索" : "Search name or email"} value={search} onChange={e => setSearch(e.target.value)} />
-        <Select><select aria-label="Filter role" value={role} onChange={e => setRole(e.target.value)}><option value="all">{ja ? "すべて" : "All roles"}</option><option value="staff">{ja ? "スタッフ" : "Staff"}</option><option value="manager">{ja ? "マネージャー" : "Manager"}</option><option value="guest">{ja ? "ゲスト" : "Guest bartenders"}</option></select><i aria-hidden="true">▾</i></Select></Controls>
+        <Controls><input aria-label={ja ? "スタッフを検索" : "Search staff"} placeholder={ja ? "名前・メールで検索" : "Search name or email"} value={search} onChange={e => setSearch(e.target.value)} />
+        <Select><select aria-label={ja ? "役割で絞り込む" : "Filter role"} value={role} onChange={e => setRole(e.target.value)}><option value="all">{ja ? "すべて" : "All roles"}</option><option value="staff">{ja ? "スタッフ" : "Staff"}</option><option value="manager">{ja ? "マネージャー" : "Manager"}</option><option value="guest">{ja ? "ゲスト" : "Guest bartenders"}</option></select><i aria-hidden="true">▾</i></Select></Controls>
         <Directory>{people.filter(p => (role === "all" || (role === "guest" ? isGuest(p.name) : p.role === role && (role !== "staff" || !isGuest(p.name)))) && (p.name + " " + p.email).toLowerCase().includes(search.toLowerCase())).map(p =>
             <button key={p.id} type="button" className={p.id === personId ? "secondary" : "hollow secondary"} onClick={() => setPersonId(p.id)}>
                 <strong>{p.name}</strong><small>{isGuest(p.name) ? (ja ? "ゲスト（都度契約）" : "Guest · per-shift agreement") : p.role} · {p.email}</small>
