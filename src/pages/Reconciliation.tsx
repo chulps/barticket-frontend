@@ -16,7 +16,7 @@ const validNumber = (value: string) => value.trim() !== "" && /^\d+$/.test(value
 
 // Per-tab working copy: protects browser-back/forward and internal route changes.
 // Never sent to a server or written to localStorage/sessionStorage.
-type WorkingCopy = { selectedId: number | null; draft: Draft | null; csv: CsvData | null; mapping: Record<string, string>; includeHours: string[] };
+type WorkingCopy = { selectedId: number | null; draft: Draft | null; csv: CsvData | null; mapping: Record<string, string> };
 let temporaryWorkingCopy: WorkingCopy | null = null;
 const labels = (ja: boolean) => ({
     date: ja ? "日付" : "Date", manager: ja ? "マネージャー" : "Manager",
@@ -47,7 +47,6 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
     const [reportNotice, setReportNotice] = useState("");
     const [mapping, setMapping] = useState<Record<string, string>>(() => temporaryWorkingCopy?.mapping ?? {});
     const [extraHourKey, setExtraHourKey] = useState("");
-    const [includeHours, setIncludeHours] = useState<string[]>(() => temporaryWorkingCopy?.includeHours ?? []);
     const [restoredFromMemory] = useState(() => temporaryWorkingCopy !== null);
     const csvRequestVersion = useRef(0);
     const selected = shifts.find(shift => shift.id === selectedId) ?? null;
@@ -90,8 +89,8 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
 
     useEffect(() => {
         // Keep a short-lived in-memory restore point when navigating away.
-        temporaryWorkingCopy = hasUnsavedWork ? { selectedId, draft, csv, mapping, includeHours } : null;
-    }, [selectedId, draft, csv, mapping, includeHours, hasUnsavedWork]);
+        temporaryWorkingCopy = hasUnsavedWork ? { selectedId, draft, csv, mapping } : null;
+    }, [selectedId, draft, csv, mapping, hasUnsavedWork]);
 
     useEffect(() => {
         const clearOnAuthChange = () => {
@@ -175,7 +174,6 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
             setSelectedHistoryCells([]);
             setHistoryError("");
             setMapping(defaultCsvMapping(parsed.headers));
-            setIncludeHours([]);
             setCsvError("");
         } catch (e) {
             if (request === csvRequestVersion.current) setCsvError(e instanceof Error ? e.message : String(e));
@@ -191,7 +189,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
         setSelectedHistoryCells([]);
         setHistoryCorrectionReason("");
         try {
-            const batch = buildHistoricalHoursBatch(csv, mapping, includeHours, users, csvFileName);
+            const batch = buildHistoricalHoursBatch(csv, mapping, users, csvFileName);
             const result = await historicalHoursApi.reconcile(batch.sourceFile, batch.rows);
             setHistoryBatch(batch);
             setHistoryPreview(result);
@@ -250,14 +248,16 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
     }
 
     return <Wrap>
-        <h2>{ja ? "データ照合と編集" : "Data reconciliation & editing"}</h2>
-        <Notice role="status"><strong>{ja ? "プレビュー・編集中（未保存）" : "Preview / draft mode — NOT SAVED"}</strong>
+        <h2>{ja ? "過去の勤務時間" : "Historical staff hours"}</h2>
+        <Notice role="status"><strong>{ja ? "保存するのは選択した勤務時間だけです" : "Only selected staff hours are saved"}</strong>
             {restoredFromMemory ? <p>{ja ? "このタブの一時メモリから未保存の下書きを復元しました。再読み込みすると消えます。" : "Restored a temporary working copy from this tab's memory. Refreshing the page may erase it."}</p> : null}
-            <p>{ja ? "シフト編集案は未保存です。履歴勤務時間はマネージャーが照合を確認し、不足分または理由付きの差異修正を承認した場合に保存されます。" :
-                "Shift edits remain drafts. Historical hours are saved after a manager approves missing entries or audited corrections to conflicting totals."}</p>
+            <p>{ja ? "照合は読み取り専用です。保存すると、選択したスタッフの合計時間だけが記録されます。マネージャー・売上・来客数・イベントは変更されません。" :
+                "Reconciliation is read-only. Saving records only selected staff-hour totals. Manager, revenue, guest count, and event values are not changed."}</p>
         </Notice>
         {error ? <p role="alert">{error}</p> : null}
         <Block>
+            <details>
+                <summary>{ja ? "記録済みシフトを確認・編集案を作成（保存不可）" : "Recorded shifts — view or prepare a draft (saving unavailable)"}</summary>
             <h3>{ja ? "既存シフトを編集（下書き）" : "Edit recorded shifts (draft)"}</h3>
             <p>{ja ? "APIで取得できたシフトのみ表示します。未移行の月は表示されません。" : "Only shifts currently returned by the API appear here. Unmigrated months will not appear."}</p>
             <label>{ja ? "日付・マネージャーを検索" : "Search date or manager"}
@@ -349,10 +349,11 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                     <button type="button" className="hollow secondary" onClick={() => { if (confirmDiscard(changed)) setDraft(fresh(selected)); }}>{ja ? "リセット" : "Reset draft"}</button>
                     <button type="button" className="hollow secondary" onClick={() => { if (confirmDiscard(changed)) { setSelectedId(null); setDraft(null); } }}>{ja ? "閉じる" : "Close"}</button></Actions>
             </Editor> : null}
+            </details>
         </Block>
         <Block>
-            <h3>{ja ? "CSV取り込みプレビュー" : "CSV import preview"}</h3>
-            <p>{ja ? "CSVはブラウザ内で解析します。照合ボタンを押すと勤務時間だけをサーバーに送り、結果を表示します。照合だけでは保存されません。" : "CSV is parsed in your browser. Reconcile sends only staff hours to the API; previewing does not save data."}</p>
+            <h3>{ja ? "勤務表CSV" : "Staff-hours spreadsheet"}</h3>
+            <p>{ja ? "1. CSVを選び、日付・スタッフ名・合計時間の列を確認します。2. 勤務時間を照合して結果を確認します。照合だけでは保存されません。" : "1. Choose the CSV and check the date, staff-name, and total-hours columns. 2. Reconcile staff hours to preview the results. This step does not save anything."}</p>
             <label>CSV (.csv, UTF-8)<input type="file" accept=".csv,text/csv" onChange={e => {
                 const file = e.currentTarget.files?.[0];
                 e.currentTarget.value = "";
@@ -361,15 +362,20 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
             {csvError ? <p role="alert">{csvError}</p> : null}
             {csv ? <>
                 <p>{csv.rows.length} {ja ? "行" : "rows"} · {csv.headers.length} {ja ? "列" : "columns"}</p>
-                <Fields>{(["date", "manager", "revenue", "guests", "event"] as const).map(key => mapOption(key, text[key]))}</Fields>
-                <h4>{text.hours}</h4>
-                <p>{ja ? "オプション: スタッフ勤務時間の列を追加できます。" : "Optional: map spreadsheet staff-hours columns."}</p>
-                <Actions><SelectBox><select value={extraHourKey} onChange={e => setExtraHourKey(e.target.value)}><option value="">{ja ? "スタッフを選択" : "Choose staff"}</option>
-                    {["Chuck", "Nori", "Haruka", "Kanata"].filter(name => !includeHours.includes(name)).map(name => <option key={name}>{name}</option>)}</select><Caret aria-hidden="true">▾</Caret></SelectBox>
-                    <button type="button" className="secondary" disabled={!extraHourKey} onClick={() => { setIncludeHours([...includeHours, extraHourKey]); setExtraHourKey(""); }}>{ja ? "追加" : "Add mapping"}</button></Actions>
-                <Fields>{includeHours.map(name => mapOption("hours:" + name, name + " hours"))}</Fields>
+                <fieldset>
+                    <legend>{ja ? "履歴勤務時間の列" : "Historical staff-hours columns"}</legend>
+                    <p>{ja ? "日付、スタッフ名、合計時間を選びます。時間が空の行は取り込み対象外です。" : "Choose the date, staff name, and total-hours columns. Rows with blank hours are skipped."}</p>
+                    <Fields>{(["date", "staff", "hours"] as const).map(key => mapOption(key, key === "staff" ? (ja ? "スタッフ名" : "Staff name") : key === "hours" ? text.hours : text.date))}</Fields>
+                </fieldset>
+                <fieldset>
+                    <legend>{ja ? "営業日レポートの比較（読み取り専用）" : "Daily report comparison (read-only)"}</legend>
+                    <p>{ja ? "比較にはマネージャー、売上、来客数、イベントの列も使用します。" : "Manager, revenue, guests, and event columns are used for the separate read-only report comparison."}</p>
+                    <Fields>{(["manager", "revenue", "guests", "event"] as const).map(key => mapOption(key, text[key]))}</Fields>
+                </fieldset>
                 {preview?.errors.length ? <Notice role="alert">{preview.errors.slice(0, 20).map(message => <p key={message}>{message}</p>)}{preview.errors.length > 20 ? <p>+ {preview.errors.length - 20}</p> : null}</Notice> : null}
-                {preview && !preview.errors.length ? <>
+                {preview && !preview.errors.length ? <details>
+                    <summary>{ja ? "営業日レポート比較を表示（読み取り専用）" : "Show daily report comparison (read-only)"}</summary>
+                    <p>{ja ? "各マネージャー欄はそれぞれの記録元の値です。不一致は記録間の差であり、同じ日に二人のマネージャーがいたことを意味しません。" : "Each manager column shows the value recorded by that source. A mismatch means the records disagree; it does not indicate two managers were assigned to that day."}</p>
                     <p>{ja ? "新規" : "New"}: {preview.preview.filter(row => row.state === "new").length} · {ja ? "差異あり" : "Conflicts"}: {preview.preview.filter(row => row.state === "conflict").length} · {ja ? "一致" : "Matches"}: {preview.preview.filter(row => row.state === "match").length}</p>
                     <Actions role="group" aria-label={ja ? "比較結果フィルター" : "Comparison result filters"}>
                         {(["all", "conflict", "new", "match"] as const).map(key => (
@@ -383,12 +389,31 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                         ))}
                     </Actions>
                     <p className="shift-muted" role="status">{ja ? "表示中" : "Showing"}: {previewRows.length} / {preview.preview.length}</p>
-                    <TableWrap><table><thead><tr><th>{text.date}</th><th>{text.manager}</th><th>{text.revenue}</th><th>{text.guests}</th><th>{ja ? "比較結果" : "Comparison"}</th></tr></thead>
-                        <tbody>{previewRows.map(({ imported, existing, state, differences }) => <tr key={imported.line}>
-                            <td>{imported.date}</td><td>{imported.manager}{existing && existing.opened_by !== imported.manager ? " ← " + existing.opened_by : ""}</td>
-                            <td>¥{imported.revenue.toLocaleString()}</td><td>{imported.guests}</td>
-                            <td>{state === "new" ? (ja ? "DBに記録なし" : "Not in API") : state === "match" ? (ja ? "一致" : "Match") : differences.join(", ")}</td>
-                        </tr>)}</tbody></table></TableWrap>
+                    <TableWrap><table><thead><tr>
+                        <th>{text.date}</th>
+                        <th>{ja ? "マネージャー（勤務表）" : "Manager (spreadsheet)"}</th>
+                        <th>{ja ? "マネージャー（BarTicket）" : "Manager (BarTicket)"}</th>
+                        <th>{ja ? "イベント（勤務表）" : "Event (spreadsheet)"}</th>
+                        <th>{ja ? "売上（勤務表 / BarTicket）" : "Revenue (spreadsheet / BarTicket)"}</th>
+                        <th>{ja ? "来客数（勤務表 / BarTicket）" : "Guests (spreadsheet / BarTicket)"}</th>
+                        <th>{ja ? "差異" : "Differences"}</th>
+                    </tr></thead>
+                        <tbody>{previewRows.map(({ imported, existing, state, differences }) => {
+                            const details = differences.map(field => field === "manager"
+                                ? `${ja ? "マネージャーの記録が不一致" : "Manager records differ"}: ${ja ? "勤務表" : "Spreadsheet"} ${imported.manager} · BarTicket ${existing?.opened_by ?? "—"}`
+                                : field === "revenue"
+                                    ? `${text.revenue}: ¥${imported.revenue.toLocaleString()} · BarTicket ¥${(existing?.paid_total ?? 0).toLocaleString()}`
+                                    : `${text.guests}: ${imported.guests} · BarTicket ${existing?.guest_count ?? "—"}`);
+                            return <tr key={imported.line}>
+                                <td>{imported.date}</td><td>{imported.manager}</td><td>{existing?.opened_by ?? "—"}</td>
+                                <td>{imported.event || "—"}</td>
+                                <td>¥{imported.revenue.toLocaleString()} / {existing ? `¥${existing.paid_total.toLocaleString()}` : "—"}</td>
+                                <td>{imported.guests} / {existing?.guest_count ?? "—"}</td>
+                                <td>{state === "new" ? (ja ? "記録なし" : "No recorded shift")
+                                    : state === "match" ? (ja ? "一致" : "Match")
+                                        : details.join("; ")}</td>
+                            </tr>;
+                        })}</tbody></table></TableWrap>
                     <Actions>
                         <button type="button" className="secondary" onClick={() => void copyComparisonReport()}>
                             {ja ? "比較レポートJSONをコピー" : "Copy comparison JSON"}
@@ -396,7 +421,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                         <p>{ja ? "読み取り専用の比較結果です。APIへの送信・インポートは行いません。" : "Read-only comparison report. No API submission or import will occur."}</p>
                     </Actions>
                     {reportNotice ? <p role="status">{reportNotice}</p> : null}
-                </> : null}
+                </details> : null}
             </> : null}
             <Block>
                 <h4>{ja ? "履歴勤務時間の照合" : "Historical staff-hours reconciliation"}</h4>
@@ -413,7 +438,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                 {historyError ? <p role="alert">{historyError}</p> : null}
                 {historyPreview ? <>
                     <p role="status">{historyBatch?.sourceFile} · {ja ? "一致" : "Matches"}: {historyPreview.counts.match} · {ja ? "不足" : "Missing"}: {historyPreview.counts.new} · {ja ? "差異" : "Conflicts"}: {historyPreview.counts.conflict} · {ja ? "未対応名" : "Unmapped"}: {historyPreview.counts.unmapped} · {ja ? "重複候補" : "Duplicate candidates"}: {historyPreview.counts.duplicate_candidate}</p>
-                    <TableWrap><table><thead><tr><th>{ja ? "取り込み" : "Import"}</th><th>{text.date}</th><th>{ja ? "スタッフ" : "Staff"}</th><th>{text.hours}</th><th>{ja ? "比較" : "Result"}</th></tr></thead>
+                    <TableWrap><table><thead><tr><th>{ja ? "取り込み" : "Import"}</th><th>{text.date}</th><th>{ja ? "スタッフ" : "Staff"}</th><th>{ja ? "勤務表時間" : "Spreadsheet hours"}</th><th>{ja ? "現在の有効時間" : "Current effective hours"}</th><th>{ja ? "結果" : "Result"}</th><th>{ja ? "出典" : "Source"}</th></tr></thead>
                         <tbody>{historyPreview.rows.map(row => {
                             const cellKey = historyCellKey(row.source_row, row.source_column);
                             const canImport = (row.state === "new" || row.state === "conflict") && row.user_id !== null;
@@ -431,7 +456,8 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                                         ? [...current, cellKey]
                                         : current.filter(item => item !== cellKey))} /></td>
                                 <td>{row.business_date}</td><td>{row.staff_name}</td><td>{row.source_seconds / 3600}</td>
-                                <td>{statusLabel} — {row.reason}</td>
+                                <td>{row.effective_seconds === null ? (ja ? "不明" : "Unknown") : row.effective_seconds / 3600}</td>
+                                <td>{statusLabel} — {row.reason}</td><td>{row.source_row} · {row.source_column}</td>
                             </tr>;
                         })}</tbody></table></TableWrap>
                     <Actions>
@@ -442,7 +468,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                                 placeholder={ja ? "例：2026年10月の確認済み勤務表に合わせて修正" : "e.g. Corrected to match the verified October 2026 staff-hours sheet"} />
                         </label> : null}
                         <button type="button" disabled={!selectedHistoryCells.length || historyBusy} onClick={() => void importHistory()}>
-                            {ja ? `選択した勤務時間を保存 (${selectedHistoryCells.length})` : `Save selected spreadsheet hours (${selectedHistoryCells.length})`}
+                            {ja ? `選択した時間を保存 (${selectedHistoryCells.length})` : `Save selected hours (${selectedHistoryCells.length})`}
                         </button>
                         <p>{ja ? "差異の修正は理由とともに監査記録へ保存され、元の打刻時刻は変更されません。" : "Corrections are audited with your reason. Original clock timestamps are preserved."}</p>
                     </Actions>
@@ -452,7 +478,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
     </Wrap>;
 }
 
-const Wrap = styled.div`display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; h2 { font-size: var(--font-size-h4); } h3 { font-size: var(--font-size-default); } label { display: flex; flex-direction: column; gap: var(--space-0); min-width: 0; } input,select { width: 100%; box-sizing: border-box; }`;
+const Wrap = styled.div`display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; h2 { font-size: var(--font-size-h4); } h3 { font-size: var(--font-size-default); } label { display: flex; flex-direction: column; gap: var(--space-0); min-width: 0; } input,select { width: 100%; box-sizing: border-box; } details > summary { cursor: pointer; font-weight: 600; padding: var(--space-1) 0; }`;
 const Block = styled.section`display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2); background: var(--neutral-900); border-radius: 12px; min-width: 0;`;
 const Notice = styled.div`padding: var(--space-2); border: 1px solid var(--neutral-600); border-radius: 8px; p { margin-top: var(--space-1); }`;
 const TableWrap = styled.div`overflow-x: auto; width: 100%; table { border-collapse: collapse; min-width: 650px; width: 100%; } th, td { text-align: left; padding: var(--space-1); border-bottom: 1px solid var(--neutral-700); } td button { width: auto; }`;
