@@ -54,14 +54,19 @@ test("private card is only rendered after Admin role guard and identity gate", (
     assert.doesNotMatch(accessSource, /viewer\.name|viewer\.email/);
     assert.match(deployment, /vars\.VITE_REVENUE_SHARE_CHUCK_USER_ID/);
     assert.match(deployment, /vars\.VITE_REVENUE_SHARE_NORI_USER_ID/);
-    for (const source of [ui, modelSource, accessSource]) {
+    for (const source of [modelSource, accessSource]) {
         assert.doesNotMatch(source, /\bapiRequest\(|\bfetch\(|localStorage|sessionStorage|axios|accountApi\./);
     }
-    assert.match(ui, /Save pay rule — unavailable/);
-    assert.match(ui, /Save payroll — unavailable/);
+    assert.match(ui, /accountApi\.assignWorkingManager\(/);
+    assert.match(ui, /revenueSharePreview\(selectedMonth\)/);
+    assert.match(ui, /accountApi\.workingManagerHistory\(/);
+    assert.match(adminTeam, /refreshVersion=\{refreshKey\}/);
+    assert.match(readFileSync(new URL("../src/api/account.ts", import.meta.url), "utf8"), /gross_share_yen: number \| null/);
+    assert.match(readFileSync(new URL("../src/api/account.ts", import.meta.url), "utf8"), /payable_yen/);
+    assert.match(ui, /working_manager_user_id/);
 });
 
-test("default tier boundaries and 60 percent proposed ceiling", () => {
+test("default tier boundaries and confirmed 60 percent ceiling", () => {
     const cases = [
         [0, 40], [499999, 40], [500000, 41], [549999, 41],
         [550000, 42], [599999, 42], [600000, 43], [749999, 45],
@@ -81,21 +86,15 @@ test("default tier boundaries and 60 percent proposed ceiling", () => {
     assert.deepEqual(model.shareBrackets().at(-1), { from: 1450000, to: null, rate: 60 });
 });
 
-test("Chuck or Nori can propose different draft rate rules but cannot save them", () => {
-    const draft = { ...model.defaultSharePolicyDraft, capRate: "55", baseRate: "42" };
-    const config = model.parseSharePolicy(draft);
-    assert.ok(config);
-    assert.equal(model.eligibleTierRate(0, config), 42);
-    assert.equal(model.eligibleTierRate(2000000, config), 55);
-    assert.equal(model.nextTier(2000000, config), null);
-    assert.equal(model.parseSharePolicy({ ...draft, capRate: "35" }), null);
-    assert.equal(model.parseSharePolicy({ ...draft, baseRate: "-1" }), null);
-    assert.equal(model.parseSharePolicy({ ...draft, firstThresholdYen: "0" }), null);
-    assert.equal(model.parseSharePolicy({ ...draft, stepYen: "0" }), null);
-    assert.equal(model.parseSharePolicy({ ...draft, incrementPoints: "0" }), null);
-    assert.equal(model.parseSharePolicy({ ...draft, capRate: "101" }), null);
-    assert.match(ui, /setPolicyDraft\(/);
-    assert.match(ui, /Restore proposed 40–60% tiers/);
+test("confirmed flat tiers apply to all qualifying monthly sales while unresolved data blocks pay", () => {
+    assert.equal(model.eligibleTierRate(0), 40);
+    assert.equal(model.eligibleTierRate(500000), 41);
+    assert.equal(model.eligibleTierRate(1450000), 60);
+    assert.match(ui, /the reached monthly rate applies to all qualifying monthly sales/i);
+    assert.match(ui, /unpaid tickets count in the service month/i);
+    assert.match(ui, /rounding/i);
+    assert.match(ui, /gross share \(sales basis pending\)/i);
+    assert.doesNotMatch(ui, /setPolicyDraft|marginal\/tranche example/i);
 });
 
 const shifts = [
@@ -104,47 +103,13 @@ const shifts = [
     { id: 7, business_date: "2026-11-01", status: "closed", paid_total: 999999, opened_by: "Person A" },
 ];
 
-test("scenario includes only explicitly selected same-month shifts, not opener names", () => {
-    const selected = model.shareSelection(shifts, "2026-10", new Set([5]));
-    assert.equal(selected.eligibleRevenue, 300000);
-    assert.equal(selected.tierRate, 40);
-    assert.equal(selected.selected.length, 1);
-    const both = model.shareSelection(shifts, "2026-10", new Set([5, 6, 7]));
-    assert.equal(both.eligibleRevenue, 600000);
-    assert.equal(both.tierRate, 43);
-    assert.deepEqual(both.selected.map(x => x.id).sort(), [5, 6]);
-    const none = model.shareSelection(shifts, "2026-10", new Set());
-    assert.equal(none.eligibleRevenue, null);
-    assert.equal(none.tierRate, null);
+test("month list and shift snapshots use API business dates and deduplicate open shifts", () => {
     assert.deepEqual(model.shareMonths(shifts), ["2026-11", "2026-10"]);
-});
-
-test("deduplicate shift snapshot and avoid invented pay for open or missing data", () => {
     const unique = model.distinctShareShifts([
         shifts[0], { ...shifts[0], status: "open", paid_total: 310000 }, shifts[1],
     ]);
     assert.equal(unique.length, 2);
     assert.equal(unique.find(x => x.id === 5).paid_total, 310000);
-    const provisional = model.shareSelection(unique, "2026-10", new Set([5]));
-    assert.equal(provisional.selectedOpen, 1);
-    const missing = model.shareSelection(
-        [{ ...shifts[0], paid_total: NaN }], "2026-10", new Set([5]),
-    );
-    assert.equal(missing.eligibleRevenue, null);
-    assert.equal(missing.tierRate, null);
-    assert.equal(model.shareSelection(shifts, "2026-10", new Set([5]), null).tierRate, null);
-});
-
-test("flat and marginal scenarios differ; unknown costs never default to zero", () => {
-    assert.equal(model.flatShareScenario(600000), 258000);
-    assert.equal(model.marginalShareScenario(600000), 241500);
-    assert.equal(model.netShareScenario(258000, model.blankShareCosts), null);
-    assert.equal(model.netShareScenario(258000, {
-        staffWages: "40000", drinkback: "5000", deductions: "10000", reimbursements: "2000",
-    }), 205000);
-    assert.equal(model.parseDraftYen(""), null);
-    assert.equal(model.parseDraftYen("-5"), null);
-    assert.equal(model.parseDraftYen("0"), 0);
 });
 
 test("new frontend TS/TSX parses without errors", () => {
