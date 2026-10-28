@@ -7,10 +7,11 @@ const admin = readFileSync(new URL("../src/pages/Admin.tsx", import.meta.url), "
 const reconciliation = readFileSync(new URL("../src/pages/Reconciliation.tsx", import.meta.url), "utf8");
 const csv = readFileSync(new URL("../src/pages/reconciliationCsv.ts", import.meta.url), "utf8");
 
-test("Reconciliation prototypes remain available for later phases but are not mounted in Phase 1", () => {
-    assert.doesNotMatch(admin, /from "\.\/Reconciliation"/);
-    assert.doesNotMatch(admin, /<Reconciliation/);
-    assert.doesNotMatch(admin, /section === "history"/);
+test("historical-hour reconciliation is reachable from the manager-only Admin area", () => {
+    assert.match(admin, /from "\.\/Reconciliation"/);
+    assert.match(admin, /<Reconciliation shifts=\{historicalShifts\} users=\{team\}/);
+    assert.match(admin, /me\?\.role !== "manager"/);
+    assert.match(admin, /id: "historicalHours"/);
 });
 
 test("Reconciliation prototypes and CSV helper parse as TypeScript", () => {
@@ -23,9 +24,12 @@ test("Reconciliation prototypes and CSV helper parse as TypeScript", () => {
     }
 });
 
-test("Future CSV/draft prototypes have no database write or API request side effects", () => {
+test("history preview remains read-only until a manager explicitly imports selected cells", () => {
     assert.match(reconciliation, /disabled title=/);
     assert.match(reconciliation, /importPreview\(/);
-    assert.doesNotMatch(reconciliation, /apiRequest\(|fetch\(|accountApi\.createUser\(/);
+    assert.match(reconciliation, /historicalHoursApi\.reconcile/);
+    assert.match(reconciliation, /historicalHoursApi\.import/);
+    assert.match(reconciliation, /window\.confirm\(confirmText\)/);
+    assert.match(reconciliation, /state === "new" && row\.user_id !== null/);
     assert.match(csv, /duplicate date/);
 });

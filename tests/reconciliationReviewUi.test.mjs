@@ -14,7 +14,11 @@ test("comparison JSON carries read-only provenance, not invented punches",()=>{
   assert.match(code,/source_line: imported\.line/);
   assert.match(code,/staff_hours_total: imported\.staffHours/);
   assert.match(code,/navigator\.clipboard\.writeText/);
-  assert.match(code,/Commit import — unavailable/);
+  assert.match(code,/Import selected missing hours/);
+  assert.match(code,/historicalHoursApi\.reconcile/);
+  assert.match(code,/historicalHoursApi\.import/);
+  assert.match(code,/source_column/);
+  assert.match(code,/No clock times will be created/);
 });
 test("reconciliation UI parses",()=>{
   const parsed=ts.createSourceFile("Reconciliation.tsx",code,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
