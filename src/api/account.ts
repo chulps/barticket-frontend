@@ -55,6 +55,26 @@ export type ShiftReport = {
     }[];
 };
 
+export type PersonalWorkHistory = {
+    user_id: number;
+    coverage: {
+        hours_source: "clock_punches_only";
+        historical_hours: "not_imported";
+        staff_drink_attribution: "verified_staff_id_only";
+        unattributed_staff_drinks: "excluded_pending_review";
+        compensation: "not_available";
+    };
+    shifts: {
+        shift_id: number;
+        business_date: string;
+        status: "open" | "closed";
+        hours_seconds: number | null;
+        hours_state: "recorded" | "in_progress" | "incomplete" | "unavailable";
+        clocked_in: boolean;
+        drinks: { name: string; quantity: number }[];
+    }[];
+};
+
 type Session = { token: string; user: Account };
 
 export const accountApi = {
@@ -106,6 +126,8 @@ export const accountApi = {
     removeUser: (userId: number) => apiRequest<Account[]>(`/users/${userId}`, { method: "DELETE" }),
 
     currentShift: () => apiRequest<ShiftReport | null>("/shifts/current"),
+
+    workHistory: () => apiRequest<PersonalWorkHistory>("/profile/work-history"),
 
     openShift: () => apiRequest<ShiftReport>("/shifts/open", { method: "POST" }),
 
