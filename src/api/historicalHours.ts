@@ -10,7 +10,7 @@ export type HistoricalHoursSourceRow = {
     uncertainty?: string | null;
 };
 
-export type HistoricalHoursSourceCell = { source_row: number; source_column: string };
+export type HistoricalHoursSourceCell = { source_row: number; source_column: string; correction_reason?: string };
 export type HistoricalHoursState = "match" | "new" | "conflict" | "duplicate_candidate" | "unmapped" | "already_imported" | "rejected";
 
 export type HistoricalHoursPreview = {
@@ -22,6 +22,7 @@ export type HistoricalHoursPreview = {
         source_seconds: number;
         clock_seconds: number | null;
         historical_seconds: number | null;
+        effective_seconds: number | null;
         state: HistoricalHoursState;
         reason: string;
     }>;
@@ -33,7 +34,7 @@ export const historicalHoursApi = {
             method: "POST", body: { source_file, rows },
         }),
     import: (source_file: string, rows: HistoricalHoursSourceRow[], approved_source_cells: HistoricalHoursSourceCell[]) =>
-        apiRequest<{ imported_count: number; already_imported_count: number; source_file: string; source_cells: HistoricalHoursSourceCell[] }>("/historical-hours/import", {
+        apiRequest<{ imported_count: number; corrected_count: number; already_imported_count: number; source_file: string; source_cells: HistoricalHoursSourceCell[] }>("/historical-hours/import", {
             method: "POST", body: { source_file, rows, approved_source_cells },
         }),
 };
