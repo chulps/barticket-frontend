@@ -10,12 +10,12 @@ const transpiled = ts.transpileModule(policy, {
 }).outputText;
 const { confirmAccountRole } = await import("data:text/javascript," + encodeURIComponent(transpiled));
 
-test("Admin renders Overview, Accounts, Team, and the implemented historical-hours flow", () => {
+test("Admin renders Overview, Accounts, Team, historical hours, and spreadsheet schedules", () => {
     assert.match(admin, /import TabGroup from "\.\.\/components\/TabGroup"/);
     assert.match(admin, /<TabGroup\b/);
     assert.match(admin, /activeTab=\{activeSection\}/);
     assert.match(admin, /onChange=\{chooseSection\}/);
-    for (const section of ["overview", "accounts", "team"]) {
+    for (const section of ["overview", "accounts", "team", "schedules"]) {
         assert.match(admin, new RegExp(`\\{ id: "${section}", label:`));
     }
     assert.match(admin, /\{ id: "historicalHours", label:/);
@@ -24,6 +24,7 @@ test("Admin renders Overview, Accounts, Team, and the implemented historical-hou
     }
     assert.match(admin, /accountApi\.closedShifts\(/);
     assert.doesNotMatch(admin, /accountApi\.currentShift\(/);
+    assert.match(admin, /<ScheduleImport users=\{team\} locale=\{locale\} \/>/);
 });
 
 test("Account creation and deletion still use existing manager-only APIs", () => {

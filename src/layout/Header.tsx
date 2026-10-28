@@ -291,6 +291,10 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           {({ isActive }) => <><Icon name="HandCoins" weight={isActive ? "fill" : "regular"} />{locale === "ja" ? "未払い伝票" : "Unpaid tickets"}</>}
         </SecondaryNavLink>
 
+        <SecondaryNavLink onClick={() => setIsOpen(false)} to="/schedules">
+          {({ isActive }) => <><Icon name="CalendarBlank" weight={isActive ? "fill" : "regular"} />{locale === "ja" ? "シフト予定" : "Schedule"}</>}
+        </SecondaryNavLink>
+
         {isManager ? (
           <SecondaryNavLink onClick={() => setIsOpen(false)} to="/admin">
             {({ isActive }) => (
@@ -357,6 +361,9 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
               ) : null}
               <MoreLink to="/analytics" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
                 <Icon name="ChartDonut" />{t("analytics")}
+              </MoreLink>
+              <MoreLink to="/schedules" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+                <Icon name="CalendarBlank" />{locale === "ja" ? "シフト予定" : "Schedule"}
               </MoreLink>
             </MoreDropdown>
           ) : null}
