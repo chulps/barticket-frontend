@@ -37,7 +37,7 @@ const menu = {
 async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
   const state = { tickets:[ticket()], requests:[], paymentPosts:0,
     newTicketPosts:0, delayTicketCreate:false, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
-    analyticsReads:0, delayAnalyticsReads:false, analyticsShifts:[],
+    analyticsReads:0, delayAnalyticsReads:false, analyticsShifts:[], failShiftLookup:false,
     activeMenu:structuredClone(menu), archivedItems:[], editedMenuItems:0, archivedChanges:0 };
   await page.addInitScript(({authenticated, locale}) => {
     if(authenticated) localStorage.setItem("barticket_token","NON_PRODUCTION_BROWSER_TEST_TOKEN");
@@ -72,7 +72,10 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
       response=authenticated ? account : {detail:"Unauthorized"};
     } else if(key==="POST /auth/login") {
       status=401; response={detail:"Invalid test login"};
-    } else if(key==="GET /shifts/current") response=shift();
+    } else if(key==="GET /shifts/current") {
+      if(state.failShiftLookup){status=503;response={detail:"Simulated unavailable shift status"};}
+      else response=shift();
+    }
     else if(key==="GET /menu") response=state.activeMenu;
     else if(key==="GET /menu/archived") {
       status=authenticated ? 200 : 401;
@@ -138,7 +141,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
           else{
             const data=json(), menuItem=menu.items.find(i=>i.id===data.menu_item_id);
             const quantity=data.quantity ?? 1, price=menuItem?.prices?.standard ?? 0;
-            found.items.push(item(30+state.itemPosts,menuItem?.name ?? "Unknown",price,quantity));
+            found.items.push(item(100+state.itemPosts,menuItem?.name ?? "Unknown",price,quantity));
             found.total+=quantity*price;response=found;
           }
         } else if(method==="PATCH" && m[2]==="cover"){
@@ -547,4 +550,49 @@ test("Analytics renders a repeatable 100-shift, 1000-ticket fixture responsively
   console.log(`Analytics fixture baseline: ${state.analyticsShifts.length} shifts, ${state.tickets.length} tickets; navigation ${navigationMs}ms; all-time render ${allTimeRenderMs}ms`);
   expect(navigationMs).toBeLessThan(10_000);
   expect(allTimeRenderMs).toBeLessThan(10_000);
+});
+
+test("My Time Clock renders the server punch at phone width without writing on page load",async ({page})=>{
+  const state=await mockedPOS(page);
+  await page.setViewportSize({width:390,height:844});
+  await page.goto("/profile");
+
+  const clock=page.getByRole("region",{name:"My time clock"});
+  await expect(clock.getByRole("heading",{name:"My Time Clock"})).toBeVisible();
+  await expect(clock).toContainText("Clocked in");
+  await expect(clock).toContainText("Business date");
+  await expect(clock).toContainText("Clocked in at");
+  await expect(clock).toContainText("Recorded time");
+  const clockOut=clock.getByRole("button",{name:"Clock Out"});
+  await expect(clockOut).toBeEnabled();
+  await expect(clockOut).toHaveCSS("min-height","44px");
+  expect(state.requests).toContain("GET /shifts/current");
+  expect(state.requests.filter(key=>/^POST \/shifts\/(clock-in|clock-out)$/.test(key))).toEqual([]);
+  expect(await clock.evaluate(element=>element.getBoundingClientRect().right<=window.innerWidth)).toBe(true);
+});
+
+test("clock controls stay unavailable when the current shift cannot be verified",async ({page})=>{
+  const state=await mockedPOS(page);
+  state.failShiftLookup=true;
+  await page.setViewportSize({width:390,height:844});
+  await page.goto("/profile");
+
+  const clock=page.getByRole("region",{name:"My time clock"});
+  await expect(clock.getByRole("heading",{name:"My Time Clock"})).toBeVisible();
+  await expect.poll(()=>state.requests.filter(key=>key==="GET /shifts/current").length).toBeGreaterThan(0);
+  await expect(clock.getByRole("button",{name:/Clock In|Clock Out/})).toHaveCount(0);
+  expect(state.requests.filter(key=>/^POST \/shifts\/(clock-in|clock-out)$/.test(key))).toEqual([]);
+});
+
+test("Japanese My Time Clock remains readable and tappable at phone width",async ({page})=>{
+  await mockedPOS(page,{locale:"ja"});
+  await page.setViewportSize({width:390,height:844});
+  await page.goto("/profile");
+
+  const clock=page.getByRole("region",{name:"自分のタイムカード"});
+  await expect(clock.getByRole("heading",{name:"自分のタイムカード"})).toBeVisible();
+  await expect(clock).toContainText("勤務中");
+  const clockOut=clock.getByRole("button",{name:"退勤"});
+  await expect(clockOut).toBeVisible();
+  await expect(clockOut).toHaveCSS("min-height","44px");
 });
