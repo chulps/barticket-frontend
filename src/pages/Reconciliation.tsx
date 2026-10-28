@@ -41,6 +41,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
     const [historyPreview, setHistoryPreview] = useState<HistoricalHoursPreview | null>(null);
     const [historyBatch, setHistoryBatch] = useState<{ sourceFile: string; rows: HistoricalHoursSourceRow[] } | null>(null);
     const [selectedHistoryCells, setSelectedHistoryCells] = useState<string[]>([]);
+    const [historyCorrectionReason, setHistoryCorrectionReason] = useState("");
     const [historyBusy, setHistoryBusy] = useState(false);
     const [previewFilter, setPreviewFilter] = useState<"all" | "new" | "conflict" | "match">("all");
     const [reportNotice, setReportNotice] = useState("");
@@ -98,6 +99,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
             setHistoryPreview(null);
             setHistoryBatch(null);
             setSelectedHistoryCells([]);
+            setHistoryCorrectionReason("");
             setHistoryError("");
         };
         window.addEventListener("barticket-auth", clearOnAuthChange);
@@ -187,6 +189,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
         setHistoryPreview(null);
         setHistoryBatch(null);
         setSelectedHistoryCells([]);
+        setHistoryCorrectionReason("");
         try {
             const batch = buildHistoricalHoursBatch(csv, mapping, includeHours, users, csvFileName);
             const result = await historicalHoursApi.reconcile(batch.sourceFile, batch.rows);
@@ -202,16 +205,26 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
     async function importHistory() {
         if (!historyBatch || !historyPreview || !selectedHistoryCells.length || historyBusy) return;
         const selected = new Set(selectedHistoryCells);
-        const approved = historyPreview.rows
-            .filter(row => row.state === "new" && row.user_id !== null && selected.has(historyCellKey(row.source_row, row.source_column)))
-            .map(row => ({ source_row: row.source_row, source_column: row.source_column }));
+        const selectedRows = historyPreview.rows.filter(row =>
+            (row.state === "new" || row.state === "conflict") && row.user_id !== null && selected.has(historyCellKey(row.source_row, row.source_column))
+        );
+        const hasConflicts = selectedRows.some(row => row.state === "conflict");
+        if (hasConflicts && !historyCorrectionReason.trim()) {
+            setHistoryError(ja ? "差異を修正する理由を入力してください。" : "Enter a reason for correcting the conflicting totals.");
+            return;
+        }
+        const approved = selectedRows.map(row => ({
+            source_row: row.source_row,
+            source_column: row.source_column,
+            ...(row.state === "conflict" ? { correction_reason: historyCorrectionReason.trim() } : {}),
+        }));
         if (!approved.length) return;
         const hoursTotal = historyPreview.rows
             .filter(row => approved.some(cell => cell.source_row === row.source_row && cell.source_column === row.source_column))
             .reduce((sum, row) => sum + row.source_seconds / 3600, 0);
         const confirmText = ja
             ? `${approved.length}件、合計${hoursTotal}時間を履歴として取り込みます。打刻時刻は作成しません。続けますか？`
-            : `Import ${approved.length} verified missing staff-hour entries (${hoursTotal} total hours)? No clock times will be created.`;
+            : `Save ${approved.length} spreadsheet hour entries (${hoursTotal} total hours), including ${selectedRows.filter(row => row.state === "conflict").length} audited corrections? Existing clock times will remain unchanged.`;
         if (!window.confirm(confirmText)) return;
         setHistoryBusy(true);
         setHistoryError("");
@@ -220,6 +233,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
             const refreshed = await historicalHoursApi.reconcile(historyBatch.sourceFile, historyBatch.rows);
             setHistoryPreview(refreshed);
             setSelectedHistoryCells([]);
+            setHistoryCorrectionReason("");
         } catch (e) {
             setHistoryError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -239,8 +253,8 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
         <h2>{ja ? "データ照合と編集" : "Data reconciliation & editing"}</h2>
         <Notice role="status"><strong>{ja ? "プレビュー・編集中（未保存）" : "Preview / draft mode — NOT SAVED"}</strong>
             {restoredFromMemory ? <p>{ja ? "このタブの一時メモリから未保存の下書きを復元しました。再読み込みすると消えます。" : "Restored a temporary working copy from this tab's memory. Refreshing the page may erase it."}</p> : null}
-            <p>{ja ? "シフト編集案は未保存です。履歴勤務時間は照合結果を確認し、マネージャーが明示的に承認した不足分のみ保存されます。" :
-                "Shift edits remain drafts. Historical hours are saved only after a manager reviews the comparison and explicitly approves missing entries."}</p>
+            <p>{ja ? "シフト編集案は未保存です。履歴勤務時間はマネージャーが照合を確認し、不足分または理由付きの差異修正を承認した場合に保存されます。" :
+                "Shift edits remain drafts. Historical hours are saved after a manager approves missing entries or audited corrections to conflicting totals."}</p>
         </Notice>
         {error ? <p role="alert">{error}</p> : null}
         <Block>
@@ -386,15 +400,15 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
             </> : null}
             <Block>
                 <h4>{ja ? "履歴勤務時間の照合" : "Historical staff-hours reconciliation"}</h4>
-                <p>{ja ? "9月2026年から1か月ずつ確認します。実際の打刻時刻は作成せず、既存の打刻と一致しない値は取り込みません。" : "Review one month at a time, starting with September 2026. No clock times are created, and conflicts with recorded punches are not imported."}</p>
+                <p>{ja ? "2026年10月から1か月ずつ確認します。実際の打刻時刻は作成せず、差異修正は理由とともに監査記録へ保存します。" : "Review one month at a time, starting with October 2026. No clock times are created; corrections to conflicting totals are audited with a reason."}</p>
                 <Actions>
                     <button type="button" className="secondary" disabled={!csv || historyBusy} onClick={() => void reconcileHistory()}>
                         {historyBusy ? (ja ? "処理中…" : "Working…") : (ja ? "勤務時間を照合" : "Reconcile staff hours")}
                     </button>
-                    {historyPreview?.rows.some(row => row.state === "new" && row.user_id !== null) ? <button type="button" className="hollow secondary" disabled={historyBusy} onClick={() => {
-                        setSelectedHistoryCells(historyPreview.rows.filter(row => row.state === "new" && row.user_id !== null)
+                    {historyPreview?.rows.some(row => (row.state === "new" || row.state === "conflict") && row.user_id !== null) ? <button type="button" className="hollow secondary" disabled={historyBusy} onClick={() => {
+                        setSelectedHistoryCells(historyPreview.rows.filter(row => (row.state === "new" || row.state === "conflict") && row.user_id !== null)
                             .map(row => historyCellKey(row.source_row, row.source_column)));
-                    }}>{ja ? "不足分をすべて選択" : "Select all missing rows"}</button> : null}
+                    }}>{ja ? "不足分と差異をすべて選択" : "Select all missing rows and conflicts"}</button> : null}
                 </Actions>
                 {historyError ? <p role="alert">{historyError}</p> : null}
                 {historyPreview ? <>
@@ -402,10 +416,10 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                     <TableWrap><table><thead><tr><th>{ja ? "取り込み" : "Import"}</th><th>{text.date}</th><th>{ja ? "スタッフ" : "Staff"}</th><th>{text.hours}</th><th>{ja ? "比較" : "Result"}</th></tr></thead>
                         <tbody>{historyPreview.rows.map(row => {
                             const cellKey = historyCellKey(row.source_row, row.source_column);
-                            const canImport = row.state === "new" && row.user_id !== null;
+                            const canImport = (row.state === "new" || row.state === "conflict") && row.user_id !== null;
                             const statusLabel = row.state === "new" ? (ja ? "不足" : "Missing")
                                 : row.state === "match" ? (ja ? "一致" : "Match")
-                                    : row.state === "conflict" ? (ja ? "差異" : "Conflict")
+                                        : row.state === "conflict" ? (ja ? "差異・要理由" : "Conflict — reason required")
                                         : row.state === "unmapped" ? (ja ? "未対応名" : "Unmapped")
                                             : row.state === "duplicate_candidate" ? (ja ? "重複候補" : "Duplicate")
                                                 : row.state === "already_imported" ? (ja ? "取り込み済み" : "Imported")
@@ -421,10 +435,16 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                             </tr>;
                         })}</tbody></table></TableWrap>
                     <Actions>
+                        {selectedHistoryCells.some(key => historyPreview.rows.some(row => row.state === "conflict" && row.user_id !== null && historyCellKey(row.source_row, row.source_column) === key)) ? <label>
+                            {ja ? "差異の修正理由（監査記録）" : "Reason for correcting spreadsheet conflicts (audited)"}
+                            <input value={historyCorrectionReason} maxLength={1000}
+                                onChange={event => setHistoryCorrectionReason(event.target.value)}
+                                placeholder={ja ? "例：2026年10月の確認済み勤務表に合わせて修正" : "e.g. Corrected to match the verified October 2026 staff-hours sheet"} />
+                        </label> : null}
                         <button type="button" disabled={!selectedHistoryCells.length || historyBusy} onClick={() => void importHistory()}>
-                            {ja ? `選択した不足分を取り込む (${selectedHistoryCells.length})` : `Import selected missing hours (${selectedHistoryCells.length})`}
+                            {ja ? `選択した勤務時間を保存 (${selectedHistoryCells.length})` : `Save selected spreadsheet hours (${selectedHistoryCells.length})`}
                         </button>
-                        <p>{ja ? "確認後も、現在の打刻または既存履歴と競合するデータはAPI側で拒否されます。" : "The API rechecks the rows at import time and refuses conflicts with existing punches or history."}</p>
+                        <p>{ja ? "差異の修正は理由とともに監査記録へ保存され、元の打刻時刻は変更されません。" : "Corrections are audited with your reason. Original clock timestamps are preserved."}</p>
                     </Actions>
                 </> : null}
             </Block>
