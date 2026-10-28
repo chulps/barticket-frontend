@@ -141,7 +141,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
           else{
             const data=json(), menuItem=menu.items.find(i=>i.id===data.menu_item_id);
             const quantity=data.quantity ?? 1, price=menuItem?.prices?.standard ?? 0;
-            found.items.push(item(30+state.itemPosts,menuItem?.name ?? "Unknown",price,quantity));
+            found.items.push(item(100+state.itemPosts,menuItem?.name ?? "Unknown",price,quantity));
             found.total+=quantity*price;response=found;
           }
         } else if(method==="PATCH" && m[2]==="cover"){
