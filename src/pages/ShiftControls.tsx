@@ -292,7 +292,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
             </button> : null}
         </section>
 
-        {account.role === "manager" ? <section className="shift-section" aria-label={ja ? "店舗の営業状態" : "Venue business status"}>
+        {account.role === "manager" ? <section className="shift-section" aria-label={ja ? "店舗の営業状態" : "Venue Status"}>
             <h2>{ja ? "店舗の営業状態" : "Venue Status"}</h2>
             <p>{ja ? "店舗の休業状態はシフトと別に記録します。休業中もスタッフは出退勤できます。" : "Venue closure is recorded separately from the staff shift. Staff can still clock in and out while the venue is closed."}</p>
             {venueStatus?.business_date === today ? <>
