@@ -637,7 +637,7 @@ test("schedule page separates assigned people from actual work records and prese
   await expect(page.getByText("Maintenance").first()).toBeVisible();
   await expect(page.getByText("November 2026 Daily Reports.csv · row 5").first()).toBeVisible();
   await expect(page.getByText("Unknown · not imported").first()).toBeVisible();
-  await expect(page.getByText("Schedules never create worked time.")).toHaveCount(0);
+  await expect(page.getByText("Schedules never create worked time.")).toHaveCount(1);
   expect(state.requests.filter(key=>key.startsWith("GET /schedules"))).toHaveLength(1);
 });
 
