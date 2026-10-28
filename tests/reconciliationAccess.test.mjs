@@ -30,6 +30,6 @@ test("history preview remains read-only until a manager explicitly imports selec
     assert.match(reconciliation, /historicalHoursApi\.reconcile/);
     assert.match(reconciliation, /historicalHoursApi\.import/);
     assert.match(reconciliation, /window\.confirm\(confirmText\)/);
-    assert.match(reconciliation, /state === "new" && row\.user_id !== null/);
+    assert.match(reconciliation, /row\.state === "new" \|\| row\.state === "conflict"/);
     assert.match(csv, /duplicate date/);
 });
