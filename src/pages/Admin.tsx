@@ -3,7 +3,7 @@ import { Navigate, useMatch, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
 
-import { accountApi, type Account } from "../api/account";
+import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
 import TabGroup from "../components/TabGroup";
 import { useI18n } from "../i18n";
@@ -11,6 +11,7 @@ import { confirmAccountRole } from "./adminAccountRole";
 import AdminTeam from "./AdminTeam";
 import DataDownload from "../components/DataDownload";
 import AdminAuditHistory from "./AdminAuditHistory";
+import Reconciliation from "./Reconciliation";
 
 /**
  * Manager-only dashboard: Phase 1 accounts plus frontend-only Team editor previews.
@@ -25,12 +26,15 @@ export default function Admin() {
     const auditRoute = useMatch("/admin/staff/:staffId/audit");
     const [me, setMe] = useState<Account | null>(null);
     const [team, setTeam] = useState<Account[]>([]);
+    const [historicalShifts, setHistoricalShifts] = useState<ShiftReport[]>([]);
+    const [historicalLoading, setHistoricalLoading] = useState(false);
+    const [historicalError, setHistoricalError] = useState("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [accountsError, setAccountsError] = useState("");
     const [accountsLoading, setAccountsLoading] = useState(false);
     const [busy, setBusy] = useState(false);
-    const [section, setSection] = useState<"overview" | "accounts" | "team">(
+    const [section, setSection] = useState<"overview" | "accounts" | "team" | "historicalHours">(
         () => staffId === undefined ? "overview" : "team",
     );
     const activeSection = staffId === undefined ? section : "team";
@@ -38,9 +42,28 @@ export default function Admin() {
         : /^[1-9][0-9]*$/.test(staffId) && Number.isSafeInteger(Number(staffId))
             ? Number(staffId) : -1;
 
-    function chooseSection(next: "overview" | "accounts" | "team") {
+    function chooseSection(next: "overview" | "accounts" | "team" | "historicalHours") {
         setSection(next);
         if (staffId !== undefined) navigate("/admin");
+        if (next === "historicalHours") void loadHistoricalShifts();
+    }
+
+    async function loadHistoricalShifts() {
+        if (historicalLoading || me?.role !== "manager") return;
+        const token = getToken();
+        if (!token) return;
+        setHistoricalLoading(true);
+        setHistoricalError("");
+        try {
+            setHistoricalShifts(await accountApi.closedShifts());
+        } catch (err) {
+            if (getToken() === token) {
+                setHistoricalShifts([]);
+                setHistoricalError(err instanceof ApiError ? err.message : String(err));
+            }
+        } finally {
+            if (getToken() === token) setHistoricalLoading(false);
+        }
     }
 
     function chooseMember(id: number | null) {
@@ -180,6 +203,7 @@ export default function Admin() {
                     { id: "overview", label: locale === "ja" ? "概要" : "Overview" },
                     { id: "accounts", label: locale === "ja" ? "アカウント" : "Accounts" },
                     { id: "team", label: locale === "ja" ? "チーム" : "Team" },
+                    { id: "historicalHours", label: locale === "ja" ? "履歴勤務時間" : "Historical hours" },
                 ]}
                 activeTab={activeSection}
                 onChange={chooseSection}
@@ -269,6 +293,16 @@ export default function Admin() {
                         </form>
                     </Section>
                 </Grid>
+            ) : activeSection === "historicalHours" ? (
+                <>
+                    <Section>
+                        <h2>{locale === "ja" ? "履歴勤務時間" : "Historical staff hours"}</h2>
+                        <p>{locale === "ja" ? "月ごとの勤務合計を既存の打刻と照合します。履歴データは打刻時刻として保存されません。" : "Reconcile monthly staff-hour totals against recorded punches. Historical totals are never stored as clock times."}</p>
+                    </Section>
+                    {historicalLoading ? <RequestState kind="loading" detail={t("loading")} /> : (
+                        <Reconciliation shifts={historicalShifts} users={team} locale={locale} error={historicalError} />
+                    )}
+                </>
             ) : (
                 <AdminTeam
                     viewer={me}

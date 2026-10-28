@@ -10,7 +10,7 @@ const transpiled = ts.transpileModule(policy, {
 }).outputText;
 const { confirmAccountRole } = await import("data:text/javascript," + encodeURIComponent(transpiled));
 
-test("Admin renders Overview, Accounts and frontend-only Team, not unfinished phase tabs", () => {
+test("Admin renders Overview, Accounts, Team, and the implemented historical-hours flow", () => {
     assert.match(admin, /import TabGroup from "\.\.\/components\/TabGroup"/);
     assert.match(admin, /<TabGroup\b/);
     assert.match(admin, /activeTab=\{activeSection\}/);
@@ -18,10 +18,11 @@ test("Admin renders Overview, Accounts and frontend-only Team, not unfinished ph
     for (const section of ["overview", "accounts", "team"]) {
         assert.match(admin, new RegExp(`\\{ id: "${section}", label:`));
     }
-    for (const later of ["shifts", "history", "payroll", "settings"]) {
+    assert.match(admin, /\{ id: "historicalHours", label:/);
+    for (const later of ["shifts", "payroll", "settings"]) {
         assert.doesNotMatch(admin, new RegExp(`section === "${later}"`));
     }
-    assert.doesNotMatch(admin, /accountApi\.closedShifts\(/);
+    assert.match(admin, /accountApi\.closedShifts\(/);
     assert.doesNotMatch(admin, /accountApi\.currentShift\(/);
 });
 
