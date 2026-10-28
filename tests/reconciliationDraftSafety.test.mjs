@@ -26,12 +26,14 @@ test("dirty shift draft and close can be cancelled or confirmed", () => {
   assert.match(page, /if \(confirmDiscard\(changed\)\)/);
 });
 
-test("CSV headers map deterministically after successful replacement", () => {
-  const fields = defaultCsvMapping(["Shift Date", "Revenue", "Guests", "Manager", "Staff Hours"]);
+test("CSV headers map the source date, employee, and total-hours columns", () => {
+  const fields = defaultCsvMapping(["DATE", "Revenue", "Guests", "Manager", "Staff", "Event", "Staff Hours"]);
   assert.equal(fields.revenue, "Revenue");
   assert.equal(fields.guests, "Guests");
   assert.equal(fields.manager, "Manager");
-  assert.equal(fields.date, undefined);
+  assert.equal(fields.date, "DATE");
+  assert.equal(fields.staff, "Staff");
+  assert.equal(fields.hours, "Staff Hours");
 });
 
 test("malformed or oversized replacement does not wipe prior preview", () => {

@@ -46,11 +46,13 @@ export function importPreview(data: CsvData, mapping: Record<string, string>, sh
     if (keys.some(key => !data.headers.includes(mapping[key]))) return { preview, errors: ["Map Date, Manager, Revenue and Guests before previewing."] };
     data.rows.forEach((row, i) => {
         const date = cell(row, "date");
+        const event = cell(row, "event");
+        const venueClosed = event.trim().toLowerCase() === "closed";
         const revenueText = cell(row, "revenue").replace(/[¥,\s]/g, "");
         const guestsText = cell(row, "guests").replace(/[,\s]/g, "");
         const revenue = Number(revenueText), guests = Number(guestsText);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date ||
-            !cell(row, "manager") || !revenueText || !guestsText || !Number.isInteger(revenue) || revenue < 0 || !Number.isInteger(guests) || guests < 0) {
+            !cell(row, "manager") || (!revenueText && !venueClosed) || (!guestsText && !venueClosed) || !Number.isInteger(revenue) || revenue < 0 || !Number.isInteger(guests) || guests < 0) {
             errors.push("Row " + (i + 2) + ": invalid date, manager, revenue or guests."); return;
         }
         if (seen.has(date)) { errors.push("Row " + (i + 2) + ": duplicate date " + date); return; }
@@ -64,14 +66,12 @@ export function importPreview(data: CsvData, mapping: Record<string, string>, sh
             if (!Number.isFinite(hours) || hours < 0 || hours > 24) { errors.push("Row " + (i + 2) + ": invalid hours for " + key.slice(6)); return; }
             staffHours[key.slice(6)] = hours;
         }
-        const imported: ImportRow = { date, manager: cell(row, "manager"), revenue, guests, event: cell(row, "event"), staffHours, line: i + 2 };
+        const imported: ImportRow = { date, manager: cell(row, "manager"), revenue, guests, event, staffHours, line: i + 2 };
         const existing = byDate.get(date) ?? null;
         const differences = existing ? [
             ...(existing.opened_by !== imported.manager ? ["manager"] : []),
             ...(existing.paid_total !== imported.revenue ? ["revenue"] : []),
-            ...(existing.guest_count !== imported.guests ? ["guests"] : []),
-            ...(imported.event ? ["event (not stored in current API)"] : []),
-            ...(Object.keys(staffHours).length ? ["staff hours (not comparable to imported totals)"] : [])
+            ...(existing.guest_count !== imported.guests ? ["guests"] : [])
         ] : [];
         preview.push({ imported, existing, state: !existing ? "new" : differences.length ? "conflict" : "match", differences });
     });

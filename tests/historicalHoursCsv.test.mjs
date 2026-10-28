@@ -15,33 +15,37 @@ const users = [
     { id: 2, name: "Kanata", role: "staff" },
 ];
 
-test("maps staff columns to source cells and keeps explicit zero-hour rows", () => {
+test("maps original sheet rows to staff and skips blank scheduled-hour cells", () => {
     const result = buildHistoricalHoursBatch(
-        { headers: ["date", "Haruka total", "Kanata total"], rows: [["2026-09-05", "5.5", "0"]] },
-        { date: "date", "hours:Haruka": "Haruka total", "hours:Kanata": "Kanata total" },
-        ["Haruka", "Kanata"], users, "hours.csv",
+        { headers: ["DATE", "Staff", "Staff Hours"], rows: [
+            ["2026-10-02", "Haruka", "5.5"],
+            ["2026-10-03", "Haruka", ""],
+            ["2026-10-26", "Haruka", "2.5"],
+            ["2026-10-29", "Haruka", ""],
+        ] },
+        { date: "DATE", staff: "Staff", hours: "Staff Hours" },
+        users, "October 2026 Daily Reports.csv",
     );
-    assert.equal(result.sourceFile, "hours.csv (2026-09)");
+    assert.equal(result.sourceFile, "October 2026 Daily Reports.csv (2026-10)");
     assert.deepEqual(result.rows.map(row => [row.user_id, row.hours, row.source_row, row.source_column]), [
-        [1, 5.5, 2, "Haruka total"],
-        [2, 0, 2, "Kanata total"],
+        [1, 5.5, 2, "Staff Hours"],
+        [1, 2.5, 4, "Staff Hours"],
     ]);
 });
 
-test("leaves guest identities unmapped and rejects mixed months or invalid hours", () => {
-    const guest = buildHistoricalHoursBatch(
-        { headers: ["date", "Guest"], rows: [["2026-09-05", "4"]] },
-        { date: "date", "hours:Guest bartender": "Guest" },
-        ["Guest bartender"], users, "hours.csv",
+test("leaves unknown names unmapped and rejects mixed months or invalid hours", () => {
+    const unknown = buildHistoricalHoursBatch(
+        { headers: ["DATE", "Staff", "Staff Hours"], rows: [["2026-09-05", "Guest bartender", "4"]] },
+        { date: "DATE", staff: "Staff", hours: "Staff Hours" }, users, "hours.csv",
     );
-    assert.equal(guest.rows[0].user_id, null);
+    assert.equal(unknown.rows[0].user_id, null);
     assert.throws(() => buildHistoricalHoursBatch(
-        { headers: ["date", "Haruka"], rows: [["2026-09-05", "4"], ["2026-10-01", "3"]] },
-        { date: "date", "hours:Haruka": "Haruka" }, ["Haruka"], users, "hours.csv",
+        { headers: ["DATE", "Staff", "Staff Hours"], rows: [["2026-09-05", "Haruka", "4"], ["2026-10-01", "Haruka", "3"]] },
+        { date: "DATE", staff: "Staff", hours: "Staff Hours" }, users, "hours.csv",
     ), /one source month/);
     assert.throws(() => buildHistoricalHoursBatch(
-        { headers: ["date", "Haruka"], rows: [["2026-09-05", "25"]] },
-        { date: "date", "hours:Haruka": "Haruka" }, ["Haruka"], users, "hours.csv",
+        { headers: ["DATE", "Staff", "Staff Hours"], rows: [["2026-09-05", "Haruka", "25"]] },
+        { date: "DATE", staff: "Staff", hours: "Staff Hours" }, users, "hours.csv",
     ), /between 0 and 24/);
 });
 
