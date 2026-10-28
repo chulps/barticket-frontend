@@ -32,12 +32,12 @@ export type DrillDownSource = "all" | "year" | "month";
 export type DrillDownTarget =
     | { range: "year"; key: string }
     | { range: "month"; key: string }
-    | { range: "day"; key: string; shiftId: number };
+    | { range: "day"; key: string; shiftId: number | null };
 
 export function analyticsDrillDownTarget(
     source: DrillDownSource,
     barId: string,
-    shifts: readonly { id: number; business_date: string }[],
+    shifts: readonly { id: number | null; business_date: string }[],
 ): DrillDownTarget | null {
     if (source === "all") {
         return /^\d{4}$/.test(barId) ? { range: "year", key: barId } : null;
@@ -45,6 +45,6 @@ export function analyticsDrillDownTarget(
     if (source === "year") {
         return /^\d{4}-(0[1-9]|1[0-2])$/.test(barId) ? { range: "month", key: barId } : null;
     }
-    const shift = shifts.find((entry) => String(entry.id) === barId);
+    const shift = shifts.find((entry) => String(entry.id ?? entry.business_date) === barId);
     return shift ? { range: "day", key: shift.business_date, shiftId: shift.id } : null;
 }

@@ -7,7 +7,7 @@ const helpers = readFileSync(new URL("../src/pages/analyticsNavigation.ts", impo
 const { outputText } = ts.transpileModule(helpers, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 });
-const { shiftYear, shiftMonth, shiftDay } = await import("data:text/javascript," + encodeURIComponent(outputText));
+const { shiftYear, shiftMonth, shiftDay, analyticsDrillDownTarget } = await import("data:text/javascript," + encodeURIComponent(outputText));
 
 test("Year arrows move exactly one calendar year in either direction", () => {
     assert.equal(shiftYear("2026", -1), "2025");
@@ -45,6 +45,16 @@ test("Day navigation does not skip missing shift dates", () => {
     assert.equal(next, "2026-09-16");
     assert.equal(recordedNights.has(next), false);
     assert.equal(shiftDay(next, 1), "2026-09-17");
+});
+
+test("daily chart can drill into a closure-only business date without a shift ID", () => {
+    const rows = [
+        { id: 12, business_date: "2026-10-04" },
+        { id: null, business_date: "2026-10-05" },
+    ];
+    assert.deepEqual(analyticsDrillDownTarget("month", "2026-10-05", rows), {
+        range: "day", key: "2026-10-05", shiftId: null,
+    });
 });
 
 test("Analytics buttons use the appropriate unit, update selected date, and keep All Time unchanged", () => {

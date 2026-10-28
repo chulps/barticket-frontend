@@ -108,7 +108,7 @@ test("Analytics renders the occupancy chart only for the Daily selection", () =>
     const syntax = ts.createSourceFile("Analytics.tsx", analytics, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     assert.equal(syntax.parseDiagnostics.length, 0);
     assert.match(analytics, /range === "day" && selected\?\.status === "open"[\s\S]*?<GuestOccupancyChart/);
-    assert.match(analytics, /\{range === "day" && selected \? \([\s\S]*?<GuestOccupancyChart/);
+    assert.match(analytics, /\{range === "day" && selected && selected\.id !== null \? \([\s\S]*?<GuestOccupancyChart/);
 });
 
 

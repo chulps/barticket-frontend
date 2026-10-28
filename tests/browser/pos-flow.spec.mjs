@@ -38,6 +38,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
   const state = { tickets:[ticket()], requests:[], paymentPosts:0,
     newTicketPosts:0, delayTicketCreate:false, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
     analyticsReads:0, delayAnalyticsReads:false, analyticsShifts:[], failShiftLookup:false,
+    currentShift:shift(), venueStatus:{business_date:dayJst(),status:"open",event_value:null,updated_by:null,updated_at:null},
     activeMenu:structuredClone(menu), archivedItems:[], editedMenuItems:0, archivedChanges:0 };
   await page.addInitScript(({authenticated, locale}) => {
     if(authenticated) localStorage.setItem("barticket_token","NON_PRODUCTION_BROWSER_TEST_TOKEN");
@@ -58,7 +59,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
     if(method==="OPTIONS") {
       await route.fulfill({status:204,headers:{
         "Access-Control-Allow-Origin":"*",
-        "Access-Control-Allow-Methods":"GET,POST,PATCH,DELETE,OPTIONS",
+        "Access-Control-Allow-Methods":"GET,POST,PUT,PATCH,DELETE,OPTIONS",
         "Access-Control-Allow-Headers":"*",
       }});
       return;
@@ -74,7 +75,12 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
       status=401; response={detail:"Invalid test login"};
     } else if(key==="GET /shifts/current") {
       if(state.failShiftLookup){status=503;response={detail:"Simulated unavailable shift status"};}
-      else response=shift();
+      else response=state.currentShift;
+    }
+    else if(key==="GET /venue-status") response=state.venueStatus;
+    else if(key==="PUT /venue-status") {
+      state.venueStatus={...state.venueStatus,...json(),updated_by:account.name,updated_at:new Date().toISOString()};
+      response=state.venueStatus;
     }
     else if(key==="GET /menu") response=state.activeMenu;
     else if(key==="GET /menu/archived") {
@@ -192,7 +198,10 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
         }
       }
     }
-    if(response===null){status=404;response={detail:"Unmocked API endpoint: "+key};}
+    // `null` is the valid response for a day with no open shift.
+    if(response===null && !(key==="GET /shifts/current" && !state.failShiftLookup)){
+      status=404;response={detail:"Unmocked API endpoint: "+key};
+    }
     await route.fulfill({status,contentType:"application/json",headers:{"Access-Control-Allow-Origin":"*",
         "Access-Control-Allow-Methods":"GET,POST,PATCH,DELETE,OPTIONS",
         "Access-Control-Allow-Headers":"*"},
@@ -569,6 +578,42 @@ test("My Time Clock renders the server punch at phone width without writing on p
   expect(state.requests).toContain("GET /shifts/current");
   expect(state.requests.filter(key=>/^POST \/shifts\/(clock-in|clock-out)$/.test(key))).toEqual([]);
   expect(await clock.evaluate(element=>element.getBoundingClientRect().right<=window.innerWidth)).toBe(true);
+});
+
+test("manager can mark venue closed while time clock remains available and POS creation is blocked",async ({page})=>{
+  const state=await mockedPOS(page);
+  await page.goto("/profile");
+  const venue=page.getByRole("region",{name:"Venue Status"});
+  await expect(venue.getByText("Venue open")).toBeVisible();
+  await venue.getByLabel("Event / closure note (optional)").fill("Maintenance");
+  await venue.getByRole("button",{name:"Mark venue closed today"}).click();
+  await expect(venue.getByText("Venue closed")).toBeVisible();
+  await expect(page.getByRole("region",{name:"My time clock"}).getByRole("button",{name:"Clock Out"})).toBeEnabled();
+  expect(state.venueStatus).toMatchObject({status:"closed",event_value:"Maintenance"});
+
+  await page.goto("/");
+  await expect(page.getByText("The venue is closed today.")).toBeVisible();
+  await expect(page.getByRole("button",{name:/New Ticket/i})).toBeDisabled();
+  await expect(page.getByText("POS actions are unavailable while the venue is closed.")).toBeVisible();
+  expect(state.newTicketPosts).toBe(0);
+});
+
+test("closure-only analytics day has zero sales while preserving maintenance hours",async ({page})=>{
+  const state=await mockedPOS(page);
+  state.currentShift=null;
+  state.tickets=[];
+  state.analyticsShifts=[{
+    id:null,business_date:dayJst(),status:null,shift_status:null,venue_status:"closed",venue_event:"Maintenance",
+    opened_at:null,closed_at:null,opened_by:null,closed_by:null,
+    paid_total:0,cash_total:0,card_total:0,other_total:0,cover_total:0,
+    guest_count:0,paid_count:0,cancelled_count:0,staff_hours:[{user_id:7,name:"Test Bartender",seconds:7200}],
+    staff_drinks:[],stockouts:[],punches:[],
+  }];
+  await page.goto("/analytics");
+  await expect(page.getByText(/Venue status Maintenance/)).toBeVisible();
+  await expect(page.getByText("No shift recorded")).toBeVisible();
+  await expect(page.getByText("2h 0m").first()).toBeVisible();
+  await expect(page.getByText("¥0").first()).toBeVisible();
 });
 
 test("clock controls stay unavailable when the current shift cannot be verified",async ({page})=>{

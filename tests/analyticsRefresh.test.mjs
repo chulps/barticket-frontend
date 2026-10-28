@@ -54,5 +54,5 @@ test("Analytics memoizes expensive period and ticket aggregations", () => {
     const analytics = readFileSync(new URL("../src/pages/Analytics.tsx", import.meta.url), "utf8");
     assert.match(analytics, /createRefreshCoordinator\(loadLatest\)/);
     assert.match(analytics, /useMemo\(\(\) => summarize\(visible\), \[visible\]\)/);
-    assert.match(analytics, /topSellingItems\(tickets, new Set\(visible\.map/);
+    assert.match(analytics, /topSellingItems\(tickets, new Set\(visible\.flatMap/);
 });

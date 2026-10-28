@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { accountApi, type Account, type ShiftReport } from "../api/account";
+import { accountApi, type Account, type ShiftReport, type VenueStatus } from "../api/account";
 import { ApiError } from "../api/client";
 import { useModal } from "../hooks/useModal";
 import ShiftCloseReview from "./ShiftCloseReview";
@@ -29,12 +29,16 @@ export default function ShiftControls({ account, locale }: { account: Account; l
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
     const [closedSummary, setClosedSummary] = useState<ShiftReport | null>(null);
+    const [venueStatus, setVenueStatus] = useState<VenueStatus | null>(null);
+    const [venueEventDraft, setVenueEventDraft] = useState("");
+    const [venuePending, setVenuePending] = useState(false);
     const [reopenReason, setReopenReason] = useState("");
     const [reopenConfirmed, setReopenConfirmed] = useState(false);
     const [now, setNow] = useState(() => Date.now());
     const version = useRef(0);
     const mounted = useRef(true);
     const mutation = useRef(false);
+    const venueEventDirty = useRef(false);
     const roleCanManage = canManageShift(account.role);
     const today = businessDateJst(now);
     const shift = lookup.status === "ready" ? lookup.shift : null;
@@ -52,6 +56,15 @@ export default function ShiftControls({ account, locale }: { account: Account; l
     const refresh = useCallback(async () => {
         if (mutation.current) return;
         const request = ++version.current;
+        const businessDate = businessDateJst(Date.now());
+        try {
+            const venue = await accountApi.venueStatus(businessDate);
+            if (!mounted.current || request !== version.current || mutation.current) return;
+            setVenueStatus(venue);
+            if (!venueEventDirty.current) setVenueEventDraft(venue.event_value ?? "");
+        } catch {
+            if (mounted.current && request === version.current && !mutation.current) setVenueStatus(null);
+        }
         try {
             const current = await accountApi.currentShift();
             if (!mounted.current || request !== version.current || mutation.current) return;
@@ -100,6 +113,35 @@ export default function ShiftControls({ account, locale }: { account: Account; l
             }
         }
     }, [account.role]);
+
+    async function updateVenueStatus(status: "open" | "closed") {
+        if (account.role !== "manager" || venuePending || !venueStatus || venueStatus.business_date !== today) return;
+        setVenuePending(true);
+        setError("");
+        setNotice("");
+        try {
+            const updated = await accountApi.updateVenueStatus({
+                business_date: today,
+                status,
+                event_value: status === "closed" ? venueEventDraft.trim() || null : null,
+            });
+            if (!mounted.current) return;
+            setVenueStatus(updated);
+            setVenueEventDraft(updated.event_value ?? "");
+            venueEventDirty.current = false;
+            setNotice(status === "closed"
+                ? (ja ? "店舗を休業として記録しました。出退勤は引き続き利用できます。" : "Venue closure recorded. Time-clock controls remain available.")
+                : (ja ? "店舗を営業中として記録しました。" : "Venue marked open."));
+            window.dispatchEvent(new Event("barticket-venue-status-updated"));
+        } catch (err) {
+            if (!mounted.current) return;
+            setError(err instanceof ApiError && err.status === 403
+                ? (ja ? "店舗状態を変更できるのは管理者だけです。" : "Only a manager can change venue status.")
+                : (ja ? "店舗状態を保存できませんでした。状態を再読み込みしてください。" : "Could not save venue status. Reload to verify the current state."));
+        } finally {
+            if (mounted.current) setVenuePending(false);
+        }
+    }
 
     useEffect(() => {
         mounted.current = true;
@@ -249,6 +291,30 @@ export default function ShiftControls({ account, locale }: { account: Account; l
                 {ja ? "再試行" : "Retry"}
             </button> : null}
         </section>
+
+        {account.role === "manager" ? <section className="shift-section" aria-label={ja ? "店舗の営業状態" : "Venue Status"}>
+            <h2>{ja ? "店舗の営業状態" : "Venue Status"}</h2>
+            <p>{ja ? "店舗の休業状態はシフトと別に記録します。休業中もスタッフは出退勤できます。" : "Venue closure is recorded separately from the staff shift. Staff can still clock in and out while the venue is closed."}</p>
+            {venueStatus?.business_date === today ? <>
+                <div className="shift-status">
+                    <span className={"shift-status-pill" + (venueStatus.status === "open" ? " is-on-duty" : "")}>{venueStatus.status === "closed"
+                        ? (ja ? "店舗休業" : "Venue closed")
+                        : (ja ? "店舗営業中" : "Venue open")}</span>
+                    <small>{ja ? "営業日" : "Business date"}: {today}</small>
+                </div>
+                {venueStatus.status === "closed" && venueStatus.event_value ? <p>{ja ? "イベント・メモ" : "Event / note"}: {venueStatus.event_value}</p> : null}
+                {venueStatus.status === "closed" ? <button type="button" className="success" disabled={venuePending}
+                    onClick={() => void updateVenueStatus("open")}>{venuePending ? (ja ? "保存中…" : "Saving…") : (ja ? "営業を再開" : "Mark venue open")}</button> : <>
+                    <label className="shift-reopen-reason"><span>{ja ? "イベント・休業理由（任意）" : "Event / closure note (optional)"}</span>
+                        <textarea value={venueEventDraft} maxLength={1000} rows={2} disabled={venuePending}
+                            onChange={event => { venueEventDirty.current = true; setVenueEventDraft(event.target.value); }}
+                            placeholder={ja ? "例：メンテナンス" : "For example: Maintenance"} />
+                    </label>
+                    <button type="button" className="danger" disabled={venuePending}
+                        onClick={() => void updateVenueStatus("closed")}>{venuePending ? (ja ? "保存中…" : "Saving…") : (ja ? "本日を休業として記録" : "Mark venue closed today")}</button>
+                </>}
+            </> : <p role="status">{ja ? "店舗状態を確認できません。状態を確認するまで変更できません。" : "Venue status is unavailable. Changes are disabled until it can be verified."}</p>}
+        </section> : null}
 
         {roleCanManage ? <section className="shift-section" aria-label={ja ? "シフト管理" : "Shift management"}>
             <h2>{ja ? "シフト管理" : "Shift Management"}</h2>

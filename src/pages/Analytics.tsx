@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
 
-import { accountApi, type Account, type ShiftReport } from "../api/account";
+import { accountApi, type Account, type AnalyticsShiftReport, type ShiftReport } from "../api/account";
 import { ticketsApi, toTicket } from "../api/tickets";
 import { ApiError, getToken } from "../api/client";
 import { listNotices, type NoticeList } from "../api/notices";
@@ -61,7 +61,7 @@ function emptyTotals(): Totals {
     };
 }
 
-function addShift(totals: Totals, shift: ShiftReport) {
+function addShift(totals: Totals, shift: AnalyticsShiftReport) {
     totals.nights += 1;
     totals.revenue += shift.paid_total;
     const payment = paymentAllocation(shift);
@@ -77,7 +77,7 @@ function addShift(totals: Totals, shift: ShiftReport) {
     totals.seconds += shift.staff_hours.reduce((sum, person) => sum + person.seconds, 0);
 }
 
-function summarize(shifts: ShiftReport[]): Totals {
+function summarize(shifts: AnalyticsShiftReport[]): Totals {
     const totals = emptyTotals();
     shifts.forEach((shift) => addShift(totals, shift));
     return totals;
@@ -151,13 +151,13 @@ type Point = {
     guests: number;
 };
 
-function chronological(shifts: ShiftReport[]) {
+function chronological(shifts: AnalyticsShiftReport[]) {
     return [...shifts].sort((a, b) => a.business_date.localeCompare(b.business_date));
 }
 
-function nightPoints(shifts: ShiftReport[], locale: Locale): Point[] {
+function nightPoints(shifts: AnalyticsShiftReport[], locale: Locale): Point[] {
     return chronological(shifts).map((shift) => ({
-        id: String(shift.id),
+        id: String(shift.id ?? shift.business_date),
         detailLabel: parseDate(shift.business_date).toLocaleDateString(localeTag(locale), { year: "numeric", month: "long", day: "numeric" }),
         label: parseDate(shift.business_date).toLocaleDateString(localeTag(locale), {
             month: "numeric",
@@ -170,8 +170,8 @@ function nightPoints(shifts: ShiftReport[], locale: Locale): Point[] {
     }));
 }
 
-function monthPoints(shifts: ShiftReport[], locale: Locale): Point[] {
-    const groups = new Map<string, ShiftReport[]>();
+function monthPoints(shifts: AnalyticsShiftReport[], locale: Locale): Point[] {
+    const groups = new Map<string, AnalyticsShiftReport[]>();
     chronological(shifts).forEach((shift) => {
         const key = monthKey(shift.business_date);
         groups.set(key, [...(groups.get(key) ?? []), shift]);
@@ -196,8 +196,8 @@ function monthPoints(shifts: ShiftReport[], locale: Locale): Point[] {
     });
 }
 
-function yearPoints(shifts: ShiftReport[]): Point[] {
-    const groups = new Map<string, ShiftReport[]>();
+function yearPoints(shifts: AnalyticsShiftReport[]): Point[] {
+    const groups = new Map<string, AnalyticsShiftReport[]>();
     chronological(shifts).forEach((shift) => {
         const key = yearKey(shift.business_date);
         groups.set(key, [...(groups.get(key) ?? []), shift]);
@@ -255,7 +255,7 @@ function compactYen(amount: number, locale: Locale) {
     return yen(amount);
 }
 
-function staffMeters(shifts: ShiftReport[], locale: Locale) {
+function staffMeters(shifts: AnalyticsShiftReport[], locale: Locale) {
     const people = new Map<number, { userId: number; name: string; seconds: number; nights: number }>();
     shifts.forEach((shift) => {
         const seen = new Set<number>();
@@ -285,7 +285,7 @@ function staffMeters(shifts: ShiftReport[], locale: Locale) {
         }));
 }
 
-function copyPeriod(range: Range, month: string, year: string, selected: ShiftReport | null, locale: Locale): string {
+function copyPeriod(range: Range, month: string, year: string, selected: AnalyticsShiftReport | null, locale: Locale): string {
     if (range === "all") return locale === "ja" ? "全期間" : "All Time";
     if (range === "year") return year;
     if (range === "month") return month ? formatMonth(month, locale) : "";
@@ -299,7 +299,7 @@ function RangeCharts({
     context,
     onDrillDown,
 }: {
-    shifts: ShiftReport[];
+    shifts: AnalyticsShiftReport[];
     totals: Totals;
     range: Range;
     context: string;
@@ -449,7 +449,7 @@ const MissingTicketsCard = styled.section`
     strong { display: block; font-size: var(--font-size-h3); margin-top: var(--space-2); }
 `;
 
-function StaffChart({ shifts, context }: { shifts: ShiftReport[]; context?: string }) {
+function StaffChart({ shifts, context }: { shifts: AnalyticsShiftReport[]; context?: string }) {
     const { t, locale } = useI18n();
     const meters = staffMeters(shifts, locale);
     if (meters.length === 0) return <p>{t("noClockIns")}</p>;
@@ -469,13 +469,13 @@ function StaffChart({ shifts, context }: { shifts: ShiftReport[]; context?: stri
 }
 
 function staffDrinkShifts(
-    visible: ShiftReport[],
+    visible: AnalyticsShiftReport[],
     openShift: ShiftReport | null,
     range: Range,
     month: string,
     year: string,
     pickedDate: string,
-): ShiftReport[] {
+): AnalyticsShiftReport[] {
     if (!openShift) return visible;
     const inRange =
         range === "all" ||
@@ -488,7 +488,7 @@ function staffDrinkShifts(
 
 export default function Analytics() {
     const { t, locale } = useI18n();
-    const [shifts, setShifts] = useState<ShiftReport[] | null>(null);
+    const [shifts, setShifts] = useState<AnalyticsShiftReport[] | null>(null);
     const [openShift, setOpenShift] = useState<ShiftReport | null>(null);
     const [tickets, setTickets] = useState<Ticket[]>([]);
     const [account, setAccount] = useState<Account | null>(null);
@@ -522,7 +522,7 @@ export default function Analytics() {
             if (cancelled) return;
             try {
                 const [rows, current, ticketRows, stock] = await Promise.all([
-                    accountApi.closedShifts(),
+                    accountApi.analyticsShifts(),
                     accountApi.currentShift(),
                     ticketsApi.list(),
                     listNotices().catch(() => null),
@@ -616,11 +616,16 @@ export default function Analytics() {
         () => (shifts ?? []).filter((shift) => yearKey(shift.business_date) === year),
         [shifts, year],
     );
-    const currentReport = useMemo(() => liveAnalyticsShift(openShift, tickets), [openShift, tickets]);
-    const selected = useMemo(() => currentReport?.id === dayId
+    const currentReport = useMemo<AnalyticsShiftReport | null>(() => {
+        const live = liveAnalyticsShift(openShift, tickets);
+        if (!live) return null;
+        const venue = (shifts ?? []).find((row) => row.id === live.id && row.business_date === live.business_date);
+        return { ...(venue ?? {}), ...live };
+    }, [openShift, shifts, tickets]);
+    const selected = useMemo(() => currentReport?.id === dayId && currentReport.business_date === pickedDate
         ? currentReport
-        : (shifts ?? []).find((shift) => shift.id === dayId) ?? null,
-    [currentReport, dayId, shifts]);
+        : (shifts ?? []).find((shift) => shift.id === dayId && shift.business_date === pickedDate) ?? null,
+    [currentReport, dayId, pickedDate, shifts]);
     const visible = useMemo(() =>
         range === "all"
             ? (shifts ?? [])
@@ -639,7 +644,7 @@ export default function Analytics() {
         [month, openShift, pickedDate, range, visible, year],
     );
     const soldItems = useMemo(() => range === "day" && selected?.status === "open" ? [] :
-        topSellingItems(tickets, new Set(visible.map((shift) => shift.id))),
+        topSellingItems(tickets, new Set(visible.flatMap((shift) => shift.id === null ? [] : [shift.id]))),
     [range, selected?.status, tickets, visible]);
     function reportText(reportLocale: Locale) {
         return createAnalyticsTextReport({
@@ -795,7 +800,7 @@ export default function Analytics() {
                     {range === "day" && selected?.status === "open" ? (
                         <>
                             <OpenShiftOverview
-                                shift={selected}
+                                shift={selected as ShiftReport}
                                 tickets={tickets}
                                 members={team}
                                 notices={notices}
@@ -803,9 +808,9 @@ export default function Analytics() {
                                 dateLabel={formatNight(selected.business_date, locale)}
                             />
                             <GuestOccupancyChart
-                                shift={selected}
+                                shift={selected as ShiftReport}
                                 tickets={tickets}
-                                now={lastUpdated ?? clockNow ?? selected.opened_at}
+                                now={lastUpdated ?? clockNow ?? selected.opened_at ?? 0}
                                 dateLabel={formatNight(selected.business_date, locale)}
                             />
                         </>
@@ -816,11 +821,11 @@ export default function Analytics() {
                                     {range !== "day" ? (
                                         <RangeCharts shifts={visible} totals={totals} range={range} context={copyPeriod(range, month, year, selected, locale)} onDrillDown={drillIntoBar} />
                                     ) : null}
-                                    {range === "day" && selected ? (
+                                    {range === "day" && selected && selected.id !== null ? (
                                         <GuestOccupancyChart
-                                            shift={selected}
+                                            shift={selected as ShiftReport}
                                             tickets={tickets}
-                                            now={lastUpdated ?? clockNow ?? selected.opened_at}
+                                            now={lastUpdated ?? clockNow ?? selected.opened_at ?? 0}
                                             dateLabel={formatNight(selected.business_date, locale)}
                                         />
                                     ) : null}
@@ -829,10 +834,13 @@ export default function Analytics() {
                     {range === "day" && selected ? (
                         <DayBento>
                             <Card>
-                                <CopyPanelButton locale={locale} text={`${formatNight(selected.business_date, locale)} → ${t("manager")}: ${selected.opened_by}; ${ticketCountsUnavailable(selected) ? (locale === "ja" ? "チケット数は未記録" : "Ticket counts not recorded") : t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}`} />
+                                <CopyPanelButton locale={locale} text={`${formatNight(selected.business_date, locale)} → ${locale === "ja" ? "店舗状態" : "Venue status"}: ${selected.venue_status === "closed" ? (selected.venue_event || (locale === "ja" ? "休業" : "Closed")) : (locale === "ja" ? "営業" : "Open")}; ${t("manager")}: ${selected.opened_by ?? (locale === "ja" ? "シフト記録なし" : "No shift recorded")}; ${ticketCountsUnavailable(selected) ? (locale === "ja" ? "チケット数は未記録" : "Ticket counts not recorded") : t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}`} />
                                 <h2>{formatNight(selected.business_date, locale)}</h2>
+                                <p>{locale === "ja" ? "店舗状態" : "Venue status"} {selected.venue_status === "closed"
+                                    ? (selected.venue_event || (locale === "ja" ? "休業" : "Closed"))
+                                    : (locale === "ja" ? "営業" : "Open")}</p>
                                 <p>
-                                    {t("manager")} {selected.opened_by}
+                                    {t("manager")} {selected.opened_by ?? (locale === "ja" ? "シフト記録なし" : "No shift recorded")}
                                 </p>
                                 <p>
                                     {ticketCountsUnavailable(selected) ? (locale === "ja" ? "チケット数は未記録" : "Ticket counts not recorded") : t("paidCancelled", { paid: selected.paid_count, cancelled: selected.cancelled_count })}
@@ -912,7 +920,7 @@ const TopSellingList = styled.ol`
     }
 `;
 
-function Stockouts({ shifts }: { shifts: ShiftReport[] }) {
+function Stockouts({ shifts }: { shifts: AnalyticsShiftReport[] }) {
     const { t, locale } = useI18n();
     const rows = shifts.flatMap((shift) =>
         (shift.stockouts ?? []).map((row) => ({
@@ -935,11 +943,11 @@ function Stockouts({ shifts }: { shifts: ShiftReport[] }) {
     );
 }
 
-function ShiftTickets({ shifts, tickets }: { shifts: ShiftReport[]; tickets: Ticket[] }) {
+function ShiftTickets({ shifts, tickets }: { shifts: AnalyticsShiftReport[]; tickets: Ticket[] }) {
     const { t, locale } = useI18n();
     const [openId, setOpenId] = useState<number | null>(null);
     const dates = useMemo(
-        () => new Map(shifts.map((shift) => [shift.id, shift.business_date])),
+        () => new Map(shifts.flatMap((shift) => shift.id === null ? [] : [[shift.id, shift.business_date] as const])),
         [shifts],
     );
     const groups = useMemo(() => groupAnalyticsTickets(tickets, dates), [dates, tickets]);
