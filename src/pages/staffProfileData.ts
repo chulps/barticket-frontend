@@ -10,6 +10,7 @@ export type StaffActivityRow = {
     businessDate: string;
     status: "open" | "closed";
     hoursSeconds: number | null;
+    hoursState?: "recorded" | "in_progress" | "incomplete" | "unavailable";
     clockedIn: boolean;
     drinks: { name: string; quantity: number }[];
 };

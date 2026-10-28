@@ -6,6 +6,7 @@ import ts from "typescript";
 const helper = readFileSync(new URL("../src/pages/staffProfileData.ts", import.meta.url), "utf8");
 const profile = readFileSync(new URL("../src/pages/Profile.tsx", import.meta.url), "utf8");
 const history = readFileSync(new URL("../src/pages/StaffWorkHistory.tsx", import.meta.url), "utf8");
+const account = readFileSync(new URL("../src/api/account.ts", import.meta.url), "utf8");
 const transpiled = ts.transpileModule(helper, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText.replace(/import type.*?;\s*/g, "");
@@ -21,8 +22,10 @@ function shift(id, businessDate, status, extras = {}) {
 test("Profile mounts personal history only after authentication, without calling manager APIs", () => {
     assert.match(profile, /<StaffWorkHistory key={account.id} userId={account.id} locale={locale}/);
     assert.doesNotMatch(profile, /accountApi\.listUsers\(|accountApi\.createUser\(|accountApi\.removeUser\(/);
-    assert.match(history, /accountApi\.closedShifts\(\)/);
-    assert.match(history, /accountApi\.currentShift\(\)/);
+    assert.match(history, /accountApi\.workHistory\(\)/);
+    assert.doesNotMatch(history, /accountApi\.closedShifts\(\)|accountApi\.currentShift\(\)/);
+    assert.match(account, /workHistory: \(\) => apiRequest<PersonalWorkHistory>\("\/profile\/work-history"\)/);
+    assert.match(history, /Incomplete punch/);
     assert.doesNotMatch(history, /accountApi\.listUsers\(|accountApi\.createUser\(|accountApi\.removeUser\(/);
     for (const [name, source] of [["Profile", profile], ["StaffWorkHistory", history]]) {
         assert.equal(ts.createSourceFile(name + ".tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).parseDiagnostics.length, 0);
@@ -93,5 +96,6 @@ test("Summaries count drinks/shift records without inventing unrecorded history"
 test("Frontend does not pretend compensation API or historical import is available", () => {
     assert.match(history, /Not available yet/);
     assert.match(history, /does not mean ¥0/);
-    assert.doesNotMatch(history, /\/payroll|\/profile\/work-summary|\/users\/me\/work-history/);
+    assert.doesNotMatch(history, /\/payroll/);
+    assert.match(history, /not available yet/);
 });

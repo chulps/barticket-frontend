@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 
-import { accountApi, type ShiftReport } from "../api/account";
+import { accountApi, type PersonalWorkHistory } from "../api/account";
 import { ApiError } from "../api/client";
 import { localeTag, type Locale } from "../i18n";
-import { buildStaffActivity, recordedStaffTotals } from "./staffProfileData";
+import { recordedStaffTotals, type StaffActivityRow } from "./staffProfileData";
 
 type Panel = "hours" | "drinks" | "benefits";
 
@@ -22,21 +22,20 @@ function formatMonth(month: string, locale: Locale) {
     });
 }
 
-function hoursLabel(seconds: number) {
+function hoursLabel(seconds: number | null) {
+    if (seconds === null) return "—";
     return (seconds / 3600).toLocaleString(undefined, {
         minimumFractionDigits: 1, maximumFractionDigits: 1,
     }) + " h";
 }
 
 /**
- * Uses only existing authenticated Analytics and current-shift APIs.
- * It displays records explicitly linked to the signed-in user ID.
- * The backend's future private self-only endpoint is tracked separately.
+ * Loads the backend's self-only profile endpoint; no shared Analytics payload
+ * is downloaded to build this private view.
  */
 export default function StaffWorkHistory({ userId, locale }: { userId: number; locale: Locale }) {
     const ja = locale === "ja";
-    const [closed, setClosed] = useState<ShiftReport[]>([]);
-    const [current, setCurrent] = useState<ShiftReport | null>(null);
+    const [history, setHistory] = useState<PersonalWorkHistory | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
@@ -49,12 +48,10 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
             setLoading(true);
             setError("");
             try {
-                const [closedShifts, currentShift] = await Promise.all([
-                    accountApi.closedShifts(), accountApi.currentShift(),
-                ]);
+                const response = await accountApi.workHistory();
+                if (response.user_id !== userId) throw new Error("Profile identity mismatch");
                 if (cancelled) return;
-                setClosed(closedShifts);
-                setCurrent(currentShift);
+                setHistory(response);
             } catch (err) {
                 if (!cancelled) {
                     setError(err instanceof ApiError ? err.message
@@ -68,7 +65,15 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
         return () => { cancelled = true; };
     }, [userId, refreshKey, ja]);
 
-    const rows = useMemo(() => buildStaffActivity(userId, closed, current), [userId, closed, current]);
+    const rows = useMemo<StaffActivityRow[]>(() => (history?.shifts ?? []).map(shift => ({
+        shiftId: shift.shift_id,
+        businessDate: shift.business_date,
+        status: shift.status,
+        hoursSeconds: shift.hours_seconds,
+        hoursState: shift.hours_state,
+        clockedIn: shift.clocked_in,
+        drinks: shift.drinks,
+    })), [history]);
     const months = useMemo(() =>
         [...new Set(rows.map(row => row.businessDate.slice(0, 7)))].sort().reverse(),
     [rows]);
@@ -108,8 +113,8 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
                 <PanelBody id="profile-work-panel" role="tabpanel">
                     <h3>{ja ? "手当・調整・控除" : "Bonuses, adjustments & deductions"}</h3>
                     <p>{ja
-                        ? "給与・手当・控除の個人記録は、専用のバックエンドAPIができるまで表示できません。金額が0円という意味ではありません。"
-                        : "Your personal pay, bonuses and deductions will appear here when the private backend API is ready. Unavailable does not mean ¥0."}</p>
+                        ? "承認済みの給与・手当・控除記録はまだありません。表示がないことは0円という意味ではありません。"
+                        : "Approved personal pay, bonus and deduction records are not available yet. Missing data does not mean ¥0."}</p>
                     <Muted>{ja ? "現在は利用できません" : "Not available yet"}</Muted>
                 </PanelBody>
             ) : (
@@ -150,17 +155,18 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
                                 {section === "hours" ? (
                                     <>
                                         <h3>{ja ? "勤務記録のあるシフト" : "Shifts with recorded activity"}</h3>
-                                        {filtered.filter(row => row.hoursSeconds !== null).length ? (
+                                        {filtered.some(row => row.hoursSeconds !== null || row.hoursState === "incomplete") ? (
                                             <HistoryList>
-                                                {filtered.filter(row => row.hoursSeconds !== null).map(row =>
+                                                {filtered.filter(row => row.hoursSeconds !== null || row.hoursState === "incomplete").map(row =>
                                                     <HistoryEntry key={row.shiftId}>
                                                         <div>
                                                             <strong>{formatBusinessDate(row.businessDate, locale)}</strong>
                                                             <Meta>{row.status === "open" ? (ja ? "営業中" : "Open shift") : (ja ? "終了" : "Closed shift")}
                                                                 {row.clockedIn ? " · " + (ja ? "勤務中" : "Clocked in") : ""}
+                                                                {row.hoursState === "incomplete" ? " · " + (ja ? "打刻時間が不完全" : "Incomplete punch") : ""}
                                                             </Meta>
                                                         </div>
-                                                        <Value>{hoursLabel(row.hoursSeconds!)}</Value>
+                                                        <Value>{hoursLabel(row.hoursSeconds)}</Value>
                                                     </HistoryEntry>
                                                 )}
                                             </HistoryList>
@@ -188,8 +194,8 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
                                 )}
                                 <Coverage role="note">
                                     {ja
-                                        ? "表示されるのは現在のAPIに登録された記録だけです。過去の勤務時間やスタッフドリンクは未登録の場合があります。「—」は未記録・不明を表し、0とは異なります。シフトをまたぐ夜は営業日で集計します。"
-                                        : "Only activity currently stored in the API is included. Older hours or staff drinks may be missing. “—” means unavailable, not zero. Overnight shifts use the bar's business date."}
+                                        ? "勤務時間は打刻記録のみで集計し、未取込の過去時間は含みません。スタッフIDが確認できるドリンクのみ表示し、受取人不明の記録は確認用に除外します。勤務中の時間は経過時間です。「—」は未記録・不明で、0とは異なります。営業日は正午に切り替わります。"
+                                        : "Hours use clock punches only; historical totals have not been imported. Drinks appear only when a staff ID is verified; unattributed records are excluded for review. Ongoing hours show elapsed time. “—” means unavailable, not zero. Business dates roll over at noon."}
                                 </Coverage>
                             </>
                         )}
