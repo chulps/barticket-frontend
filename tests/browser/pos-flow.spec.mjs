@@ -34,12 +34,22 @@ const menu = {
     { id:3, name:"Oolong Hai", category:"Cocktails", prices:{standard:550}, inStock:true },
   ],
 };
+function dateOffset(amount) {
+  return new Date(Date.parse(dayJst() + "T00:00:00Z") + amount * 86_400_000).toISOString().slice(0, 10);
+}
+function schedule(id, date, state, actual = false) {
+  return { id, business_date: date, schedule_state: state, actual_shift_exists: actual,
+    manager: {name:"Test Bartender",user_id:7}, staff:[{name:"Haruka",user_id:null}],
+    event_value:"Maintenance", hours:null, provenance:[{source_file:"November 2026 Daily Reports.csv",
+      source_row:5, imported_by:"Test Bartender", imported_at:new Date().toISOString(), uncertainty:"Hours are blank in source"}] };
+}
 async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
   const state = { tickets:[ticket()], requests:[], paymentPosts:0,
     newTicketPosts:0, delayTicketCreate:false, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
     analyticsReads:0, delayAnalyticsReads:false, analyticsShifts:[], failShiftLookup:false,
     currentShift:shift(), venueStatus:{business_date:dayJst(),status:"open",event_value:null,updated_by:null,updated_at:null},
-    activeMenu:structuredClone(menu), archivedItems:[], editedMenuItems:0, archivedChanges:0 };
+    activeMenu:structuredClone(menu), archivedItems:[], editedMenuItems:0, archivedChanges:0,
+    schedules:[schedule(1,dateOffset(1),"upcoming"),schedule(2,dateOffset(-1),"past",false)] };
   await page.addInitScript(({authenticated, locale}) => {
     if(authenticated) localStorage.setItem("barticket_token","NON_PRODUCTION_BROWSER_TEST_TOKEN");
     else localStorage.removeItem("barticket_token");
@@ -78,6 +88,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
       else response=state.currentShift;
     }
     else if(key==="GET /venue-status") response=state.venueStatus;
+    else if(key==="GET /schedules") response=state.schedules;
     else if(key==="PUT /venue-status") {
       state.venueStatus={...state.venueStatus,...json(),updated_by:account.name,updated_at:new Date().toISOString()};
       response=state.venueStatus;
@@ -614,6 +625,20 @@ test("closure-only analytics day has zero sales while preserving maintenance hou
   await expect(page.getByText("No shift recorded")).toBeVisible();
   await expect(page.getByText("2h 0m").first()).toBeVisible();
   await expect(page.getByText("¥0").first()).toBeVisible();
+});
+
+test("schedule page separates assigned people from actual work records and preserves source details",async ({page})=>{
+  const state=await mockedPOS(page);
+  await page.goto("/schedules");
+  await expect(page.getByRole("heading",{name:"Shift schedule"})).toBeVisible();
+  await expect(page.getByText("Scheduled",{exact:true})).toBeVisible();
+  await expect(page.getByText("Past plan · no actual shift recorded")).toBeVisible();
+  await expect(page.getByText("Haruka").first()).toBeVisible();
+  await expect(page.getByText("Maintenance").first()).toBeVisible();
+  await expect(page.getByText("November 2026 Daily Reports.csv · row 5").first()).toBeVisible();
+  await expect(page.getByText("Unknown · not imported").first()).toBeVisible();
+  await expect(page.getByText("Schedules never create worked time.")).toHaveCount(0);
+  expect(state.requests.filter(key=>key.startsWith("GET /schedules"))).toHaveLength(1);
 });
 
 test("clock controls stay unavailable when the current shift cannot be verified",async ({page})=>{

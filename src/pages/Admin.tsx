@@ -12,6 +12,7 @@ import AdminTeam from "./AdminTeam";
 import DataDownload from "../components/DataDownload";
 import AdminAuditHistory from "./AdminAuditHistory";
 import Reconciliation from "./Reconciliation";
+import ScheduleImport from "./ScheduleImport";
 
 /**
  * Manager-only dashboard: Phase 1 accounts plus frontend-only Team editor previews.
@@ -34,7 +35,7 @@ export default function Admin() {
     const [accountsError, setAccountsError] = useState("");
     const [accountsLoading, setAccountsLoading] = useState(false);
     const [busy, setBusy] = useState(false);
-    const [section, setSection] = useState<"overview" | "accounts" | "team" | "historicalHours">(
+    const [section, setSection] = useState<"overview" | "accounts" | "team" | "historicalHours" | "schedules">(
         () => staffId === undefined ? "overview" : "team",
     );
     const activeSection = staffId === undefined ? section : "team";
@@ -42,7 +43,7 @@ export default function Admin() {
         : /^[1-9][0-9]*$/.test(staffId) && Number.isSafeInteger(Number(staffId))
             ? Number(staffId) : -1;
 
-    function chooseSection(next: "overview" | "accounts" | "team" | "historicalHours") {
+    function chooseSection(next: "overview" | "accounts" | "team" | "historicalHours" | "schedules") {
         setSection(next);
         if (staffId !== undefined) navigate("/admin");
         if (next === "historicalHours") void loadHistoricalShifts();
@@ -204,6 +205,7 @@ export default function Admin() {
                     { id: "accounts", label: locale === "ja" ? "アカウント" : "Accounts" },
                     { id: "team", label: locale === "ja" ? "チーム" : "Team" },
                     { id: "historicalHours", label: locale === "ja" ? "履歴勤務時間" : "Historical hours" },
+                    { id: "schedules", label: locale === "ja" ? "シフト予定" : "Schedules" },
                 ]}
                 activeTab={activeSection}
                 onChange={chooseSection}
@@ -302,6 +304,16 @@ export default function Admin() {
                     {historicalLoading ? <RequestState kind="loading" detail={t("loading")} /> : (
                         <Reconciliation shifts={historicalShifts} users={team} locale={locale} error={historicalError} />
                     )}
+                </>
+            ) : activeSection === "schedules" ? (
+                <>
+                    <Section>
+                        <h2>{locale === "ja" ? "勤務表のシフト予定" : "Spreadsheet shift schedules"}</h2>
+                        <p>{locale === "ja"
+                            ? "未来の勤務割当と元の出典を確認して取り込みます。実際のシフトや勤務時間は作成されません。"
+                            : "Review and import assigned dates with their spreadsheet source. This records planned assignments without creating shifts or worked hours."}</p>
+                    </Section>
+                    <ScheduleImport users={team} locale={locale} />
                 </>
             ) : (
                 <AdminTeam
