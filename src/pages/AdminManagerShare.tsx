@@ -367,8 +367,8 @@ export default function AdminManagerShare({ person, locale, shifts, managers, on
                         <strong>{previewForMonth?.payable_yen == null ? "—" : yen(previewForMonth.payable_yen, locale)}</strong></Metric>
                 </Metrics>
                 <Tiny>{ja
-                    ? "確認済み：到達した月間料率を対象売上全体に適用し、未収チケットはサービス月に一度だけ計上します。歩合給プレビューは1円単位で四捨五入します。最終支給額は人件費、ドリンクバック、控除・加算の確認後に表示されます。"
-                    : "Confirmed: the reached monthly rate applies to all qualifying monthly sales. Unpaid tickets count once in the service month, and the gross-share preview rounds to the nearest yen. Final pay remains unavailable until staff costs, drinkback, deductions and additions are verified."}</Tiny>
+                    ? "確認済み：到達した月間料率を対象売上全体に適用し、カバーチャージを含めます。未収チケットはサービス月に一度だけ計上し、歩合給プレビューは1円単位で四捨五入します。最終支給額は人件費、ドリンクバック、控除・加算の確認後に表示されます。"
+                    : "Confirmed: the reached monthly rate applies to all qualifying monthly sales, including cover charges. Unpaid tickets count once in the service month, and the gross-share preview rounds to the nearest yen. Final pay remains unavailable until staff costs, drinkback, deductions and additions are verified."}</Tiny>
             </Card>
 
             <Card>

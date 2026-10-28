@@ -91,6 +91,7 @@ test("confirmed flat tiers apply to all qualifying monthly sales while unresolve
     assert.equal(model.eligibleTierRate(500000), 41);
     assert.equal(model.eligibleTierRate(1450000), 60);
     assert.match(ui, /the reached monthly rate applies to all qualifying monthly sales/i);
+    assert.match(ui, /including cover charges/i);
     assert.match(ui, /unpaid tickets count once in the service month/i);
     assert.match(ui, /rounding/i);
     assert.match(ui, /gross share preview \(before costs\)/i);
