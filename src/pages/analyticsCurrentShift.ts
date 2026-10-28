@@ -1,13 +1,13 @@
-import type { Account, ShiftReport } from "../api/account";
+import type { Account, AnalyticsShiftReport, ShiftReport } from "../api/account";
 import type { Ticket } from "../types/Ticket";
 
 /** Default to the active business night, otherwise the most recently closed night. */
 export function initialAnalyticsShift(
     openShift: ShiftReport | null,
-    closedShifts: readonly ShiftReport[],
-): ShiftReport | null {
+    closedShifts: readonly AnalyticsShiftReport[],
+): AnalyticsShiftReport | null {
     if (openShift) return openShift;
-    return closedShifts.reduce<ShiftReport | null>(
+    return closedShifts.reduce<AnalyticsShiftReport | null>(
         (latest, shift) => !latest || shift.business_date > latest.business_date ? shift : latest,
         null,
     );
@@ -17,8 +17,8 @@ export function initialAnalyticsShift(
 export function analyticsShiftOnDate(
     date: string,
     openShift: ShiftReport | null,
-    closedShifts: readonly ShiftReport[],
-): ShiftReport | null {
+    closedShifts: readonly AnalyticsShiftReport[],
+): AnalyticsShiftReport | null {
     if (openShift?.business_date === date) return openShift;
     return closedShifts.find((shift) => shift.business_date === date) ?? null;
 }

@@ -1,4 +1,4 @@
-import type { Account, ShiftReport } from "../api/account";
+import type { Account, AnalyticsShiftReport } from "../api/account";
 import type { NoticeList } from "../api/notices";
 import type { Ticket } from "../types/Ticket";
 
@@ -25,11 +25,11 @@ export type AnalyticsTextReportInput = {
     range: ReportRange;
     label: string;
     locale: "en" | "ja";
-    shifts: readonly ShiftReport[];
+    shifts: readonly AnalyticsShiftReport[];
     totals: ReportTotals;
     tickets: readonly Ticket[];
     topItems: readonly ReportItem[];
-    staffShifts: readonly ShiftReport[];
+    staffShifts: readonly AnalyticsShiftReport[];
     team: readonly Account[] | null;
     notices: NoticeList | null;
     updatedAt: number | null;
@@ -46,7 +46,7 @@ function hours(seconds: number, ja: boolean): string {
     return ja ? h + "時間" + m + "分" : h + "h " + m + "m";
 }
 
-function groupedBreakdown(range: ReportRange, shifts: readonly ShiftReport[]): { name: string; revenue: number; guests: number; nights: number }[] {
+function groupedBreakdown(range: ReportRange, shifts: readonly AnalyticsShiftReport[]): { name: string; revenue: number; guests: number; nights: number }[] {
     const rows = new Map<string, { name: string; revenue: number; guests: number; nights: number }>();
     const dates = new Map<string, number>();
     for (const shift of shifts) {
@@ -65,7 +65,7 @@ function groupedBreakdown(range: ReportRange, shifts: readonly ShiftReport[]): {
     return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function staffDrinkRows(shifts: readonly ShiftReport[]) {
+function staffDrinkRows(shifts: readonly AnalyticsShiftReport[]) {
     const rows = new Map<string, { name: string; drink: string; quantity: number; revenue: number }>();
     for (const shift of shifts) {
         for (const item of shift.staff_drinks ?? []) {
@@ -79,7 +79,7 @@ function staffDrinkRows(shifts: readonly ShiftReport[]) {
     return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name) || a.drink.localeCompare(b.drink));
 }
 
-function staffHoursRows(shifts: readonly ShiftReport[]) {
+function staffHoursRows(shifts: readonly AnalyticsShiftReport[]) {
     const rows = new Map<number, { name: string; seconds: number }>();
     for (const shift of shifts) {
         for (const person of shift.staff_hours) {
@@ -111,14 +111,17 @@ export function createAnalyticsTextReport(input: AnalyticsTextReportInput): stri
                 timeZone: "Asia/Tokyo", dateStyle: "medium", timeStyle: "short",
             }) + " JST");
         }
-        result.push(line(tr("Opened by", "開始担当"), current.opened_by));
-        result.push(line(tr("Started", "開始時刻"), new Date(current.opened_at * 1000).toLocaleTimeString(ja ? "ja-JP" : "en-US", {
+        result.push(line(tr("Opened by", "開始担当"), current.opened_by ?? tr("No shift recorded", "シフト記録なし")));
+        result.push(line(tr("Started", "開始時刻"), current.opened_at === null ? "—" : new Date(current.opened_at * 1000).toLocaleTimeString(ja ? "ja-JP" : "en-US", {
             timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit",
         }) + " JST"));
     } else if (range !== "day") {
         result.push(tr("Closed shifts only", "締め済みシフトのみ"));
     } else {
-        result.push(line(tr("Manager", "開始担当"), shifts[0].opened_by));
+        result.push(line(tr("Manager", "開始担当"), shifts[0].opened_by ?? tr("No shift recorded", "シフト記録なし")));
+    }
+    if (range === "day" && shifts.length === 1 && shifts[0].venue_status === "closed") {
+        result.push(line(tr("Venue status", "店舗状態"), shifts[0].venue_event ?? tr("Closed", "休業")));
     }
 
     result.push(...section(tr("Overview", "概要")));

@@ -19,10 +19,11 @@ import type { Ticket, PaymentType } from "../types/Ticket"
 // import hooks 
 import { useTickets } from "../hooks/useTickets"; // (business logic for creating or updating tickets)
 import { useI18n } from "../i18n";
-import { accountApi, type Account, type ShiftReport } from "../api/account";
+import { accountApi, type Account, type ShiftReport, type VenueStatus } from "../api/account";
 import { getToken } from "../api/client";
 import { ticketVisibleOnBoard, type ShiftLookup } from "./ticketBoardVisibility";
 import { resolveVisibleSelection } from "./ticketBoardSelection";
+import { businessDateJst } from "./shiftControlPolicy";
 
 type DashboardProps = {
   menu: MenuData | null;
@@ -48,6 +49,8 @@ export default function Dashboard({
   const [shiftLookup, setShiftLookup] = useState<ShiftLookup>({ status: "loading", shiftId: null });
   const [me, setMe] = useState<Account | null>(null);
   const [shift, setShift] = useState<ShiftReport | null>(null);
+  const [venueStatus, setVenueStatus] = useState<VenueStatus | null>(null);
+  const [currentBusinessDate, setCurrentBusinessDate] = useState("");
 
   // business logic for updating or creating new tickets (../hooks/useTickets.ts)
   const {
@@ -73,6 +76,8 @@ export default function Dashboard({
     let requestVersion = 0;
     async function load() {
       const request = ++requestVersion;
+      const businessDate = businessDateJst(Date.now());
+      setCurrentBusinessDate(businessDate);
       try {
         const current = await accountApi.currentShift();
         if (cancelled || request !== requestVersion) return;
@@ -83,6 +88,12 @@ export default function Dashboard({
         // Unknown is never treated as "all shifts" or as an open shift.
         setShift(null);
         setShiftLookup({ status: "error", shiftId: null });
+      }
+      try {
+        const status = await accountApi.venueStatus(businessDate);
+        if (!cancelled && request === requestVersion) setVenueStatus(status);
+      } catch {
+        if (!cancelled && request === requestVersion) setVenueStatus(null);
       }
       if (!getToken()) {
         if (!cancelled && request === requestVersion) setMe(null);
@@ -101,6 +112,7 @@ export default function Dashboard({
     window.addEventListener("barticket-auth", load);
     window.addEventListener("barticket-api-restored", load);
     window.addEventListener("barticket-shift-updated", load);
+    window.addEventListener("barticket-venue-status-updated", load);
     window.addEventListener("barticket-retry-shift", load);
     return () => {
       cancelled = true;
@@ -110,12 +122,16 @@ export default function Dashboard({
       window.removeEventListener("barticket-auth", load);
       window.removeEventListener("barticket-api-restored", load);
       window.removeEventListener("barticket-shift-updated", load);
+      window.removeEventListener("barticket-venue-status-updated", load);
       window.removeEventListener("barticket-retry-shift", load);
     };
   }, []);
 
+  const venueStatusKnown = venueStatus?.business_date === currentBusinessDate;
+  const venueOpen = venueStatusKnown && venueStatus.status === "open";
   const canCreate = Boolean(
     me &&
+    venueOpen &&
     shift?.status === "open" &&
     shift.punches.some((punch) => punch.user_id === me.id && punch.clock_out === null),
   );
@@ -267,6 +283,11 @@ export default function Dashboard({
         </span>
         <Link to="/profile">{locale === "ja" ? "タイムカードを見る" : "View time clock"}</Link>
       </ShiftStatusBar>
+      {!venueStatusKnown || !venueOpen ? <TicketLoadWarning role={!venueStatusKnown ? "alert" : "status"}>
+        {!venueStatusKnown
+          ? (locale === "ja" ? "店舗の営業状態を確認できません。POS操作は無効です。" : "Venue status is unverified. POS actions are unavailable until it can be confirmed.")
+          : (locale === "ja" ? "本日は店舗休業です。出退勤は記録できますが、店内販売はできません。" : "The venue is closed today. Staff can still clock in and out, but in-venue sales are unavailable.")}
+      </TicketLoadWarning> : null}
       {shiftLookup.status === "loading" ? (
         <TicketLoadWarning role="status" aria-live="polite">
           {locale === "ja"
@@ -310,10 +331,17 @@ export default function Dashboard({
         setLastSelectedTicket={setLastSelectedTicket}
         nightOpen={shiftLookup.status === "ready" && shift?.status === "open"}
         canCreate={canCreate && !tickets.some(ticket => ticket.id < 0)}
+        createBlockedReason={!venueStatusKnown ? "venue-unverified" : !venueOpen ? "venue-closed" : null}
       />
 
       <Content $open={showCurrentDetails}>
-        {selectedTicket?.id && selectedTicket.id < 0 ? (
+        {!venueOpen ? (
+          <EmptyTicketDetails role="status" aria-live="polite">
+            {venueStatusKnown
+              ? (locale === "ja" ? "店舗休業中のため、POS操作は利用できません。タイムカードはプロフィールから利用できます。" : "POS actions are unavailable while the venue is closed. Time-clock controls remain available from your profile.")
+              : (locale === "ja" ? "店舗の営業状態を確認するまでPOS操作は利用できません。" : "POS actions are unavailable until venue status can be verified.")}
+          </EmptyTicketDetails>
+        ) : selectedTicket?.id && selectedTicket.id < 0 ? (
           <EmptyTicketDetails role="status" aria-live="polite">
             {locale === "ja" ? "伝票を作成中…" : "Creating ticket…"}
           </EmptyTicketDetails>

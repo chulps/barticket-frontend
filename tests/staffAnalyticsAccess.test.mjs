@@ -22,7 +22,7 @@ test("staff can render the same Analytics page without manager privileges", () =
     assert.doesNotMatch(analytics, /if \(me\.role !== "manager"\) return/);
     assert.doesNotMatch(analytics, /account\?\.role === "manager" && shifts/);
     assert.match(analytics, /if \(me\.role === "manager"\) \{\s*void accountApi\.listUsers\(\)/);
-    assert.match(analytics, /accountApi\.closedShifts\(\)/);
+    assert.match(analytics, /accountApi\.analyticsShifts\(\)/);
     assert.match(analytics, /<AnalyticsReportActions/);
     assert.match(analytics, /err\.status === 403/);
 });

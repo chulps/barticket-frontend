@@ -48,6 +48,7 @@ type SidebarProps = {
 
   nightOpen: boolean;
   canCreate: boolean;
+  createBlockedReason?: "venue-closed" | "venue-unverified" | null;
 };
 
 export default function TicketSidebar({
@@ -64,10 +65,11 @@ export default function TicketSidebar({
   setLastSelectedTicket,
   nightOpen,
   canCreate,
+  createBlockedReason = null,
 }: SidebarProps) {
 
   const isEditable = activeTab === "open";
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const prefersReducedMotion = useReducedMotion();
 
   // setup states
@@ -118,9 +120,11 @@ export default function TicketSidebar({
       </button>
       {activeTab === "open" && !canCreate ? (
         <ClockHint>
-          {t("clockInBeforeLead")}
-          <ProfileLink to="/profile">{t("clockInLink")}</ProfileLink>
-          {t("clockInBeforeRest")}
+          {createBlockedReason === "venue-closed"
+            ? (locale === "ja" ? "店舗休業中は新しい伝票を作成できません。" : "New tickets are unavailable while the venue is closed.")
+            : createBlockedReason === "venue-unverified"
+              ? (locale === "ja" ? "店舗状態を確認できるまでPOS操作は停止しています。" : "POS actions are paused until venue status can be verified.")
+              : <>{t("clockInBeforeLead")}<ProfileLink to="/profile">{t("clockInLink")}</ProfileLink>{t("clockInBeforeRest")}</>}
         </ClockHint>
       ) : null}
 

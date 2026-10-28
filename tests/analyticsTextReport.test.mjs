@@ -72,6 +72,22 @@ test("Closed daily report includes manager, payments, and historic stockouts", (
     assert.match(text, /Staff hours/);
 });
 
+test("closure-only day remains a zero-sales night and retains maintenance hours and Event value", () => {
+    const row = shift(null, "2026-10-05", {
+        id: null, status: null, opened_at: null, opened_by: null,
+        venue_status: "closed", venue_event: "Maintenance",
+        paid_total: 0, cash_total: 0, card_total: 0, other_total: 0,
+        cover_total: 0, guest_count: 0, paid_count: 0, cancelled_count: 0,
+        staff_hours: [{ user_id: 7, name: "Haruka", seconds: 7200 }],
+    });
+    const text = report("day", [row]);
+    assert.match(text, /Revenue: ¥0/);
+    assert.match(text, /Guests: 0/);
+    assert.match(text, /Manager: No shift recorded/);
+    assert.match(text, /Venue status: Maintenance/);
+    assert.match(text, /Recorded staff hours: 2h 0m/);
+});
+
 test("Live daily snapshot shows only paid totals and current shift activity", () => {
     const row = shift(99, "2026-10-12", {
         status: "open", paid_count: 1, cancelled_count: 0, paid_total: 7000,

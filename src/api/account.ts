@@ -59,6 +59,25 @@ export type ShiftReport = {
     }[];
 };
 
+/** Analytics includes closure-only days that do not have a staff shift. */
+export type AnalyticsShiftReport = Omit<ShiftReport, "id" | "status" | "opened_at" | "opened_by"> & {
+    id: number | null;
+    status: "open" | "closed" | null;
+    shift_status?: "open" | "closed" | null;
+    venue_status?: "open" | "closed";
+    venue_event?: string | null;
+    opened_at: number | null;
+    opened_by: string | null;
+};
+
+export type VenueStatus = {
+    business_date: string;
+    status: "open" | "closed";
+    event_value: string | null;
+    updated_by: string | null;
+    updated_at: string | null;
+};
+
 export type PersonalWorkHistory = {
     user_id: number;
     coverage: {
@@ -131,6 +150,12 @@ export const accountApi = {
 
     currentShift: () => apiRequest<ShiftReport | null>("/shifts/current"),
 
+    venueStatus: (businessDate: string) =>
+        apiRequest<VenueStatus>(`/venue-status?business_date=${encodeURIComponent(businessDate)}`),
+
+    updateVenueStatus: (body: Pick<VenueStatus, "business_date" | "status" | "event_value">) =>
+        apiRequest<VenueStatus>("/venue-status", { method: "PUT", body }),
+
     workHistory: () => apiRequest<PersonalWorkHistory>("/profile/work-history"),
 
     openShift: () => apiRequest<ShiftReport>("/shifts/open", { method: "POST" }),
@@ -168,6 +193,8 @@ export const accountApi = {
     clockOut: () => apiRequest<ShiftReport>("/shifts/clock-out", { method: "POST" }),
 
     closedShifts: () => apiRequest<ShiftReport[]>("/analytics/shifts"),
+
+    analyticsShifts: () => apiRequest<AnalyticsShiftReport[]>("/analytics/shifts"),
 
     shiftHistory: () => apiRequest<ShiftReport[]>("/shifts"),
 };
