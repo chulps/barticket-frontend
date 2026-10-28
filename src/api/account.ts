@@ -38,6 +38,7 @@ export type RevenueSharePreview = {
     tier_rate_percent: number | null;
     tier_rate_basis: "service_shift_sales_preview" | null;
     tier_application_method: "flat_monthly_confirmed";
+    gross_share_rounding: "nearest_yen_half_up";
     next_tier: { rate_percent: number; threshold_yen: number; remaining_yen: number } | null;
     gross_share_yen: number | null;
     unassigned_shift_ids: number[];

@@ -361,14 +361,14 @@ export default function AdminManagerShare({ person, locale, shifts, managers, on
                     ? "未確定項目：" + previewForMonth.blockers.map(code => blockerLabel(code, true)).join("、")
                     : "Preview blockers: " + previewForMonth.blockers.map(code => blockerLabel(code, false)).join(", ")}</Notice> : null}
                 <Metrics>
-                    <Metric><span>{ja ? "総歩合給（売上範囲の確認待ち）" : "Gross share (sales basis pending)"}</span>
+                    <Metric><span>{ja ? "総歩合給プレビュー（費用控除前）" : "Gross share preview (before costs)"}</span>
                         <strong>{grossShare === null ? "—" : yen(grossShare, locale)}</strong></Metric>
                     <Metric><span>{ja ? "最終支給額" : "Final payable"}</span>
                         <strong>{previewForMonth?.payable_yen == null ? "—" : yen(previewForMonth.payable_yen, locale)}</strong></Metric>
                 </Metrics>
                 <Tiny>{ja
-                    ? "確認済み：到達した月間料率を対象売上全体に適用します。未収チケットの扱い、1円未満の計算、人件費、ドリンクバック、控除・加算が未確認のため、総歩合給と最終支給額はまだ表示しません。"
-                    : "Confirmed: the reached monthly rate applies to all qualifying monthly sales. Unpaid tickets count in the service month and later collections are not counted again. Gross share and final pay stay unavailable until yen rounding, staff costs, drinkback, deductions and additions are verified."}</Tiny>
+                    ? "確認済み：到達した月間料率を対象売上全体に適用し、未収チケットはサービス月に一度だけ計上します。歩合給プレビューは1円単位で四捨五入します。最終支給額は人件費、ドリンクバック、控除・加算の確認後に表示されます。"
+                    : "Confirmed: the reached monthly rate applies to all qualifying monthly sales. Unpaid tickets count once in the service month, and the gross-share preview rounds to the nearest yen. Final pay remains unavailable until staff costs, drinkback, deductions and additions are verified."}</Tiny>
             </Card>
 
             <Card>
