@@ -22,7 +22,8 @@ function formatMonth(month: string, locale: Locale) {
     });
 }
 
-function hoursLabel(seconds: number) {
+function hoursLabel(seconds: number | null) {
+    if (seconds === null) return "—";
     return (seconds / 3600).toLocaleString(undefined, {
         minimumFractionDigits: 1, maximumFractionDigits: 1,
     }) + " h";
@@ -69,6 +70,7 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
         businessDate: shift.business_date,
         status: shift.status,
         hoursSeconds: shift.hours_seconds,
+        hoursState: shift.hours_state,
         clockedIn: shift.clocked_in,
         drinks: shift.drinks,
     })), [history]);
@@ -153,17 +155,18 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
                                 {section === "hours" ? (
                                     <>
                                         <h3>{ja ? "勤務記録のあるシフト" : "Shifts with recorded activity"}</h3>
-                                        {filtered.filter(row => row.hoursSeconds !== null).length ? (
+                                        {filtered.some(row => row.hoursSeconds !== null || row.hoursState === "incomplete") ? (
                                             <HistoryList>
-                                                {filtered.filter(row => row.hoursSeconds !== null).map(row =>
+                                                {filtered.filter(row => row.hoursSeconds !== null || row.hoursState === "incomplete").map(row =>
                                                     <HistoryEntry key={row.shiftId}>
                                                         <div>
                                                             <strong>{formatBusinessDate(row.businessDate, locale)}</strong>
                                                             <Meta>{row.status === "open" ? (ja ? "営業中" : "Open shift") : (ja ? "終了" : "Closed shift")}
                                                                 {row.clockedIn ? " · " + (ja ? "勤務中" : "Clocked in") : ""}
+                                                                {row.hoursState === "incomplete" ? " · " + (ja ? "打刻時間が不完全" : "Incomplete punch") : ""}
                                                             </Meta>
                                                         </div>
-                                                        <Value>{hoursLabel(row.hoursSeconds!)}</Value>
+                                                        <Value>{hoursLabel(row.hoursSeconds)}</Value>
                                                     </HistoryEntry>
                                                 )}
                                             </HistoryList>
