@@ -198,7 +198,10 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
         }
       }
     }
-    if(response===null){status=404;response={detail:"Unmocked API endpoint: "+key};}
+    // `null` is the valid response for a day with no open shift.
+    if(response===null && !(key==="GET /shifts/current" && !state.failShiftLookup)){
+      status=404;response={detail:"Unmocked API endpoint: "+key};
+    }
     await route.fulfill({status,contentType:"application/json",headers:{"Access-Control-Allow-Origin":"*",
         "Access-Control-Allow-Methods":"GET,POST,PATCH,DELETE,OPTIONS",
         "Access-Control-Allow-Headers":"*"},
@@ -609,7 +612,7 @@ test("closure-only analytics day has zero sales while preserving maintenance hou
   await page.goto("/analytics");
   await expect(page.getByText(/Venue status Maintenance/)).toBeVisible();
   await expect(page.getByText("No shift recorded")).toBeVisible();
-  await expect(page.getByText("2h 0m")).toBeVisible();
+  await expect(page.getByText("2h 0m").first()).toBeVisible();
   await expect(page.getByText("¥0").first()).toBeVisible();
 });
 
