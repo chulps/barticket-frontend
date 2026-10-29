@@ -98,6 +98,38 @@ export type PersonalWorkHistory = {
     }[];
 };
 
+export type HourlyRateRecord = {
+    id: number;
+    hourly_rate_yen: number;
+    effective_from: string;
+    effective_through: string | null;
+    reason: string;
+    source: string | null;
+    changed_by_user_id: number;
+    changed_by_name: string;
+    created_at: string;
+};
+export type HourlyRatePreview = {
+    user_id: number;
+    staff_name: string;
+    effective_from: string;
+    period_end: string | null;
+    proposed_hourly_rate_yen: number;
+    affected_hours_seconds: number;
+    current_gross_estimate_yen_unrounded: string | null;
+    proposed_gross_estimate_yen_unrounded: string;
+    change_yen_unrounded: string | null;
+    hours_basis?: string;
+    note: string;
+};
+type HourlyRateChange = {
+    user_id: number;
+    hourly_rate_yen: number;
+    effective_from: string;
+    reason: string;
+    source?: string;
+};
+
 type Session = { token: string; user: Account };
 
 export const accountApi = {
@@ -147,6 +179,22 @@ export const accountApi = {
     }) => apiRequest<Account>("/users", { method: "POST", body }),
 
     removeUser: (userId: number) => apiRequest<Account[]>(`/users/${userId}`, { method: "DELETE" }),
+
+    hourlyRates: (userId: number) =>
+        apiRequest<{ user_id: number; staff_name: string; hourly_rates: HourlyRateRecord[] }>(
+            `/admin/staff-compensation/users/${userId}/hourly-rates`,
+        ),
+
+    previewHourlyRate: (body: Pick<HourlyRateChange, "user_id" | "hourly_rate_yen" | "effective_from">) =>
+        apiRequest<HourlyRatePreview>("/admin/staff-compensation/hourly-rates/preview", {
+            method: "POST", body,
+        }),
+
+    setHourlyRate: (body: HourlyRateChange) =>
+        apiRequest<{ id: number; user_id: number; hourly_rate_yen: number; effective_from: string; reason: string; source: string | null; changed_by_name: string; created_at: string }>(
+            "/admin/staff-compensation/hourly-rates",
+            { method: "POST", body },
+        ),
 
     currentShift: () => apiRequest<ShiftReport | null>("/shifts/current"),
 

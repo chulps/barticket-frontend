@@ -6,6 +6,7 @@ import ts from "typescript";
 const admin = readFileSync(new URL("../src/pages/Admin.tsx", import.meta.url), "utf8");
 const directory = readFileSync(new URL("../src/pages/AdminTeam.tsx", import.meta.url), "utf8");
 const editors = readFileSync(new URL("../src/pages/AdminTeamEditors.tsx", import.meta.url), "utf8");
+const account = readFileSync(new URL("../src/api/account.ts", import.meta.url), "utf8");
 const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
 const source = readFileSync(new URL("../src/pages/adminTeamDrafts.ts", import.meta.url), "utf8");
 const transpiled = ts.transpileModule(source, {
@@ -39,8 +40,15 @@ test("Only existing read endpoints are used for team history; draft editors cann
     assert.match(editors, /Save — unavailable/);
     assert.match(editors, /Apply correction — unavailable/);
     assert.match(editors, /Save adjustment — unavailable/);
-    assert.match(editors, /No payroll or ticket amounts are changed/);
-    assert.match(editors, /PREVIEW ONLY/);
+    assert.match(editors, /Only managers can change hourly rates/);
+    assert.match(editors, /accountApi\.hourlyRates\(person\.id\)/);
+    assert.match(editors, /accountApi\.previewHourlyRate/);
+    assert.match(editors, /accountApi\.setHourlyRate/);
+    assert.match(account, /\/admin\/staff-compensation\/users\/\$\{userId\}\/hourly-rates/);
+    assert.match(account, /\/admin\/staff-compensation\/hourly-rates\/preview/);
+    assert.match(account, /\/admin\/staff-compensation\/hourly-rates/);
+    assert.match(editors, /window\.confirm/);
+    assert.match(editors, /Impact preview \(unrounded estimate\)/);
 });
 
 test("UI components and draft helpers parse as TypeScript", () => {
@@ -48,6 +56,7 @@ test("UI components and draft helpers parse as TypeScript", () => {
         ["Admin", admin, ts.ScriptKind.TSX],
         ["AdminTeam", directory, ts.ScriptKind.TSX],
         ["AdminTeamEditors", editors, ts.ScriptKind.TSX],
+        ["Account API", account, ts.ScriptKind.TS],
         ["AdminTeamDrafts", source, ts.ScriptKind.TS],
     ]) {
         const parsed = ts.createSourceFile(name + ".tsx", contents, ts.ScriptTarget.Latest, true, kind);
