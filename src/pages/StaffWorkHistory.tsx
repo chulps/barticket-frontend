@@ -97,7 +97,9 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
             </Heading>
 
             <Tabs role="tablist" aria-label={ja ? "勤務履歴の項目" : "Work history sections"}>
-                {(role === "staff" ? ["hours", "drinks", "income"] as const : ["hours", "drinks", "benefits"] as const).map(key => (
+                {(role === "staff"
+                    ? ["hours", "drinks", "income"] as const
+                    : ["hours", "drinks", "benefits", "income"] as const).map(key => (
                     <button key={key} type="button" role="tab"
                         aria-selected={section === key}
                         aria-controls="profile-work-panel"
