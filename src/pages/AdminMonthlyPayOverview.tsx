@@ -85,7 +85,6 @@ export default function AdminMonthlyPayOverview({
         let cancelled = false;
         async function load() {
             setLoading(true);
-            setError("");
             const results = await Promise.all(people.map(async person => {
                 try {
                     if (person.role === "staff") {
