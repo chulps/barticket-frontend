@@ -16,6 +16,8 @@ const actionLabels: Record<string, [string, string]> = {
     manager_pay_deduction_added: ["報酬控除を追加", "Pay deduction added"],
     manager_pay_deduction_reversed: ["報酬控除を取消", "Pay deduction reversed"],
     shift_manager_assignment_changed: ["担当マネージャーを変更", "Working manager changed"],
+    shift_reopened: ["シフトを再開", "Shift reopened"],
+    shift_kept_open: ["シフトを継続", "Shift kept open"],
 };
 
 export default function AdminAuditHistory({ person, locale, onBack }: {
@@ -87,6 +89,11 @@ function Values({ title, values, locale }: { title: string; values: Record<strin
         category: ["分類", "Category"], signed_amount_yen: ["金額（円）", "Amount (JPY)"],
         reversal_of_id: ["取消元記録", "Reversed record"], manager_user_id: ["マネージャーID", "Manager ID"],
         manager_name: ["マネージャー", "Manager"], source: ["出典", "Source"],
+        closed_at: ["閉店時刻", "Closed at"], paid_total_yen: ["支払済み合計", "Paid total (JPY)"],
+        cash_total_yen: ["現金合計", "Cash total (JPY)"], card_total_yen: ["カード合計", "Card total (JPY)"],
+        other_total_yen: ["その他合計", "Other total (JPY)"], cover_total_yen: ["カバーチャージ", "Cover total (JPY)"],
+        guest_count: ["来店人数", "Guest count"], paid_count: ["支払件数", "Paid count"],
+        cancelled_count: ["キャンセル件数", "Cancelled count"], status: ["状態", "Status"],
     };
     return <ValuesList><strong>{title}</strong><dl>{Object.entries(values).map(([key, value]) => (
         <div key={key}><dt>{labels[key]?.[ja ? 0 : 1] ?? key.replaceAll("_", " ")}</dt><dd>{value === null ? "—" : typeof value === "boolean" ? (value ? (ja ? "はい" : "Yes") : (ja ? "いいえ" : "No")) : String(value)}</dd></div>
