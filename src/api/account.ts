@@ -10,10 +10,26 @@ export type Account = {
 };
 
 export type ShiftPunch = {
+    id: number;
     user_id: number;
     name: string;
     clock_in: number;
     clock_out: number | null;
+    recorded_clock_in: number;
+    recorded_clock_out: number | null;
+    clock_out_source: string | null;
+    clock_out_by: string | null;
+    clock_out_reason: string | null;
+    correction_history?: {
+        correction_id: number;
+        field: "clock_in" | "clock_out";
+        previous_at: number;
+        corrected_at: number;
+        reason: string;
+        corrected_by: string;
+        corrected_by_user_id: number;
+        created_at: number;
+    }[];
 };
 
 export type ShiftReport = {
@@ -197,6 +213,14 @@ export const accountApi = {
         ),
 
     currentShift: () => apiRequest<ShiftReport | null>("/shifts/current"),
+
+    correctPunch: (
+        shiftId: number,
+        punchId: number,
+        body: { corrected_clock_in: string; corrected_clock_out: string; reason: string },
+    ) => apiRequest<ShiftReport>(`/shifts/${shiftId}/punches/${punchId}/corrections`, {
+        method: "POST", body,
+    }),
 
     venueStatus: (businessDate: string) =>
         apiRequest<VenueStatus>(`/venue-status?business_date=${encodeURIComponent(businessDate)}`),

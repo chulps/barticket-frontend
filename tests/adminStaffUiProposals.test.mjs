@@ -5,8 +5,8 @@ import ts from "typescript";
 
 const s = readFileSync(new URL("../src/pages/AdminTeamEditors.tsx", import.meta.url), "utf8");
 
-test("staff editor keeps unsupported time and bonus proposals explicitly unsaved", () => {
-    for (const kind of ["drinkback", "hours", "bonus"]) {
+test("staff editor keeps unsupported drinkback and bonus proposals explicitly unsaved", () => {
+    for (const kind of ["drinkback", "bonus"]) {
         assert.match(s, new RegExp('copyProposal\\("'+kind+'"\\)'));
     }
     assert.match(s, /UNSAVED_PROPOSAL_ONLY/);

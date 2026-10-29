@@ -29,8 +29,8 @@ function hoursLabel(seconds: number) {
 }
 
 /**
- * Nested under Admin's manager-only role guard; uses existing READ endpoints.
- * This panel NEVER posts time, pay or bonus changes to the API.
+ * Nested under Admin's manager-only role guard. Reads manager shift history and
+ * writes only through existing audited rate and punch-correction APIs.
  */
 export default function AdminTeam({ viewer, people, accountsError, locale, selectedId, onSelect, onAudit }: Props) {
     const ja = locale === "ja";
@@ -49,12 +49,10 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
             setLoading(true);
             setLoadError("");
             try {
-                const [closedShifts, currentShift] = await Promise.all([
-                    accountApi.closedShifts(), accountApi.currentShift(),
-                ]);
+                const shiftHistory = await accountApi.shiftHistory();
                 if (!cancelled) {
-                    setClosed(closedShifts);
-                    setCurrent(currentShift);
+                    setClosed(shiftHistory.filter(shift => shift.status === "closed"));
+                    setCurrent(shiftHistory.find(shift => shift.status === "open") ?? null);
                 }
             } catch (err) {
                 if (!cancelled) {
@@ -245,6 +243,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     locale={locale}
                                     rows={filteredActivity}
                                     drinkLines={drinkLines}
+                                    onRefresh={() => setRefreshKey(value => value + 1)}
                                 />
                             ) : null}
                         </>
