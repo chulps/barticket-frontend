@@ -3,7 +3,7 @@ export function unixSecondsToJstInput(seconds: number): string {
 }
 
 export function jstInputToIso(value: string): string | null {
-    if (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}$/.test(value)) return null;
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) return null;
     const milliseconds = Date.parse(value + "+09:00");
     if (!Number.isFinite(milliseconds)) return null;
     if (unixSecondsToJstInput(milliseconds / 1000) !== value) return null;
