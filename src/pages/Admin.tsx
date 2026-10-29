@@ -13,6 +13,7 @@ import DataDownload from "../components/DataDownload";
 import AdminAuditHistory from "./AdminAuditHistory";
 import Reconciliation from "./Reconciliation";
 import ScheduleImport from "./ScheduleImport";
+import AdminPayDeductions from "./AdminPayDeductions";
 
 /**
  * Manager-only dashboard: Phase 1 accounts plus frontend-only Team editor previews.
@@ -35,7 +36,7 @@ export default function Admin() {
     const [accountsError, setAccountsError] = useState("");
     const [accountsLoading, setAccountsLoading] = useState(false);
     const [busy, setBusy] = useState(false);
-    const [section, setSection] = useState<"overview" | "accounts" | "team" | "historicalHours" | "schedules">(
+    const [section, setSection] = useState<"overview" | "accounts" | "team" | "historicalHours" | "schedules" | "adjustments">(
         () => staffId === undefined ? "overview" : "team",
     );
     const activeSection = staffId === undefined ? section : "team";
@@ -43,7 +44,7 @@ export default function Admin() {
         : /^[1-9][0-9]*$/.test(staffId) && Number.isSafeInteger(Number(staffId))
             ? Number(staffId) : -1;
 
-    function chooseSection(next: "overview" | "accounts" | "team" | "historicalHours" | "schedules") {
+    function chooseSection(next: "overview" | "accounts" | "team" | "historicalHours" | "schedules" | "adjustments") {
         setSection(next);
         if (staffId !== undefined) navigate("/admin");
         if (next === "historicalHours") void loadHistoricalShifts();
@@ -206,6 +207,7 @@ export default function Admin() {
                     { id: "team", label: locale === "ja" ? "チーム" : "Team" },
                     { id: "historicalHours", label: locale === "ja" ? "履歴勤務時間" : "Historical hours" },
                     { id: "schedules", label: locale === "ja" ? "シフト予定" : "Schedules" },
+                    { id: "adjustments", label: locale === "ja" ? "報酬控除" : "Pay deductions" },
                 ]}
                 activeTab={activeSection}
                 onChange={chooseSection}
@@ -315,6 +317,8 @@ export default function Admin() {
                     </Section>
                     <ScheduleImport users={team} locale={locale} />
                 </>
+            ) : activeSection === "adjustments" ? (
+                <AdminPayDeductions managers={team.filter(person => person.role === "manager")} locale={locale} />
             ) : (
                 <AdminTeam
                     viewer={me}

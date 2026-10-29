@@ -235,6 +235,30 @@ type HourlyRateChange = {
     source?: string;
 };
 
+export type ManagerPayDeduction = {
+    id: number;
+    beneficiary_user_id: number;
+    category: "language_exchange_commission" | "manager_paid_staff_tip";
+    signed_amount_yen: number;
+    business_date: string;
+    shift_id: number | null;
+    payee_user_id: number | null;
+    payee_name: string;
+    reason: string;
+    source: { file: string | null; row: number | null; column: string | null; note: string | null };
+    reversal_of_id: number | null;
+    created_by_user_id: number;
+    created_by_name: string;
+    created_at: string;
+};
+
+export type ManagerPayDeductionList = {
+    period: { date_from: string; date_to: string };
+    items: ManagerPayDeduction[];
+    signed_deduction_total_yen: number;
+    note: string;
+};
+
 type Session = { token: string; user: Account };
 
 export const accountApi = {
@@ -335,6 +359,28 @@ export const accountApi = {
 
     revenueSharePreview: (month: string) =>
         apiRequest<RevenueSharePreview>(`/payroll/revenue-share/preview?month=${encodeURIComponent(month)}`),
+
+    managerPayDeductions: (params: { date_from: string; date_to: string; beneficiary_user_id: number }) =>
+        apiRequest<ManagerPayDeductionList>(
+            `/admin/payroll/deductions?date_from=${encodeURIComponent(params.date_from)}&date_to=${encodeURIComponent(params.date_to)}&beneficiary_user_id=${params.beneficiary_user_id}`,
+        ),
+
+    createManagerPayDeduction: (body: {
+        beneficiary_user_id: number;
+        category: ManagerPayDeduction["category"];
+        amount_yen: number;
+        business_date: string;
+        payee_name: string;
+        reason: string;
+        source_file?: string;
+        source_row?: number;
+        source_column?: string;
+        source_note?: string;
+    }) => apiRequest<ManagerPayDeduction>("/admin/payroll/deductions", { method: "POST", body }),
+
+    reverseManagerPayDeduction: (id: number, reason: string) =>
+        apiRequest<ManagerPayDeduction>(`/admin/payroll/deductions/${id}/reverse`, { method: "POST", body: { reason } }),
+
 
     staffDrinkBonuses: (userId: number, dateFrom: string, dateTo: string) =>
         apiRequest<StaffDrinkBonusReport>(`/admin/staff-compensation/drink-bonuses?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}&user_id=${userId}`),
