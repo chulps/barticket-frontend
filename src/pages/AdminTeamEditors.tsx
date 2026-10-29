@@ -236,7 +236,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                         {rateSaveError ? <p role="alert">{rateSaveError}</p> : null}
                         {rateSaveSuccess ? <p role="status">{rateSaveSuccess}</p> : null}
                         <Actions>
-                            <button type="button" className="hollow secondary" onClick={() => updateRate({ hourlyYen: "", effectiveFrom: "", reason: "" })>{ja ? "クリア" : "Clear draft"}</button>
+                            <button type="button" className="hollow secondary" onClick={() => updateRate({ hourlyYen: "", effectiveFrom: "", reason: "" })}>{ja ? "クリア" : "Clear draft"}</button>
                             <button type="button" className="secondary" disabled={!readyRate || rateLoading || !!rateError || previewing || savingRate}
                                 onClick={() => void previewRateChange()}>{previewing ? (ja ? "確認中…" : "Previewing…") : (ja ? "影響をプレビュー" : "Preview impact")}</button>
                             <button type="button" disabled={!readyRate || rateLoading || !!rateError || !previewMatchesRate || savingRate}
