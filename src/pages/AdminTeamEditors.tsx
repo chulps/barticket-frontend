@@ -34,11 +34,8 @@ function dateLabel(value: string, locale: Locale) {
         year: "numeric", month: "short", day: "numeric",
     });
 }
-function hoursLabel(seconds: number) {
-    return (seconds / 3600).toFixed(2) + " h";
-}
 
-/** No write requests: these editable controls are explicitly UNSAVED proposals. */
+/** Manager-only controls; rate and clock corrections write through audited APIs. */
 function PunchCorrectionCard({
     shiftId, businessDate, punch, locale, onSaved,
 }: {
@@ -264,14 +261,14 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
             <Header>
                 <div>
                     <h3>{ja ? "スタッフ設定・調整" : "Staff settings & adjustments"}</h3>
-                    <p>{ja ? "時給レートは監査履歴に保存。勤務時間とドリンク手当はまだ下書きです。" : "Hourly rates save to audit history. Time and drink-bonus proposals remain drafts."}</p>
+                    <p>{ja ? "時給レートと打刻修正は監査履歴に保存。ドリンク手当は下書きです。" : "Hourly rates and clock corrections save to audit history. Drink-bonus proposals remain drafts."}</p>
                 </div>
                 <Pill>{ja ? "時給レート管理" : "AUDITED HOURLY RATES"}</Pill>
             </Header>
             <Notice role="note">
                 {ja
-                    ? "時給レートはマネージャーのみ変更できます。勤務時間の修正とドリンク手当はまだ保存できません。表示される影響額は勤務時間に基づく未丸めの試算で、最終給与ではありません。"
-                    : "Only managers can change hourly rates. Time corrections and drink bonuses are not yet saveable. Impact figures are unrounded estimates based on recorded hours, not final payroll."}
+                    ? "時給レートと打刻修正はマネージャーのみ変更でき、監査履歴に記録されます。ドリンク手当はルール確認後に対応します。影響額は未丸めの試算で、最終給与ではありません。"
+                    : "Only managers can change rates or correct clock punches; both are recorded in audit history. Drink bonuses await confirmed rules. Impact figures are unrounded estimates, not final payroll."}
             </Notice>
             {copyNotice ? <Notice role="status">{copyNotice}</Notice> : null}
             <StaffTabSurface>

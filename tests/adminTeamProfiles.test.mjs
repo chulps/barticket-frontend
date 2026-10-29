@@ -28,9 +28,9 @@ test("Admin team is manager-only, including direct staff detail links", () => {
     assert.doesNotMatch(directory, /accountApi\.listUsers\(/);
 });
 
-test("Only existing read endpoints are used for team history; draft editors cannot save or leak via other endpoints", () => {
-    assert.match(directory, /accountApi\.closedShifts\(\)/);
-    assert.match(directory, /accountApi\.currentShift\(\)/);
+test("Team time corrections use the audited API; unsupported pay writes remain disabled", () => {
+    assert.match(directory, /accountApi\.shiftHistory\(\)/);
+    assert.doesNotMatch(directory, /accountApi\.currentShift\(\)/);
     assert.match(directory, /buildStaffActivity\(person\.id, closed, current\)/);
     assert.match(directory, /drink\.staff_id === person\.id/);
     for (const source of [directory, editors]) {
@@ -38,7 +38,8 @@ test("Only existing read endpoints are used for team history; draft editors cann
         assert.doesNotMatch(source, /apiRequest\(|\bfetch\(|localStorage|sessionStorage|axios|\/admin\/staff\/\$\{.*\}\/pay/);
     }
     assert.match(editors, /Save — unavailable/);
-    assert.match(editors, /Apply correction — unavailable/);
+    assert.match(editors, /accountApi\.correctPunch/);
+    assert.match(editors, /Save correction/);
     assert.match(editors, /Save adjustment — unavailable/);
     assert.match(editors, /Only managers can change hourly rates/);
     assert.match(editors, /accountApi\.hourlyRates\(person\.id\)/);
@@ -47,12 +48,15 @@ test("Only existing read endpoints are used for team history; draft editors cann
     assert.match(account, /\/admin\/staff-compensation\/users\/\$\{userId\}\/hourly-rates/);
     assert.match(account, /\/admin\/staff-compensation\/hourly-rates\/preview/);
     assert.match(account, /\/admin\/staff-compensation\/hourly-rates/);
+    assert.match(account, /\/shifts\/\$\{shiftId\}\/punches\/\$\{punchId\}\/corrections/);
     assert.match(editors, /window\.confirm/);
     assert.match(editors, /Impact preview \(unrounded estimate\)/);
 });
 
 test("UI components and draft helpers parse as TypeScript", () => {
+    const punchHelper = readFileSync(new URL("../src/pages/adminPunchCorrections.ts", import.meta.url), "utf8");
     for (const [name, contents, kind] of [
+        ["Punch correction helpers", punchHelper, ts.ScriptKind.TS],
         ["Admin", admin, ts.ScriptKind.TSX],
         ["AdminTeam", directory, ts.ScriptKind.TSX],
         ["AdminTeamEditors", editors, ts.ScriptKind.TSX],

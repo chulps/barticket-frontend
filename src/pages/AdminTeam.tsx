@@ -29,8 +29,8 @@ function hoursLabel(seconds: number) {
 }
 
 /**
- * Nested under Admin's manager-only role guard; uses existing READ endpoints.
- * This panel NEVER posts time, pay or bonus changes to the API.
+ * Nested under Admin's manager-only role guard. Reads manager shift history and
+ * writes only through existing audited rate and punch-correction APIs.
  */
 export default function AdminTeam({ viewer, people, accountsError, locale, selectedId, onSelect, onAudit }: Props) {
     const ja = locale === "ja";
