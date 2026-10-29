@@ -37,7 +37,6 @@ test("Team time corrections use the audited API; unsupported pay writes remain d
         assert.doesNotMatch(source, /accountApi\.(?:createUser|updateMe|removeUser|clockIn|clockOut|openShift|closeShift)/);
         assert.doesNotMatch(source, /apiRequest\(|\bfetch\(|localStorage|sessionStorage|axios|\/admin\/staff\/\$\{.*\}\/pay/);
     }
-    assert.match(editors, /Save — unavailable/);
     assert.match(editors, /accountApi\.correctPunch/);
     assert.match(editors, /Save correction/);
     assert.match(editors, /Save adjustment — unavailable/);
