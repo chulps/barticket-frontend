@@ -31,8 +31,8 @@ test("Audit history is a distinct manager-only screen with a back link, not an e
     assert.match(team, /View audit history/);
     assert.match(team, /onAudit\(person\.id\)/);
     assert.doesNotMatch(editors, /tab === "audit"|type EditorTab = [^\n]*audit/);
-    assert.match(audit, /No history can be retrieved yet/);
-    assert.doesNotMatch(audit, /apiRequest\(|\bfetch\(|accountApi\./);
+    assert.match(audit, /No recorded changes for this team member/);
+    assert.match(audit, /accountApi\.adminAuditHistory\(person\.id\)/);
 });
 
 test("Activity drill-down navigates years, months and expandable nights without a 20-shift cutoff", () => {
