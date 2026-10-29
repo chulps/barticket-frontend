@@ -130,14 +130,12 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
         }
     }
 
-    async function copyProposal(kind: "terms" | "drinkback" | "hours" | "bonus") {
-        const payload = kind === "terms"
-            ? { action: "propose-pay-terms", ...rate }
-            : kind === "drinkback"
-                ? { action: "propose-drinkback-rule", ...drinkback }
-                : kind === "hours"
-                    ? { action: "propose-time-correction", ...hours }
-                    : { action: "propose-bonus-adjustment", ...bonus };
+    async function copyProposal(kind: "drinkback" | "hours" | "bonus") {
+        const payload = kind === "drinkback"
+            ? { action: "propose-drinkback-rule", ...drinkback }
+            : kind === "hours"
+                ? { action: "propose-time-correction", ...hours }
+                : { action: "propose-bonus-adjustment", ...bonus };
         try {
             await navigator.clipboard.writeText(JSON.stringify({
                 status: "UNSAVED_PROPOSAL_ONLY", employee_id: person.id,

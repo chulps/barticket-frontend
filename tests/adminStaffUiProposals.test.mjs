@@ -5,18 +5,18 @@ import ts from "typescript";
 
 const s = readFileSync(new URL("../src/pages/AdminTeamEditors.tsx", import.meta.url), "utf8");
 
-test("staff editor has copyable, explicit unsaved proposals for all four workflows", () => {
-    for (const kind of ["terms", "drinkback", "hours", "bonus"]) {
+test("staff editor keeps unsupported time and bonus proposals explicitly unsaved", () => {
+    for (const kind of ["drinkback", "hours", "bonus"]) {
         assert.match(s, new RegExp('copyProposal\\("'+kind+'"\\)'));
     }
     assert.match(s, /UNSAVED_PROPOSAL_ONLY/);
     assert.match(s, /employee_id: person\.id/);
     assert.match(s, /navigator\.clipboard\.writeText/);
 });
-test("all copy actions require validated draft input and never call financial endpoints", () => {
-    for (const guard of ["readyRate", "readyDrinkback", "readyHours", "readyBonus"]) {
-        assert.match(s, new RegExp('disabled=\\{!'+guard+'\\}'));
-    }
+test("hourly rates require a current preview and an explicit save confirmation", () => {
+    assert.match(s, /disabled=\{!readyRate \|\| rateLoading \|\| !!rateError \|\| !previewMatchesRate \|\| savingRate\}/);
+    assert.match(s, /window\.confirm/);
+    assert.match(s, /Confirm and save/);
     assert.doesNotMatch(s, /accountApi\.(?:updatePay|saveHours|saveBonus)/);
     assert.match(s, /Save — unavailable/);
 });
