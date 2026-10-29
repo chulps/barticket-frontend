@@ -129,7 +129,7 @@ export default function Profile() {
                 <>
                     <ShiftControls account={account} locale={locale} />
 
-                    <StaffWorkHistory key={account.id} userId={account.id} locale={locale} />
+                    <StaffWorkHistory key={account.id} userId={account.id} locale={locale} role={account.role} />
 
                     <Section>
                         <Who>
