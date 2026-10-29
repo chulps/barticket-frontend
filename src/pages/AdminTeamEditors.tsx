@@ -5,11 +5,7 @@ import TabGroup from "../components/TabGroup";
 import { localeTag, type Locale } from "../i18n";
 import type { StaffActivityRow } from "./staffProfileData";
 import { jstInputToIso, unixSecondsToJstInput, validPunchCorrection } from "./adminPunchCorrections";
-import {
-    initialRateDraft, initialDrinkbackDraft, initialBonusDraft,
-    validRateDraft, validDrinkbackDraft, validBonusDraft,
-    type DrinkbackMode,
-} from "./adminTeamDrafts";
+import { initialRateDraft, initialBonusDraft, validRateDraft, validBonusDraft } from "./adminTeamDrafts";
 
 export type AdminDrinkLine = {
     shiftId: number;
@@ -152,7 +148,6 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
     const ja = locale === "ja";
     const [tab, setTab] = useState<EditorTab>("terms");
     const [rate, setRate] = useState({ ...initialRateDraft, basis: "hourly" as const });
-    const [drinkback, setDrinkback] = useState(initialDrinkbackDraft);
     const [bonus, setBonus] = useState(initialBonusDraft);
     const [copyNotice, setCopyNotice] = useState("");
     const [rateHistory, setRateHistory] = useState<HourlyRateRecord[]>([]);
@@ -263,14 +258,14 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
         }
     }
 
-    async function copyProposal(kind: "drinkback" | "bonus") {
-        const payload = kind === "drinkback"
-            ? { action: "propose-drinkback-rule", ...drinkback }
-            : { action: "propose-bonus-adjustment", ...bonus };
+    async function copyBonusAdjustmentProposal() {
         try {
             await navigator.clipboard.writeText(JSON.stringify({
-                status: "UNSAVED_PROPOSAL_ONLY", employee_id: person.id,
-                employee_name: person.name, ...payload,
+                status: "UNSAVED_PROPOSAL_ONLY",
+                employee_id: person.id,
+                employee_name: person.name,
+                action: "propose-bonus-adjustment",
+                ...bonus,
             }, null, 2));
             setCopyNotice(ja
                 ? "下書きJSONをコピーしました。APIにも給与記録にも保存されていません。"
@@ -288,7 +283,6 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
     const drinkShifts = [...new Set(drinkLines.map(row => row.shiftId))];
     const readyRate = validRateDraft(rate) && Number(rate.hourlyYen) <= 10_000_000;
     const previewMatchesRate = preview?.user_id === person.id && preview.proposed_hourly_rate_yen === Number(rate.hourlyYen) && preview.effective_from === rate.effectiveFrom;
-    const readyDrinkback = validDrinkbackDraft(drinkback);
     const readyBonus = validBonusDraft(bonus, drinkShifts);
 
     return (
@@ -296,14 +290,14 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
             <Header>
                 <div>
                     <h3>{ja ? "スタッフ設定・調整" : "Staff settings & adjustments"}</h3>
-                    <p>{ja ? "時給レートと打刻修正は監査履歴に保存。ドリンク手当は下書きです。" : "Hourly rates and clock corrections save to audit history. Drink-bonus proposals remain drafts."}</p>
+                    <p>{ja ? "時給レートと打刻修正は監査履歴に保存。確認済みの40%ドリンク手当をプレビュー表示し、手動調整は下書きのままです。" : "Hourly rates and clock corrections save to audit history. The confirmed 40% drink-bonus rule is shown as a preview; manual adjustments remain drafts."}</p>
                 </div>
                 <Pill>{ja ? "時給レート管理" : "AUDITED HOURLY RATES"}</Pill>
             </Header>
             <Notice role="note">
                 {ja
-                    ? "時給レートと打刻修正はマネージャーのみ変更でき、監査履歴に記録されます。ドリンク手当はルール確認後に対応します。影響額は未丸めの試算で、最終給与ではありません。"
-                    : "Only managers can change rates or correct clock punches; both are recorded in audit history. Drink bonuses await confirmed rules. Impact figures are unrounded estimates, not final payroll."}
+                    ? "時給レートと打刻修正はマネージャーのみ変更でき、監査履歴に記録されます。確認済みの40%ドリンク手当は全額支払済みの紐づいたチケットが対象です。手動調整は未保存です。金額は試算で、最終給与ではありません。"
+                    : "Only managers can change rates or correct clock punches; both are recorded in audit history. The confirmed 40% bonus rule applies to linked drinks on fully paid tickets; manual adjustments remain unsaved. Impact figures are estimates, not final payroll."}
             </Notice>
             {copyNotice ? <Notice role="status">{copyNotice}</Notice> : null}
             <StaffTabSurface>
@@ -389,45 +383,6 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                                 ))}
                             </Records>
                         ) : <Muted>{rateLoading ? (ja ? "読み込み中…" : "Loading…") : (ja ? "レート履歴がありません。" : "No hourly-rate history recorded.")}</Muted>}
-                    </Card>
-                    <Card>
-                        <h4>{ja ? "スタッフドリンクのバック率設定案" : "Propose staff-drink bonus rule"}</h4>
-                        <p>{ja ? "記録されたドリンク数から報酬額はまだ計算できません。対象条件・キャンセル・計算単位は未確定です。" : "Drink counts do not establish earned bonuses. Eligibility, refunds and calculation rules require backend approval."}</p>
-                        <Fields>
-                            <label>{ja ? "計算方法" : "Bonus method"}
-                                <select value={drinkback.mode} onChange={e => setDrinkback({ ...drinkback, mode: e.target.value as DrinkbackMode })}>
-                                    <option value="">{ja ? "選択してください" : "Select method"}</option>
-                                    <option value="none">{ja ? "バックなし" : "No bonus"}</option>
-                                    <option value="fixed">{ja ? "対象ドリンク1杯あたり定額（円）" : "Fixed JPY per eligible drink"}</option>
-                                    <option value="percentage">{ja ? "対象ドリンク売上の割合（%）" : "Percent of eligible drink revenue"}</option>
-                                </select>
-                            </label>
-                            {drinkback.mode === "fixed" || drinkback.mode === "percentage" ? (
-                                <label>{drinkback.mode === "fixed" ? (ja ? "定額（円）" : "JPY per drink") : (ja ? "割合（%）" : "Percentage")}
-                                    <input type="number" min="0" max={drinkback.mode === "percentage" ? "100" : "1000000000"}
-                                        step="1" value={drinkback.amount} onChange={e => setDrinkback({ ...drinkback, amount: e.target.value })} />
-                                </label>
-                            ) : null}
-                            <label>{ja ? "適用開始日" : "Effective from"}
-                                <input type="date" value={drinkback.effectiveFrom}
-                                    onChange={e => setDrinkback({ ...drinkback, effectiveFrom: e.target.value })} />
-                            </label>
-                            <label>{ja ? "設定理由（必須）" : "Reason (required)"}
-                                <textarea rows={2} maxLength={500} value={drinkback.reason}
-                                    onChange={e => setDrinkback({ ...drinkback, reason: e.target.value })} />
-                            </label>
-                        </Fields>
-                        {readyDrinkback ? <Preview role="status">
-                            {ja ? "設定案（未保存）" : "Proposed rule (unsaved)"}: {drinkback.mode === "fixed"
-                                ? "¥" + Number(drinkback.amount).toLocaleString() + (ja ? "/杯" : "/drink")
-                                : drinkback.mode === "percentage" ? drinkback.amount + "%" : (ja ? "バックなし" : "No bonus")}
-                            {" · "}{drinkback.effectiveFrom}
-                        </Preview> : <Help>{ja ? "計算方法・適用日・理由を入力してください。" : "Choose a method, effective date and reason."}</Help>}
-                        <Actions>
-                            <button type="button" className="hollow secondary" onClick={() => setDrinkback(initialDrinkbackDraft)}>{ja ? "クリア" : "Clear draft"}</button>
-                            <button type="button" className="secondary" disabled={!readyDrinkback} onClick={() => void copyProposal("drinkback")}>{ja ? "設定案をコピー" : "Copy rule proposal"}</button>
-                            <button type="button" disabled title={ja ? "保存API未対応" : "Awaiting manager-only save API"}>{ja ? "保存（未対応）" : "Save — unavailable"}</button>
-                        </Actions>
                     </Card>
                 </Content>
             ) : null}
@@ -540,7 +495,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                         </Preview> : <Help>{ja ? "対象シフト・0以外の整数の円金額・理由を入力してください。" : "Choose a shift, a nonzero whole-yen adjustment and a reason."}</Help>}
                         <Actions>
                             <button type="button" className="hollow secondary" onClick={() => setBonus(initialBonusDraft)}>{ja ? "クリア" : "Clear draft"}</button>
-                            <button type="button" className="secondary" disabled={!readyBonus} onClick={() => void copyProposal("bonus")}>{ja ? "調整案をコピー" : "Copy bonus adjustment"}</button>
+                            <button type="button" className="secondary" disabled={!readyBonus} onClick={() => void copyBonusAdjustmentProposal()}>{ja ? "調整案をコピー" : "Copy bonus adjustment"}</button>
                             <button type="button" disabled title={ja ? "修正API未対応" : "Awaiting approved adjustment API"}>{ja ? "調整を保存（未対応）" : "Save adjustment — unavailable"}</button>
                         </Actions>
                     </Card>
