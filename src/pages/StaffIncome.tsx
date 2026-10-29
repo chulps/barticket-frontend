@@ -212,7 +212,7 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                                 <strong>{money(chuckReport.deduction_total_yen, locale)}</strong>
                             </Metric>
                             <Metric>
-                                <span>{ja ? "Chuckに owed" : "Amount owed to Chuck"}</span>
+                                <span>{ja ? "Chuckへの支払予定額" : "Amount owed to Chuck"}</span>
                                 <strong>{money(chuckReport.net_amount_owed_yen, locale)}</strong>
                                 {!chuckReport.complete ? <small>{ja ? "一部の記録が不足しているため確定できません" : "Unavailable until required records are complete"}</small> : null}
                             </Metric>
