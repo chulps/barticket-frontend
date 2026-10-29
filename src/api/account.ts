@@ -71,6 +71,54 @@ export type RevenueSharePreview = {
     blockers: string[];
 };
 
+export type StaffDrinkBonusReport = {
+    period: { date_from: string; date_to: string };
+    preview_only: true;
+    policy: {
+        basis: "listed_price";
+        rate_percent: 40;
+        eligibility: "staff_linked_drinks_on_fully_paid_tickets";
+        applies_to_historical_paid_staff_drinks: true;
+        rounding: "nearest_yen_half_up_per_staff_shift";
+    };
+    items: {
+        staff_id: number | null;
+        staff_name: string;
+        business_date: string;
+        shift_id: number | null;
+        recorded_line_count: number;
+        recorded_units: number;
+        eligible_line_count: number;
+        eligible_units: number;
+        eligible_listed_revenue_yen: number;
+        bonus_rate_percent: 40;
+        bonus_yen: number;
+    }[];
+    lines: {
+        staff_id: number | null;
+        staff_name: string;
+        business_date: string;
+        shift_id: number | null;
+        ticket_id: number;
+        drink_id: number;
+        drink_name: string;
+        quantity: number;
+        unit_price_yen: number;
+        listed_revenue_yen: number;
+        ticket_fully_paid: boolean;
+        eligible: boolean;
+        exclusion_reason: string | null;
+    }[];
+    totals: {
+        recorded_line_count: number;
+        recorded_units: number;
+        eligible_units: number;
+        eligible_listed_revenue_yen: number;
+        bonus_yen: number;
+    };
+    note: string;
+};
+
 export type ShiftReport = {
     id: number;
     business_date: string;
@@ -287,6 +335,9 @@ export const accountApi = {
 
     revenueSharePreview: (month: string) =>
         apiRequest<RevenueSharePreview>(`/payroll/revenue-share/preview?month=${encodeURIComponent(month)}`),
+
+    staffDrinkBonuses: (userId: number, dateFrom: string, dateTo: string) =>
+        apiRequest<StaffDrinkBonusReport>(`/admin/staff-compensation/drink-bonuses?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}&user_id=${userId}`),
 
     closeShift: () => apiRequest<ShiftReport>("/shifts/close", { method: "POST" }),
 

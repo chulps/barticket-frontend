@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
-import { accountApi, type Account, type HourlyRatePreview, type HourlyRateRecord, type ShiftPunch } from "../api/account";
+import { accountApi, type Account, type HourlyRatePreview, type HourlyRateRecord, type ShiftPunch, type StaffDrinkBonusReport } from "../api/account";
 import TabGroup from "../components/TabGroup";
 import { localeTag, type Locale } from "../i18n";
 import type { StaffActivityRow } from "./staffProfileData";
@@ -34,6 +34,16 @@ function dateLabel(value: string, locale: Locale) {
     return new Date(y, m - 1, d).toLocaleDateString(localeTag(locale), {
         year: "numeric", month: "short", day: "numeric",
     });
+}
+
+function bonusDateRange(rows: StaffActivityRow[], drinkLines: AdminDrinkLine[]) {
+    const dates = [...new Set([...rows.map(row => row.businessDate), ...drinkLines.map(line => line.businessDate)])]
+        .filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
+    if (!dates.length) return null;
+    const dateFrom = dates[0];
+    const dateTo = dates[dates.length - 1];
+    const days = Math.round((Date.parse(dateTo + "T00:00:00Z") - Date.parse(dateFrom + "T00:00:00Z")) / 86400000);
+    return { dateFrom, dateTo, tooWide: days > 366 };
 }
 
 /** Manager-only controls; rate and clock corrections write through audited APIs. */
@@ -154,6 +164,30 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
     const [savingRate, setSavingRate] = useState(false);
     const [rateSaveError, setRateSaveError] = useState("");
     const [rateSaveSuccess, setRateSaveSuccess] = useState("");
+    const bonusRange = useMemo(() => bonusDateRange(rows, drinkLines), [rows, drinkLines]);
+    const [bonusReportState, setBonusReportState] = useState<{
+        key: string;
+        report: StaffDrinkBonusReport | null;
+        error: string;
+    } | null>(null);
+    const bonusRequestKey = bonusRange ? `${person.id}:${bonusRange.dateFrom}:${bonusRange.dateTo}` : "";
+    useEffect(() => {
+        if (tab !== "drinks" || !bonusRange || bonusRange.tooWide) return;
+        let cancelled = false;
+        void accountApi.staffDrinkBonuses(person.id, bonusRange.dateFrom, bonusRange.dateTo).then(report => {
+            if (!cancelled) setBonusReportState({ key: bonusRequestKey, report, error: "" });
+        }).catch(error => {
+            if (!cancelled) setBonusReportState({
+                key: bonusRequestKey,
+                report: null,
+                error: error instanceof Error ? error.message : ja
+                    ? "ドリンク手当を読み込めませんでした。"
+                    : "Could not load the drink bonus preview.",
+            });
+        });
+        return () => { cancelled = true; };
+    }, [tab, person.id, bonusRange?.dateFrom, bonusRange?.dateTo, bonusRange?.tooWide, bonusRequestKey, ja]);
+    const currentBonusReport = bonusReportState?.key === bonusRequestKey ? bonusReportState : null;
 
     useEffect(() => {
         let cancelled = false;
@@ -431,8 +465,41 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                 <Content role="tabpanel">
                     <Intro>
                         <h4>{ja ? "記録されたスタッフドリンク" : "Recorded staff drinks"}</h4>
-                        <p>{ja ? "本人IDに紐づいた記録のみ。表示額は売上であり、支払うバック金額ではありません。" : "Only drinks linked by staff ID. Revenue shown below is a recorded sale amount, NOT an earned bonus."}</p>
+                        <p>{ja ? "本人IDに紐づいた記録のみ。表示額はドリンクの記録売価です。計算済み手当は下に表示します。" : "Line amounts are recorded listed sales; the calculated bonus is shown separately below."}</p>
                     </Intro>
+                    <Card>
+                        <h4>{ja ? "計算済みドリンク手当（プレビュー）" : "Calculated drink bonus preview"}</h4>
+                        <p>{ja
+                            ? "表示価格の40%。スタッフIDに紐づき、チケット全額の支払いが確認できたドリンクが対象です。過去の支払済み記録も含みます。"
+                            : "40% of listed price for staff-ID linked drinks on fully paid tickets. Historical paid drinks are included."}</p>
+                        {bonusRange === null ? (
+                            <Muted>{ja ? "日付付きのドリンク記録がありません。" : "No dated drink activity is recorded."}</Muted>
+                        ) : bonusRange.tooWide ? (
+                            <Muted>{ja ? "期間が1年を超えています。月を選択して確認してください。" : "This range exceeds one year. Select a month to review bonuses."}</Muted>
+                        ) : currentBonusReport?.error ? (
+                            <Muted role="alert">{currentBonusReport.error}</Muted>
+                        ) : !currentBonusReport ? (
+                            <Muted role="status">{ja ? "計算中…" : "Calculating…"}</Muted>
+                        ) : currentBonusReport.report ? (
+                            <>
+                                <Preview role="status">
+                                    {ja ? "対象" : "Eligible"}: {currentBonusReport.report.totals.eligible_units} {ja ? "杯" : "drinks"}
+                                    {" · "}{ja ? "対象売価" : "eligible listed price"}: ¥{currentBonusReport.report.totals.eligible_listed_revenue_yen.toLocaleString()}
+                                </Preview>
+                                <Records>
+                                    {currentBonusReport.report.items.map((item, index) => (
+                                        <Record key={item.shift_id + ":" + item.business_date + ":" + index}>
+                                            <div>
+                                                <strong>{dateLabel(item.business_date, locale)} · {item.eligible_units}/{item.recorded_units} {ja ? "杯が対象" : "eligible drinks"}</strong>
+                                                <Muted>{ja ? "対象売価" : "Eligible listed price"}: ¥{item.eligible_listed_revenue_yen.toLocaleString()} · {ja ? "手当" : "bonus"}: ¥{item.bonus_yen.toLocaleString()}</Muted>
+                                            </div>
+                                        </Record>
+                                    ))}
+                                </Records>
+                                <Muted>{ja ? "合計手当" : "Total bonus"}: ¥{currentBonusReport.report.totals.bonus_yen.toLocaleString()} · {ja ? "プレビューのみ、給与記録には保存されません。" : "Preview only; no payroll entry is created."}</Muted>
+                            </>
+                        ) : null}
+                    </Card>
                     {drinkLines.length ? (
                         <Records>
                             {drinkLines.slice(0, 60).map((line, index) => (
