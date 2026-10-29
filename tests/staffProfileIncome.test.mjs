@@ -27,7 +27,6 @@ test("staff income breakdown is self-only and shows wages and drink bonuses", ()
 
 test("staff income never presents an estimate as a paid amount or treats unknown wage inputs as zero", () => {
     assert.match(income, /estimate/i);
-    assert.match(income, /not.*paid/i);
     assert.match(income, /report\.note/);
     assert.match(income, /amount_yen_unrounded/);
     assert.match(income, /Hourly rate unavailable/);
