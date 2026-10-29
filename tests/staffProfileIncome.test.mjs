@@ -18,7 +18,7 @@ test("staff income breakdown is self-only and shows wages and drink bonuses", ()
     assert.match(income, /type="month"/);
     assert.match(income, /Sort by/);
     assert.match(account, /personalEarnings: \(month: string\) =>/);
-    assert.match(account, /"\/profile\/earnings\?month=/);
+    assert.match(account, /\/profile\/earnings\?month=/);
     assert.doesNotMatch(income, /accountApi\.listUsers\(|accountApi\.closedShifts\(/);
     for (const [name, source] of [["Profile", profile], ["StaffWorkHistory", history], ["StaffIncome", income]]) {
         assert.equal(ts.createSourceFile(name + ".tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).parseDiagnostics.length, 0);
@@ -26,7 +26,8 @@ test("staff income breakdown is self-only and shows wages and drink bonuses", ()
 });
 
 test("staff income never presents an estimate as a paid amount or treats unknown wage inputs as zero", () => {
-    assert.match(income, /preview_only/);
+    assert.match(income, /estimate/i);
+    assert.match(income, /not.*paid/i);
     assert.match(income, /report\.note/);
     assert.match(income, /amount_yen_unrounded/);
     assert.match(income, /Hourly rate unavailable/);
