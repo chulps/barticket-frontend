@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import styled from "styled-components";
-import { accountApi, type Account, type HourlyRatePreview, type HourlyRateRecord } from "../api/account";
+import { accountApi, type Account, type HourlyRatePreview, type HourlyRateRecord, type ShiftPunch } from "../api/account";
 import TabGroup from "../components/TabGroup";
 import { localeTag, type Locale } from "../i18n";
 import type { StaffActivityRow } from "./staffProfileData";
 import {
-    initialRateDraft, initialDrinkbackDraft, initialHoursDraft, initialBonusDraft,
-    validRateDraft, validDrinkbackDraft, validHoursDraft, validBonusDraft,
+    initialRateDraft, initialDrinkbackDraft, initialBonusDraft,
+    validRateDraft, validDrinkbackDraft, validBonusDraft,
     type DrinkbackMode,
 } from "./adminTeamDrafts";
 
@@ -25,6 +25,7 @@ type Props = {
     locale: Locale;
     rows: StaffActivityRow[];
     drinkLines: AdminDrinkLine[];
+    onRefresh: () => void;
 };
 
 function dateLabel(value: string, locale: Locale) {
@@ -38,12 +39,112 @@ function hoursLabel(seconds: number) {
 }
 
 /** No write requests: these editable controls are explicitly UNSAVED proposals. */
-export default function AdminTeamEditors({ person, locale, rows, drinkLines }: Props) {
+function PunchCorrectionCard({
+    shiftId, businessDate, punch, locale, onSaved,
+}: {
+    shiftId: number;
+    businessDate: string;
+    punch: ShiftPunch;
+    locale: Locale;
+    onSaved: () => void;
+}) {
+    const ja = locale === "ja";
+    const originalIn = unixSecondsToJstInput(punch.clock_in);
+    const originalOut = punch.clock_out === null ? "" : unixSecondsToJstInput(punch.clock_out);
+    const [clockIn, setClockIn] = useState(originalIn);
+    const [clockOut, setClockOut] = useState(originalOut);
+    const [reason, setReason] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
+
+    useEffect(() => {
+        setClockIn(originalIn);
+        setClockOut(originalOut);
+        setReason("");
+        setError("");
+    }, [punch.id, punch.clock_in, punch.clock_out]);
+
+    const changed = clockIn !== originalIn || clockOut !== originalOut;
+    const valid = changed && validPunchCorrection(clockIn, clockOut) && reason.trim().length > 0 && !saving;
+
+    async function saveCorrection() {
+        if (!valid) return;
+        const confirmed = window.confirm(ja
+            ? "この出退勤時刻を修正し、理由と変更履歴を保存します。続行しますか？"
+            : "Save this clock-time correction with its reason and audit history?");
+        if (!confirmed) return;
+        setSaving(true);
+        setError("");
+        setSuccess("");
+        try {
+            const correctedIn = jstInputToIso(clockIn);
+            const correctedOut = jstInputToIso(clockOut);
+            if (!correctedIn || !correctedOut) throw new Error(ja ? "時刻を確認してください。" : "Check the clock times.");
+            await accountApi.correctPunch(shiftId, punch.id, {
+                corrected_clock_in: correctedIn,
+                corrected_clock_out: correctedOut,
+                reason: reason.trim(),
+            });
+            setSuccess(ja ? "修正を保存しました。監査履歴に記録されています。" : "Correction saved to audit history.");
+            setReason("");
+            onSaved();
+        } catch (cause) {
+            setError(cause instanceof Error ? cause.message :
+                (ja ? "打刻を修正できませんでした。" : "Could not correct this punch."));
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    const history = punch.correction_history ?? [];
+    return (
+        <Card>
+            <strong>{dateLabel(businessDate, locale)} · {punch.name}</strong>
+            <Fields>
+                <label>{ja ? "出勤（日本時間）" : "Clock in (JST)"}
+                    <input type="datetime-local" step="1" value={clockIn}
+                        onChange={event => { setClockIn(event.target.value); setError(""); setSuccess(""); }} />
+                </label>
+                <label>{ja ? "退勤（日本時間）" : "Clock out (JST)"}
+                    <input type="datetime-local" step="1" value={clockOut}
+                        onChange={event => { setClockOut(event.target.value); setError(""); setSuccess(""); }} />
+                </label>
+                <label>{ja ? "修正理由（必須）" : "Reason (required)"}
+                    <textarea rows={2} maxLength={255} value={reason}
+                        onChange={event => { setReason(event.target.value); setError(""); setSuccess(""); }} />
+                </label>
+            </Fields>
+            <Help>{ja
+                ? "記録値は変更せず、修正後の値と理由を履歴に追加します。"
+                : "Original recorded timestamps remain intact; the correction and reason are appended to history."}</Help>
+            {error ? <p role="alert">{error}</p> : null}
+            {success ? <p role="status">{success}</p> : null}
+            <Actions>
+                <button type="button" disabled={!valid} onClick={() => void saveCorrection()}>
+                    {saving ? (ja ? "保存中…" : "Saving…") : (ja ? "修正を保存" : "Save correction")}
+                </button>
+            </Actions>
+            {history.length ? (
+                <details>
+                    <summary>{ja ? "修正履歴" : "Correction history"} ({history.length})</summary>
+                    {history.map(event => (
+                        <p key={event.correction_id}>
+                            {event.field === "clock_in" ? (ja ? "出勤" : "Clock in") : (ja ? "退勤" : "Clock out")}: {new Date(event.previous_at * 1000).toLocaleString(localeTag(locale), { timeZone: "Asia/Tokyo" })} → {new Date(event.corrected_at * 1000).toLocaleString(localeTag(locale), { timeZone: "Asia/Tokyo" })}
+                            {" · "}{event.corrected_by}: {event.reason}
+                        </p>
+                    ))}
+                </details>
+            ) : null}
+        </Card>
+    );
+}
+
+export default function AdminTeamEditors({ person, locale, rows, drinkLines, onRefresh }: Props) {
     const ja = locale === "ja";
     const [tab, setTab] = useState<EditorTab>("terms");
     const [rate, setRate] = useState({ ...initialRateDraft, basis: "hourly" as const });
     const [drinkback, setDrinkback] = useState(initialDrinkbackDraft);
-    const [hours, setHours] = useState(initialHoursDraft);
     const [bonus, setBonus] = useState(initialBonusDraft);
     const [copyNotice, setCopyNotice] = useState("");
     const [rateHistory, setRateHistory] = useState<HourlyRateRecord[]>([]);
@@ -130,12 +231,10 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
         }
     }
 
-    async function copyProposal(kind: "drinkback" | "hours" | "bonus") {
+    async function copyProposal(kind: "drinkback" | "bonus") {
         const payload = kind === "drinkback"
             ? { action: "propose-drinkback-rule", ...drinkback }
-            : kind === "hours"
-                ? { action: "propose-time-correction", ...hours }
-                : { action: "propose-bonus-adjustment", ...bonus };
+            : { action: "propose-bonus-adjustment", ...bonus };
         try {
             await navigator.clipboard.writeText(JSON.stringify({
                 status: "UNSAVED_PROPOSAL_ONLY", employee_id: person.id,
@@ -149,13 +248,15 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
                 "Copy failed. Check your browser's clipboard permissions.");
         }
     }
-    const correctable = rows.filter(row => row.status === "closed" && row.hoursSeconds !== null);
+    const correctablePunches = rows.flatMap(row =>
+        row.status === "closed"
+            ? row.punches.filter(punch => punch.clock_out !== null).map(punch => ({ row, punch }))
+            : [],
+    );
     const drinkShifts = [...new Set(drinkLines.map(row => row.shiftId))];
-    const selectedHours = correctable.find(row => String(row.shiftId) === hours.shiftId);
     const readyRate = validRateDraft(rate) && Number(rate.hourlyYen) <= 10_000_000;
     const previewMatchesRate = preview?.user_id === person.id && preview.proposed_hourly_rate_yen === Number(rate.hourlyYen) && preview.effective_from === rate.effectiveFrom;
     const readyDrinkback = validDrinkbackDraft(drinkback);
-    const readyHours = validHoursDraft(hours, correctable.map(row => row.shiftId));
     const readyBonus = validBonusDraft(bonus, drinkShifts);
 
     return (
@@ -302,45 +403,29 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
             {tab === "time" ? (
                 <Content role="tabpanel">
                     <Intro>
-                        <h4>{ja ? "勤務時間の修正案" : "Propose a work-time correction"}</h4>
+                        <h4>{ja ? "記録済みの打刻を修正" : "Correct recorded clock punches"}</h4>
                         <p>{ja
-                            ? "終了済みシフトの実際に記録された勤務時間のみ参照します。過去の時刻は作成しません。"
-                            : "Use only recorded duration from closed shifts. This does not fabricate clock-in or clock-out timestamps."}</p>
+                            ? "実際に記録された出退勤時刻だけを、理由とともに監査履歴へ保存します。時刻は日本時間（JST）です。スプレッドシートの合計時間は別の記録です。"
+                            : "Correct only real recorded clock-in/out timestamps. Each change requires a reason and is saved to audit history. Times are shown in Japan time (JST); spreadsheet hour totals are separate records."}</p>
                     </Intro>
-                    <Card>
-                        <Fields>
-                            <label>{ja ? "対象シフト" : "Recorded shift"}
-                                <select value={hours.shiftId} onChange={e => setHours({ ...hours, shiftId: e.target.value })}>
-                                    <option value="">{ja ? "シフトを選択" : "Select shift"}</option>
-                                    {correctable.map(row => (
-                                        <option value={row.shiftId} key={row.shiftId}>
-                                            {dateLabel(row.businessDate, locale)} · {hoursLabel(row.hoursSeconds ?? 0)}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                            <label>{ja ? "修正後の勤務時間（h）" : "Proposed hours worked"}
-                                <input type="number" min="0" max="24" step="0.01" value={hours.correctedHours}
-                                    onChange={e => setHours({ ...hours, correctedHours: e.target.value })} />
-                            </label>
-                            <label>{ja ? "修正理由（必須）" : "Correction reason (required)"}
-                                <textarea rows={3} maxLength={500} value={hours.reason}
-                                    onChange={e => setHours({ ...hours, reason: e.target.value })} />
-                            </label>
-                        </Fields>
-                        {!correctable.length ? <Help>{ja ? "修正対象となる記録済みシフトはありません。" : "There are no recorded completed shifts to preview corrections for."}</Help> : null}
-                        {selectedHours && readyHours ? (
-                            <Preview role="status">
-                                {ja ? "変更前" : "Recorded"}: {hoursLabel(selectedHours.hoursSeconds ?? 0)} → {ja ? "変更案（未保存）" : "Draft (unsaved)"}: {Number(hours.correctedHours).toFixed(2)} h
-                            </Preview>
-                        ) : null}
-                        <Help>{ja ? "給与・シフト・分析データは変更されません。実際の修正には承認・監査APIが必要です。" : "No recorded hours, shift report or payroll is changed. Corrections will require an audited backend API."}</Help>
-                        <Actions>
-                            <button type="button" className="hollow secondary" onClick={() => setHours(initialHoursDraft)}>{ja ? "クリア" : "Clear draft"}</button>
-                            <button type="button" className="secondary" disabled={!readyHours} onClick={() => void copyProposal("hours")}>{ja ? "修正案をコピー" : "Copy time correction"}</button>
-                            <button type="button" disabled title={ja ? "修正API未対応" : "Awaiting audited correction API"}>{ja ? "修正を保存（未対応）" : "Apply correction — unavailable"}</button>
-                        </Actions>
-                    </Card>
+                    {correctablePunches.length ? (
+                        <Records>
+                            {correctablePunches.map(({ row, punch }) => (
+                                <PunchCorrectionCard
+                                    key={punch.id}
+                                    shiftId={row.shiftId}
+                                    businessDate={row.businessDate}
+                                    punch={punch}
+                                    locale={locale}
+                                    onSaved={onRefresh}
+                                />
+                            ))}
+                        </Records>
+                    ) : (
+                        <Help>{ja
+                            ? "このメンバーに修正できる終了済みの打刻はありません。"
+                            : "There are no completed clock punches for this staff member to correct."}</Help>
+                    )}
                 </Content>
             ) : null}
 

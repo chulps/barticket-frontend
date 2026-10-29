@@ -49,12 +49,10 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
             setLoading(true);
             setLoadError("");
             try {
-                const [closedShifts, currentShift] = await Promise.all([
-                    accountApi.closedShifts(), accountApi.currentShift(),
-                ]);
+                const shiftHistory = await accountApi.shiftHistory();
                 if (!cancelled) {
-                    setClosed(closedShifts);
-                    setCurrent(currentShift);
+                    setClosed(shiftHistory.filter(shift => shift.status === "closed"));
+                    setCurrent(shiftHistory.find(shift => shift.status === "open") ?? null);
                 }
             } catch (err) {
                 if (!cancelled) {
@@ -245,6 +243,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     locale={locale}
                                     rows={filteredActivity}
                                     drinkLines={drinkLines}
+                                    onRefresh={() => setRefreshKey(value => value + 1)}
                                 />
                             ) : null}
                         </>

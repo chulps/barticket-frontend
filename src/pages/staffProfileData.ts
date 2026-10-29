@@ -1,4 +1,4 @@
-import type { ShiftReport } from "../api/account";
+import type { ShiftPunch, ShiftReport } from "../api/account";
 
 /**
  * Read-only view of *currently recorded* data. Historical imported hours and
@@ -12,6 +12,7 @@ export type StaffActivityRow = {
     hoursSeconds: number | null;
     hoursState?: "recorded" | "in_progress" | "incomplete" | "unavailable";
     clockedIn: boolean;
+    punches: ShiftPunch[];
     drinks: { name: string; quantity: number }[];
 };
 
@@ -46,6 +47,7 @@ export function buildStaffActivity(
                 ? hours.reduce((seconds, record) => seconds + Math.max(0, record.seconds), 0)
                 : null,
             clockedIn: shift.status === "open" && punches.some(record => record.clock_out === null),
+            punches,
             drinks,
         });
     }
