@@ -11,7 +11,7 @@ const account = readFileSync(new URL("../src/api/account.ts", import.meta.url), 
 test("Profile income is personal for staff and managers and shows wages and drink bonuses", () => {
     assert.match(profile, /role=\{account\.role\}/);
     assert.match(history, /role === "staff".*\["hours", "drinks", "income"\]/s);
-    assert.match(history, /role === "manager".*\["hours", "drinks", "benefits", "income"\]/s);
+    assert.match(history, /role === "staff"[\s\S]*: \["hours", "drinks", "benefits", "income"\]/);
     assert.match(income, /accountApi\.personalEarnings\(month\)/);
     assert.match(income, /response\.user_id !== userId/);
     assert.match(income, /hourly_wages/);
