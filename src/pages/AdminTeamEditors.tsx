@@ -4,6 +4,7 @@ import { accountApi, type Account, type HourlyRatePreview, type HourlyRateRecord
 import TabGroup from "../components/TabGroup";
 import { localeTag, type Locale } from "../i18n";
 import type { StaffActivityRow } from "./staffProfileData";
+import { jstInputToIso, unixSecondsToJstInput, validPunchCorrection } from "./adminPunchCorrections";
 import {
     initialRateDraft, initialDrinkbackDraft, initialBonusDraft,
     validRateDraft, validDrinkbackDraft, validBonusDraft,
@@ -247,7 +248,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
     }
     const correctablePunches = rows.flatMap(row =>
         row.status === "closed"
-            ? row.punches.filter(punch => punch.clock_out !== null).map(punch => ({ row, punch }))
+            ? (row.punches ?? []).filter(punch => punch.clock_out !== null).map(punch => ({ row, punch }))
             : [],
     );
     const drinkShifts = [...new Set(drinkLines.map(row => row.shiftId))];

@@ -12,7 +12,7 @@ export type StaffActivityRow = {
     hoursSeconds: number | null;
     hoursState?: "recorded" | "in_progress" | "incomplete" | "unavailable";
     clockedIn: boolean;
-    punches: ShiftPunch[];
+    punches?: ShiftPunch[];
     drinks: { name: string; quantity: number }[];
 };
 
