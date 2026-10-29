@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "styled-components";
-import type { Account } from "../api/account";
+import { accountApi, type Account, type HourlyRatePreview, type HourlyRateRecord } from "../api/account";
 import TabGroup from "../components/TabGroup";
 import { localeTag, type Locale } from "../i18n";
 import type { StaffActivityRow } from "./staffProfileData";
 import {
     initialRateDraft, initialDrinkbackDraft, initialHoursDraft, initialBonusDraft,
     validRateDraft, validDrinkbackDraft, validHoursDraft, validBonusDraft,
-    type PayBasis, type DrinkbackMode,
+    type DrinkbackMode,
 } from "./adminTeamDrafts";
 
 export type AdminDrinkLine = {
@@ -41,11 +41,95 @@ function hoursLabel(seconds: number) {
 export default function AdminTeamEditors({ person, locale, rows, drinkLines }: Props) {
     const ja = locale === "ja";
     const [tab, setTab] = useState<EditorTab>("terms");
-    const [rate, setRate] = useState(initialRateDraft);
+    const [rate, setRate] = useState({ ...initialRateDraft, basis: "hourly" as const });
     const [drinkback, setDrinkback] = useState(initialDrinkbackDraft);
     const [hours, setHours] = useState(initialHoursDraft);
     const [bonus, setBonus] = useState(initialBonusDraft);
     const [copyNotice, setCopyNotice] = useState("");
+    const [rateHistory, setRateHistory] = useState<HourlyRateRecord[]>([]);
+    const [rateLoading, setRateLoading] = useState(true);
+    const [rateError, setRateError] = useState("");
+    const [preview, setPreview] = useState<HourlyRatePreview | null>(null);
+    const [previewError, setPreviewError] = useState("");
+    const [previewing, setPreviewing] = useState(false);
+    const [savingRate, setSavingRate] = useState(false);
+    const [rateSaveError, setRateSaveError] = useState("");
+    const [rateSaveSuccess, setRateSaveSuccess] = useState("");
+
+    useEffect(() => {
+        let cancelled = false;
+        setRateLoading(true);
+        setRateError("");
+        accountApi.hourlyRates(person.id).then(result => {
+            if (!cancelled) setRateHistory(result.hourly_rates);
+        }).catch(error => {
+            if (!cancelled) setRateError(error instanceof Error ? error.message :
+                (ja ? "給与レートを読み込めませんでした。" : "Could not load hourly-rate history."));
+        }).finally(() => {
+            if (!cancelled) setRateLoading(false);
+        });
+        return () => { cancelled = true; };
+    }, [person.id, ja]);
+
+    function updateRate(patch: Partial<Omit<typeof rate, "basis">>) {
+        setRate(current => ({ ...current, ...patch, basis: "hourly" }));
+        setPreview(null);
+        setPreviewError("");
+        setRateSaveError("");
+        setRateSaveSuccess("");
+    }
+
+    async function previewRateChange() {
+        if (!readyRate) return;
+        setPreviewing(true);
+        setPreviewError("");
+        setRateSaveError("");
+        setRateSaveSuccess("");
+        try {
+            const result = await accountApi.previewHourlyRate({
+                user_id: person.id,
+                hourly_rate_yen: Number(rate.hourlyYen),
+                effective_from: rate.effectiveFrom,
+            });
+            setPreview(result);
+        } catch (error) {
+            setPreview(null);
+            setPreviewError(error instanceof Error ? error.message :
+                (ja ? "変更の影響を確認できませんでした。" : "Could not preview the rate change."));
+        } finally {
+            setPreviewing(false);
+        }
+    }
+
+    async function saveRateChange() {
+        if (!readyRate || !previewMatchesRate || savingRate) return;
+        const confirmed = window.confirm(ja
+            ? `時給を ¥${Number(rate.hourlyYen).toLocaleString()}/時に、${rate.effectiveFrom} から設定します。変更履歴に記録されます。続行しますか？`
+            : `Set the hourly rate to ¥${Number(rate.hourlyYen).toLocaleString()}/h effective ${rate.effectiveFrom}? This change will be recorded in history.`);
+        if (!confirmed) return;
+        setSavingRate(true);
+        setRateSaveError("");
+        setRateSaveSuccess("");
+        try {
+            await accountApi.setHourlyRate({
+                user_id: person.id,
+                hourly_rate_yen: Number(rate.hourlyYen),
+                effective_from: rate.effectiveFrom,
+                reason: rate.reason.trim(),
+            });
+            const result = await accountApi.hourlyRates(person.id);
+            setRateHistory(result.hourly_rates);
+            setRate({ ...initialRateDraft, basis: "hourly" });
+            setPreview(null);
+            setRateSaveSuccess(ja ? "時給と変更履歴を保存しました。" : "Hourly rate saved to the audited rate history.");
+        } catch (error) {
+            setRateSaveError(error instanceof Error ? error.message :
+                (ja ? "時給を保存できませんでした。" : "Could not save the hourly rate."));
+        } finally {
+            setSavingRate(false);
+        }
+    }
+
     async function copyProposal(kind: "terms" | "drinkback" | "hours" | "bonus") {
         const payload = kind === "terms"
             ? { action: "propose-pay-terms", ...rate }
@@ -70,7 +154,8 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
     const correctable = rows.filter(row => row.status === "closed" && row.hoursSeconds !== null);
     const drinkShifts = [...new Set(drinkLines.map(row => row.shiftId))];
     const selectedHours = correctable.find(row => String(row.shiftId) === hours.shiftId);
-    const readyRate = validRateDraft(rate);
+    const readyRate = validRateDraft(rate) && Number(rate.hourlyYen) <= 10_000_000;
+    const previewMatchesRate = preview?.user_id === person.id && preview.proposed_hourly_rate_yen === Number(rate.hourlyYen) && preview.effective_from === rate.effectiveFrom;
     const readyDrinkback = validDrinkbackDraft(drinkback);
     const readyHours = validHoursDraft(hours, correctable.map(row => row.shiftId));
     const readyBonus = validBonusDraft(bonus, drinkShifts);
@@ -80,14 +165,14 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
             <Header>
                 <div>
                     <h3>{ja ? "スタッフ設定・調整" : "Staff settings & adjustments"}</h3>
-                    <p>{ja ? "表示中の編集内容はすべて下書きです。" : "All edits below are unsaved drafts."}</p>
+                    <p>{ja ? "時給レートは監査履歴に保存。勤務時間とドリンク手当はまだ下書きです。" : "Hourly rates save to audit history. Time and drink-bonus proposals remain drafts."}</p>
                 </div>
-                <Pill>{ja ? "未保存プレビュー" : "PREVIEW ONLY"}</Pill>
+                <Pill>{ja ? "時給レート管理" : "AUDITED HOURLY RATES"}</Pill>
             </Header>
             <Notice role="note">
                 {ja
-                    ? "現在のAPIには給与・ドリンクバック設定や修正を保存する機能がありません。入力内容は保存・送信されず、画面を離れると消えます。実際の給与にも反映されません。"
-                    : "The current API cannot save pay terms, drinkback rules or corrections. Drafts are not submitted or stored and are lost when you leave this profile. No payroll or ticket amounts are changed."}
+                    ? "時給レートはマネージャーのみ変更できます。勤務時間の修正とドリンク手当はまだ保存できません。表示される影響額は勤務時間に基づく未丸めの試算で、最終給与ではありません。"
+                    : "Only managers can change hourly rates. Time corrections and drink bonuses are not yet saveable. Impact figures are unrounded estimates based on recorded hours, not final payroll."}
             </Notice>
             {copyNotice ? <Notice role="status">{copyNotice}</Notice> : null}
             <StaffTabSurface>
@@ -104,48 +189,75 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines }: P
             {tab === "terms" ? (
                 <Content role="tabpanel">
                     <Intro>
-                        <h4>{ja ? "現在の給与設定" : "Current compensation terms"}</h4>
-                        <p><strong>—</strong> {ja ? "バックエンド未対応のため未取得。0円を意味しません。" : "Not available from the current API. This does not mean ¥0."}</p>
+                        <h4>{ja ? "現在の時給レート" : "Current hourly rate"}</h4>
+                        {rateLoading ? <p role="status">{ja ? "レート履歴を読み込み中…" : "Loading rate history…"}</p> :
+                            rateError ? <p role="alert">{rateError}</p> :
+                                (() => {
+                                    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(new Date());
+                                    const current = [...rateHistory].reverse().find(item => item.effective_from <= today);
+                                    return current
+                                        ? <p><strong>¥{current.hourly_rate_yen.toLocaleString()}/h</strong> · {ja ? "適用開始" : "Effective from"} {dateLabel(current.effective_from, locale)}</p>
+                                        : <p><strong>—</strong> {ja ? "現在の時給レートは未登録です。0円を意味しません。" : "No current hourly rate is recorded. This does not mean ¥0."}</p>;
+                                })()}
                     </Intro>
                     <Card>
-                        <h4>{ja ? "給与レートの変更案" : "Propose pay terms"}</h4>
+                        <h4>{ja ? "時給レートを設定" : "Set hourly rate"}</h4>
                         <Fields>
-                            <label>{ja ? "給与方式" : "Compensation type"}
-                                <select value={rate.basis} onChange={e => setRate({ ...rate, basis: e.target.value as PayBasis })}>
-                                    <option value="">{ja ? "選択してください" : "Select type"}</option>
-                                    <option value="hourly">{ja ? "時給" : "Hourly"}</option>
-                                    <option value="manager">{ja ? "マネージャー報酬（条件未設定）" : "Manager terms (not configured)"}</option>
-                                    <option value="guest">{ja ? "ゲスト契約（出演ごと）" : "Guest contract (per shift)"}</option>
-                                    <option value="other">{ja ? "その他（要確認）" : "Other (requires review)"}</option>
-                                </select>
+                            <label>{ja ? "時給（円）" : "Hourly rate (JPY)"}
+                                <input type="number" min="0" max="10000000" step="1"
+                                    value={rate.hourlyYen} placeholder="—"
+                                    onChange={e => updateRate({ hourlyYen: e.target.value })} />
                             </label>
-                            {rate.basis === "hourly" ? (
-                                <label>{ja ? "時給（円）" : "Hourly rate (JPY)"}
-                                    <input type="number" min="0" max="1000000000" step="1"
-                                        value={rate.hourlyYen} placeholder="—"
-                                        onChange={e => setRate({ ...rate, hourlyYen: e.target.value })} />
-                                </label>
-                            ) : null}
                             <label>{ja ? "適用開始日" : "Effective from"}
                                 <input type="date" value={rate.effectiveFrom}
-                                    onChange={e => setRate({ ...rate, effectiveFrom: e.target.value })} />
+                                    onChange={e => updateRate({ effectiveFrom: e.target.value })} />
                             </label>
                             <label>{ja ? "変更理由（必須）" : "Reason (required)"}
-                                <textarea rows={2} maxLength={500} value={rate.reason}
-                                    onChange={e => setRate({ ...rate, reason: e.target.value })} />
+                                <textarea rows={2} maxLength={1000} value={rate.reason}
+                                    onChange={e => updateRate({ reason: e.target.value })} />
                             </label>
                         </Fields>
-                        {readyRate ? (
+                        <Help>{ja
+                            ? "過去の日付を指定する場合は、保存前に影響を確認して明示的に承認します。"
+                            : "If you choose a past date, review the impact and explicitly confirm before saving."}</Help>
+                        {preview && previewMatchesRate ? (
                             <Preview role="status">
-                                {ja ? "変更案（未保存）" : "Proposed change (unsaved)"}: {rate.basis === "hourly" ? "¥" + Number(rate.hourlyYen).toLocaleString() + "/h" : rate.basis}
-                                {" · "}{rate.effectiveFrom}
+                                <strong>{ja ? "影響プレビュー（未丸め）" : "Impact preview (unrounded estimate)"}</strong>
+                                <span>{ja ? "対象期間" : "Affected period"}: {dateLabel(preview.effective_from, locale)}{preview.period_end ? " – " + dateLabel(preview.period_end, locale) : ""}</span>
+                                <span>{ja ? "対象勤務時間" : "Hours in period"}: {(preview.affected_hours_seconds / 3600).toFixed(2)} h</span>
+                                <span>{ja ? "提案レートの賃金試算" : "Estimated gross at proposed rate"}: ¥{preview.proposed_gross_estimate_yen_unrounded}</span>
+                                {preview.current_gross_estimate_yen_unrounded !== null
+                                    ? <span>{ja ? "既存レートでの比較試算" : "Estimate using previous rate"}: ¥{preview.current_gross_estimate_yen_unrounded} · {ja ? "差額" : "Change"}: {preview.change_yen_unrounded === null ? "—" : "¥" + preview.change_yen_unrounded}</span>
+                                    : <span>{ja ? "以前の有効レートがないため差額は算出できません。" : "No earlier effective rate is available, so the change cannot be calculated."}</span>}
+                                <Help>{preview.note}</Help>
                             </Preview>
-                        ) : <Help>{ja ? "給与方式・日付・理由を入力してください。時給は0以上の整数です。" : "Choose a type, date and reason. An hourly rate must be a nonnegative whole-yen amount."}</Help>}
+                        ) : null}
+                        {previewError ? <p role="alert">{previewError}</p> : null}
+                        {rateSaveError ? <p role="alert">{rateSaveError}</p> : null}
+                        {rateSaveSuccess ? <p role="status">{rateSaveSuccess}</p> : null}
                         <Actions>
-                            <button type="button" className="hollow secondary" onClick={() => setRate(initialRateDraft)}>{ja ? "クリア" : "Clear draft"}</button>
-                            <button type="button" className="secondary" disabled={!readyRate} onClick={() => void copyProposal("terms")}>{ja ? "変更案をコピー" : "Copy pay proposal"}</button>
-                            <button type="button" disabled title={ja ? "保存API未対応" : "Awaiting manager-only save API"}>{ja ? "保存（未対応）" : "Save — unavailable"}</button>
+                            <button type="button" className="hollow secondary" onClick={() => updateRate({ hourlyYen: "", effectiveFrom: "", reason: "" })>{ja ? "クリア" : "Clear draft"}</button>
+                            <button type="button" className="secondary" disabled={!readyRate || rateLoading || !!rateError || previewing || savingRate}
+                                onClick={() => void previewRateChange()}>{previewing ? (ja ? "確認中…" : "Previewing…") : (ja ? "影響をプレビュー" : "Preview impact")}</button>
+                            <button type="button" disabled={!readyRate || rateLoading || !!rateError || !previewMatchesRate || savingRate}
+                                onClick={() => void saveRateChange()}>{savingRate ? (ja ? "保存中…" : "Saving…") : (ja ? "確認して保存" : "Confirm and save")}</button>
                         </Actions>
+                    </Card>
+                    <Card>
+                        <h4>{ja ? "時給レート履歴" : "Hourly-rate history"}</h4>
+                        {rateHistory.length ? (
+                            <Records>
+                                {[...rateHistory].reverse().map(item => (
+                                    <Record key={item.id}>
+                                        <div>
+                                            <strong>¥{item.hourly_rate_yen.toLocaleString()}/h · {dateLabel(item.effective_from, locale)}</strong>
+                                            <Muted>{ja ? "適用終了" : "Through"}: {item.effective_through ? dateLabel(item.effective_through, locale) : (ja ? "現在" : "Current")} · {ja ? "変更者" : "Changed by"}: {item.changed_by_name}</Muted>
+                                            <Muted>{item.reason}{item.source ? " · " + item.source : ""}</Muted>
+                                        </div>
+                                    </Record>
+                                ))}
+                            </Records>
+                        ) : <Muted>{rateLoading ? (ja ? "読み込み中…" : "Loading…") : (ja ? "レート履歴がありません。" : "No hourly-rate history recorded.")}</Muted>}
                     </Card>
                     <Card>
                         <h4>{ja ? "スタッフドリンクのバック率設定案" : "Propose staff-drink bonus rule"}</h4>
@@ -333,7 +445,7 @@ const Actions = styled.div`
     button{width:auto;}
     button:disabled{opacity:.55;cursor:not-allowed;}
 `;
-const Preview = styled.p`padding:var(--space-1);background:var(--neutral-800);border-radius:8px;`;
+const Preview = styled.div`padding:var(--space-1);background:var(--neutral-800);border-radius:8px;span{display:block;}`;
 const Help = styled.p`color:var(--neutral-300);font-size:var(--font-size-small);`;
 const Records = styled.div`display:flex;flex-direction:column;gap:var(--space-1);`;
 const Record = styled.div`
