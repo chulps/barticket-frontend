@@ -8,9 +8,10 @@ const history = readFileSync(new URL("../src/pages/StaffWorkHistory.tsx", import
 const income = readFileSync(new URL("../src/pages/StaffIncome.tsx", import.meta.url), "utf8");
 const account = readFileSync(new URL("../src/api/account.ts", import.meta.url), "utf8");
 
-test("staff income breakdown is self-only and shows wages and drink bonuses", () => {
+test("Profile income is personal for staff and managers and shows wages and drink bonuses", () => {
     assert.match(profile, /role=\{account\.role\}/);
     assert.match(history, /role === "staff".*\["hours", "drinks", "income"\]/s);
+    assert.match(history, /role === "manager".*\["hours", "drinks", "benefits", "income"\]/s);
     assert.match(income, /accountApi\.personalEarnings\(month\)/);
     assert.match(income, /response\.user_id !== userId/);
     assert.match(income, /hourly_wages/);
@@ -19,7 +20,7 @@ test("staff income breakdown is self-only and shows wages and drink bonuses", ()
     assert.match(income, /Sort by/);
     assert.match(account, /personalEarnings: \(month: string\) =>/);
     assert.match(account, /\/profile\/earnings\?month=/);
-    assert.doesNotMatch(income, /accountApi\.listUsers\(|accountApi\.closedShifts\(/);
+    assert.doesNotMatch(income, /accountApi\.listUsers\(|accountApi\.closedShifts\(|staffEarnings/);
     for (const [name, source] of [["Profile", profile], ["StaffWorkHistory", history], ["StaffIncome", income]]) {
         assert.equal(ts.createSourceFile(name + ".tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).parseDiagnostics.length, 0);
     }
