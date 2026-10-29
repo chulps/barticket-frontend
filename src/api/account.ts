@@ -30,6 +30,45 @@ export type ShiftPunch = {
         corrected_by_user_id: number;
         created_at: number;
     }[];
+
+};
+
+export type ShiftManagerAudit = {
+    id: number;
+    previous_manager_user_id: number | null;
+    previous_manager_name: string | null;
+    new_manager_user_id: number | null;
+    new_manager_name: string | null;
+    changed_at: number;
+    changed_by: string;
+    reason: string;
+};
+
+export type RevenueSharePreview = {
+    month: string;
+    beneficiary_user_id: number;
+    preview_only: true;
+    working_manager_shift_ids: number[];
+    working_manager_revenue_known_yen: number;
+    eligible_revenue_yen: number | null;
+    revenue_source: "service_shift_payments_and_deferred_billed_total_preview";
+    tier_rate_percent: number | null;
+    tier_rate_basis: "service_shift_sales_preview" | null;
+    tier_application_method: "flat_monthly_confirmed";
+    gross_share_rounding: "nearest_yen_half_up";
+    next_tier: { rate_percent: number; threshold_yen: number; remaining_yen: number } | null;
+    gross_share_yen: number | null;
+    unassigned_shift_ids: number[];
+    open_working_manager_shift_ids: number[];
+    recorded_shift_count: number;
+    payable_yen: null;
+    costs: {
+        staff_base_wages_yen: null;
+        staff_drinkback_yen: null;
+        deductions_yen: null;
+        approved_additions_yen: null;
+    };
+    blockers: string[];
 };
 
 export type ShiftReport = {
@@ -40,6 +79,8 @@ export type ShiftReport = {
     opened_at: number;
     closed_at: number | null;
     opened_by: string;
+    working_manager_user_id?: number | null;
+    working_manager_name?: string | null;
     closed_by: string | null;
     paid_total: number;
     cash_total: number;
@@ -235,6 +276,17 @@ export const accountApi = {
     reopenShift: (shiftId: number, reason: string) => apiRequest<ShiftReport>(`/shifts/${shiftId}/reopen`, {
         method: "POST", body: { confirmed: true, reason },
     }),
+
+    assignWorkingManager: (shiftId: number, managerUserId: number | null, reason: string) =>
+        apiRequest<ShiftReport>(`/shifts/${shiftId}/working-manager`, {
+            method: "PUT", body: { manager_user_id: managerUserId, reason },
+        }),
+
+    workingManagerHistory: (shiftId: number) =>
+        apiRequest<ShiftManagerAudit[]>(`/shifts/${shiftId}/working-manager-history`),
+
+    revenueSharePreview: (month: string) =>
+        apiRequest<RevenueSharePreview>(`/payroll/revenue-share/preview?month=${encodeURIComponent(month)}`),
 
     closeShift: () => apiRequest<ShiftReport>("/shifts/close", { method: "POST" }),
 

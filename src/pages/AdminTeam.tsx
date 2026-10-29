@@ -234,6 +234,9 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     person={person}
                                     locale={locale}
                                     shifts={shifts}
+                                    managers={people.filter(member => member.role === "manager")}
+                                    onRefresh={() => setRefreshKey(key => key + 1)}
+                                    refreshVersion={refreshKey}
                                 />
                             ) : null}
                             {!loading && !loadError && isStaffProfile ? (
