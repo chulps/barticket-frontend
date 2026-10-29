@@ -7,6 +7,7 @@ import { type Locale } from "../i18n";
 import { buildStaffActivity, recordedStaffTotals } from "./staffProfileData";
 import AdminTeamEditors, { type AdminDrinkLine } from "./AdminTeamEditors";
 import AdminManagerShare from "./AdminManagerShare";
+import AdminMonthlyPayOverview from "./AdminMonthlyPayOverview";
 import AdminShiftActivity from "./AdminShiftActivity";
 import { canSeeChuckRevenueShare, readRevenueShareViewers } from "./managerRevenueShareAccess";
 
@@ -121,6 +122,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                     {ja ? "勤務履歴を更新" : "Refresh activity"}
                 </button>
             </Toolbar>
+            <AdminMonthlyPayOverview viewer={viewer} people={people} locale={locale} refreshVersion={refreshKey} />
             <Layout>
                 <Directory aria-label={ja ? "チーム一覧" : "Team directory"}>
                     <label>{ja ? "スタッフを検索" : "Search team"}
