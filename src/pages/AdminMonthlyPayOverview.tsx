@@ -37,13 +37,13 @@ function staffRow(person: Account, data: PersonalEarningsPreview): PayRow {
     const drinks = data.categories.find(item => item.category === "staff_drink_bonus");
     const wageValue = wages?.amount_yen_unrounded === null || wages?.amount_yen_unrounded === undefined
         ? null : Number(wages.amount_yen_unrounded);
-    const bonusValue = drinks?.amount_yen ?? 0;
-    const complete = Boolean(wages?.complete && wageValue !== null);
+    const bonusValue = drinks?.complete ? drinks.amount_yen : null;
+    const complete = Boolean(wages?.complete && wageValue !== null && drinks?.complete && bonusValue !== null);
     return {
         person, wages: wageValue, bonus: bonusValue,
-        total: complete ? wageValue! + bonusValue : null,
+        total: complete ? wageValue! + bonusValue! : null,
         gross: null, staffCost: null, deductions: null,
-        owed: complete ? wageValue! + bonusValue : null,
+        owed: complete ? wageValue! + bonusValue! : null,
         complete,
         message: complete ? undefined : "pay_inputs_incomplete",
     };
@@ -127,8 +127,9 @@ export default function AdminMonthlyPayOverview({
             : null;
     }, [rows]);
     const staffRows = rows.filter(row => row.person.role === "staff");
-    const staffChartRows: PayChartRow[] = staffRows.length && staffRows.every(row => row.complete && row.wages !== null && row.bonus !== null)
-        ? staffRows.map(row => ({
+    const staffChartRows: PayChartRow[] = staffRows
+        .filter(row => row.complete && row.wages !== null && row.bonus !== null && (row.total ?? 0) > 0)
+        .map(row => ({
             key: String(row.person.id),
             label: row.person.name,
             segments: [
@@ -136,7 +137,23 @@ export default function AdminMonthlyPayOverview({
                 { key: "staff-drinks", label: ja ? "スタッフドリンク手当" : "Staff-drink bonus", value: row.bonus ?? 0, color: "var(--success-400)" },
             ],
             total: row.total ?? 0,
-        })) : [];
+        }));
+    const incompleteStaffCount = staffRows.filter(row => !row.complete).length;
+    const chuckCompositionRows: PayChartRow[] = rows.flatMap(row => {
+        if (!row.chuck || !row.complete || row.gross === null || row.staffCost === null || row.deductions === null || row.owed === null) return [];
+        if ([row.gross, row.staffCost, row.deductions, row.owed].some(value => value < 0)) return [];
+        if (row.gross <= 0 || Math.abs(row.gross - row.staffCost - row.deductions - row.owed) >= 1) return [];
+        return [{
+            key: `manager-${row.person.id}`,
+            label: row.person.name,
+            segments: [
+                { key: "manager-owed", label: ja ? "Chuckへの支払予定額" : "Amount owed to Chuck", value: row.owed, color: "var(--royal-400)" },
+                { key: "staff-owed", label: ja ? "スタッフ給与" : "Staff pay owed", value: row.staffCost, color: "var(--success-400)" },
+                { key: "deductions", label: ja ? "その他の控除" : "Other deductions", value: row.deductions, color: "var(--warning-400)" },
+            ],
+            total: row.gross,
+        }];
+    });
 
     if (!designated || viewer.role !== "manager") return null;
 
@@ -180,10 +197,19 @@ export default function AdminMonthlyPayOverview({
                     {staffChartRows.length ? <PayBreakdownChart
                         title={ja ? "スタッフ別の月間給与" : "Monthly staff pay by person"}
                         rows={staffChartRows} locale={locale}
-                        note={ja ? "確認済みの賃金とスタッフドリンク手当の見積もりです。" : "Estimated wages and staff-drink bonuses from verified inputs."} />
-                        : staffRows.length ? <p role="note">{ja
-                            ? "勤務時間または時給が未確認のため、比較グラフは表示できません。"
-                            : "The comparison chart is unavailable until every staff member’s hours and rate are verified."}</p> : null}
+                        note={ja ? `記録が揃っている${staffChartRows.length}名のみ表示。給与見積もりであり支払記録ではありません。`
+                            : `Showing ${staffChartRows.length} member(s) with complete records. These are pay estimates, not payment records.`} /> : null}
+                    {incompleteStaffCount ? <p role="note">{ja
+                        ? `${incompleteStaffCount}名分は勤務時間または時給が未確認のためグラフに含めていません。表の「—」は0円ではなく未確認です。`
+                        : `${incompleteStaffCount} member(s) are omitted from the chart because hours or rates are incomplete. “—” in the table means unavailable, not ¥0.`}</p> : null}
+                    {staffRows.length && !staffChartRows.length && !incompleteStaffCount ? <p role="note">{ja
+                        ? "確認済みのスタッフ給与がまだありません。"
+                        : "No confirmed staff pay amounts are available to chart yet."}</p> : null}
+                    {chuckCompositionRows.length ? <PayBreakdownChart
+                        title={ja ? "Chuckの月間給与配分" : "Chuck’s monthly pay allocation"}
+                        rows={chuckCompositionRows} locale={locale}
+                        note={ja ? "確認済み金額の内訳です。金額は支払済みを意味しません。"
+                            : "Breakdown of confirmed amounts. Amounts owed do not mean they have been paid."} /> : null}
                     <Scroll>
                         <table>
                             <thead><tr>

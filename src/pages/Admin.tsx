@@ -232,8 +232,8 @@ export default function Admin() {
                     <Section>
                         <h2>{locale === "ja" ? "アカウント管理" : "Manage accounts"}</h2>
                         <p>{locale === "ja"
-                            ? "アカウントタブでメンバーを追加・削除できます。チームタブでは記録の確認と未保存の編集プレビューができます。実際の給与や修正の保存にはバックエンドが必要です。"
-                            : "Create and remove accounts in Accounts. Team lets you review recorded activity and draft unsaved pay/time/bonus changes; saving requires future backend APIs."}</p>
+                            ? "アカウントタブではメンバーを管理し、チームタブでは勤務記録、給与見積もり、時給、打刻修正、ドリンク手当を確認できます。保存された変更は監査履歴に記録されます。給与の金額は支払記録ではありません。"
+                            : "Manage accounts, review team activity and pay estimates, and update hourly rates, clock corrections and drink bonuses in Team. Saved changes appear in the audit history. Pay amounts are estimates, not payment records."}</p>
                         <button type="button" className="small secondary" onClick={() => chooseSection("accounts")}>
                             {locale === "ja" ? "アカウントを表示" : "View accounts"}
                         </button>
