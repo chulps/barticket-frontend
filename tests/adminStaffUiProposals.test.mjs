@@ -19,7 +19,7 @@ test("hourly rates require a current preview and an explicit save confirmation",
     assert.match(s, /window\.confirm/);
     assert.match(s, /Confirm and save/);
     assert.doesNotMatch(s, /accountApi\.(?:updatePay|saveHours|saveBonus)/);
-    assert.match(s, /Save — unavailable/);
+    assert.match(s, /Save adjustment — unavailable/);
 });
 test("staff editor continues to parse correctly", () => {
     const ast = ts.createSourceFile("AdminTeamEditors.tsx", s, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
