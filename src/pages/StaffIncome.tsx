@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
-import { accountApi, type PersonalEarningsPreview } from "../api/account";
+import { accountApi, type ChuckMonthlyPayPreview, type PersonalEarningsPreview } from "../api/account";
 import { ApiError } from "../api/client";
 import { localeTag, type Locale } from "../i18n";
+import { canViewChuckPersonalPay } from "./chuckProfileAccess";
+import { readRevenueShareViewers } from "./managerRevenueShareAccess";
 
 type Category = "all" | "hourly_wages" | "staff_drink_bonus";
 type SortOrder = "date" | "category";
@@ -37,15 +39,45 @@ function hours(seconds: number) {
     }) + " h";
 }
 
-export default function StaffIncome({ userId, locale }: { userId: number; locale: Locale }) {
+
+function payBlockerLabel(code: string, ja: boolean) {
+    const english: Record<string, string> = {
+        no_recorded_shifts: "No shifts are recorded for this month.",
+        working_manager_unassigned: "At least one shift has no assigned manager.",
+        working_manager_shift_open: "A Chuck-managed shift is still open.",
+        staff_hours_unverified: "Staff hours are incomplete for at least one Chuck-managed shift.",
+        staff_hourly_rate_missing: "A staff hourly rate is missing.",
+        unattributed_staff_drink: "A paid staff drink has no linked staff member.",
+        unassigned_staff_history: "Verified historical hours include a staff member not linked to an account.",
+        staff_payroll_costs_incomplete: "Staff pay is incomplete, so the net amount owed cannot be calculated.",
+        negative_balance_policy_unconfirmed: "The calculated balance is below zero and needs review.",
+    };
+    const japanese: Record<string, string> = {
+        no_recorded_shifts: "この月のシフト記録がありません。",
+        working_manager_unassigned: "担当マネージャーが未設定のシフトがあります。",
+        working_manager_shift_open: "Chuck担当のシフトがまだ営業中です。",
+        staff_hours_unverified: "Chuck担当のシフトのスタッフ勤務時間が未確認です。",
+        staff_hourly_rate_missing: "スタッフの時給が未設定です。",
+        unattributed_staff_drink: "スタッフが紐づいていない支払済みドリンクがあります。",
+        unassigned_staff_history: "アカウントに紐づいていないスタッフの履歴があります。",
+        staff_payroll_costs_incomplete: "スタッフ給与が不完全なため、差引後の金額を計算できません。",
+        negative_balance_policy_unconfirmed: "計算結果がマイナスのため、確認が必要です。",
+    };
+    return (ja ? japanese : english)[code] ?? code;
+}
+
+export default function StaffIncome({ userId, locale, role }: { userId: number; locale: Locale; role: "staff" | "manager" }) {
     const ja = locale === "ja";
     const [month, setMonth] = useState(thisMonth);
     const [category, setCategory] = useState<Category>("all");
     const [sort, setSort] = useState<SortOrder>("date");
     const [report, setReport] = useState<PersonalEarningsPreview | null>(null);
+    const [chuckReport, setChuckReport] = useState<ChuckMonthlyPayPreview | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
+    const viewers = readRevenueShareViewers();
+    const isChuckProfile = canViewChuckPersonalPay({ id: userId, role }, userId, viewers);
 
     useEffect(() => {
         let cancelled = false;
@@ -53,9 +85,21 @@ export default function StaffIncome({ userId, locale }: { userId: number; locale
             setLoading(true);
             setError("");
             try {
-                const response = await accountApi.personalEarnings(month);
-                if (response.user_id !== userId) throw new Error("Profile identity mismatch");
-                if (!cancelled) setReport(response);
+                if (isChuckProfile) {
+                    const response = await accountApi.chuckMonthlyPay(month);
+                    if (response.user_id !== userId) throw new Error("Profile identity mismatch");
+                    if (!cancelled) {
+                        setChuckReport(response);
+                        setReport(null);
+                    }
+                } else {
+                    const response = await accountApi.personalEarnings(month);
+                    if (response.user_id !== userId) throw new Error("Profile identity mismatch");
+                    if (!cancelled) {
+                        setReport(response);
+                        setChuckReport(null);
+                    }
+                }
             } catch (err) {
                 if (!cancelled) setError(err instanceof ApiError
                     ? err.message
@@ -66,7 +110,7 @@ export default function StaffIncome({ userId, locale }: { userId: number; locale
         }
         void load();
         return () => { cancelled = true; };
-    }, [userId, month, refreshKey, ja]);
+    }, [role, userId, month, refreshKey, ja, isChuckProfile]);
 
     const wage = report?.categories.find((item): item is WageCategory => item.category === "hourly_wages");
     const bonus = report?.categories.find((item): item is DrinkCategory => item.category === "staff_drink_bonus");
@@ -104,11 +148,17 @@ export default function StaffIncome({ userId, locale }: { userId: number; locale
     }, [entries, category, sort]);
 
     return (
-        <Wrapper aria-label={ja ? "自分の収入内訳" : "My income breakdown"}>
+        <Wrapper aria-label={isChuckProfile
+            ? (ja ? "Chuckの月次給与" : "Chuck's monthly pay")
+            : (ja ? "自分の収入内訳" : "My income breakdown")}>
             <Heading>
                 <div>
-                    <h2>{ja ? "収入内訳" : "Income breakdown"}</h2>
-                    <p>{ja ? "確認できる賃金とスタッフドリンク手当を種類別に表示します。" : "View recorded wage and staff-drink estimates by category."}</p>
+                    <h2>{isChuckProfile
+                        ? (ja ? "月次給与" : "Monthly pay")
+                        : (ja ? "収入内訳" : "Income breakdown")}</h2>
+                    <p>{isChuckProfile
+                        ? (ja ? "Chuck担当のシフトに基づく金額です。" : "Amounts are based on Chuck-managed shifts.")
+                        : (ja ? "自分に紐づく賃金とスタッフドリンク手当を表示します。" : "View wages and staff-drink bonuses linked to your account.")}</p>
                 </div>
                 <button type="button" className="small hollow secondary" disabled={loading}
                     onClick={() => setRefreshKey(value => value + 1)}>
@@ -121,21 +171,23 @@ export default function StaffIncome({ userId, locale }: { userId: number; locale
                     {ja ? "対象月" : "Month"}
                     <input type="month" value={month} onChange={event => setMonth(event.target.value)} />
                 </label>
-                <label>
-                    {ja ? "種類" : "Category"}
-                    <select value={category} onChange={event => setCategory(event.target.value as Category)}>
-                        <option value="all">{ja ? "すべて" : "All categories"}</option>
-                        <option value="hourly_wages">{ja ? "賃金" : "Wages"}</option>
-                        <option value="staff_drink_bonus">{ja ? "スタッフドリンク" : "Staff drinks"}</option>
-                    </select>
-                </label>
-                <label>
-                    {ja ? "並び順" : "Sort by"}
-                    <select value={sort} onChange={event => setSort(event.target.value as SortOrder)}>
-                        <option value="date">{ja ? "日付（新しい順）" : "Date (newest)"}</option>
-                        <option value="category">{ja ? "種類、日付" : "Category, date"}</option>
-                    </select>
-                </label>
+                {!isChuckProfile ? <>
+                    <label>
+                        {ja ? "種類" : "Category"}
+                        <select value={category} onChange={event => setCategory(event.target.value as Category)}>
+                            <option value="all">{ja ? "すべて" : "All categories"}</option>
+                            <option value="hourly_wages">{ja ? "賃金" : "Wages"}</option>
+                            <option value="staff_drink_bonus">{ja ? "スタッフドリンク" : "Staff drinks"}</option>
+                        </select>
+                    </label>
+                    <label>
+                        {ja ? "並び順" : "Sort by"}
+                        <select value={sort} onChange={event => setSort(event.target.value as SortOrder)}>
+                            <option value="date">{ja ? "日付（新しい順）" : "Date (newest)"}</option>
+                            <option value="category">{ja ? "種類、日付" : "Category, date"}</option>
+                        </select>
+                    </label>
+                </> : null}
             </Toolbar>
 
             {loading ? <RequestState kind="loading" detail={ja ? "読み込み中…" : "Loading…"} />
@@ -144,7 +196,59 @@ export default function StaffIncome({ userId, locale }: { userId: number; locale
                     <button type="button" className="small secondary" onClick={() => setRefreshKey(value => value + 1)}>
                         {ja ? "再試行" : "Retry"}
                     </button>
-                </ErrorArea> : report ? (
+                </ErrorArea> : isChuckProfile && chuckReport ? (
+                    <>
+                        <Summary>
+                            <Metric>
+                                <span>{ja ? "Chuckの総給与" : "Gross salary"}</span>
+                                <strong>{money(chuckReport.gross_salary_yen, locale)}</strong>
+                            </Metric>
+                            <Metric>
+                                <span>{ja ? "スタッフに支払う金額" : "Staff pay owed"}</span>
+                                <strong>{money(chuckReport.staff_cost_total_yen, locale)}</strong>
+                            </Metric>
+                            <Metric>
+                                <span>{ja ? "その他の控除" : "Other deductions"}</span>
+                                <strong>{money(chuckReport.deduction_total_yen, locale)}</strong>
+                            </Metric>
+                            <Metric>
+                                <span>{ja ? "Chuckに owed" : "Amount owed to Chuck"}</span>
+                                <strong>{money(chuckReport.net_amount_owed_yen, locale)}</strong>
+                                {!chuckReport.complete ? <small>{ja ? "一部の記録が不足しているため確定できません" : "Unavailable until required records are complete"}</small> : null}
+                            </Metric>
+                        </Summary>
+                        <Notice role="note">{chuckReport.note}</Notice>
+                        {!chuckReport.complete && chuckReport.blockers.length ? (
+                            <ErrorArea role="status">
+                                <ul>{chuckReport.blockers.map(code => <li key={code}>{payBlockerLabel(code, ja)}</li>)}</ul>
+                            </ErrorArea>
+                        ) : null}
+                        <h3>{ja ? "Chuck担当シフトのスタッフ給与" : "Staff pay on Chuck-managed shifts"}</h3>
+                        {chuckReport.staff_owed.length ? <HistoryList>
+                            {chuckReport.staff_owed.map(item => (
+                                <HistoryEntry key={item.user_id}>
+                                    <div>
+                                        <strong>{item.name}</strong>
+                                        <Meta>{ja ? "賃金" : "Wages"} {money(item.wages_yen, locale)} · {ja ? "スタッフドリンク" : "Staff drinks"} {money(item.staff_drink_bonus_yen, locale)}</Meta>
+                                    </div>
+                                    <Value>{money(item.total_owed_yen, locale)}</Value>
+                                </HistoryEntry>
+                            ))}
+                        </HistoryList> : <Muted>{ja ? "この月のChuck担当シフトにスタッフ給与はありません。" : "No staff pay is recorded for Chuck-managed shifts this month."}</Muted>}
+                        <h3>{ja ? "その他の控除" : "Other deductions"}</h3>
+                        {chuckReport.deductions.length ? <HistoryList>
+                            {chuckReport.deductions.map(item => (
+                                <HistoryEntry key={item.id}>
+                                    <div>
+                                        <strong>{item.business_date} · {item.payee_name}</strong>
+                                        <Meta>{item.reason}{item.reversal_of_id ? (ja ? " · 取消" : " · reversal") : ""}</Meta>
+                                    </div>
+                                    <Value>{money(item.amount_yen, locale)}</Value>
+                                </HistoryEntry>
+                            ))}
+                        </HistoryList> : <Muted>{ja ? "その他の控除は記録されていません。" : "No other deductions are recorded."}</Muted>}
+                    </>
+                ) : report ? (
                     <>
                         <Summary>
                             <Metric>
@@ -163,7 +267,7 @@ export default function StaffIncome({ userId, locale }: { userId: number; locale
                         <h3>{ja ? "明細" : "Entries"}</h3>
                         {filtered.length ? <HistoryList>
                             {filtered.map((entry, index) => (
-                                <HistoryEntry key={`${entry.category}-${entry.business_date}-${index}`}>
+                                <HistoryEntry key={entry.category + "-" + entry.business_date + "-" + index}>
                                     <div>
                                         <strong>{entry.business_date}</strong>
                                         <Meta>{entry.category === "hourly_wages"
