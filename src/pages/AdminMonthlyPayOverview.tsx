@@ -187,19 +187,21 @@ export default function AdminMonthlyPayOverview({
                                         <td>{row.person.role === "staff" ? "—" : yen(row.deductions, locale)}</td>
                                         <td><strong>{yen(row.owed, locale)}</strong></td>
                                         <td>{row.complete ? (ja ? "記録あり" : "Recorded") : label(row.message)}</td>
-                                        {row.chuck ? <td colSpan={6}>
-                                            <details>
-                                                <summary>{ja ? "Chuck担当シフトのスタッフ給与と控除の詳細" : "Details: staff owed on Chuck-managed shifts and deductions"}</summary>
-                                                <ul>
-                                                    {row.chuck.staff_owed.map(item => <li key={item.user_id}>
-                                                        {item.name}: {ja ? "賃金" : "wages"} {yen(item.wages_yen, locale)} · {ja ? "ドリンク手当" : "drink bonus"} {yen(item.staff_drink_bonus_yen, locale)}
-                                                    </li>)}
-                                                    {row.chuck.deductions.map(item => <li key={"deduction-" + item.id}>
-                                                        {item.business_date} · {item.payee_name}: {yen(item.amount_yen, locale)} · {item.reason}
-                                                    </li>)}
-                                                </ul>
-                                            </details>
-                                        </td> : null}
+                                        {row.chuck ? <tr>
+                                            <td colSpan={6}>
+                                                <details>
+                                                    <summary>{ja ? "Chuck担当シフトのスタッフ給与と控除の詳細" : "Details: staff owed on Chuck-managed shifts and deductions"}</summary>
+                                                    <ul>
+                                                        {row.chuck.staff_owed.map(item => <li key={item.user_id}>
+                                                            {item.name}: {ja ? "賃金" : "wages"} {yen(item.wages_yen, locale)} · {ja ? "ドリンク手当" : "drink bonus"} {yen(item.staff_drink_bonus_yen, locale)}
+                                                        </li>)}
+                                                        {row.chuck.deductions.map(item => <li key={"deduction-" + item.id}>
+                                                            {item.business_date} · {item.payee_name}: {yen(item.amount_yen, locale)} · {item.reason}
+                                                        </li>)}
+                                                    </ul>
+                                                </details>
+                                            </td>
+                                        </tr> : null}
                                     </tr>
                                 ))}
                                 {!rows.length ? <tr><td colSpan={6}>{ja ? "この月の記録がありません。" : "No pay records for this month."}</td></tr> : null}
