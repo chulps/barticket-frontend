@@ -5,10 +5,11 @@ import ts from "typescript";
 
 const s = readFileSync(new URL("../src/pages/AdminTeamEditors.tsx", import.meta.url), "utf8");
 
-test("staff editor keeps unsupported drinkback and bonus proposals explicitly unsaved", () => {
-    for (const kind of ["drinkback", "bonus"]) {
-        assert.match(s, new RegExp('copyProposal\\("'+kind+'"\\)'));
-    }
+test("staff editor uses the confirmed 40% drink rule and keeps manual adjustments unsaved", () => {
+    assert.match(s, /40% of listed price/);
+    assert.match(s, /fully paid tickets/);
+    assert.doesNotMatch(s, /propose-drinkback-rule|Propose staff-drink bonus rule/);
+    assert.match(s, /copyBonusAdjustmentProposal/);
     assert.match(s, /UNSAVED_PROPOSAL_ONLY/);
     assert.match(s, /employee_id: person\.id/);
     assert.match(s, /navigator\.clipboard\.writeText/);
