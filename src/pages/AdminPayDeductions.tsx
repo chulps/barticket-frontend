@@ -5,6 +5,14 @@ import styled from "styled-components";
 
 type Props = { managers: Account[]; locale: string };
 
+function categoryLabel(category: ManagerPayDeduction["category"], ja: boolean) {
+    switch (category) {
+        case "language_exchange_commission": return ja ? "Language Exchange 手数料" : "Language Exchange commission";
+        case "manager_paid_staff_tip": return ja ? "スタッフへのチップ" : "Manager-paid staff tip";
+        case "manager_pay_deduction": return ja ? "確認済みのマネージャー報酬控除" : "Confirmed manager-pay deduction";
+    }
+}
+
 function monthRange(month: string) {
     const [year, monthNumber] = month.split("-").map(Number);
     const lastDay = new Date(year, monthNumber, 0).getDate();
@@ -113,7 +121,7 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                 <h2>{ja ? "マネージャー報酬の控除" : "Manager pay deductions"}</h2>
                 <p>{ja
                     ? "売上や支払記録とは別の記録です。確定した対象のみ登録し、訂正は理由付きで追加します。"
-                    : "These records stay separate from sales and payments. Only the two confirmed categories are available; corrections are appended with a reason."}</p>
+                    : "These records stay separate from sales and payments. Confirmed categories are available; corrections are appended with a reason."}</p>
                 {managers.length === 0 ? <p role="status">{ja ? "マネージャーアカウントがありません。" : "No manager accounts are available."}</p> : (
                     <label>
                         {ja ? "報酬の対象者" : "Manager"}
@@ -139,8 +147,12 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                         <select value={category} onChange={event => setCategory(event.target.value as ManagerPayDeduction["category"])}>
                             <option value="language_exchange_commission">{ja ? "Language Exchange 手数料" : "Language Exchange commission"}</option>
                             <option value="manager_paid_staff_tip">{ja ? "スタッフへのマネージャー立替チップ" : "Manager-paid staff tip"}</option>
+                            <option value="manager_pay_deduction">{ja ? "確認済みのマネージャー報酬控除" : "Confirmed manager-pay deduction"}</option>
                         </select>
                     </label>
+                    {category === "manager_pay_deduction" ? <p>{ja
+                        ? "マネージャーが報酬から差し引くことを確認した金額に使用します。出典に詳しい種類がない場合は、元の列名と出典を記録してください。"
+                        : "Use only when a manager confirms the amount reduces pay. Preserve the original source column when it does not give a more specific type."}</p> : null}
                     <label>{ja ? "金額（円）" : "Amount (JPY)"}
                         <input type="number" min="1" max="10000000" step="1" required value={amount} onChange={event => setAmount(event.target.value)} />
                     </label>
@@ -153,11 +165,11 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                     <label>{ja ? "理由・説明" : "Reason"}
                         <textarea required maxLength={1000} value={reason} onChange={event => setReason(event.target.value)} />
                     </label>
-                    <details>
-                        <summary>{ja ? "出典（任意）" : "Source details (optional)"}</summary>
-                        <label>{ja ? "ファイル名" : "Spreadsheet/file"}<input maxLength={512} value={sourceFile} onChange={event => setSourceFile(event.target.value)} /></label>
-                        <label>{ja ? "行番号" : "Row number"}<input type="number" min="1" step="1" value={sourceRow} onChange={event => setSourceRow(event.target.value)} /></label>
-                        <label>{ja ? "列名" : "Column"}<input maxLength={128} value={sourceColumn} onChange={event => setSourceColumn(event.target.value)} /></label>
+                    <details open={category === "manager_pay_deduction"}>
+                        <summary>{ja ? (category === "manager_pay_deduction" ? "出典（必須）" : "出典（任意）") : (category === "manager_pay_deduction" ? "Source details (required)" : "Source details (optional)")}</summary>
+                        <label>{ja ? "ファイル名" : "Spreadsheet/file"}<input maxLength={512} required={category === "manager_pay_deduction"} value={sourceFile} onChange={event => setSourceFile(event.target.value)} /></label>
+                        <label>{ja ? "行番号" : "Row number"}<input type="number" min="1" step="1" required={category === "manager_pay_deduction"} value={sourceRow} onChange={event => setSourceRow(event.target.value)} /></label>
+                        <label>{ja ? "列名" : "Column"}<input maxLength={128} required={category === "manager_pay_deduction"} value={sourceColumn} onChange={event => setSourceColumn(event.target.value)} /></label>
                         <label>{ja ? "出典メモ" : "Source note"}<textarea maxLength={1000} value={sourceNote} onChange={event => setSourceNote(event.target.value)} /></label>
                     </details>
                     <button type="submit" disabled={busy || !beneficiary || dateError}>{ja ? "控除を保存" : "Save deduction"}</button>
@@ -172,9 +184,7 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                         {items.map(item => (
                             <li key={item.id}>
                                 <strong>{item.business_date} · ¥{item.signed_amount_yen.toLocaleString()}</strong>
-                                <span> · {item.category === "language_exchange_commission"
-                                    ? (ja ? "Language Exchange 手数料" : "Language Exchange commission")
-                                    : (ja ? "スタッフへのチップ" : "Staff tip")} · {item.payee_name} · {item.reason}</span>
+                                <span> · {categoryLabel(item.category, ja)} · {item.payee_name} · {item.reason}</span>
                                 {item.reversal_of_id ? <span> · {ja ? "訂正" : "reversal"}</span> : null}
                                 {!item.reversal_of_id && !items.some(other => other.reversal_of_id === item.id)
                                     ? <button type="button" className="small secondary" disabled={busy} onClick={() => void reverse(item)}>{ja ? "理由を付けて訂正" : "Correct with reason"}</button>
