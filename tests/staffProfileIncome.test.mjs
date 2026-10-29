@@ -13,6 +13,14 @@ test("Profile income is personal for staff and managers and shows wages and drin
     assert.match(history, /role === "staff".*\["hours", "drinks", "income"\]/s);
     assert.match(history, /role === "staff"[\s\S]*: \["hours", "drinks", "benefits", "income"\]/);
     assert.match(income, /accountApi\.personalEarnings\(month\)/);
+    assert.match(income, /canViewChuckPersonalPay/);
+    assert.match(income, /accountApi\.chuckMonthlyPay\(month\)/);
+    assert.match(income, /Gross salary/);
+    assert.match(income, /Staff pay owed/);
+    assert.match(income, /Other deductions/);
+    assert.match(income, /Amount owed to Chuck/);
+    assert.match(income, /staff_owed\.map/);
+    assert.match(income, /chuckReport\.deductions\.map/);
     assert.match(income, /response\.user_id !== userId/);
     assert.match(income, /hourly_wages/);
     assert.match(income, /staff_drink_bonus/);
