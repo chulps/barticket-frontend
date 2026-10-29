@@ -5,8 +5,9 @@ import { accountApi, type PersonalWorkHistory } from "../api/account";
 import { ApiError } from "../api/client";
 import { localeTag, type Locale } from "../i18n";
 import { recordedStaffTotals, type StaffActivityRow } from "./staffProfileData";
+import StaffIncome from "./StaffIncome";
 
-type Panel = "hours" | "drinks" | "benefits";
+type Panel = "hours" | "drinks" | "benefits" | "income";
 
 function formatBusinessDate(date: string, locale: Locale) {
     const [year, month, day] = date.split("-").map(Number);
@@ -33,7 +34,7 @@ function hoursLabel(seconds: number | null) {
  * Loads the backend's self-only profile endpoint; no shared Analytics payload
  * is downloaded to build this private view.
  */
-export default function StaffWorkHistory({ userId, locale }: { userId: number; locale: Locale }) {
+export default function StaffWorkHistory({ userId, locale, role }: { userId: number; locale: Locale; role: "staff" | "manager" }) {
     const ja = locale === "ja";
     const [history, setHistory] = useState<PersonalWorkHistory | null>(null);
     const [loading, setLoading] = useState(true);
@@ -96,7 +97,7 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
             </Heading>
 
             <Tabs role="tablist" aria-label={ja ? "勤務履歴の項目" : "Work history sections"}>
-                {(["hours", "drinks", "benefits"] as const).map(key => (
+                {(role === "staff" ? ["hours", "drinks", "income"] as const : ["hours", "drinks", "benefits"] as const).map(key => (
                     <button key={key} type="button" role="tab"
                         aria-selected={section === key}
                         aria-controls="profile-work-panel"
@@ -104,12 +105,15 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
                         onClick={() => setSection(key)}>
                         {key === "hours" ? (ja ? "勤務時間" : "Hours")
                             : key === "drinks" ? (ja ? "スタッフドリンク" : "Staff drinks")
+                                : key === "income" ? (ja ? "収入内訳" : "Income")
                                 : (ja ? "手当・控除" : "Bonuses & adjustments")}
                     </button>
                 ))}
             </Tabs>
 
-            {section === "benefits" ? (
+            {section === "income" ? (
+                <StaffIncome userId={userId} locale={locale} />
+            ) : section === "benefits" ? (
                 <PanelBody id="profile-work-panel" role="tabpanel">
                     <h3>{ja ? "手当・調整・控除" : "Bonuses, adjustments & deductions"}</h3>
                     <p>{ja

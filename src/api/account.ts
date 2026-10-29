@@ -203,6 +203,40 @@ export type PersonalWorkHistory = {
     }[];
 };
 
+export type PersonalEarningsPreview = {
+    user_id: number;
+    month: string;
+    preview_only: true;
+    categories: (
+        | {
+            category: "hourly_wages";
+            amount_yen_unrounded: string | null;
+            complete: boolean;
+            entries: {
+                business_date: string;
+                amount_yen_unrounded: string | null;
+                hours_seconds: number;
+                hourly_rate_yen: number | null;
+                hours_basis: string;
+            }[];
+        }
+        | {
+            category: "staff_drink_bonus";
+            amount_yen: number;
+            complete: boolean;
+            entries: {
+                business_date: string;
+                shift_id: number | null;
+                eligible_units: number;
+                eligible_listed_revenue_yen: number;
+                rate_percent: number;
+                amount_yen: number;
+            }[];
+        }
+    )[];
+    note: string;
+};
+
 export type HourlyRateRecord = {
     id: number;
     hourly_rate_yen: number;
@@ -318,6 +352,9 @@ export const accountApi = {
         apiRequest<VenueStatus>("/venue-status", { method: "PUT", body }),
 
     workHistory: () => apiRequest<PersonalWorkHistory>("/profile/work-history"),
+
+    personalEarnings: (month: string) =>
+        apiRequest<PersonalEarningsPreview>(`/profile/earnings?month=${encodeURIComponent(month)}`),
 
     openShift: () => apiRequest<ShiftReport>("/shifts/open", { method: "POST" }),
 
