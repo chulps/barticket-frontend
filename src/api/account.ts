@@ -439,6 +439,12 @@ export const accountApi = {
     workingManagerHistory: (shiftId: number) =>
         apiRequest<ShiftManagerAudit[]>(`/shifts/${shiftId}/working-manager-history`),
 
+    adminPersonalEarnings: (userId: number, month: string) =>
+        apiRequest<PersonalEarningsPreview>(`/admin/staff-compensation/users/${userId}/earnings?month=${encodeURIComponent(month)}`),
+
+    adminChuckMonthlyPay: (month: string) =>
+        apiRequest<ChuckMonthlyPayPreview>(`/admin/staff-compensation/chuck-monthly-pay?month=${encodeURIComponent(month)}`),
+
     revenueSharePreview: (month: string) =>
         apiRequest<RevenueSharePreview>(`/payroll/revenue-share/preview?month=${encodeURIComponent(month)}`),
 
