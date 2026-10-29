@@ -114,7 +114,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
             </Tabs>
 
             {section === "income" ? (
-                <StaffIncome userId={userId} locale={locale} />
+                <StaffIncome userId={userId} locale={locale} role={role} />
             ) : section === "benefits" ? (
                 <PanelBody id="profile-work-panel" role="tabpanel">
                     <h3>{ja ? "手当・調整・控除" : "Bonuses, adjustments & deductions"}</h3>
