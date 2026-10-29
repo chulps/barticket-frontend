@@ -203,6 +203,82 @@ export type PersonalWorkHistory = {
     }[];
 };
 
+export type PersonalEarningsPreview = {
+    user_id: number;
+    month: string;
+    preview_only: true;
+    categories: (
+        | {
+            category: "hourly_wages";
+            amount_yen_unrounded: string | null;
+            complete: boolean;
+            entries: {
+                business_date: string;
+                amount_yen_unrounded: string | null;
+                hours_seconds: number;
+                hourly_rate_yen: number | null;
+                hours_basis: string;
+            }[];
+        }
+        | {
+            category: "staff_drink_bonus";
+            amount_yen: number;
+            complete: boolean;
+            entries: {
+                business_date: string;
+                shift_id: number | null;
+                eligible_units: number;
+                eligible_listed_revenue_yen: number;
+                rate_percent: number;
+                amount_yen: number;
+            }[];
+        }
+    )[];
+    note: string;
+};
+
+export type ChuckMonthlyPayPreview = {
+    user_id: number;
+    month: string;
+    preview_only: true;
+    complete: boolean;
+    gross_salary_yen: number | null;
+    tier_rate_percent: number | null;
+    eligible_revenue_yen: number | null;
+    revenue_shift_ids: number[];
+    staff_owed: {
+        user_id: number;
+        name: string;
+        wages_yen: number | null;
+        staff_drink_bonus_yen: number;
+        total_owed_yen: number | null;
+        hours: {
+            business_date: string;
+            shift_id: number | null;
+            hours_seconds: number;
+            hourly_rate_yen: number | null;
+            hours_basis: string;
+            amount_yen_unrounded: string | null;
+        }[];
+    }[];
+    staff_cost_total_yen: number | null;
+    deductions: {
+        id: number;
+        category: "language_exchange_commission" | "manager_paid_staff_tip";
+        business_date: string;
+        shift_id: number | null;
+        amount_yen: number;
+        payee_name: string;
+        reason: string;
+        reversal_of_id: number | null;
+    }[];
+    deduction_total_yen: number;
+    net_amount_owed_yen: number | null;
+    calculated_balance_yen: number | null;
+    blockers: string[];
+    note: string;
+};
+
 export type HourlyRateRecord = {
     id: number;
     hourly_rate_yen: number;
@@ -332,6 +408,12 @@ export const accountApi = {
 
     workingManagerHistory: (shiftId: number) =>
         apiRequest<ShiftManagerAudit[]>(`/shifts/${shiftId}/working-manager-history`),
+
+    adminPersonalEarnings: (userId: number, month: string) =>
+        apiRequest<PersonalEarningsPreview>(`/admin/staff-compensation/users/${userId}/earnings?month=${encodeURIComponent(month)}`),
+
+    adminChuckMonthlyPay: (month: string) =>
+        apiRequest<ChuckMonthlyPayPreview>(`/admin/staff-compensation/chuck-monthly-pay?month=${encodeURIComponent(month)}`),
 
     revenueSharePreview: (month: string) =>
         apiRequest<RevenueSharePreview>(`/payroll/revenue-share/preview?month=${encodeURIComponent(month)}`),
