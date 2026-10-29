@@ -179,13 +179,14 @@ export default function AdminMonthlyPayOverview({
                             <tbody>
                                 {rows.map(row => (
                                     <Fragment key={row.person.id}>
-                                    <tr>
-                                        <th scope="row">{row.person.name}<small>{row.person.role === "manager" ? (ja ? "マネージャー" : "Manager") : (ja ? "スタッフ" : "Staff")}</small></th>
-                                        <td>{row.person.role === "staff" ? yen(row.wages, locale) : yen(row.gross, locale)}</td>
-                                        <td>{row.person.role === "staff" ? yen(row.bonus, locale) : yen(row.staffCost, locale)}</td>
-                                        <td>{row.person.role === "staff" ? "—" : yen(row.deductions, locale)}</td>
-                                        <td><strong>{yen(row.owed, locale)}</strong></td>
-                                        <td>{row.complete ? (ja ? "記録あり" : "Recorded") : label(row.message)}</td>
+                                        <tr>
+                                            <th scope="row">{row.person.name}<small>{row.person.role === "manager" ? (ja ? "マネージャー" : "Manager") : (ja ? "スタッフ" : "Staff")}</small></th>
+                                            <td>{row.person.role === "staff" ? yen(row.wages, locale) : yen(row.gross, locale)}</td>
+                                            <td>{row.person.role === "staff" ? yen(row.bonus, locale) : yen(row.staffCost, locale)}</td>
+                                            <td>{row.person.role === "staff" ? "—" : yen(row.deductions, locale)}</td>
+                                            <td><strong>{yen(row.owed, locale)}</strong></td>
+                                            <td>{row.complete ? (ja ? "記録あり" : "Recorded") : label(row.message)}</td>
+                                        </tr>
                                         {row.chuck ? <tr>
                                             <td colSpan={6}>
                                                 <details>
