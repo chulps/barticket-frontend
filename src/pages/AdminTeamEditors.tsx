@@ -38,7 +38,7 @@ function dateLabel(value: string, locale: Locale) {
 
 function bonusDateRange(rows: StaffActivityRow[], drinkLines: AdminDrinkLine[]) {
     const dates = [...new Set([...rows.map(row => row.businessDate), ...drinkLines.map(line => line.businessDate)])]
-        .filter(value => /^\\d{4}-\\d{2}-\\d{2}$/.test(value)).sort();
+        .filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
     if (!dates.length) return null;
     const dateFrom = dates[0];
     const dateTo = dates[dates.length - 1];
