@@ -149,7 +149,6 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
     const [tab, setTab] = useState<EditorTab>("terms");
     const [rate, setRate] = useState({ ...initialRateDraft, basis: "hourly" as const });
     const [bonus, setBonus] = useState(initialBonusDraft);
-    const [copyNotice, setCopyNotice] = useState("");
     const [rateHistory, setRateHistory] = useState<HourlyRateRecord[]>([]);
     const [rateLoading, setRateLoading] = useState(true);
     const [rateError, setRateError] = useState("");
@@ -159,6 +158,9 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
     const [savingRate, setSavingRate] = useState(false);
     const [rateSaveError, setRateSaveError] = useState("");
     const [rateSaveSuccess, setRateSaveSuccess] = useState("");
+    const [savingBonus, setSavingBonus] = useState(false);
+    const [bonusSaveError, setBonusSaveError] = useState("");
+    const [bonusSaveSuccess, setBonusSaveSuccess] = useState("");
     const bonusRange = useMemo(() => bonusDateRange(rows, drinkLines), [rows, drinkLines]);
     const [bonusReportState, setBonusReportState] = useState<{
         key: string;
@@ -258,21 +260,34 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
         }
     }
 
-    async function copyBonusAdjustmentProposal() {
+    async function saveBonusAdjustment() {
+        if (!readyBonus || savingBonus || !bonusRange) return;
+        const shiftId = Number(bonus.shiftId);
+        const confirmed = window.confirm(ja
+            ? "この勤務日のドリンク手当を理由付きで監査履歴に追加します。売上記録は変更しません。続行しますか？"
+            : "Add this reasoned drink-bonus correction to the audit history? Original sales records will not change.");
+        if (!confirmed) return;
+        setSavingBonus(true);
+        setBonusSaveError("");
+        setBonusSaveSuccess("");
         try {
-            await navigator.clipboard.writeText(JSON.stringify({
-                status: "UNSAVED_PROPOSAL_ONLY",
-                employee_id: person.id,
-                employee_name: person.name,
-                action: "propose-bonus-adjustment",
-                ...bonus,
-            }, null, 2));
-            setCopyNotice(ja
-                ? "下書きJSONをコピーしました。APIにも給与記録にも保存されていません。"
-                : "Draft JSON copied. Nothing was saved to the API or payroll records.");
-        } catch {
-            setCopyNotice(ja ? "コピーできませんでした。ブラウザの権限を確認してください。" :
-                "Copy failed. Check your browser's clipboard permissions.");
+            await accountApi.createStaffDrinkBonusAdjustment(person.id, {
+                shift_id: shiftId,
+                signed_amount_yen: Number(bonus.adjustmentYen),
+                reason: bonus.reason.trim(),
+            });
+            const report = await accountApi.staffDrinkBonuses(
+                person.id, bonusRange.dateFrom, bonusRange.dateTo,
+            );
+            setBonusReportState({ key: bonusRequestKey, report, error: "" });
+            setBonus(initialBonusDraft);
+            setBonusSaveSuccess(ja ? "調整を監査履歴に保存しました。" : "Adjustment saved to the audit history.");
+            onRefresh();
+        } catch (error) {
+            setBonusSaveError(error instanceof Error ? error.message :
+                (ja ? "調整を保存できませんでした。" : "Could not save the adjustment."));
+        } finally {
+            setSavingBonus(false);
         }
     }
     const correctablePunches = rows.flatMap(row =>
@@ -290,16 +305,15 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
             <Header>
                 <div>
                     <h3>{ja ? "スタッフ設定・調整" : "Staff settings & adjustments"}</h3>
-                    <p>{ja ? "時給レートと打刻修正は監査履歴に保存。確認済みの40%ドリンク手当をプレビュー表示し、手動調整は下書きのままです。" : "Hourly rates and clock corrections save to audit history. The confirmed 40% drink-bonus rule is shown as a preview; manual adjustments remain drafts."}</p>
+                    <p>{ja ? "時給レート・打刻修正・ドリンク手当の手動調整は監査履歴に保存。確認済みの40%ルールをプレビュー表示します。" : "Hourly rates, clock corrections and manual drink-bonus adjustments save to audit history. The confirmed 40% bonus rule is previewed from paid, linked drinks."}</p>
                 </div>
                 <Pill>{ja ? "時給レート管理" : "AUDITED HOURLY RATES"}</Pill>
             </Header>
             <Notice role="note">
                 {ja
-                    ? "時給レートと打刻修正はマネージャーのみ変更でき、監査履歴に記録されます。確認済みの40%ドリンク手当は全額支払済みの紐づいたチケットが対象です。手動調整は未保存です。金額は試算で、最終給与ではありません。"
-                    : "Only managers can change rates or correct clock punches; both are recorded in audit history. The confirmed 40% bonus rule applies to linked drinks on fully paid tickets; manual adjustments remain unsaved. Impact figures are estimates, not final payroll."}
+                    ? "時給レート・打刻修正・ドリンク手当の調整はマネージャーのみ変更でき、監査履歴に記録されます。40%手当は全額支払済みの紐づいたチケットが対象です。金額は試算で、最終給与ではありません。"
+                    : "Only managers can change rates, correct clock punches or adjust drink bonuses; every change is recorded in audit history. The 40% bonus rule applies to linked drinks on fully paid tickets. Figures are estimates, not final payroll."}
             </Notice>
-            {copyNotice ? <Notice role="status">{copyNotice}</Notice> : null}
             <StaffTabSurface>
                 <TabGroup
                     tabs={[
@@ -446,12 +460,27 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                                         <Record key={item.shift_id + ":" + item.business_date + ":" + index}>
                                             <div>
                                                 <strong>{dateLabel(item.business_date, locale)} · {item.eligible_units}/{item.recorded_units} {ja ? "杯が対象" : "eligible drinks"}</strong>
-                                                <Muted>{ja ? "対象売価" : "Eligible listed price"}: ¥{item.eligible_listed_revenue_yen.toLocaleString()} · {ja ? "手当" : "bonus"}: ¥{item.bonus_yen.toLocaleString()}</Muted>
+                                                <Muted>{ja ? "対象売価" : "Eligible listed price"}: ¥{item.eligible_listed_revenue_yen.toLocaleString()} · {ja ? "計算手当" : "calculated bonus"}: ¥{(item.calculated_bonus_yen ?? item.bonus_yen).toLocaleString()} · {ja ? "手動調整" : "manual adjustment"}: ¥{(item.manual_adjustment_yen ?? 0).toLocaleString()} · {ja ? "合計" : "total"}: ¥{item.bonus_yen.toLocaleString()}</Muted>
                                             </div>
                                         </Record>
                                     ))}
                                 </Records>
-                                <Muted>{ja ? "合計手当" : "Total bonus"}: ¥{currentBonusReport.report.totals.bonus_yen.toLocaleString()} · {ja ? "プレビューのみ、給与記録には保存されません。" : "Preview only; no payroll entry is created."}</Muted>
+                                <Muted>{ja ? "計算手当" : "Calculated bonus"}: ¥{(currentBonusReport.report.totals.calculated_bonus_yen ?? currentBonusReport.report.totals.bonus_yen).toLocaleString()}
+                                    {" · "}{ja ? "手動調整" : "Manual adjustments"}: ¥{(currentBonusReport.report.totals.manual_adjustment_yen ?? 0).toLocaleString()}
+                                    {" · "}{ja ? "調整後の合計（プレビュー）" : "Adjusted total (preview)"}: ¥{currentBonusReport.report.totals.bonus_yen.toLocaleString()}</Muted>
+                                {currentBonusReport.report.adjustments?.length ? (
+                                    <Records aria-label={ja ? "手当調整履歴" : "Bonus adjustment history"}>
+                                        {currentBonusReport.report.adjustments.map(adjustment => (
+                                            <Record key={adjustment.id}>
+                                                <div>
+                                                    <strong>{dateLabel(adjustment.business_date, locale)} · {adjustment.signed_amount_yen >= 0 ? "+" : "−"}¥{Math.abs(adjustment.signed_amount_yen).toLocaleString()}</strong>
+                                                    <Muted>{adjustment.reason} · {ja ? "記録者" : "Recorded by"}: {adjustment.created_by_name}
+                                                        {adjustment.reversal_of_id ? ` · ${ja ? "取消" : "reversal"} #${adjustment.reversal_of_id}` : ""}</Muted>
+                                                </div>
+                                            </Record>
+                                        ))}
+                                    </Records>
+                                ) : null}
                             </>
                         ) : null}
                     </Card>
@@ -469,8 +498,8 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                         </Records>
                     ) : <Muted>{ja ? "本人IDに紐づいたドリンク記録がありません。未記録の可能性があります。" : "No drink records linked to this user ID; older records may be incomplete."}</Muted>}
                     <Card>
-                        <h4>{ja ? "ドリンク手当の調整案" : "Propose a manual drink-bonus adjustment"}</h4>
-                        <p>{ja ? "この調整案はスタッフドリンクの販売記録を変更しません。" : "This proposal never changes original staff-drink or ticket sales records."}</p>
+                        <h4>{ja ? "ドリンク手当の調整" : "Manual drink-bonus adjustment"}</h4>
+                        <p>{ja ? "理由付きの調整を追加します。スタッフドリンクやチケットの販売記録は変更しません。" : "Append a reasoned adjustment. Original staff-drink and ticket sales records remain unchanged."}</p>
                         <Fields>
                             <label>{ja ? "対象シフト" : "Shift with recorded drinks"}
                                 <select value={bonus.shiftId} onChange={e => setBonus({ ...bonus, shiftId: e.target.value })}>
@@ -491,12 +520,19 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                             </label>
                         </Fields>
                         {readyBonus ? <Preview role="status">
-                            {ja ? "調整案（未保存）" : "Proposed adjustment (unsaved)"}: {Number(bonus.adjustmentYen) >= 0 ? "+" : "−"}¥{Math.abs(Number(bonus.adjustmentYen)).toLocaleString()}
+                            {ja ? "調整プレビュー" : "Adjustment preview"}: {Number(bonus.adjustmentYen) >= 0 ? "+" : "−"}¥{Math.abs(Number(bonus.adjustmentYen)).toLocaleString()}
                         </Preview> : <Help>{ja ? "対象シフト・0以外の整数の円金額・理由を入力してください。" : "Choose a shift, a nonzero whole-yen adjustment and a reason."}</Help>}
+                        {bonusSaveError ? <p role="alert">{bonusSaveError}</p> : null}
+                        {bonusSaveSuccess ? <p role="status">{bonusSaveSuccess}</p> : null}
                         <Actions>
-                            <button type="button" className="hollow secondary" onClick={() => setBonus(initialBonusDraft)}>{ja ? "クリア" : "Clear draft"}</button>
-                            <button type="button" className="secondary" disabled={!readyBonus} onClick={() => void copyBonusAdjustmentProposal()}>{ja ? "調整案をコピー" : "Copy bonus adjustment"}</button>
-                            <button type="button" disabled title={ja ? "修正API未対応" : "Awaiting approved adjustment API"}>{ja ? "調整を保存（未対応）" : "Save adjustment — unavailable"}</button>
+                            <button type="button" className="hollow secondary" disabled={savingBonus}
+                                onClick={() => { setBonus(initialBonusDraft); setBonusSaveError(""); setBonusSaveSuccess(""); }}>
+                                {ja ? "クリア" : "Clear draft"}
+                            </button>
+                            <button type="button" disabled={!readyBonus || savingBonus || !currentBonusReport?.report}
+                                onClick={() => void saveBonusAdjustment()}>
+                                {savingBonus ? (ja ? "保存中…" : "Saving…") : (ja ? "調整を保存" : "Save adjustment")}
+                            </button>
                         </Actions>
                     </Card>
                 </Content>
