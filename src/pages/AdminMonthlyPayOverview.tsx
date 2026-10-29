@@ -78,7 +78,6 @@ export default function AdminMonthlyPayOverview({
     const [month, setMonth] = useState(currentMonth);
     const [rows, setRows] = useState<PayRow[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
     const [reload, setReload] = useState(0);
 
     useEffect(() => {
@@ -119,7 +118,7 @@ export default function AdminMonthlyPayOverview({
         }
         void load();
         return () => { cancelled = true; };
-    }, [designated, viewer, people, month, refreshVersion, reload, viewers.chuckUserId, ja]);
+    }, [designated, viewer, people, month, refreshVersion, reload, viewers.chuckUserId]);
 
     const totalStaffPay = useMemo(() => {
         const staffRows = rows.filter(row => row.person.role === "staff");
@@ -154,7 +153,6 @@ export default function AdminMonthlyPayOverview({
                     <input type="month" value={month} onChange={event => setMonth(event.target.value)} />
                 </label>
             </Toolbar>
-            {error ? <p role="alert">{error}</p> : null}
             {loading ? <p role="status">{ja ? "給与情報を読み込み中…" : "Loading monthly pay…"}</p> : (
                 <>
                     <Summary>
