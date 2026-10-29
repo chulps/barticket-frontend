@@ -237,6 +237,48 @@ export type PersonalEarningsPreview = {
     note: string;
 };
 
+export type ChuckMonthlyPayPreview = {
+    user_id: number;
+    month: string;
+    preview_only: true;
+    complete: boolean;
+    gross_salary_yen: number | null;
+    tier_rate_percent: number | null;
+    eligible_revenue_yen: number | null;
+    revenue_shift_ids: number[];
+    staff_owed: {
+        user_id: number;
+        name: string;
+        wages_yen: number | null;
+        staff_drink_bonus_yen: number;
+        total_owed_yen: number | null;
+        hours: {
+            business_date: string;
+            shift_id: number | null;
+            hours_seconds: number;
+            hourly_rate_yen: number | null;
+            hours_basis: string;
+            amount_yen_unrounded: string | null;
+        }[];
+    }[];
+    staff_cost_total_yen: number | null;
+    deductions: {
+        id: number;
+        category: "language_exchange_commission" | "manager_paid_staff_tip";
+        business_date: string;
+        shift_id: number | null;
+        amount_yen: number;
+        payee_name: string;
+        reason: string;
+        reversal_of_id: number | null;
+    }[];
+    deduction_total_yen: number;
+    net_amount_owed_yen: number | null;
+    calculated_balance_yen: number | null;
+    blockers: string[];
+    note: string;
+};
+
 export type HourlyRateRecord = {
     id: number;
     hourly_rate_yen: number;
@@ -355,6 +397,9 @@ export const accountApi = {
 
     personalEarnings: (month: string) =>
         apiRequest<PersonalEarningsPreview>(`/profile/earnings?month=${encodeURIComponent(month)}`),
+
+    chuckMonthlyPay: (month: string) =>
+        apiRequest<ChuckMonthlyPayPreview>(`/profile/chuck-monthly-pay?month=${encodeURIComponent(month)}`),
 
     openShift: () => apiRequest<ShiftReport>("/shifts/open", { method: "POST" }),
 
