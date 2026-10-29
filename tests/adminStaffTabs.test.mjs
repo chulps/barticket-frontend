@@ -24,7 +24,7 @@ test("Staff settings reuse the Admin shared three-tab control", () => {
     assert.doesNotMatch(shared, /background: var\(--neutral-900\)/);
 });
 
-test("Staff editor keeps its existing three draft panels and parses as TSX", () => {
+test("Staff editor keeps its three issue-scoped tabs and parses as TSX", () => {
     for (const tab of ["terms", "time", "drinks"]) {
         assert.ok(editors.includes('tab === "' + tab + '"'));
     }
