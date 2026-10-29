@@ -39,6 +39,6 @@ test("clock correction inputs preserve Japan time and reject invalid or future r
 
 test("staff profile activity retains punch identifiers for the selected employee", () => {
     const source = readFileSync(new URL("../src/pages/staffProfileData.ts", import.meta.url), "utf8");
-    assert.match(source, /punches:\s*ShiftPunch\[\]/);
+    assert.match(source, /punches\?:\s*ShiftPunch\[\]/);
     assert.match(source, /punches,\s*drinks/);
 });
