@@ -126,7 +126,7 @@ export default function TicketActions({
         return (
             <ButtonActions $row>
                 <ActionButton className="hollow secondary" onClick={() => openModal({
-                    title: locale === "ja" ? "領収書メール（プレビュー）" : "Email receipt — preview",
+                    title: locale === "ja" ? "領収書をメールで送信" : "Email receipt",
                     content: <ReceiptPreview ticket={ticket} />,
                     fitContent: true,
                     maxWidth: "520px",
