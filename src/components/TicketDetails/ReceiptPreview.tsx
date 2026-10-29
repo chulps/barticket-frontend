@@ -1,41 +1,15 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Ticket } from "../../types/Ticket";
 import { localeTag, useI18n } from "../../i18n";
 import { useModal } from "../../hooks/useModal";
+import { ApiError } from "../../api/client";
+import { ticketsApi } from "../../api/tickets";
+import { receiptPreviewText, validReceiptEmail } from "./receiptEmailUtils";
 
 const panelStyle = {
     display: "flex", flexDirection: "column", gap: "var(--space-2)",
     padding: "var(--space-2)", minWidth: 0,
 } as const;
-
-export function validReceiptEmail(value: string): boolean {
-    const email = value.trim();
-    return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-export function receiptPreviewText(ticket: Ticket, locale: "en" | "ja"): string {
-    const ja = locale === "ja";
-    const total = ticket.items.reduce((sum, line) => sum + line.subtotal, 0);
-    const paidAt = ticket.payment?.paid_at
-        ? new Date(ticket.payment.paid_at * 1000).toLocaleString(localeTag(locale), {
-            timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit",
-            day: "2-digit", hour: "2-digit", minute: "2-digit",
-        }) + " JST" : (ja ? "未確認" : "Not verified");
-    const items = ticket.items.map(line =>
-        line.name + " × " + line.quantity + " — ¥" + line.subtotal.toLocaleString("ja-JP")
-    ).join("\n");
-    return [
-        "ROCK BAR FXXK UP — SAPPORO",
-        ja ? "領収明細プレビュー（未送信）" : "Receipt preview (not sent)",
-        "Ticket #" + ticket.id,
-        (ja ? "会計日時" : "Paid at") + ": " + paidAt,
-        (ja ? "決済方法" : "Payment method") + ": " + (ticket.payment?.type ?? (ja ? "不明" : "Unknown")),
-        "", items, "",
-        (ja ? "明細合計（参考）" : "Recorded line total (reference)") + ": ¥" + total.toLocaleString("ja-JP"),
-        ja ? "正式な決済金額と領収書はバックエンドの送信API提供後に確定します。" :
-            "Authoritative paid totals and delivery require the backend receipt API.",
-    ].join("\n");
-}
 
 export default function ReceiptPreview({ ticket }: { ticket: Ticket }) {
     const { locale } = useI18n();
@@ -44,8 +18,39 @@ export default function ReceiptPreview({ ticket }: { ticket: Ticket }) {
     const [email, setEmail] = useState("");
     const [touched, setTouched] = useState(false);
     const [notice, setNotice] = useState("");
+    const [sending, setSending] = useState(false);
+    const [accepted, setAccepted] = useState(false);
+    const [outcomeUnknown, setOutcomeUnknown] = useState(false);
+    const sendKey = useRef<string | null>(null);
     const valid = validReceiptEmail(email);
-    const total = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
+    const total = ticket.serverTotal ?? ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
+
+    async function sendReceipt() {
+        if (!valid || sending || accepted || outcomeUnknown) return;
+        sendKey.current ??= crypto.randomUUID();
+        setSending(true);
+        setNotice("");
+        try {
+            await ticketsApi.emailReceipt(ticket.id, email.trim(), locale, sendKey.current);
+            setAccepted(true);
+            setNotice(ja
+                ? "メール送信を受け付けました。受信トレイへの配信を保証するものではありません。"
+                : "The email provider accepted the receipt request. This does not guarantee inbox delivery.");
+        } catch (error) {
+            const code = error instanceof ApiError && error.detail && typeof error.detail === "object" && "code" in error.detail
+                ? error.detail.code : undefined;
+            if (code === "EMAIL_STATUS_UNKNOWN" || !(error instanceof ApiError)) {
+                setOutcomeUnknown(true);
+                setNotice(ja
+                    ? "送信結果を確認できません。重複送信を防ぐため再送できません。管理者に確認してください。"
+                    : "The send result is unknown. To avoid a duplicate, this form cannot retry. Please check with a manager.");
+            } else {
+                setNotice(error.message || (ja ? "メールを送信できませんでした。" : "Could not send the receipt."));
+            }
+        } finally {
+            setSending(false);
+        }
+    }
 
     async function copyReceipt() {
         try {
@@ -59,9 +64,9 @@ export default function ReceiptPreview({ ticket }: { ticket: Ticket }) {
     }
 
     return <div style={panelStyle}>
-        <p role="status">{ja
-            ? "メール送信はまだ利用できません（バックエンド #77 対応待ち）。メールアドレスは保存・送信されません。"
-            : "Email delivery is not available yet (backend #77). Recipient addresses are not saved or sent."}</p>
+        <p>{ja
+            ? "メールアドレスはこの送信要求の処理中のみ使用され、アプリには保存されません。"
+            : "The recipient address is used to process this request and is not stored by BarTicket."}</p>
         <label style={{ display: "flex", flexDirection: "column", gap: "var(--space-1)" }}>
             {ja ? "送信先メールアドレス" : "Recipient email"}
             <input type="email" autoComplete="email" inputMode="email"
@@ -76,7 +81,7 @@ export default function ReceiptPreview({ ticket }: { ticket: Ticket }) {
             style={{ padding: "var(--space-2)", border: "1px solid var(--neutral-600)",
                 borderRadius: 8, display: "grid", gap: "var(--space-1)" }}>
             <h3>ROCK BAR FXXK UP</h3>
-            <p>{ja ? "札幌 · 明細プレビュー（未送信）" : "Sapporo · Receipt preview (not sent)"}</p>
+            <p>{ja ? "札幌 · 領収明細" : "Sapporo · Receipt"}</p>
             <p>#{ticket.id} · {ticket.payment
                 ? new Date(ticket.payment.paid_at * 1000).toLocaleString(localeTag(locale), {
                     timeZone: "Asia/Tokyo", year: "numeric", month: "short", day: "numeric",
@@ -95,21 +100,20 @@ export default function ReceiptPreview({ ticket }: { ticket: Ticket }) {
                     </li>)}
             </ul>
             <p style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-2)" }}>
-                <strong>{ja ? "明細合計（参考）" : "Recorded line total (reference)"}</strong>
+                <strong>{ja ? "合計" : "Total"}</strong>
                 <strong>¥{total.toLocaleString("ja-JP")}</strong>
             </p>
             <small>{ja
-                ? "正式な領収書・決済済み金額・配信履歴はバックエンド対応後に利用できます。"
-                : "Official receipt, authoritative paid total and delivery history require backend support."}</small>
+                ? "記録された決済合計" : "Recorded payments"}: ¥{(ticket.amountPaid ?? ticket.payments?.filter(payment => !payment.voided_at).reduce((sum, payment) => sum + payment.amount, 0) ?? ticket.payment?.amount ?? 0).toLocaleString("ja-JP")}</small>
         </section>
         {notice ? <p role="status">{notice}</p> : null}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-1)" }}>
             <button type="button" className="hollow secondary" onClick={closeModal}>{ja ? "閉じる" : "Close"}</button>
             <button type="button" className="secondary" onClick={() => void copyReceipt()}>
-                {ja ? "プレビューをコピー" : "Copy preview"}
+                {ja ? "領収明細をコピー" : "Copy receipt"}
             </button>
-            <button type="button" disabled title={ja ? "メール送信API対応待ち" : "Awaiting email delivery API"}>
-                {ja ? "メール送信（未対応）" : "Send email — unavailable"}
+            <button type="button" disabled={!valid || sending || accepted || outcomeUnknown} onClick={() => void sendReceipt()}>
+                {accepted ? (ja ? "送信受付済み" : "Request accepted") : sending ? (ja ? "送信中…" : "Sending…") : (ja ? "メールで送信" : "Send email")}
             </button>
         </div>
     </div>;

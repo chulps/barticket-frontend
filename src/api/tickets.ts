@@ -131,6 +131,13 @@ export const ticketsApi = {
 
     get: (ticketId: number) => apiRequest<ApiTicket>(`/tickets/${ticketId}`),
 
+    emailReceipt: (ticketId: number, recipient: string, locale: "en" | "ja", idempotencyKey: string) =>
+        apiRequest<{ status: "accepted"; delivery_id: number; replayed: boolean }>(`/tickets/${ticketId}/email-receipt`, {
+            method: "POST",
+            body: { recipient, locale },
+            headers: { "Idempotency-Key": idempotencyKey },
+        }),
+
     create: (guestCount = 1) =>
         apiRequest<ApiTicket>("/tickets", {
             method: "POST",
