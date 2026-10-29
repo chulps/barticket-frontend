@@ -465,7 +465,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                 <Content role="tabpanel">
                     <Intro>
                         <h4>{ja ? "記録されたスタッフドリンク" : "Recorded staff drinks"}</h4>
-                        <p>{ja ? "本人IDに紐づいた記録のみ。表示額は売上であり、支払うバック金額ではありません。" : "Only drinks linked by staff ID. Revenue shown below is a recorded sale amount, NOT an earned bonus."}</p>
+                        <p>{ja ? "本人IDに紐づいた記録のみ。表示額はドリンクの記録売価です。計算済み手当は下に表示します。" : "Line amounts are recorded listed sales; the calculated bonus is shown separately below."}</p>
                     </Intro>
                     <Card>
                         <h4>{ja ? "計算済みドリンク手当（プレビュー）" : "Calculated drink bonus preview"}</h4>
