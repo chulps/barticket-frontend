@@ -7,6 +7,7 @@ const profile = readFileSync(new URL("../src/pages/Profile.tsx", import.meta.url
 const history = readFileSync(new URL("../src/pages/StaffWorkHistory.tsx", import.meta.url), "utf8");
 const income = readFileSync(new URL("../src/pages/StaffIncome.tsx", import.meta.url), "utf8");
 const chart = readFileSync(new URL("../src/components/PayBreakdownChart.tsx", import.meta.url), "utf8");
+const sharedCharts = readFileSync(new URL("../src/components/AnalyticsCharts.tsx", import.meta.url), "utf8");
 const account = readFileSync(new URL("../src/api/account.ts", import.meta.url), "utf8");
 
 test("Profile income is personal for staff and managers and shows wages and drink bonuses", () => {
@@ -27,6 +28,12 @@ test("Profile income is personal for staff and managers and shows wages and drin
     assert.match(income, /staff_drink_bonus/);
     assert.match(income, /Monthly income breakdown/);
     assert.match(income, /Gross salary breakdown/);
+    assert.match(income, /DonutChart/);
+    assert.match(income, /Estimated income by day/);
+    assert.match(income, /Staff pay owed by person/);
+    assert.match(sharedCharts, /aria-label=\{title\}/);
+    assert.match(income, /isNoriProfile && !isChuckProfile/);
+    assert.match(income, /Nori’s monthly summary will appear when the verified manager data is available/);
     assert.match(income, /chuckReport\.complete/);
     assert.match(income, /amount_yen_unrounded == null/);
     assert.match(chart, /role="meter"/);
@@ -36,7 +43,7 @@ test("Profile income is personal for staff and managers and shows wages and drin
     assert.match(account, /personalEarnings: \(month: string\) =>/);
     assert.match(account, /\/profile\/earnings\?month=/);
     assert.doesNotMatch(income, /accountApi\.listUsers\(|accountApi\.closedShifts\(|staffEarnings/);
-    for (const [name, source] of [["Profile", profile], ["StaffWorkHistory", history], ["StaffIncome", income], ["PayBreakdownChart", chart]]) {
+    for (const [name, source] of [["Profile", profile], ["StaffWorkHistory", history], ["StaffIncome", income], ["PayBreakdownChart", chart], ["AnalyticsCharts", sharedCharts]]) {
         assert.equal(ts.createSourceFile(name + ".tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).parseDiagnostics.length, 0);
     }
 });

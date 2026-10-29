@@ -316,7 +316,7 @@ export function DonutChart({
         <Card aria-label={title} $compact>
             <ChartHeading><h2>{title}</h2>{copyContext ? <CopyPanelButton locale={locale} text={`${copyContext} → ${title}: ${center}; ${slices.map(slice => `${slice.label}: ${slice.display}`).join("; ")}`} /> : null}</ChartHeading>
             <DonutLayout>
-                <DonutRing viewBox="0 0 120 120" role="img">
+                <DonutRing viewBox="0 0 120 120" role="img" aria-label={title}>
                     <circle cx="60" cy="60" r={radius} fill="none" stroke="var(--neutral-800)" strokeWidth="14" />
                     <g transform="rotate(-90 60 60)">
                         {arcs.map((arc) => (
@@ -365,7 +365,7 @@ export function HorizontalBarChart({ title, bars, copyContext, locale = "en" }: 
         <Card aria-label={title}>
             <ChartHeading><h2>{title}</h2>{copyContext ? <CopyPanelButton locale={locale} text={`${copyContext} → ${title}: ${bars.map(bar => `${bar.label}: ${bar.display}`).join("; ")}`} /> : null}</ChartHeading>
             <Scroll ref={ref}>
-                <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img">
+                <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img" aria-label={title}>
                     <line x1={labelWidth} x2={labelWidth} y1={8} y2={height - 8} stroke="var(--neutral-600)" />
                     {bars.map((bar, index) => {
                         const y = 20 + index * row;

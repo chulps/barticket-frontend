@@ -4,7 +4,8 @@ import RequestState from "../components/RequestState";
 import { accountApi, type ChuckMonthlyPayPreview, type PersonalEarningsPreview } from "../api/account";
 import { ApiError } from "../api/client";
 import { localeTag, type Locale } from "../i18n";
-import PayBreakdownChart, { type PayChartRow } from "../components/PayBreakdownChart";
+import { DonutChart, HorizontalBarChart, type DonutSlice, type NamedBar } from "../components/AnalyticsCharts";
+import type { PayChartRow } from "../components/PayBreakdownChart";
 import { canViewChuckPersonalPay } from "./chuckProfileAccess";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
 
@@ -79,6 +80,7 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
     const [refreshKey, setRefreshKey] = useState(0);
     const viewers = readRevenueShareViewers();
     const isChuckProfile = canViewChuckPersonalPay({ id: userId, role }, userId, viewers);
+    const isNoriProfile = role === "manager" && viewers.noriUserId !== null && userId === viewers.noriUserId;
 
     useEffect(() => {
         let cancelled = false;
@@ -86,6 +88,11 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
             setLoading(true);
             setError("");
             try {
+                if (isNoriProfile && !isChuckProfile) {
+                    setReport(null);
+                    setChuckReport(null);
+                    return;
+                }
                 if (isChuckProfile) {
                     const response = await accountApi.chuckMonthlyPay(month);
                     if (response.user_id !== userId) throw new Error("Profile identity mismatch");
@@ -111,7 +118,7 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
         }
         void load();
         return () => { cancelled = true; };
-    }, [role, userId, month, refreshKey, ja, isChuckProfile]);
+    }, [role, userId, month, refreshKey, ja, isChuckProfile, isNoriProfile]);
 
     const wage = report?.categories.find((item): item is WageCategory => item.category === "hourly_wages");
     const bonus = report?.categories.find((item): item is DrinkCategory => item.category === "staff_drink_bonus");
@@ -143,6 +150,20 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
             ],
             total: chuckReport.gross_salary_yen,
         }] : [];
+    const staffDonutSlices: DonutSlice[] = staffChartRows[0]?.segments.map(segment => ({
+        id: segment.key,
+        label: segment.label,
+        value: segment.value,
+        display: money(segment.value, locale),
+        color: segment.color,
+    })) ?? [];
+    const chuckDonutSlices: DonutSlice[] = chuckChartRows[0]?.segments.map(segment => ({
+        id: segment.key,
+        label: segment.label,
+        value: segment.value,
+        display: money(segment.value, locale),
+        color: segment.color,
+    })) ?? [];
     const entries = useMemo<IncomeEntry[]>(() => {
         const rows: IncomeEntry[] = [];
         for (const item of report?.categories ?? []) {
@@ -176,26 +197,57 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
             : left.category.localeCompare(right.category) || right.business_date.localeCompare(left.business_date));
     }, [entries, category, sort]);
 
+    const staffIncomeByDate: NamedBar[] = staffChartComplete && entries.length > 1 && entries.every(entry => entry.amount !== null)
+        ? [...entries.reduce<Map<string, number>>((byDate, entry) => {
+            byDate.set(entry.business_date, (byDate.get(entry.business_date) ?? 0) + (entry.amount ?? 0));
+            return byDate;
+        }, new Map<string, number>())]
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([date, amount]) => ({
+                id: date,
+                label: new Date(`${date}T12:00:00`).toLocaleDateString(localeTag(locale), { month: "short", day: "numeric" }),
+                value: amount,
+                display: money(amount, locale),
+            }))
+        : [];
+    const completeStaffOwed = chuckReport?.complete
+        ? chuckReport.staff_owed.filter((person): person is typeof person & { total_owed_yen: number } => person.total_owed_yen !== null)
+        : [];
+    const chuckStaffBars: NamedBar[] = chuckReport?.complete && completeStaffOwed.length > 1 && completeStaffOwed.length === chuckReport.staff_owed.length
+        ? completeStaffOwed.map(person => ({
+            id: String(person.user_id),
+            label: person.name,
+            value: person.total_owed_yen,
+            display: money(person.total_owed_yen, locale),
+        }))
+        : [];
+
     return (
         <Wrapper aria-label={isChuckProfile
             ? (ja ? "Chuckの月次給与" : "Chuck's monthly pay")
-            : (ja ? "自分の収入内訳" : "My income breakdown")}>
+            : isNoriProfile
+                ? (ja ? "Noriの月次サマリー" : "Nori's monthly summary")
+                : (ja ? "自分の収入内訳" : "My income breakdown")}>
             <Heading>
                 <div>
                     <h2>{isChuckProfile
                         ? (ja ? "月次給与" : "Monthly pay")
-                        : (ja ? "収入内訳" : "Income breakdown")}</h2>
+                        : isNoriProfile
+                            ? (ja ? "月次オーナーサマリー" : "Monthly owner summary")
+                            : (ja ? "収入内訳" : "Income breakdown")}</h2>
                     <p>{isChuckProfile
                         ? (ja ? "Chuck担当のシフトに基づく金額です。" : "Amounts are based on Chuck-managed shifts.")
-                        : (ja ? "自分に紐づく賃金とスタッフドリンク手当を表示します。" : "View wages and staff-drink bonuses linked to your account.")}</p>
+                        : isNoriProfile
+                            ? (ja ? "確認済みの月次収入とスタッフ給与のデータを表示します。" : "Verified monthly income and team-pay data will appear here.")
+                            : (ja ? "自分に紐づく賃金とスタッフドリンク手当を表示します。" : "View wages and staff-drink bonuses linked to your account.")}</p>
                 </div>
-                <button type="button" className="small hollow secondary" disabled={loading}
+                {!isNoriProfile ? <button type="button" className="small hollow secondary" disabled={loading}
                     onClick={() => setRefreshKey(value => value + 1)}>
                     {ja ? "更新" : "Refresh"}
-                </button>
+                </button> : null}
             </Heading>
 
-            <Toolbar>
+            {!isNoriProfile ? <Toolbar>
                 <label>
                     {ja ? "対象月" : "Month"}
                     <input type="month" value={month} onChange={event => setMonth(event.target.value)} />
@@ -217,7 +269,7 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                         </select>
                     </label>
                 </> : null}
-            </Toolbar>
+            </Toolbar> : null}
 
             {loading ? <RequestState kind="loading" detail={ja ? "読み込み中…" : "Loading…"} />
                 : error ? <ErrorArea role="alert">
@@ -225,7 +277,11 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                     <button type="button" className="small secondary" onClick={() => setRefreshKey(value => value + 1)}>
                         {ja ? "再試行" : "Retry"}
                     </button>
-                </ErrorArea> : isChuckProfile && chuckReport ? (
+                </ErrorArea> : isNoriProfile && !isChuckProfile ? (
+                    <RequestState kind="empty" detail={ja
+                        ? "Noriの月次サマリーは、確認済みデータに基づく表示が利用可能になるまで表示されません。"
+                        : "Nori’s monthly summary will appear when the verified manager data is available."} />
+                ) : isChuckProfile && chuckReport ? (
                     <>
                         <Summary>
                             <Metric>
@@ -246,9 +302,9 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                                 {!chuckReport.complete ? <small>{ja ? "一部の記録が不足しているため確定できません" : "Unavailable until required records are complete"}</small> : null}
                             </Metric>
                         </Summary>
-                        <PayBreakdownChart title={ja ? "総給与の内訳" : "Gross salary breakdown"}
-                            rows={chuckChartRows} locale={locale}
-                            note={ja ? "総給与は支払予定額、スタッフ給与、その他の控除に分かれます。" : "Gross salary is divided into amount owed to Chuck, staff pay, and other deductions."} />
+                        {chuckDonutSlices.length && (chuckChartRows[0]?.total ?? 0) > 0 ? <DonutChart title={ja ? "総給与の内訳" : "Gross salary breakdown"}
+                            slices={chuckDonutSlices} center={money(chuckReport.gross_salary_yen, locale)} locale={locale}
+                            note={ja ? "総給与は支払予定額、スタッフ給与、その他の控除に分かれます。" : "Gross salary is divided into amount owed to Chuck, staff pay, and other deductions."} /> : null}
                         <Notice role="note">{chuckReport.note}</Notice>
                         {!chuckReport.complete && chuckReport.blockers.length ? (
                             <ErrorArea role="status">
@@ -256,6 +312,9 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                             </ErrorArea>
                         ) : null}
                         <h3>{ja ? "Chuck担当シフトのスタッフ給与" : "Staff pay on Chuck-managed shifts"}</h3>
+                        {chuckStaffBars.length > 1 ? <HorizontalBarChart
+                            title={ja ? "スタッフ別の支払予定額" : "Staff pay owed by person"}
+                            bars={chuckStaffBars} locale={locale} /> : null}
                         {chuckReport.staff_owed.length ? <HistoryList>
                             {chuckReport.staff_owed.map(item => (
                                 <HistoryEntry key={item.user_id}>
@@ -293,10 +352,13 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                                 <strong>{money(bonus?.amount_yen ?? 0, locale)}</strong>
                             </Metric>
                         </Summary>
-                        {staffChartComplete ? <PayBreakdownChart title={ja ? "月間収入の内訳" : "Monthly income breakdown"}
-                            rows={staffChartRows} locale={locale} /> : <ChartNote role="note">{ja
-                                ? "勤務時間、時給、またはドリンク手当が未確認のため、内訳グラフは表示できません。"
-                                : "The breakdown chart is unavailable until hours, rates, and staff-drink bonuses are verified."}</ChartNote>}
+                        {staffChartComplete && (staffChartRows[0]?.total ?? 0) > 0 ? <DonutChart title={ja ? "月間収入の内訳" : "Monthly income breakdown"}
+                            slices={staffDonutSlices} center={money(staffChartRows[0]?.total ?? 0, locale)} locale={locale} /> : <ChartNote role="note">{ja
+                                ? staffChartComplete ? "この月の収入はありません。" : "勤務時間、時給、またはドリンク手当が未確認のため、内訳グラフは表示できません。"
+                                : staffChartComplete ? "No income is recorded for this month." : "The breakdown chart is unavailable until hours, rates, and staff-drink bonuses are verified."}</ChartNote>}
+                        {staffIncomeByDate.length > 1 ? <HorizontalBarChart
+                            title={ja ? "日別収入の見積もり" : "Estimated income by day"}
+                            bars={staffIncomeByDate} locale={locale} /> : null}
                         <Notice role="note">{ja
                             ? "これは記録された時間と対象ドリンクからの見積もりです。実際の支払済み金額ではありません。不明な時間や時給は0として扱いません。"
                             : report.note}</Notice>
