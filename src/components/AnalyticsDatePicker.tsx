@@ -25,7 +25,6 @@ export default function AnalyticsDatePicker({
 
     useEffect(() => {
         if (!open) return;
-        setVisibleMonth(monthKey(value || todayIso()));
         function handleClickOutside(event: MouseEvent) {
             if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
         }
@@ -49,7 +48,10 @@ export default function AnalyticsDatePicker({
             <DateButton
                 type="button"
                 aria-expanded={open}
-                onClick={() => setOpen((current) => !current)}
+                onClick={() => {
+                    if (!open) setVisibleMonth(monthKey(value || todayIso()));
+                    setOpen((current) => !current);
+                }}
             >
                 <Icon name="CalendarBlank" size="var(--font-size-h4)" />
                 {label}

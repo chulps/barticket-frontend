@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import styled from "styled-components";
 
@@ -9,6 +9,12 @@ type DropdownMenuProps = {
     children: (closeMenu: () => void) => React.ReactNode;
     disabled?: boolean;
 };
+
+function MenuContent({
+    children, closeMenu,
+}: { children: DropdownMenuProps["children"]; closeMenu: (restore?: boolean) => void }) {
+    return <>{children(closeMenu)}</>;
+}
 
 export default function DropdownMenu({
     trigger, label, children, disabled = false,
@@ -22,13 +28,13 @@ export default function DropdownMenu({
     const initialFocus = useRef<"first" | "last">("first");
     const skipFocusReturn = useRef(false);
 
-    function closeMenu(restore = true) {
+    const closeMenu = useCallback((restore = true) => {
         skipFocusReturn.current = !restore;
         if (restore && menuRef.current?.contains(document.activeElement)) {
             triggerRef.current?.focus();
         }
         setIsOpen(false);
-    }
+    }, []);
 
     function toggle(focus: "first" | "last" = "first") {
         if (disabled) return;
@@ -80,7 +86,7 @@ export default function DropdownMenu({
             // restore focus to the trigger when it still exists.
             if (!skipFocusReturn.current && popup.contains(document.activeElement) && trigger.isConnected) trigger.focus();
         };
-    }, [isOpen]);
+    }, [isOpen, closeMenu]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -113,7 +119,7 @@ export default function DropdownMenu({
             window.removeEventListener("scroll", reposition, true);
             window.removeEventListener("resize", reposition);
         };
-    }, [isOpen]);
+    }, [isOpen, closeMenu]);
 
     function handleMenuKeys(event: React.KeyboardEvent<HTMLDivElement>) {
         if (event.key === "Escape") {
@@ -165,7 +171,7 @@ export default function DropdownMenu({
                 ? createPortal(
                     <Menu id={menuId} ref={menuRef} role="menu" aria-label={label}
                         $top={box.top} $right={box.right} onKeyDown={handleMenuKeys}>
-                        {children(() => closeMenu())}
+                        <MenuContent children={children} closeMenu={closeMenu} />
                     </Menu>,
                     document.body,
                 )

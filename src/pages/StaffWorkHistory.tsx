@@ -4,6 +4,7 @@ import styled from "styled-components";
 import { accountApi, type PersonalWorkHistory } from "../api/account";
 import { ApiError } from "../api/client";
 import { localeTag, type Locale } from "../i18n";
+import { HorizontalBarChart, type NamedBar } from "../components/AnalyticsCharts";
 import { recordedStaffTotals, type StaffActivityRow } from "./staffProfileData";
 import StaffIncome from "./StaffIncome";
 
@@ -82,6 +83,36 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
         rows.filter(row => month === "all" || row.businessDate.startsWith(month)),
     [rows, month]);
     const totals = useMemo(() => recordedStaffTotals(filtered), [filtered]);
+    const hoursChartBars = useMemo<NamedBar[]>(() => {
+        const known = filtered.filter(row => row.hoursSeconds !== null);
+        if (month === "all") {
+            const byMonth = new Map<string, number>();
+            known.forEach(row => {
+                const key = row.businessDate.slice(0, 7);
+                byMonth.set(key, (byMonth.get(key) ?? 0) + (row.hoursSeconds ?? 0));
+            });
+            return [...byMonth.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([key, seconds]) => ({
+                id: key,
+                label: formatMonth(key, locale),
+                value: seconds / 3600,
+                display: hoursLabel(seconds),
+                color: "var(--royal-400)",
+            }));
+        }
+        return known.map(row => {
+            const [year, monthNumber, day] = row.businessDate.split("-").map(Number);
+            const label = new Date(year, monthNumber - 1, day).toLocaleDateString(localeTag(locale), {
+                month: "short", day: "numeric",
+            });
+            return {
+                id: String(row.shiftId),
+                label,
+                value: (row.hoursSeconds ?? 0) / 3600,
+                display: hoursLabel(row.hoursSeconds),
+                color: "var(--royal-400)",
+            };
+        });
+    }, [filtered, month, locale]);
 
     return (
         <Wrapper aria-label={ja ? "自分の勤務記録" : "My work records"}>
@@ -160,6 +191,11 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                                 </Summary>
                                 {section === "hours" ? (
                                     <>
+                                        {hoursChartBars.length ? <HorizontalBarChart
+                                            title={month === "all"
+                                                ? (ja ? "月別の勤務時間" : "Recorded hours by month")
+                                                : (ja ? "シフト別の勤務時間" : "Recorded hours by shift")}
+                                            bars={hoursChartBars} locale={locale} /> : null}
                                         <h3>{ja ? "勤務記録のあるシフト" : "Shifts with recorded activity"}</h3>
                                         {filtered.some(row => row.hoursSeconds !== null || row.hoursState === "incomplete") ? (
                                             <HistoryList>
@@ -200,8 +236,8 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                                 )}
                                 <Coverage role="note">
                                     {ja
-                                        ? "勤務時間は打刻記録のみで集計し、未取込の過去時間は含みません。スタッフIDが確認できるドリンクのみ表示し、受取人不明の記録は確認用に除外します。勤務中の時間は経過時間です。「—」は未記録・不明で、0とは異なります。営業日は正午に切り替わります。"
-                                        : "Hours use clock punches only; historical totals have not been imported. Drinks appear only when a staff ID is verified; unattributed records are excluded for review. Ongoing hours show elapsed time. “—” means unavailable, not zero. Business dates roll over at noon."}
+                                        ? "勤務時間は打刻記録のみで集計し、未取込の過去時間は含みません。グラフでは不明な勤務時間を除外します。スタッフIDが確認できるドリンクのみ表示し、受取人不明の記録は確認用に除外します。勤務中の時間は経過時間です。「—」は未記録・不明で、0とは異なります。営業日は正午に切り替わります。"
+                                        : "Hours use clock punches only; historical totals have not been imported. The chart excludes unavailable hours. Drinks appear only when a staff ID is verified; unattributed records are excluded for review. Ongoing hours show elapsed time. “—” means unavailable, not zero. Business dates roll over at noon."}
                                 </Coverage>
                             </>
                         )}

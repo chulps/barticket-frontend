@@ -26,6 +26,9 @@ test("Profile mounts personal history only after authentication, without calling
     assert.doesNotMatch(history, /accountApi\.closedShifts\(\)|accountApi\.currentShift\(\)/);
     assert.match(account, /workHistory: \(\) => apiRequest<PersonalWorkHistory>\("\/profile\/work-history"\)/);
     assert.match(history, /Incomplete punch/);
+    assert.match(history, /Recorded hours by month/);
+    assert.match(history, /Recorded hours by shift/);
+    assert.match(history, /The chart excludes unavailable hours/);
     assert.doesNotMatch(history, /accountApi\.listUsers\(|accountApi\.createUser\(|accountApi\.removeUser\(/);
     for (const [name, source] of [["Profile", profile], ["StaffWorkHistory", history]]) {
         assert.equal(ts.createSourceFile(name + ".tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).parseDiagnostics.length, 0);

@@ -4,6 +4,7 @@ import RequestState from "../components/RequestState";
 import { accountApi, type ChuckMonthlyPayPreview, type PersonalEarningsPreview } from "../api/account";
 import { ApiError } from "../api/client";
 import { localeTag, type Locale } from "../i18n";
+import PayBreakdownChart, { type PayChartRow } from "../components/PayBreakdownChart";
 import { canViewChuckPersonalPay } from "./chuckProfileAccess";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
 
@@ -114,6 +115,34 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
 
     const wage = report?.categories.find((item): item is WageCategory => item.category === "hourly_wages");
     const bonus = report?.categories.find((item): item is DrinkCategory => item.category === "staff_drink_bonus");
+    const staffChartComplete = Boolean(wage && wage.complete && wage.amount_yen_unrounded !== null && bonus?.complete);
+    const staffChartRows: PayChartRow[] = staffChartComplete ? [{
+        key: "monthly-income",
+        label: ja ? "月間見積もり" : "Monthly estimate",
+        segments: [
+            ...(wage?.amount_yen_unrounded !== null && wage?.amount_yen_unrounded !== undefined ? [{
+                key: "wages", label: ja ? "賃金" : "Wages", value: Number(wage.amount_yen_unrounded), color: "var(--royal-400)",
+            }] : []),
+            ...(bonus ? [{
+                key: "staff-drinks", label: ja ? "スタッフドリンク手当" : "Staff-drink bonus", value: bonus.amount_yen, color: "var(--success-400)",
+            }] : []),
+        ],
+        total: (wage?.amount_yen_unrounded == null ? 0 : Number(wage.amount_yen_unrounded)) + (bonus?.amount_yen ?? 0),
+    }] : [];
+    const chuckChartRows: PayChartRow[] = chuckReport?.complete && chuckReport.gross_salary_yen !== null &&
+        chuckReport.staff_cost_total_yen !== null && chuckReport.net_amount_owed_yen !== null &&
+        chuckReport.deduction_total_yen >= 0 && chuckReport.staff_cost_total_yen >= 0 && chuckReport.net_amount_owed_yen >= 0 &&
+        Math.abs(chuckReport.gross_salary_yen - chuckReport.staff_cost_total_yen - chuckReport.deduction_total_yen - chuckReport.net_amount_owed_yen) < 1
+        ? [{
+            key: "chuck-monthly-pay",
+            label: ja ? "月間内訳" : "Monthly breakdown",
+            segments: [
+                { key: "owed", label: ja ? "Chuckへの支払予定額" : "Owed to Chuck", value: chuckReport.net_amount_owed_yen, color: "var(--royal-400)" },
+                { key: "staff-pay", label: ja ? "スタッフ給与" : "Staff pay", value: chuckReport.staff_cost_total_yen, color: "var(--success-400)" },
+                { key: "deductions", label: ja ? "その他の控除" : "Other deductions", value: chuckReport.deduction_total_yen, color: "var(--warning-400)" },
+            ],
+            total: chuckReport.gross_salary_yen,
+        }] : [];
     const entries = useMemo<IncomeEntry[]>(() => {
         const rows: IncomeEntry[] = [];
         for (const item of report?.categories ?? []) {
@@ -217,6 +246,9 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                                 {!chuckReport.complete ? <small>{ja ? "一部の記録が不足しているため確定できません" : "Unavailable until required records are complete"}</small> : null}
                             </Metric>
                         </Summary>
+                        <PayBreakdownChart title={ja ? "総給与の内訳" : "Gross salary breakdown"}
+                            rows={chuckChartRows} locale={locale}
+                            note={ja ? "総給与は支払予定額、スタッフ給与、その他の控除に分かれます。" : "Gross salary is divided into amount owed to Chuck, staff pay, and other deductions."} />
                         <Notice role="note">{chuckReport.note}</Notice>
                         {!chuckReport.complete && chuckReport.blockers.length ? (
                             <ErrorArea role="status">
@@ -261,6 +293,10 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                                 <strong>{money(bonus?.amount_yen ?? 0, locale)}</strong>
                             </Metric>
                         </Summary>
+                        {staffChartComplete ? <PayBreakdownChart title={ja ? "月間収入の内訳" : "Monthly income breakdown"}
+                            rows={staffChartRows} locale={locale} /> : <ChartNote role="note">{ja
+                                ? "勤務時間、時給、またはドリンク手当が未確認のため、内訳グラフは表示できません。"
+                                : "The breakdown chart is unavailable until hours, rates, and staff-drink bonuses are verified."}</ChartNote>}
                         <Notice role="note">{ja
                             ? "これは記録された時間と対象ドリンクからの見積もりです。実際の支払済み金額ではありません。不明な時間や時給は0として扱いません。"
                             : report.note}</Notice>
@@ -323,6 +359,7 @@ const Metric = styled.div`
     strong { font-family: var(--font-family-data); }
 `;
 const Notice = styled.p`color: var(--neutral-300);`;
+const ChartNote = styled.p`color: var(--neutral-300); font-size: var(--font-size-small);`;
 const HistoryList = styled.ul`
     list-style: none;
     display: flex;

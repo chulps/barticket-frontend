@@ -62,13 +62,6 @@ function PunchCorrectionCard({
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
 
-    useEffect(() => {
-        setClockIn(originalIn);
-        setClockOut(originalOut);
-        setReason("");
-        setError("");
-    }, [punch.id, punch.clock_in, punch.clock_out]);
-
     const changed = clockIn !== originalIn || clockOut !== originalOut;
     const valid = changed && validPunchCorrection(clockIn, clockOut) && reason.trim().length > 0 && !saving;
 
@@ -150,9 +143,15 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
     const [rate, setRate] = useState({ ...initialRateDraft, basis: "hourly" as const });
     const [bonus, setBonus] = useState(initialBonusDraft);
     const bonusIdempotencyKey = useRef(crypto.randomUUID());
-    const [rateHistory, setRateHistory] = useState<HourlyRateRecord[]>([]);
-    const [rateLoading, setRateLoading] = useState(true);
-    const [rateError, setRateError] = useState("");
+    const [rateLoad, setRateLoad] = useState<{
+        userId: number;
+        history: HourlyRateRecord[];
+        error: string;
+    } | null>(null);
+    const currentRateLoad = rateLoad?.userId === person.id ? rateLoad : null;
+    const rateHistory = currentRateLoad?.history ?? [];
+    const rateLoading = currentRateLoad === null;
+    const rateError = currentRateLoad?.error ?? "";
     const [preview, setPreview] = useState<HourlyRatePreview | null>(null);
     const [previewError, setPreviewError] = useState("");
     const [previewing, setPreviewing] = useState(false);
@@ -184,20 +183,16 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
             });
         });
         return () => { cancelled = true; };
-    }, [tab, person.id, bonusRange?.dateFrom, bonusRange?.dateTo, bonusRange?.tooWide, bonusRequestKey, ja]);
+    }, [tab, person.id, bonusRange, bonusRange?.dateFrom, bonusRange?.dateTo, bonusRange?.tooWide, bonusRequestKey, ja]);
     const currentBonusReport = bonusReportState?.key === bonusRequestKey ? bonusReportState : null;
 
     useEffect(() => {
         let cancelled = false;
-        setRateLoading(true);
-        setRateError("");
         accountApi.hourlyRates(person.id).then(result => {
-            if (!cancelled) setRateHistory(result.hourly_rates);
+            if (!cancelled) setRateLoad({ userId: person.id, history: result.hourly_rates, error: "" });
         }).catch(error => {
-            if (!cancelled) setRateError(error instanceof Error ? error.message :
-                (ja ? "給与レートを読み込めませんでした。" : "Could not load hourly-rate history."));
-        }).finally(() => {
-            if (!cancelled) setRateLoading(false);
+            if (!cancelled) setRateLoad({ userId: person.id, history: [], error: error instanceof Error ? error.message :
+                (ja ? "給与レートを読み込めませんでした。" : "Could not load hourly-rate history.") });
         });
         return () => { cancelled = true; };
     }, [person.id, ja]);
@@ -249,7 +244,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                 reason: rate.reason.trim(),
             });
             const result = await accountApi.hourlyRates(person.id);
-            setRateHistory(result.hourly_rates);
+            setRateLoad({ userId: person.id, history: result.hourly_rates, error: "" });
             setRate({ ...initialRateDraft, basis: "hourly" });
             setPreview(null);
             setRateSaveSuccess(ja ? "時給と変更履歴を保存しました。" : "Hourly rate saved to the audited rate history.");
@@ -416,7 +411,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                         <Records>
                             {correctablePunches.map(({ row, punch }) => (
                                 <PunchCorrectionCard
-                                    key={punch.id}
+                                    key={`${punch.id}:${punch.clock_in}:${punch.clock_out}`}
                                     shiftId={row.shiftId}
                                     businessDate={row.businessDate}
                                     punch={punch}

@@ -144,6 +144,8 @@ export default function ShiftControls({ account, locale }: { account: Account; l
     }
 
     useEffect(() => {
+        // Invalidate any request from the previous effect before enabling refreshes.
+        version.current++;
         mounted.current = true;
         const initialRefresh = window.setTimeout(() => void refresh(), 0);
         const poll = window.setInterval(() => void refresh(), 20000);
@@ -155,7 +157,6 @@ export default function ShiftControls({ account, locale }: { account: Account; l
         window.addEventListener("barticket-shift-updated", onRefresh);
         return () => {
             mounted.current = false;
-            version.current++;
             window.clearTimeout(initialRefresh);
             window.clearInterval(poll);
             window.clearInterval(tick);

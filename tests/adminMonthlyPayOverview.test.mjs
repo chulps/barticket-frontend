@@ -5,6 +5,7 @@ import ts from "typescript";
 
 const team = readFileSync(new URL("../src/pages/AdminTeam.tsx", import.meta.url), "utf8");
 const overview = readFileSync(new URL("../src/pages/AdminMonthlyPayOverview.tsx", import.meta.url), "utf8");
+const chart = readFileSync(new URL("../src/components/PayBreakdownChart.tsx", import.meta.url), "utf8");
 const account = readFileSync(new URL("../src/api/account.ts", import.meta.url), "utf8");
 
 test("Admin monthly pay comparison is limited to designated managers and uses manager APIs", () => {
@@ -20,6 +21,10 @@ test("Admin monthly pay comparison is limited to designated managers and uses ma
     assert.match(overview, /Total staff pay/);
     assert.match(overview, /Amount owed/);
     assert.match(overview, /Details: staff owed on Chuck-managed shifts and deductions/);
+    assert.match(overview, /Monthly staff pay by person/);
+    assert.match(overview, /staffRows\.every\(row => row\.complete/);
+    assert.match(overview, /comparison chart is unavailable/);
+    assert.match(chart, /role="meter"/);
     assert.doesNotMatch(overview, /accountApi\.listUsers\(/);
     assert.equal(ts.createSourceFile("AdminMonthlyPayOverview.tsx", overview, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).parseDiagnostics.length, 0);
 });
