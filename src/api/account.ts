@@ -93,6 +93,8 @@ export type StaffDrinkBonusReport = {
         eligible_listed_revenue_yen: number;
         bonus_rate_percent: 40;
         bonus_yen: number;
+        calculated_bonus_yen?: number;
+        manual_adjustment_yen?: number;
     }[];
     lines: {
         staff_id: number | null;
@@ -115,7 +117,21 @@ export type StaffDrinkBonusReport = {
         eligible_units: number;
         eligible_listed_revenue_yen: number;
         bonus_yen: number;
+        calculated_bonus_yen?: number;
+        manual_adjustment_yen?: number;
     };
+    adjustments?: {
+        id: number;
+        staff_id: number;
+        staff_name: string;
+        business_date: string;
+        shift_id: number;
+        signed_amount_yen: number;
+        reason: string;
+        reversal_of_id: number | null;
+        created_by_name: string;
+        created_at: string;
+    }[];
     note: string;
 };
 
@@ -264,7 +280,7 @@ export type ChuckMonthlyPayPreview = {
     staff_cost_total_yen: number | null;
     deductions: {
         id: number;
-        category: "language_exchange_commission" | "manager_paid_staff_tip";
+        category: "language_exchange_commission" | "manager_paid_staff_tip" | "staff_drink_bonus_adjustment";
         business_date: string;
         shift_id: number | null;
         amount_yen: number;
@@ -472,6 +488,20 @@ export const accountApi = {
 
     staffDrinkBonuses: (userId: number, dateFrom: string, dateTo: string) =>
         apiRequest<StaffDrinkBonusReport>(`/admin/staff-compensation/drink-bonuses?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}&user_id=${userId}`),
+
+    createStaffDrinkBonusAdjustment: (
+        userId: number,
+        body: { shift_id: number; signed_amount_yen: number; reason: string; idempotency_key?: string },
+    ) => apiRequest<ManagerPayDeduction>(
+        `/admin/staff-compensation/users/${userId}/drink-bonus-adjustments`,
+        { method: "POST", body },
+    ),
+
+    reverseStaffDrinkBonusAdjustment: (id: number, reason: string) =>
+        apiRequest<ManagerPayDeduction>(
+            `/admin/staff-compensation/drink-bonus-adjustments/${id}/reverse`,
+            { method: "POST", body: { reason } },
+        ),
 
     closeShift: () => apiRequest<ShiftReport>("/shifts/close", { method: "POST" }),
 

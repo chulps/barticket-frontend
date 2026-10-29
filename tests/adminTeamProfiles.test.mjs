@@ -39,8 +39,8 @@ test("Team time corrections use the audited API; unsupported pay writes remain d
     }
     assert.match(editors, /accountApi\.correctPunch/);
     assert.match(editors, /Save correction/);
-    assert.match(editors, /Save adjustment — unavailable/);
-    assert.match(editors, /Only managers can change rates or correct clock punches/);
+    assert.match(editors, /createStaffDrinkBonusAdjustment/);
+    assert.match(editors, /Only managers can change rates, correct clock punches or adjust drink bonuses/);
     assert.match(editors, /accountApi\.hourlyRates\(person\.id\)/);
     assert.match(editors, /accountApi\.previewHourlyRate/);
     assert.match(editors, /accountApi\.setHourlyRate/);
