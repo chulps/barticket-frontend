@@ -11,6 +11,7 @@ test("staff editor uses the confirmed 40% drink rule and saves audited bonus cor
     assert.doesNotMatch(s, /propose-drinkback-rule|Propose staff-drink bonus rule/);
     assert.match(s, /saveBonusAdjustment/);
     assert.match(s, /createStaffDrinkBonusAdjustment/);
+    assert.match(s, /idempotency_key: bonusIdempotencyKey\.current/);
     assert.match(s, /Adjustment preview/);
     assert.match(s, /Bonus adjustment history/);
     assert.doesNotMatch(s, /copyBonusAdjustmentProposal|UNSAVED_PROPOSAL_ONLY|navigator\\.clipboard/);

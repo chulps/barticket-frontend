@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { accountApi, type Account, type HourlyRatePreview, type HourlyRateRecord, type ShiftPunch, type StaffDrinkBonusReport } from "../api/account";
 import TabGroup from "../components/TabGroup";
@@ -149,6 +149,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
     const [tab, setTab] = useState<EditorTab>("terms");
     const [rate, setRate] = useState({ ...initialRateDraft, basis: "hourly" as const });
     const [bonus, setBonus] = useState(initialBonusDraft);
+    const bonusIdempotencyKey = useRef(crypto.randomUUID());
     const [rateHistory, setRateHistory] = useState<HourlyRateRecord[]>([]);
     const [rateLoading, setRateLoading] = useState(true);
     const [rateError, setRateError] = useState("");
@@ -275,12 +276,14 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                 shift_id: shiftId,
                 signed_amount_yen: Number(bonus.adjustmentYen),
                 reason: bonus.reason.trim(),
+                idempotency_key: bonusIdempotencyKey.current,
             });
             const report = await accountApi.staffDrinkBonuses(
                 person.id, bonusRange.dateFrom, bonusRange.dateTo,
             );
             setBonusReportState({ key: bonusRequestKey, report, error: "" });
             setBonus(initialBonusDraft);
+            bonusIdempotencyKey.current = crypto.randomUUID();
             setBonusSaveSuccess(ja ? "調整を監査履歴に保存しました。" : "Adjustment saved to the audit history.");
             onRefresh();
         } catch (error) {
@@ -502,7 +505,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                         <p>{ja ? "理由付きの調整を追加します。スタッフドリンクやチケットの販売記録は変更しません。" : "Append a reasoned adjustment. Original staff-drink and ticket sales records remain unchanged."}</p>
                         <Fields>
                             <label>{ja ? "対象シフト" : "Shift with recorded drinks"}
-                                <select value={bonus.shiftId} onChange={e => setBonus({ ...bonus, shiftId: e.target.value })}>
+                                <select disabled={savingBonus} value={bonus.shiftId} onChange={e => { bonusIdempotencyKey.current = crypto.randomUUID(); setBonus({ ...bonus, shiftId: e.target.value }); }}>
                                     <option value="">{ja ? "選択してください" : "Select shift"}</option>
                                     {drinkShifts.map(id => {
                                         const line = drinkLines.find(item => item.shiftId === id);
@@ -511,12 +514,12 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                                 </select>
                             </label>
                             <label>{ja ? "調整額（円、マイナス可）" : "Adjustment (JPY, negative allowed)"}
-                                <input type="number" step="1" value={bonus.adjustmentYen}
-                                    onChange={e => setBonus({ ...bonus, adjustmentYen: e.target.value })} />
+                                <input disabled={savingBonus} type="number" step="1" value={bonus.adjustmentYen}
+                                    onChange={e => { bonusIdempotencyKey.current = crypto.randomUUID(); setBonus({ ...bonus, adjustmentYen: e.target.value }); }} />
                             </label>
                             <label>{ja ? "調整理由（必須）" : "Adjustment reason (required)"}
-                                <textarea rows={3} maxLength={500} value={bonus.reason}
-                                    onChange={e => setBonus({ ...bonus, reason: e.target.value })} />
+                                <textarea disabled={savingBonus} rows={3} maxLength={500} value={bonus.reason}
+                                    onChange={e => { bonusIdempotencyKey.current = crypto.randomUUID(); setBonus({ ...bonus, reason: e.target.value }); }} />
                             </label>
                         </Fields>
                         {readyBonus ? <Preview role="status">
@@ -526,7 +529,7 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                         {bonusSaveSuccess ? <p role="status">{bonusSaveSuccess}</p> : null}
                         <Actions>
                             <button type="button" className="hollow secondary" disabled={savingBonus}
-                                onClick={() => { setBonus(initialBonusDraft); setBonusSaveError(""); setBonusSaveSuccess(""); }}>
+                                onClick={() => { bonusIdempotencyKey.current = crypto.randomUUID(); setBonus(initialBonusDraft); setBonusSaveError(""); setBonusSaveSuccess(""); }}>
                                 {ja ? "クリア" : "Clear draft"}
                             </button>
                             <button type="button" disabled={!readyBonus || savingBonus || !currentBonusReport?.report}
