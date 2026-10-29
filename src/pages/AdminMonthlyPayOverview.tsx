@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 
 import { accountApi, type Account, type ChuckMonthlyPayPreview, type PersonalEarningsPreview } from "../api/account";
@@ -180,7 +180,8 @@ export default function AdminMonthlyPayOverview({
                             </tr></thead>
                             <tbody>
                                 {rows.map(row => (
-                                    <tr key={row.person.id}>
+                                    <Fragment key={row.person.id}>
+                                    <tr>
                                         <th scope="row">{row.person.name}<small>{row.person.role === "manager" ? (ja ? "マネージャー" : "Manager") : (ja ? "スタッフ" : "Staff")}</small></th>
                                         <td>{row.person.role === "staff" ? yen(row.wages, locale) : yen(row.gross, locale)}</td>
                                         <td>{row.person.role === "staff" ? yen(row.bonus, locale) : yen(row.staffCost, locale)}</td>
@@ -202,7 +203,7 @@ export default function AdminMonthlyPayOverview({
                                                 </details>
                                             </td>
                                         </tr> : null}
-                                    </tr>
+                                    </Fragment>
                                 ))}
                                 {!rows.length ? <tr><td colSpan={6}>{ja ? "この月の記録がありません。" : "No pay records for this month."}</td></tr> : null}
                             </tbody>
