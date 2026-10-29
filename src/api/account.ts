@@ -292,7 +292,7 @@ export type ChuckMonthlyPayPreview = {
     staff_cost_total_yen: number | null;
     deductions: {
         id: number;
-        category: "language_exchange_commission" | "manager_paid_staff_tip" | "staff_drink_bonus_adjustment";
+        category: "language_exchange_commission" | "manager_paid_staff_tip" | "manager_pay_deduction" | "staff_drink_bonus_adjustment";
         business_date: string;
         shift_id: number | null;
         amount_yen: number;
@@ -342,7 +342,7 @@ type HourlyRateChange = {
 export type ManagerPayDeduction = {
     id: number;
     beneficiary_user_id: number;
-    category: "language_exchange_commission" | "manager_paid_staff_tip";
+    category: "language_exchange_commission" | "manager_paid_staff_tip" | "manager_pay_deduction";
     signed_amount_yen: number;
     business_date: string;
     shift_id: number | null;
