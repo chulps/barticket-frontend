@@ -401,6 +401,12 @@ export const accountApi = {
     chuckMonthlyPay: (month: string) =>
         apiRequest<ChuckMonthlyPayPreview>(`/profile/chuck-monthly-pay?month=${encodeURIComponent(month)}`),
 
+    adminPersonalEarnings: (userId: number, month: string) =>
+        apiRequest<PersonalEarningsPreview>(`/admin/staff-compensation/users/${userId}/earnings?month=${encodeURIComponent(month)}`),
+
+    adminChuckMonthlyPay: (month: string) =>
+        apiRequest<ChuckMonthlyPayPreview>(`/admin/staff-compensation/chuck-monthly-pay?month=${encodeURIComponent(month)}`),
+
     openShift: () => apiRequest<ShiftReport>("/shifts/open", { method: "POST" }),
 
     reopenShift: (shiftId: number, reason: string) => apiRequest<ShiftReport>(`/shifts/${shiftId}/reopen`, {
