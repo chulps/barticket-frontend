@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { accountApi, type Account, type ManagerPayDeduction } from "../api/account";
 import RequestState from "../components/RequestState";
+import styled from "styled-components";
 
 type Props = { managers: Account[]; locale: string };
 
@@ -27,7 +28,7 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
     const [notice, setNotice] = useState("");
     const [category, setCategory] = useState<ManagerPayDeduction["category"]>("language_exchange_commission");
     const [amount, setAmount] = useState("");
-    const [businessDate, setBusinessDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const [businessDate, setBusinessDate] = useState(() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; });
     const [payeeName, setPayeeName] = useState("");
     const [reason, setReason] = useState("");
     const [sourceFile, setSourceFile] = useState("");
@@ -108,7 +109,7 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
     const dateError = !/^\d{4}-\d{2}$/.test(month);
     return (
         <div>
-            <section className="panel">
+            <Panel>
                 <h2>{ja ? "マネージャー報酬の控除" : "Manager pay deductions"}</h2>
                 <p>{ja
                     ? "売上や支払記録とは別の記録です。確定した対象のみ登録し、訂正は理由付きで追加します。"
@@ -129,9 +130,9 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                 {error ? <p role="alert">{error}</p> : null}
                 {notice ? <p role="status">{notice}</p> : null}
                 <p><strong>{ja ? "控除合計" : "Net deductions"}: ¥{total.toLocaleString()}</strong></p>
-            </section>
+            </Panel>
 
-            <section className="panel">
+            <Panel>
                 <h2>{ja ? "控除を記録" : "Record a deduction"}</h2>
                 <form onSubmit={create}>
                     <label>{ja ? "種類" : "Type"}
@@ -161,16 +162,16 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                     </details>
                     <button type="submit" disabled={busy || !beneficiary || dateError}>{ja ? "控除を保存" : "Save deduction"}</button>
                 </form>
-            </section>
+            </Panel>
 
-            <section className="panel">
+            <Panel>
                 <h2>{ja ? "記録" : "Entries"}</h2>
                 {loading ? <RequestState kind="loading" detail={ja ? "読み込み中" : "Loading"} /> : items.length === 0
                     ? <p>{ja ? "この月の記録はありません。" : "No entries for this month."}</p>
                     : <ul>
                         {items.map(item => (
                             <li key={item.id}>
-                                <strong>{item.business_date} · ¥{Math.abs(item.signed_amount_yen).toLocaleString()}</strong>
+                                <strong>{item.business_date} · ¥{item.signed_amount_yen.toLocaleString()}</strong>
                                 <span> · {item.category === "language_exchange_commission"
                                     ? (ja ? "Language Exchange 手数料" : "Language Exchange commission")
                                     : (ja ? "スタッフへのチップ" : "Staff tip")} · {item.payee_name} · {item.reason}</span>
@@ -182,7 +183,24 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                             </li>
                         ))}
                     </ul>}
-            </section>
+            </Panel>
         </div>
     );
 }
+
+const Panel = styled.section`
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-bottom: var(--space-2);
+    padding: var(--space-2);
+    background: var(--neutral-900);
+    border-radius: 12px;
+    form { display: flex; flex-direction: column; gap: var(--space-1); }
+    label { display: flex; flex-direction: column; gap: var(--space-0); }
+    input, select, textarea { width: 100%; box-sizing: border-box; }
+    input:focus, select:focus, textarea:focus { transform: none; }
+    select, textarea { background: var(--dark); }
+    li { margin-bottom: var(--space-1); }
+    small { display: block; color: var(--neutral-300); }
+`;
