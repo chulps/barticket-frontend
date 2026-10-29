@@ -3,6 +3,7 @@ import styled from "styled-components";
 
 import { accountApi, type Account, type ChuckMonthlyPayPreview, type PersonalEarningsPreview } from "../api/account";
 import { localeTag, type Locale } from "../i18n";
+import PayBreakdownChart, { type PayChartRow } from "../components/PayBreakdownChart";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
 
 type PayRow = {
@@ -125,6 +126,17 @@ export default function AdminMonthlyPayOverview({
             ? staffRows.reduce((sum, row) => sum + (row.owed ?? 0), 0)
             : null;
     }, [rows]);
+    const staffRows = rows.filter(row => row.person.role === "staff");
+    const staffChartRows: PayChartRow[] = staffRows.length && staffRows.every(row => row.complete && row.wages !== null && row.bonus !== null)
+        ? staffRows.map(row => ({
+            key: String(row.person.id),
+            label: row.person.name,
+            segments: [
+                { key: "wages", label: ja ? "賃金" : "Wages", value: row.wages ?? 0, color: "var(--royal-400)" },
+                { key: "staff-drinks", label: ja ? "スタッフドリンク手当" : "Staff-drink bonus", value: row.bonus ?? 0, color: "var(--success-400)" },
+            ],
+            total: row.total ?? 0,
+        })) : [];
 
     if (!designated || viewer.role !== "manager") return null;
 
@@ -165,6 +177,13 @@ export default function AdminMonthlyPayOverview({
                             <strong>{month}</strong>
                         </Metric>
                     </Summary>
+                    {staffChartRows.length ? <PayBreakdownChart
+                        title={ja ? "スタッフ別の月間給与" : "Monthly staff pay by person"}
+                        rows={staffChartRows} locale={locale}
+                        note={ja ? "確認済みの賃金とスタッフドリンク手当の見積もりです。" : "Estimated wages and staff-drink bonuses from verified inputs."} />
+                        : staffRows.length ? <p role="note">{ja
+                            ? "勤務時間または時給が未確認のため、比較グラフは表示できません。"
+                            : "The comparison chart is unavailable until every staff member’s hours and rate are verified."}</p> : null}
                     <Scroll>
                         <table>
                             <thead><tr>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { accountApi, type Account, type ManagerPayDeduction } from "../api/account";
 import RequestState from "../components/RequestState";
 import styled from "styled-components";
@@ -28,9 +28,13 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
     const ja = locale === "ja";
     const [month, setMonth] = useState(currentMonth);
     const [beneficiary, setBeneficiary] = useState("");
-    const [items, setItems] = useState<ManagerPayDeduction[]>([]);
-    const [total, setTotal] = useState(0);
-    const [loading, setLoading] = useState(false);
+    const [reload, setReload] = useState(0);
+    const [loaded, setLoaded] = useState<{
+        key: string;
+        items: ManagerPayDeduction[];
+        total: number;
+        error: string;
+    } | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
@@ -44,27 +48,28 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
     const [sourceColumn, setSourceColumn] = useState("");
     const [sourceNote, setSourceNote] = useState("");
 
+    const selectedBeneficiary = beneficiary || (managers[0] ? String(managers[0].id) : "");
+    const requestKey = `${month}:${selectedBeneficiary}:${reload}`;
     useEffect(() => {
-        if (!beneficiary && managers.length) setBeneficiary(String(managers[0].id));
-    }, [beneficiary, managers]);
-
-    const refresh = useCallback(async () => {
-        if (!beneficiary) { setItems([]); setTotal(0); return; }
-        setLoading(true);
-        setError("");
-        try {
-            const period = monthRange(month);
-            const response = await accountApi.managerPayDeductions({ ...period, beneficiary_user_id: Number(beneficiary) });
-            setItems(response.items);
-            setTotal(response.signed_deduction_total_yen);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : String(err));
-        } finally {
-            setLoading(false);
-        }
-    }, [beneficiary, month]);
-
-    useEffect(() => { void refresh(); }, [refresh]);
+        if (!selectedBeneficiary) return;
+        let cancelled = false;
+        const period = monthRange(month);
+        void accountApi.managerPayDeductions({ ...period, beneficiary_user_id: Number(selectedBeneficiary) })
+            .then(response => {
+                if (!cancelled) setLoaded({ key: requestKey, items: response.items, total: response.signed_deduction_total_yen, error: "" });
+            })
+            .catch(err => {
+                if (!cancelled) setLoaded({
+                    key: requestKey, items: [], total: 0,
+                    error: err instanceof Error ? err.message : String(err),
+                });
+            });
+        return () => { cancelled = true; };
+    }, [selectedBeneficiary, month, reload, requestKey]);
+    const currentLoad = loaded?.key === requestKey ? loaded : null;
+    const items = currentLoad?.items ?? [];
+    const total = currentLoad?.total ?? 0;
+    const loading = Boolean(selectedBeneficiary && !currentLoad);
 
     async function create(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -73,7 +78,7 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
         setNotice("");
         try {
             await accountApi.createManagerPayDeduction({
-                beneficiary_user_id: Number(beneficiary),
+                beneficiary_user_id: Number(selectedBeneficiary),
                 category,
                 amount_yen: Number(amount),
                 business_date: businessDate,
@@ -89,7 +94,7 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
             setReason("");
             setSourceRow("");
             setSourceNote("");
-            await refresh();
+            setReload(value => value + 1);
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
@@ -106,7 +111,7 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
         try {
             await accountApi.reverseManagerPayDeduction(item.id, explanation.trim());
             setNotice(ja ? "訂正記録を追加しました。" : "Audited reversal added.");
-            await refresh();
+            setReload(value => value + 1);
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {
@@ -125,7 +130,7 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                 {managers.length === 0 ? <p role="status">{ja ? "マネージャーアカウントがありません。" : "No manager accounts are available."}</p> : (
                     <label>
                         {ja ? "報酬の対象者" : "Manager"}
-                        <select value={beneficiary} onChange={event => setBeneficiary(event.target.value)}>
+                        <select value={selectedBeneficiary} onChange={event => setBeneficiary(event.target.value)}>
                             {managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}
                         </select>
                     </label>
@@ -135,7 +140,7 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                     <input type="month" value={month} onChange={event => setMonth(event.target.value)} />
                 </label>
                 {dateError ? <p role="alert">{ja ? "年月を選択してください。" : "Choose a valid month."}</p> : null}
-                {error ? <p role="alert">{error}</p> : null}
+                {error || currentLoad?.error ? <p role="alert">{error || currentLoad?.error}</p> : null}
                 {notice ? <p role="status">{notice}</p> : null}
                 <p><strong>{ja ? "控除合計" : "Net deductions"}: ¥{total.toLocaleString()}</strong></p>
             </Panel>
@@ -172,7 +177,7 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                         <label>{ja ? "列名" : "Column"}<input maxLength={128} required={category === "manager_pay_deduction"} value={sourceColumn} onChange={event => setSourceColumn(event.target.value)} /></label>
                         <label>{ja ? "出典メモ" : "Source note"}<textarea maxLength={1000} value={sourceNote} onChange={event => setSourceNote(event.target.value)} /></label>
                     </details>
-                    <button type="submit" disabled={busy || !beneficiary || dateError}>{ja ? "控除を保存" : "Save deduction"}</button>
+                    <button type="submit" disabled={busy || !selectedBeneficiary || dateError}>{ja ? "控除を保存" : "Save deduction"}</button>
                 </form>
             </Panel>
 
