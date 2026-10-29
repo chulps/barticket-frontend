@@ -7,6 +7,7 @@ import { localeTag, type Locale } from "../i18n";
 import { DonutChart, HorizontalBarChart, type DonutSlice, type NamedBar } from "../components/AnalyticsCharts";
 import type { PayChartRow } from "../components/PayBreakdownChart";
 import { canViewChuckPersonalPay } from "./chuckProfileAccess";
+import { buildChuckProfileStats, type ChuckProfileStats } from "./chuckProfileStats";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
 
 type Category = "all" | "hourly_wages" | "staff_drink_bonus";
@@ -75,6 +76,11 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
     const [sort, setSort] = useState<SortOrder>("date");
     const [report, setReport] = useState<PersonalEarningsPreview | null>(null);
     const [chuckReport, setChuckReport] = useState<ChuckMonthlyPayPreview | null>(null);
+    const [chuckStatsResult, setChuckStatsResult] = useState<{
+        key: string;
+        stats?: ChuckProfileStats;
+        error?: string;
+    } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
@@ -119,6 +125,31 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
         void load();
         return () => { cancelled = true; };
     }, [role, userId, month, refreshKey, ja, isChuckProfile, isNoriProfile]);
+
+    useEffect(() => {
+        if (!isChuckProfile) return;
+        let cancelled = false;
+        const key = `${userId}:${month}`;
+        const [year, monthNumber] = month.split("-").map(Number);
+        const lastDay = new Date(year, monthNumber, 0).getDate();
+        const dateFrom = `${month}-01`;
+        const dateTo = `${month}-${String(lastDay).padStart(2, "0")}`;
+        Promise.all([accountApi.analyticsShifts(), accountApi.serviceSales(dateFrom, dateTo)])
+            .then(([shifts, sales]) => {
+                if (sales.basis !== "original_service_business_date") throw new Error("Unexpected sales basis");
+                if (!cancelled) setChuckStatsResult({ key, stats: buildChuckProfileStats(shifts, sales, userId, month) });
+            })
+            .catch(err => {
+                if (!cancelled) setChuckStatsResult({ key, error: err instanceof ApiError ? err.message : String(err) });
+            });
+        return () => { cancelled = true; };
+    }, [isChuckProfile, month, refreshKey, userId]);
+
+    const statsResult = isChuckProfile && chuckStatsResult?.key === `${userId}:${month}`
+        ? chuckStatsResult : null;
+    const chuckStats = statsResult?.stats ?? null;
+    const chuckStatsLoading = isChuckProfile && statsResult === null;
+    const chuckStatsError = statsResult?.error ?? "";
 
     const wage = report?.categories.find((item): item is WageCategory => item.category === "hourly_wages");
     const bonus = report?.categories.find((item): item is DrinkCategory => item.category === "staff_drink_bonus");
@@ -221,6 +252,14 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
             display: money(person.total_owed_yen, locale),
         }))
         : [];
+    const chuckRevenueBars: NamedBar[] = (chuckStats?.nights ?? []).map(night => ({
+        id: String(night.shiftId),
+        label: new Date(`${night.businessDate}T12:00:00`).toLocaleDateString(localeTag(locale), { month: "short", day: "numeric" }),
+        value: night.billedSalesYen,
+        display: money(night.billedSalesYen, locale),
+    }));
+    const chuckBilledSales = chuckStats?.nights.reduce((sum, night) => sum + night.billedSalesYen, 0) ?? null;
+    const chuckGuests = chuckStats?.nights.reduce((sum, night) => sum + night.guests, 0) ?? null;
 
     return (
         <Wrapper aria-label={isChuckProfile
@@ -270,6 +309,34 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                     </label>
                 </> : null}
             </Toolbar> : null}
+
+            {isChuckProfile ? <StatsPanel aria-label={ja ? "Chuck担当シフトの統計" : "Stats for Chuck-managed shifts"}>
+                <div>
+                    <h3>{ja ? "Chuck担当シフトの統計" : "Chuck-managed shift stats"}</h3>
+                    <p>{ja ? "営業日ごとの記録済み売上と来客数です。" : "Recorded service sales and guests by business date."}</p>
+                </div>
+                {chuckStatsLoading ? <p role="status">{ja ? "統計を読み込み中…" : "Loading stats…"}</p>
+                    : chuckStatsError ? <p role="alert">{chuckStatsError}</p>
+                        : chuckStats ? <>
+                            <Summary>
+                                <Metric><span>{ja ? "担当した営業日" : "Managed nights"}</span><strong>{chuckStats.nights.length}</strong></Metric>
+                                <Metric><span>{ja ? "記録済み売上" : "Billed service sales"}</span><strong>{money(chuckBilledSales, locale)}</strong></Metric>
+                                <Metric><span>{ja ? "来客数" : "Guests"}</span><strong>{chuckGuests === null ? "—" : chuckGuests.toLocaleString(localeTag(locale))}</strong></Metric>
+                            </Summary>
+                            {chuckRevenueBars.length ? <HorizontalBarChart
+                                title={ja ? "営業日別の売上" : "Billed service sales by night"}
+                                bars={chuckRevenueBars} locale={locale} />
+                                : <ChartNote role="note">{ja
+                                    ? "この月にChuck担当で終了したシフトはありません。"
+                                    : "No closed shifts assigned to Chuck were recorded this month."}</ChartNote>}
+                            {chuckStats.unassignedManagerDays || chuckStats.ambiguousManagerDays ? <ChartNote role="note">{ja
+                                ? `担当未設定または担当が重複した営業日は個人の統計に含めていません（未設定 ${chuckStats.unassignedManagerDays} 日、要確認 ${chuckStats.ambiguousManagerDays} 日）。`
+                                : `Days without one confirmed manager are excluded from your stats (${chuckStats.unassignedManagerDays} unassigned, ${chuckStats.ambiguousManagerDays} needing review).`}</ChartNote> : null}
+                            <ChartNote>{ja
+                                ? "売上はサービス提供日の請求額です。未収分は営業日に一度だけ含み、後日の回収は加算しません。"
+                                : "Sales use the original service date. Deferred tickets count once on that date; later collections are not added again."}</ChartNote>
+                        </> : null}
+            </StatsPanel> : null}
 
             {loading ? <RequestState kind="loading" detail={ja ? "読み込み中…" : "Loading…"} />
                 : error ? <ErrorArea role="alert">
@@ -389,6 +456,17 @@ const Wrapper = styled.section`
     padding: var(--space-2);
     border-radius: 12px;
     background: var(--neutral-900);
+`;
+const StatsPanel = styled.section`
+    display:flex;
+    flex-direction:column;
+    gap:var(--space-1);
+    padding:var(--space-2);
+    border:1px solid var(--neutral-700);
+    border-radius:12px;
+    background:var(--neutral-900);
+    h3{font-size:var(--font-size-h4);}
+    p{color:var(--neutral-300);}
 `;
 const Heading = styled.div`
     display: flex;

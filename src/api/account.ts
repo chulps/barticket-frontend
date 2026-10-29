@@ -203,6 +203,19 @@ export type AnalyticsShiftReport = Omit<ShiftReport, "id" | "status" | "opened_a
     opened_by: string | null;
 };
 
+export type ServiceSalesByDate = {
+    business_date: string;
+    ticket_count: number;
+    guest_count: number;
+    original_billed_total: number;
+};
+
+export type ServiceSalesReport = {
+    basis: "original_service_business_date";
+    label: string;
+    items: ServiceSalesByDate[];
+};
+
 export type VenueStatus = {
     business_date: string;
     status: "open" | "closed";
@@ -551,6 +564,10 @@ export const accountApi = {
     closedShifts: () => apiRequest<ShiftReport[]>("/analytics/shifts"),
 
     analyticsShifts: () => apiRequest<AnalyticsShiftReport[]>("/analytics/shifts"),
+
+    serviceSales: (dateFrom: string, dateTo: string) => apiRequest<ServiceSalesReport>(
+        `/analytics/service-sales?service_date_from=${encodeURIComponent(dateFrom)}&service_date_to=${encodeURIComponent(dateTo)}`,
+    ),
 
     shiftHistory: () => apiRequest<ShiftReport[]>("/shifts"),
 };

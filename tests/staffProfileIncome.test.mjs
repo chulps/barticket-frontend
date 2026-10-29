@@ -31,6 +31,11 @@ test("Profile income is personal for staff and managers and shows wages and drin
     assert.match(income, /DonutChart/);
     assert.match(income, /Estimated income by day/);
     assert.match(income, /Staff pay owed by person/);
+    assert.match(income, /Chuck-managed shift stats/);
+    assert.match(income, /Billed service sales by night/);
+    assert.match(income, /original service date/);
+    assert.match(account, /serviceSales: \(dateFrom: string, dateTo: string\)/);
+    assert.match(account, /\/analytics\/service-sales/);
     assert.match(sharedCharts, /aria-label=\{title\}/);
     assert.match(income, /isNoriProfile && !isChuckProfile/);
     assert.match(income, /Nori’s monthly summary will appear when the verified manager data is available/);
