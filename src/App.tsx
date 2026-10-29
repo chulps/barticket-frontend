@@ -2,6 +2,7 @@
 
 // import react stuff
 import styled from "styled-components";
+import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { isApiAvailable } from "./api/client";
 import { useI18n } from "./i18n";
 import { notifyMutation } from "./utils/mutationFeedback";
@@ -16,16 +17,10 @@ import {
 import Header from "./layout/Header";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
-import Admin from "./pages/Admin";
 import Menu from "./pages/Menu";
-import Analytics from "./pages/Analytics";
-import Notifications from "./pages/Notifications";
-import Receivables from "./pages/Receivables";
-import Schedules from "./pages/Schedules";
 import ModalHost from "./components/ModalHost"
 import MutationToastHost from "./components/MutationToastHost";
 import { ModalProvider } from "./context/ModalProvider";
-import { useState, useEffect, useRef } from "react";
 import { accountApi } from "./api/account";
 import { getToken, setToken, ApiError } from "./api/client";
 
@@ -36,6 +31,12 @@ import {
 } from "./api/menu";
 import { replaceMenuItem, optimisticStock, optimisticPrices, reconcileMenuSnapshot } from "./hooks/optimisticOperations";
 import { createSingleFlightRefresh } from "./hooks/singleFlightRefresh";
+
+const Admin = lazy(() => import("./pages/Admin"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const Receivables = lazy(() => import("./pages/Receivables"));
+const Schedules = lazy(() => import("./pages/Schedules"));
 
 
 export default function App() {
@@ -251,35 +252,39 @@ export default function App() {
           </ConnectionBanner>
         ) : null}
 
-        <Routes>
-          <Route path="/" element={authenticated === null ? null : authenticated ? <Navigate to="/tickets" replace /> : <Profile />} />
-          <Route path="/tickets" element={authenticated === null ? null : authenticated ? <Dashboard
-            menu={menu}
-            loadingMenu={loadingMenu} menuError={menuError} /> : <Navigate to="/" replace />} />
+        <Suspense fallback={<RouteLoading role="status" aria-live="polite">
+          {locale === "ja" ? "読み込み中…" : "Loading…"}
+        </RouteLoading>}>
+          <Routes>
+            <Route path="/" element={authenticated === null ? null : authenticated ? <Navigate to="/tickets" replace /> : <Profile />} />
+            <Route path="/tickets" element={authenticated === null ? null : authenticated ? <Dashboard
+              menu={menu}
+              loadingMenu={loadingMenu} menuError={menuError} /> : <Navigate to="/" replace />} />
 
-          <Route path="/admin" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
-          <Route path="/admin/staff/:staffId" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
-          <Route path="/admin/staff/:staffId/audit" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
-          <Route path="/profile" element={authenticated === null ? null : authenticated ? <Profile /> : <Navigate to="/" replace />} />
+            <Route path="/admin" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
+            <Route path="/admin/staff/:staffId" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
+            <Route path="/admin/staff/:staffId/audit" element={authenticated === null ? null : authenticated ? <Admin /> : <Navigate to="/" replace />} />
+            <Route path="/profile" element={authenticated === null ? null : authenticated ? <Profile /> : <Navigate to="/" replace />} />
 
-          <Route path="/menu" element={authenticated === null ? null : <Menu
-            authenticated={authenticated}
-            menu={menu}
-            loadingMenu={loadingMenu}
-            menuError={menuError}
-            onToggleStock={changeStock}
-            onSavePrices={changePrices}
-            onSaveItem={saveMenuDetails}
-            onArchiveItem={archiveMenu}
-            onRestoreItem={restoreMenu}
-            pendingMenuIds={pendingMenuIds}
-            onItemAdded={addMenuItem} />} />
+            <Route path="/menu" element={authenticated === null ? null : <Menu
+              authenticated={authenticated}
+              menu={menu}
+              loadingMenu={loadingMenu}
+              menuError={menuError}
+              onToggleStock={changeStock}
+              onSavePrices={changePrices}
+              onSaveItem={saveMenuDetails}
+              onArchiveItem={archiveMenu}
+              onRestoreItem={restoreMenu}
+              pendingMenuIds={pendingMenuIds}
+              onItemAdded={addMenuItem} />} />
 
-          <Route path="/analytics" element={authenticated === null ? null : authenticated ? <Analytics /> : <Navigate to="/" replace />} />
-          <Route path="/notifications" element={authenticated === null ? null : authenticated ? <Notifications /> : <Navigate to="/" replace />} />
-          <Route path="/receivables" element={authenticated === null ? null : authenticated ? <Receivables /> : <Navigate to="/" replace />} />
-          <Route path="/schedules" element={authenticated === null ? null : authenticated ? <Schedules /> : <Navigate to="/" replace />} />
-        </Routes>
+            <Route path="/analytics" element={authenticated === null ? null : authenticated ? <Analytics /> : <Navigate to="/" replace />} />
+            <Route path="/notifications" element={authenticated === null ? null : authenticated ? <Notifications /> : <Navigate to="/" replace />} />
+            <Route path="/receivables" element={authenticated === null ? null : authenticated ? <Receivables /> : <Navigate to="/" replace />} />
+            <Route path="/schedules" element={authenticated === null ? null : authenticated ? <Schedules /> : <Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
 
         <ModalHost />
         <MutationToastHost />
@@ -299,4 +304,10 @@ const ConnectionBanner = styled.div`
   color: white;
   text-align: center;
   @media (min-width: 768px) { top: 56px; }
+`;
+
+const RouteLoading = styled.div`
+  padding: var(--space-4);
+  color: var(--text-secondary);
+  text-align: center;
 `;

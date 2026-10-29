@@ -189,7 +189,7 @@ export default function TicketDetailItem({
                             name={
                                 isOpen
                                     ? "X"
-                                    : "DotsThreeOutlineVerticalIcon"
+                                    : "DotsThreeOutlineVertical"
                             }
                         />
                     )}
