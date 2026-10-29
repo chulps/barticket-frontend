@@ -44,6 +44,18 @@ export type ShiftManagerAudit = {
     reason: string;
 };
 
+export type AdminAuditEvent = {
+    occurred_at: string;
+    action: string;
+    entity_type: string;
+    entity_id: number | null;
+    actor_name: string;
+    subject_name: string;
+    reason: string | null;
+    before: Record<string, unknown> | null;
+    after: Record<string, unknown> | null;
+};
+
 export type RevenueSharePreview = {
     month: string;
     beneficiary_user_id: number;
@@ -484,6 +496,11 @@ export const accountApi = {
 
     reverseManagerPayDeduction: (id: number, reason: string) =>
         apiRequest<ManagerPayDeduction>(`/admin/payroll/deductions/${id}/reverse`, { method: "POST", body: { reason } }),
+
+    adminAuditHistory: (personUserId: number) =>
+        apiRequest<{ person_user_id: number; events: AdminAuditEvent[]; has_more: boolean }>(
+            `/admin/audit?person_user_id=${personUserId}&limit=200`,
+        ),
 
 
     staffDrinkBonuses: (userId: number, dateFrom: string, dateTo: string) =>
