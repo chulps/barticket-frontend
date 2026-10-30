@@ -79,8 +79,8 @@ export default function PushSettings() {
             <li>{ja ? "この画面に戻り、「この端末で通知を有効にする」をタップして「許可」を選びます。" : "Return here, tap “Enable notifications,” then tap “Allow.”"}</li>
           </ol>
           <p>{ja
-            ? "すでにホーム画面にBarTicketのアイコンがある場合は、削除せず、そのアイコンから開いて通知を有効にしてください。"
-            : "Already have a BarTicket icon on your Home Screen? Keep it. Open that icon and enable notifications; you don’t need to delete or reinstall it."}</p>
+            ? "すでにホーム画面にBarTicketのアイコンがある場合は、削除せず、そのアイコンから開いて通知を有効にしてください。iOSまたはiPadOS 16.4以降が必要です。"
+            : "Already have a BarTicket icon on your Home Screen? Keep it. Open that icon and enable notifications; you don’t need to delete or reinstall it. Push requires iOS or iPadOS 16.4 or later."}</p>
         </InstallGuide>
       ) : null}
       {error ? <Error role="alert">{error}</Error> : null}
