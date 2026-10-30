@@ -63,7 +63,7 @@ export type RevenueSharePreview = {
     working_manager_shift_ids: number[];
     working_manager_revenue_known_yen: number;
     eligible_revenue_yen: number | null;
-    revenue_source: "service_shift_payments_and_deferred_billed_total_preview";
+    revenue_source: "service_shift_payments_deferred_billed_total_or_shift_summary_preview";
     tier_rate_percent: number | null;
     tier_rate_basis: "service_shift_sales_preview" | null;
     tier_application_method: "flat_monthly_confirmed";
