@@ -1,41 +1,193 @@
-import { useEffect, useState } from "react";
-import { disablePush, enablePush, getPushEnabled, supportsPush } from "../api/push";
+import { useCallback, useEffect, useRef, useState } from "react";
+import styled from "styled-components";
+import { disablePush, enablePush, getPushEnabled, getPushPublicKey, PushRequestError, supportsPush } from "../api/push";
 import { useI18n } from "../i18n";
+
+type Availability = "checking" | "ready" | "unavailable" | "unsupported" | "error";
 
 export default function PushSettings() {
   const { locale } = useI18n();
   const ja = locale === "ja";
   const [enabled, setEnabled] = useState(false);
+  const [availability, setAvailability] = useState<Availability>("checking");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    void getPushEnabled().then((value) => { if (active) setEnabled(value); }).catch(() => {});
-    return () => { active = false; };
+  const mounted = useRef(false);
+
+  const checkAvailability = useCallback(async () => {
+    if (!supportsPush()) {
+      setAvailability("unsupported");
+      return;
+    }
+    setAvailability("checking");
+    setError("");
+    try {
+      const subscriptionExists = await getPushEnabled();
+      if (!mounted.current) return;
+      setEnabled(subscriptionExists);
+      if (subscriptionExists) {
+        setAvailability("ready");
+        return;
+      }
+      const publicKey = await getPushPublicKey();
+      if (mounted.current) setAvailability(publicKey ? "ready" : "unavailable");
+    } catch {
+      if (mounted.current) setAvailability("error");
+    }
   }, []);
 
+  useEffect(() => {
+    mounted.current = true;
+    void checkAvailability();
+    return () => { mounted.current = false; };
+  }, [checkAvailability]);
+
   const supported = supportsPush();
+  const canEnable = enabled || availability === "ready";
+  const statusText = availability === "checking"
+    ? (ja ? "通知の利用状況を確認しています…" : "Checking notification availability…")
+    : availability === "unavailable"
+      ? (ja ? "サーバー側の設定が完了するまで、この端末では通知を有効にできません。" : "Push isn’t set up on the server yet. This device won’t ask for notification permission until setup is complete.")
+      : availability === "unsupported"
+        ? (ja ? "このブラウザーではプッシュ通知を利用できません。iPhoneではSafariの共有メニューからホーム画面に追加し、ホーム画面のBarTicketを開いてください。" : "Push isn’t available in this browser. On iPhone, add BarTicket to your Home Screen from Safari, then open it there.")
+        : availability === "error"
+          ? (ja ? "通知の利用状況を確認できませんでした。接続を確認して再試行してください。" : "Couldn’t check notification availability. Check your connection and try again.")
+          : enabled
+            ? (ja ? "この端末では通知が有効です。" : "Notifications are enabled on this device.")
+            : (ja ? "この端末で通知を有効にできます。" : "Push is ready to enable on this device.");
+
   return (
-    <section aria-label={ja ? "プッシュ通知の設定" : "Push notification settings"}>
-      <h3>{ja ? "端末のプッシュ通知" : "Device push notifications"}</h3>
-      <p>{ja ? "伝票、スタッフドリンク、退勤、営業終了、在庫変更のお知らせを受け取ります。" : "Get alerts for tickets, staff drinks, clock-outs, shift closures, and stock changes."}</p>
-      {!supported ? <p>{ja ? "このブラウザーではプッシュ通知を利用できません。iPhoneではSafariの共有メニューからホーム画面に追加し、ホーム画面のBarTicketを開いてください。" : "Push notifications aren't available in this browser. On iPhone, use Safari's Share menu to Add to Home Screen, then open BarTicket from your Home Screen."}</p> : null}
-      <button
-        type="button"
-        disabled={!supported || busy}
-        onClick={async () => {
-          setBusy(true);
-          setError("");
-          try {
-            if (enabled) await disablePush();
-            else await enablePush();
-            setEnabled(!enabled);
-          } catch (err) {
-            setError(err instanceof Error ? err.message : String(err));
-          } finally { setBusy(false); }
-        }}
-      >{busy ? (ja ? "保存中…" : "Saving…") : enabled ? (ja ? "この端末の通知を無効にする" : "Disable push on this device") : (ja ? "この端末の通知を有効にする" : "Enable push on this device")}</button>
-      {error ? <p role="alert">{ja ? "通知設定を更新できませんでした。もう一度お試しください。" : error}</p> : null}
-    </section>
+    <Panel aria-label={ja ? "プッシュ通知の設定" : "Push notification settings"}>
+      <Heading>
+        <div>
+          <h3>{ja ? "端末のプッシュ通知" : "Device push notifications"}</h3>
+          <p>{ja ? "この端末でBarTicketの通知を受け取ります。" : "Receive BarTicket alerts on this device."}</p>
+        </div>
+      </Heading>
+      <Status role="status" data-state={availability}>
+        <StatusDot aria-hidden="true" />
+        <span>{statusText}</span>
+      </Status>
+      {error ? <Error role="alert">{error}</Error> : null}
+      <Actions>
+        <ActionButton
+          type="button"
+          disabled={!supported || availability === "checking" || !canEnable || busy}
+          onClick={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              if (enabled) {
+                await disablePush();
+                setEnabled(false);
+              } else {
+                await enablePush();
+                setEnabled(true);
+              }
+              setAvailability("ready");
+            } catch (err) {
+              if (err instanceof PushRequestError && err.status === 503) {
+                setAvailability("unavailable");
+              } else {
+                setError(ja ? "通知設定を更新できませんでした。接続と端末の通知設定を確認してください。" : "Couldn’t update notification settings. Check your connection and device notification settings.");
+              }
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy
+            ? (ja ? "更新中…" : "Updating…")
+            : enabled
+              ? (ja ? "この端末の通知をオフにする" : "Turn off on this device")
+              : (ja ? "この端末で通知を有効にする" : "Enable notifications")}
+        </ActionButton>
+        {(availability === "unavailable" || availability === "error") && !enabled ? (
+          <RetryButton type="button" onClick={() => void checkAvailability()} disabled={availability === "checking"}>
+            {ja ? "再確認" : "Check again"}
+          </RetryButton>
+        ) : null}
+      </Actions>
+    </Panel>
   );
 }
+
+const Panel = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: var(--space-2);
+  margin: 0 0 var(--space-2);
+  background: var(--neutral-900);
+  border: 1px solid var(--neutral-700);
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+`;
+
+const Heading = styled.div`
+  min-width: 0;
+  h3 { margin: 0; }
+  p { margin: 4px 0 0; color: var(--neutral-300); }
+`;
+
+const Status = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-0);
+  min-width: 0;
+  padding: var(--space-1);
+  border-radius: 8px;
+  background: var(--neutral-800);
+  line-height: 1.45;
+  span { min-width: 0; overflow-wrap: anywhere; }
+  &[data-state="unavailable"], &[data-state="error"], &[data-state="unsupported"] {
+    border: 1px solid var(--neutral-600);
+  }
+`;
+
+const StatusDot = styled.span`
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 0.4em;
+  border-radius: 50%;
+  background: var(--primary-400);
+  [data-state="unavailable"] &, [data-state="error"] &, [data-state="unsupported"] & {
+    background: var(--neutral-400);
+  }
+`;
+
+const Actions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-0);
+  min-width: 0;
+  @media (max-width: 560px) {
+    flex-direction: column;
+    align-items: stretch;
+    button { width: 100%; white-space: normal; min-height: 48px; }
+  }
+`;
+
+const ActionButton = styled.button`
+  width: auto;
+  min-width: min(100%, 240px);
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.3;
+`;
+
+const RetryButton = styled.button`
+  width: auto;
+  white-space: normal;
+`;
+
+const Error = styled.p`
+  margin: 0;
+  color: var(--danger-400);
+  overflow-wrap: anywhere;
+`;
