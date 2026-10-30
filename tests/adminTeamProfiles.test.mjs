@@ -28,6 +28,12 @@ test("Admin team is manager-only, including direct staff detail links", () => {
     assert.doesNotMatch(directory, /accountApi\.listUsers\(/);
 });
 
+test("Small team directory is a direct list without redundant search and role filters", () => {
+    assert.match(directory, /people\.map\(member =>/);
+    assert.doesNotMatch(directory, /Search team|Filter by role|type="search"/);
+    assert.doesNotMatch(directory, /const \[query|const \[filter/);
+});
+
 test("Team time corrections use the audited API; unsupported pay writes remain disabled", () => {
     assert.match(directory, /accountApi\.analyticsShifts\(\)/);
     assert.doesNotMatch(directory, /accountApi\.currentShift\(\)/);

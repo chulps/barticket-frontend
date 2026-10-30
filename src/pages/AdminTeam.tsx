@@ -46,8 +46,6 @@ function shiftMonth(value: string, amount: number) {
  */
 export default function AdminTeam({ viewer, people, accountsError, locale, selectedId, onSelect, onAudit }: Props) {
     const ja = locale === "ja";
-    const [query, setQuery] = useState("");
-    const [filter, setFilter] = useState<"all" | "staff" | "manager">("all");
     const [month, setMonth] = useState(currentMonth);
     const [closed, setClosed] = useState<ShiftReport[]>([]);
     const [current, setCurrent] = useState<ShiftReport | null>(null);
@@ -83,11 +81,6 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
         void load();
         return () => { cancelled = true; };
     }, [refreshKey, ja]);
-
-    const peopleShown = useMemo(() => people.filter(person =>
-        (filter === "all" || person.role === filter) &&
-        (person.name + " " + person.email).toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
-    ), [people, filter, query]);
 
     const person = selectedId === null ? null : people.find(member => member.id === selectedId) ?? null;
     // Generic hourly-pay, time-correction and drinkback drafts apply to staff, not managers.
@@ -142,20 +135,9 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
             </Toolbar>
             <Layout $hasSelection={selectedId !== null}>
                 <Directory aria-label={ja ? "チーム一覧" : "Team directory"}>
-                    <label>{ja ? "スタッフを検索" : "Search team"}
-                        <input type="search" value={query}
-                            onChange={e => setQuery(e.target.value)}
-                            placeholder={ja ? "名前またはメール" : "Name or email"} />
-                    </label>
-                    <label>{ja ? "役割で絞り込み" : "Filter by role"}
-                        <select value={filter} onChange={e => setFilter(e.target.value as typeof filter)}>
-                            <option value="all">{ja ? "全員" : "All team members"}</option>
-                            <option value="staff">{ja ? "スタッフ" : "Staff"}</option>
-                            <option value="manager">{ja ? "マネージャー" : "Managers"}</option>
-                        </select>
-                    </label>
+                    <DirectoryHeading>{ja ? "メンバー" : "People"}</DirectoryHeading>
                     {accountsError ? <Error role="alert">{accountsError}</Error> : null}
-                    {peopleShown.length ? peopleShown.map(member => (
+                    {people.length ? people.map(member => (
                         <Member
                             key={member.id} type="button"
                             className={selectedId === member.id ? "secondary" : "hollow secondary"}
@@ -168,12 +150,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                             </MemberText>
                             <Chevron aria-hidden="true">›</Chevron>
                         </Member>
-                    )) : !accountsError ? <Muted>{ja ? "該当するメンバーはいません。" : "No matching team members."}</Muted> : null}
-                    <Footnote>
-                        {ja
-                            ? "現在有効なアカウントのみです。ゲスト契約種別はAPI未対応のため判定しません。"
-                            : "Only active accounts returned by the API. Guest contract types are not available yet."}
-                    </Footnote>
+                    )) : !accountsError ? <Muted>{ja ? "メンバーはいません。" : "No team members."}</Muted> : null}
                 </Directory>
                 <Detail>
                     {selectedId === null ? (
@@ -303,9 +280,8 @@ const Layout = styled.div<{ $hasSelection: boolean }>`
 const Directory = styled.nav`
     display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-2);
     border-radius:12px;background:var(--neutral-900);min-width:0;
-    label{display:flex;flex-direction:column;gap:var(--space-0);}
-    input,select{width:100%;box-sizing:border-box;background:var(--dark);}
 `;
+const DirectoryHeading = styled.h3`font-size:var(--font-size-h5);font-weight:500;`;
 const Member = styled.button`
     &&{display:flex;align-items:center;gap:var(--space-1);text-align:left;width:100%;min-width:0;padding:var(--space-1);}
 `;
@@ -320,7 +296,6 @@ const MemberText = styled.span`
     span{font-size:var(--font-size-small);}
 `;
 const Chevron = styled.span`margin-left:auto;font-size:1.4em;`;
-const Footnote = styled.p`font-size:var(--font-size-small);color:var(--neutral-300);line-height:1.5;`;
 const Detail = styled.div`
     display:flex;flex-direction:column;gap:var(--space-2);min-width:0;
     background:var(--neutral-800);padding:var(--space-2);border-radius:12px;
