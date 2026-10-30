@@ -43,7 +43,9 @@ test("Profile income is personal for staff and managers and shows wages and drin
     assert.match(income, /amount_yen_unrounded == null/);
     assert.match(chart, /role="meter"/);
     assert.match(chart, /aria-valuetext/);
-    assert.match(income, /type="month"/);
+    assert.match(income, /aria-label=\{ja \? "前月" : "Previous month"\}/);
+    assert.match(income, /shiftMonth\(value, -1\)/);
+    assert.match(income, /<Filters>/);
     assert.match(income, /Sort by/);
     assert.match(account, /personalEarnings: \(month: string\) =>/);
     assert.match(account, /\/profile\/earnings\?month=/);
