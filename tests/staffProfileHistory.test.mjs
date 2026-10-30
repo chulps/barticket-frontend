@@ -30,6 +30,9 @@ test("Profile mounts personal history only after authentication, without calling
     assert.match(history, /Recorded hours by shift/);
     assert.match(history, /<strong>\{totals\.recordedShifts\}<\/strong>/);
     assert.match(history, /The chart excludes unavailable hours/);
+    assert.match(history, /Includes verified historical hours/);
+    assert.match(history, /Historical entries show total hours only, not clock-in\/out times/);
+    assert.match(account, /verified_date_totals_included/);
     assert.doesNotMatch(history, /accountApi\.listUsers\(|accountApi\.createUser\(|accountApi\.removeUser\(/);
     for (const [name, source] of [["Profile", profile], ["StaffWorkHistory", history]]) {
         assert.equal(ts.createSourceFile(name + ".tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).parseDiagnostics.length, 0);
@@ -97,7 +100,7 @@ test("Summaries count drinks/shift records without inventing unrecorded history"
     assert.equal(recordedStaffTotals([]).drinkCount, null);
 });
 
-test("Frontend does not pretend compensation API or historical import is available", () => {
+test("Frontend keeps personal compensation separate and labels verified historical totals", () => {
     assert.match(history, /StaffIncome userId=\{userId\} locale=\{locale\} role=\{role\}/);
     assert.doesNotMatch(history, /Not available yet|Bonuses & adjustments|benefits/);
     assert.match(history, /means unavailable, not zero/);
