@@ -8,6 +8,7 @@ const admin = read("src/pages/Admin.tsx");
 const team = read("src/pages/AdminTeam.tsx");
 const editors = read("src/pages/AdminTeamEditors.tsx");
 const activity = read("src/pages/AdminShiftActivity.tsx");
+const share = read("src/pages/AdminManagerShare.tsx");
 const audit = read("src/pages/AdminAuditHistory.tsx");
 const app = read("src/App.tsx");
 
@@ -35,20 +36,24 @@ test("Audit history is a distinct manager-only screen with a back link, not an e
     assert.match(audit, /accountApi\.adminAuditHistory\(person\.id\)/);
 });
 
-test("One month navigator filters imported activity and expandable shift details", () => {
+test("Admin uses Analytics time-scale tabs for activity and shares its month with pay", () => {
     assert.match(team, /<AdminShiftActivity/);
     assert.match(team, /accountApi\.analyticsShifts\(\)/);
-    assert.match(team, /type="month" value=\{month\}/);
+    assert.match(team, /<TabGroup<TimeScale>/);
+    for (const scale of ["all", "year", "month", "day"]) assert.match(team, new RegExp(`id: "${scale}"`));
+    assert.match(team, /<AnalyticsDatePicker/);
+    assert.match(team, /timeScale === "month" \? <AdminMonthlyPayOverview/);
     assert.match(team, /<AdminMonthlyPayOverview[\s\S]*month=\{month\}/);
     assert.doesNotMatch(team, /filteredActivity\.slice\(0, 20\)/);
     assert.match(activity, /const PAGE_SIZE = 12/);
-    assert.match(activity, /rows\.filter\(row => row\.businessDate\.startsWith\(selectedMonth\)\)/);
-    assert.match(activity, /No shift records for this month/);
-    assert.match(activity, /monthRows\.slice\(0, visible\)/);
+    assert.match(activity, /Shifts in this period/);
+    assert.match(activity, /periodRows\.slice\(0, visible\)/);
     assert.match(activity, /<Night key=\{row\.shiftId\}>/);
     assert.match(activity, /<summary>/);
     assert.match(activity, /<LoadMore.*Show 12 more shifts/s);
     assert.doesNotMatch(activity, /accountApi\.|apiRequest\(|\bfetch\(/);
+    assert.match(share, /month: string/);
+    assert.doesNotMatch(share, /Revenue-share month|shareMonths\(/);
 });
 
 test("Admin and new screens parse as TSX", () => {

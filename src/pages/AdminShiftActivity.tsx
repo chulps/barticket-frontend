@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import styled from "styled-components";
 import { localeTag, type Locale } from "../i18n";
 import { recordedStaffTotals, type StaffActivityRow } from "./staffProfileData";
@@ -6,7 +6,6 @@ import { recordedStaffTotals, type StaffActivityRow } from "./staffProfileData";
 type Props = {
     rows: StaffActivityRow[];
     locale: Locale;
-    selectedMonth: string;
 };
 const PAGE_SIZE = 12;
 function dateLabel(value: string, locale: Locale) {
@@ -23,10 +22,10 @@ function quantity(row: StaffActivityRow) {
 }
 
 /** Drill into ID-linked recorded activity using existing reads only. */
-export default function AdminShiftActivity({ rows, locale, selectedMonth }: Props) {
+export default function AdminShiftActivity({ rows, locale }: Props) {
     const ja = locale === "ja";
     const [visible, setVisible] = useState(PAGE_SIZE);
-    const monthRows = useMemo(() => rows.filter(row => row.businessDate.startsWith(selectedMonth)), [rows, selectedMonth]);
+    const periodRows = rows;
     function metric(list: StaffActivityRow[]) {
         const totals = recordedStaffTotals(list);
         return <Muted>
@@ -38,15 +37,15 @@ export default function AdminShiftActivity({ rows, locale, selectedMonth }: Prop
     return (
         <Area aria-label={ja ? "シフト履歴の詳細" : "Recorded shift activity drill-down"}>
             <header>
-                <h4>{ja ? "今月のシフト" : "Shifts this month"}</h4>
+                <h4>{ja ? "対象期間のシフト" : "Shifts in this period"}</h4>
             </header>
             {!rows.length ? (
                 <Muted>{ja ? "本人IDに紐づいた記録はありません。0時間を意味しません。" : "No ID-linked records. Missing does not mean zero hours."}</Muted>
             ) : (
                 <>
-                    {monthRows.length ? metric(monthRows) : <Muted>{ja ? "この月のシフト記録はありません。上の月選択で別の月を表示できます。" : "No shift records for this month. Choose another month above."}</Muted>}
+                    {periodRows.length ? metric(periodRows) : <Muted>{ja ? "この期間のシフト記録はありません。" : "No shift records for this period."}</Muted>}
                     <Nights>
-                        {monthRows.slice(0, visible).map(row => (
+                        {periodRows.slice(0, visible).map(row => (
                             <Night key={row.shiftId}>
                                 <summary>
                                     <NightTitle>
@@ -69,10 +68,10 @@ export default function AdminShiftActivity({ rows, locale, selectedMonth }: Prop
                             </Night>
                         ))}
                     </Nights>
-                    {monthRows.length > visible ? (
+                    {periodRows.length > visible ? (
                         <LoadMore type="button" className="small hollow secondary" onClick={() => setVisible(count => count + PAGE_SIZE)}>
                             {ja ? "さらに12シフトを表示" : "Show 12 more shifts"}
-                            {" (" + Math.min(visible, monthRows.length) + "/" + monthRows.length + ")"}
+                            {" (" + Math.min(visible, periodRows.length) + "/" + periodRows.length + ")"}
                         </LoadMore>
                     ) : null}
                 </>
