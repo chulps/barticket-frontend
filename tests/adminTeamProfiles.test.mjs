@@ -29,7 +29,7 @@ test("Admin team is manager-only, including direct staff detail links", () => {
 });
 
 test("Team time corrections use the audited API; unsupported pay writes remain disabled", () => {
-    assert.match(directory, /accountApi\.shiftHistory\(\)/);
+    assert.match(directory, /accountApi\.analyticsShifts\(\)/);
     assert.doesNotMatch(directory, /accountApi\.currentShift\(\)/);
     assert.match(directory, /buildStaffActivity\(person\.id, closed, current\)/);
     assert.match(directory, /drink\.staff_id === person\.id/);
