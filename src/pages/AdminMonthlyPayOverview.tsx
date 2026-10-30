@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 
 import { accountApi, type Account, type ChuckMonthlyPayPreview, type PersonalEarningsPreview } from "../api/account";
@@ -19,11 +19,6 @@ type PayRow = {
     message?: string;
     chuck?: ChuckMonthlyPayPreview;
 };
-
-function currentMonth() {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
 
 function yen(value: number | null, locale: Locale) {
     if (value === null) return "—";
@@ -64,11 +59,12 @@ function chuckRow(person: Account, data: ChuckMonthlyPayPreview): PayRow {
 
 /** Manager-only comparison for confirmed monthly pay inputs; unknown manager rules remain unavailable. */
 export default function AdminMonthlyPayOverview({
-    viewer, people, locale, refreshVersion,
+    viewer, people, locale, month, refreshVersion,
 }: {
     viewer: Account;
     people: Account[];
     locale: Locale;
+    month: string;
     refreshVersion: number;
 }) {
     const ja = locale === "ja";
@@ -76,10 +72,8 @@ export default function AdminMonthlyPayOverview({
     const designated = viewers.chuckUserId !== null && viewers.noriUserId !== null &&
         viewers.chuckUserId !== viewers.noriUserId &&
         (viewer.id === viewers.chuckUserId || viewer.id === viewers.noriUserId);
-    const [month, setMonth] = useState(currentMonth);
     const [rows, setRows] = useState<PayRow[]>([]);
     const [loading, setLoading] = useState(true);
-    const [reload, setReload] = useState(0);
 
     useEffect(() => {
         if (!designated || viewer.role !== "manager") return;
@@ -118,7 +112,7 @@ export default function AdminMonthlyPayOverview({
         }
         void load();
         return () => { cancelled = true; };
-    }, [designated, viewer, people, month, refreshVersion, reload, viewers.chuckUserId]);
+    }, [designated, viewer, people, month, refreshVersion, viewers.chuckUserId]);
 
     const totalStaffPay = useMemo(() => {
         const staffRows = rows.filter(row => row.person.role === "staff");
@@ -170,30 +164,17 @@ export default function AdminMonthlyPayOverview({
                 <div>
                     <h2>{ja ? "月次給与一覧" : "Monthly team pay"}</h2>
                     <p>{ja
-                        ? "確認済みの勤務時間・時給・スタッフドリンク手当と、Chuck担当シフトの給与内訳を表示します。試算であり支払記録ではありません。"
-                        : "Compare recorded wages and staff-drink bonuses, plus Chuck's pay for his managed shifts. These are estimates, not payment records."}</p>
+                        ? "選択した月の勤務と給与見積もりです。支払い記録ではありません。"
+                        : "Work and estimated pay for the selected month. This is not a payment record."}</p>
                 </div>
-                <button type="button" className="small hollow secondary" disabled={loading}
-                    onClick={() => setReload(value => value + 1)}>{ja ? "更新" : "Refresh"}</button>
             </Header>
-            <Toolbar>
-                <label>{ja ? "対象月" : "Month"}
-                    <input type="month" value={month} onChange={event => setMonth(event.target.value)} />
-                </label>
-            </Toolbar>
             {loading ? <p role="status">{ja ? "給与情報を読み込み中…" : "Loading monthly pay…"}</p> : (
                 <>
-                    <Summary>
-                        <Metric>
-                            <span>{ja ? "スタッフ給与合計" : "Total staff pay"}</span>
-                            <strong>{yen(totalStaffPay, locale)}</strong>
-                            {totalStaffPay === null ? <small>{ja ? "一部の時間または時給が未確認です" : "Unavailable until all staff hours and rates are verified"}</small> : null}
-                        </Metric>
-                        <Metric>
-                            <span>{ja ? "表示月" : "Month"}</span>
-                            <strong>{month}</strong>
-                        </Metric>
-                    </Summary>
+                    <PayTotal>
+                        <span>{ja ? "スタッフ給与合計" : "Total staff pay"}</span>
+                        <strong>{totalStaffPay === null ? (ja ? "未確認" : "Incomplete") : yen(totalStaffPay, locale)}</strong>
+                        {totalStaffPay === null ? <small>{ja ? "時給または勤務時間が未確認のメンバーがいます。下の各メンバー欄をご確認ください。" : "Some hours or rates are missing. See the individual records below."}</small> : null}
+                    </PayTotal>
                     {staffChartRows.length ? <PayBreakdownChart
                         title={ja ? "スタッフ別の月間給与" : "Monthly staff pay by person"}
                         rows={staffChartRows} locale={locale}
@@ -201,7 +182,7 @@ export default function AdminMonthlyPayOverview({
                             : `Showing ${staffChartRows.length} member(s) with complete records. These are pay estimates, not payment records.`} /> : null}
                     {incompleteStaffCount ? <p role="note">{ja
                         ? `${incompleteStaffCount}名分は勤務時間または時給が未確認のためグラフに含めていません。表の「—」は0円ではなく未確認です。`
-                        : `${incompleteStaffCount} member(s) are omitted from the chart because hours or rates are incomplete. “—” in the table means unavailable, not ¥0.`}</p> : null}
+                        : `${incompleteStaffCount} member(s) are omitted from the chart because hours or rates are incomplete. “—” means unavailable, not ¥0.`}</p> : null}
                     {staffRows.length && !staffChartRows.length && !incompleteStaffCount ? <p role="note">{ja
                         ? "確認済みのスタッフ給与がまだありません。"
                         : "No confirmed staff pay amounts are available to chart yet."}</p> : null}
@@ -210,48 +191,34 @@ export default function AdminMonthlyPayOverview({
                         rows={chuckCompositionRows} locale={locale}
                         note={ja ? "確認済み金額の内訳です。金額は支払済みを意味しません。"
                             : "Breakdown of confirmed amounts. Amounts owed do not mean they have been paid."} /> : null}
-                    <Scroll>
-                        <table>
-                            <thead><tr>
-                                <th>{ja ? "メンバー" : "Team member"}</th>
-                                <th>{ja ? "賃金 / 総給与" : "Wages / gross salary"}</th>
-                                <th>{ja ? "ドリンク手当 / スタッフ給与" : "Drink bonus / staff pay"}</th>
-                                <th>{ja ? "控除" : "Deductions"}</th>
-                                <th>{ja ? "支払予定額" : "Amount owed"}</th>
-                                <th>{ja ? "状態" : "Status"}</th>
-                            </tr></thead>
-                            <tbody>
-                                {rows.map(row => (
-                                    <Fragment key={row.person.id}>
-                                        <tr>
-                                            <th scope="row">{row.person.name}<small>{row.person.role === "manager" ? (ja ? "マネージャー" : "Manager") : (ja ? "スタッフ" : "Staff")}</small></th>
-                                            <td>{row.person.role === "staff" ? yen(row.wages, locale) : yen(row.gross, locale)}</td>
-                                            <td>{row.person.role === "staff" ? yen(row.bonus, locale) : yen(row.staffCost, locale)}</td>
-                                            <td>{row.person.role === "staff" ? "—" : yen(row.deductions, locale)}</td>
-                                            <td><strong>{yen(row.owed, locale)}</strong></td>
-                                            <td>{row.complete ? (ja ? "記録あり" : "Recorded") : label(row.message)}</td>
-                                        </tr>
-                                        {row.chuck ? <tr>
-                                            <td colSpan={6}>
-                                                <details>
-                                                    <summary>{ja ? "Chuck担当シフトのスタッフ給与と控除の詳細" : "Details: staff owed on Chuck-managed shifts and deductions"}</summary>
-                                                    <ul>
-                                                        {row.chuck.staff_owed.map(item => <li key={item.user_id}>
-                                                            {item.name}: {ja ? "賃金" : "wages"} {yen(item.wages_yen, locale)} · {ja ? "ドリンク手当" : "drink bonus"} {yen(item.staff_drink_bonus_yen, locale)}
-                                                        </li>)}
-                                                        {row.chuck.deductions.map(item => <li key={"deduction-" + item.id}>
-                                                            {item.business_date} · {item.payee_name}: {yen(item.amount_yen, locale)} · {item.reason}
-                                                        </li>)}
-                                                    </ul>
-                                                </details>
-                                            </td>
-                                        </tr> : null}
-                                    </Fragment>
-                                ))}
-                                {!rows.length ? <tr><td colSpan={6}>{ja ? "この月の記録がありません。" : "No pay records for this month."}</td></tr> : null}
-                            </tbody>
-                        </table>
-                    </Scroll>
+                    <People aria-label={ja ? "メンバー別の給与" : "Pay by team member"}>
+                        {rows.map(row => <Person key={row.person.id}>
+                            <PersonHeader>
+                                <div><strong>{row.person.name}</strong><small>{row.person.role === "manager" ? (ja ? "マネージャー" : "Manager") : (ja ? "スタッフ" : "Staff")}</small></div>
+                                <Owed aria-label={ja ? "支払予定額" : "Amount owed"}>{yen(row.owed, locale)}<small>{row.complete ? (ja ? "見積もり" : "estimated") : label(row.message)}</small></Owed>
+                            </PersonHeader>
+                            {row.person.role === "staff" ? <Breakdown>
+                                <span>{ja ? "賃金" : "Wages"}<strong>{yen(row.wages, locale)}</strong></span>
+                                <span>{ja ? "ドリンク手当" : "Drink bonus"}<strong>{yen(row.bonus, locale)}</strong></span>
+                            </Breakdown> : <Breakdown>
+                                <span>{ja ? "総給与" : "Gross pay"}<strong>{yen(row.gross, locale)}</strong></span>
+                                <span>{ja ? "スタッフ給与" : "Staff pay"}<strong>{yen(row.staffCost, locale)}</strong></span>
+                                <span>{ja ? "控除" : "Deductions"}<strong>{yen(row.deductions, locale)}</strong></span>
+                            </Breakdown>}
+                            {row.chuck ? <details aria-label={ja ? "Chuck担当シフトのスタッフ給与と控除の詳細" : "Details: staff owed on Chuck-managed shifts and deductions"}>
+                                <summary>{ja ? "スタッフ給与と控除の内訳" : "Staff pay and deductions"}</summary>
+                                <ul>
+                                    {row.chuck.staff_owed.map(item => <li key={item.user_id}>
+                                        {item.name}: {ja ? "賃金" : "wages"} {yen(item.wages_yen, locale)} · {ja ? "ドリンク手当" : "drink bonus"} {yen(item.staff_drink_bonus_yen, locale)}
+                                    </li>)}
+                                    {row.chuck.deductions.map(item => <li key={"deduction-" + item.id}>
+                                        {item.business_date} · {item.payee_name}: {yen(item.amount_yen, locale)} · {item.reason}
+                                    </li>)}
+                                </ul>
+                            </details> : null}
+                        </Person>)}
+                        {!rows.length ? <p>{ja ? "この月の記録がありません。" : "No pay records for this month."}</p> : null}
+                    </People>
                 </>
             )}
         </Panel>
@@ -268,25 +235,28 @@ const Header = styled.div`
     p{color:var(--neutral-300);max-width:850px;}
     button{width:auto;}
 `;
-const Toolbar = styled.div`
-    display:flex;justify-content:flex-end;
-    label{display:flex;flex-direction:column;gap:var(--space-0);min-width:190px;}
-    input{background:var(--dark);}
-`;
-const Summary = styled.div`
-    display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--space-1);
-`;
-const Metric = styled.div`
+const PayTotal = styled.div`
     display:flex;flex-direction:column;gap:var(--space-0);padding:var(--space-1);
     background:var(--neutral-800);border-radius:8px;
     span,small{color:var(--neutral-300);}
+    strong{font-size:var(--font-size-h4);}
 `;
-const Scroll = styled.div`
-    width:100%;overflow-x:auto;
-    table{width:100%;border-collapse:collapse;min-width:760px;}
-    th,td{text-align:left;vertical-align:top;padding:var(--space-1);border-bottom:1px solid var(--neutral-700);}
-    thead th{color:var(--neutral-300);font-weight:500;}
-    tbody th{font-weight:600;}
-    small{display:block;color:var(--neutral-300);font-weight:400;}
-    details{min-width:500px;}
+const People = styled.div`display:flex;flex-direction:column;gap:var(--space-1);`;
+const Person = styled.article`
+    display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-1);
+    border:1px solid var(--neutral-700);border-radius:10px;min-width:0;
+    details summary{cursor:pointer;}
+`;
+const PersonHeader = styled.div`
+    display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-1);
+    small{display:block;color:var(--neutral-300);}
+`;
+const Owed = styled.strong`
+    text-align:right;font-size:var(--font-size-h5);
+    small{font-size:var(--font-size-small);font-weight:400;}
+`;
+const Breakdown = styled.div`
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:var(--space-1);
+    span{display:flex;flex-direction:column;gap:var(--space-0);color:var(--neutral-300);}
+    strong{color:var(--neutral-100);}
 `;
