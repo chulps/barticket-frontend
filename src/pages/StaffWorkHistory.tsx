@@ -260,7 +260,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                                 <Summary>
                                     <Metric>
                                         <span>{ja ? "記録されたシフト" : "Recorded shifts"}</span>
-                                        <strong>{totals.recordedShifts || "—"}</strong>
+                                        <strong>{totals.recordedShifts}</strong>
                                     </Metric>
                                     <Metric>
                                         <span>{ja ? "記録された勤務時間" : "Recorded hours"}</span>
