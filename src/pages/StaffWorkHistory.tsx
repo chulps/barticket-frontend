@@ -294,7 +294,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                                         {filtered.some(row => row.drinks.length) ? (
                                             <HistoryList>
                                                 {filtered.filter(row => row.drinks.length).map(row =>
-                                                    <HistoryEntry key={row.shiftId}>
+                                                    <HistoryEntry key={row.shiftId ?? row.businessDate}>
                                                         <div>
                                                             <strong>{formatBusinessDate(row.businessDate, locale)}</strong>
                                                             {row.drinks.map((drink, index) => (
