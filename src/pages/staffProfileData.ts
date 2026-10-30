@@ -5,9 +5,9 @@ import type { ShiftPunch, ShiftReport } from "../api/account";
  * distinct from clock punches; identities are never inferred by display name.
  */
 export type StaffActivityRow = {
-    shiftId: number | null;
+    shiftId: number;
     businessDate: string;
-    status: "open" | "closed" | null;
+    status: "open" | "closed";
     hoursSeconds: number | null;
     historicalHoursSeconds?: number | null;
     hoursBasis?: "clock" | "spreadsheet" | "spreadsheet_authoritative" | "clock_plus_spreadsheet";
@@ -59,7 +59,7 @@ export function buildStaffActivity(
     );
 }
 
-export function recordedStaffTotals(rows: StaffActivityRow[]) {
+export function recordedStaffTotals(rows: Pick<StaffActivityRow, "hoursSeconds" | "drinks">[]) {
     const hourRows = rows.filter(row => row.hoursSeconds !== null);
     const drinkRows = rows.filter(row => row.drinks.length > 0);
     return {
