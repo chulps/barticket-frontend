@@ -10,7 +10,19 @@ const output = ts.transpileModule(src("pages/shiftControlPolicy.ts"), {
 }).outputText;
 const mod = { exports: {} };
 runInNewContext(output, { module: mod, exports: mod.exports, Intl, Date });
-const { businessDateJst, shouldPromptNoonReview, currentPunch, workedSeconds, closeBlockers, previewPaidTotals, canManageShift } = mod.exports;
+const { businessDateJst, shouldPromptNoonReview, currentPunch, workedSeconds, closeBlockers, previewPaidTotals, canManageShift, isReadinessForShift } = mod.exports;
+
+test("close readiness is trusted only for the selected shift", () => {
+    assert.equal(isReadinessForShift({ shift: { id: 12 } }, 12), true);
+    assert.equal(isReadinessForShift(null, 12), false);
+    assert.equal(isReadinessForShift({ shift: null }, 12), false);
+    assert.equal(isReadinessForShift({ shift: { id: 11 } }, 12), false);
+    const review = src("pages/ShiftCloseReview.tsx");
+    assert.match(review, /Close readiness could not be verified/);
+    assert.match(review, /閉店情報を確認できません/);
+    assert.match(review, /Carried balance/);
+    assert.match(review, /繰越残高/);
+});
 
 test("business day rolls at noon JST, never at midnight", () => {
     assert.equal(businessDateJst(Date.parse("2026-10-16T14:59:59Z")), "2026-10-16"); // 23:59 JST
@@ -77,12 +89,15 @@ test("close POST is called only from reviewed explicit confirmation", () => {
     const review = src("pages/ShiftCloseReview.tsx");
     assert.doesNotMatch(profile, /accountApi\.closeShift\(/);
     assert.doesNotMatch(timeClock, /accountApi\.closeShift\(/);
-    assert.match(review, /if \(!preview \|\| blockers\.length \|\| !acknowledged \|\| working \|\| uncertain \|\| submitInFlight\.current\) return/);
+    assert.match(review, /if \(!preview \|\| !readinessMatches \|\| blockers\.length \|\| !acknowledged \|\| working \|\| uncertain \|\| submitInFlight\.current\) return/);
     assert.match(review, /submitInFlight\.current = true/);
     assert.match(review, /err\.status >= 500/);
     assert.match(review, /onClick=\{\(\) => void confirmClose\(\)\}/);
     assert.match(review, /const \[latest, latestTickets, ready\] = await Promise\.all/);
     assert.match(review, /if \(!ready\.can_close \|\| closeBlockers\(latestTickets\)\.length\)/);
+    assert.match(review, /isReadinessForShift\(ready, shiftId\)/);
+    assert.match(review, /verifiedReadiness/);
+    assert.match(review, /!readinessMatches/);
     assert.match(review, /accountApi\.closeShift\(\)/);
     assert.match(review, /registerCloseGuard\(\(\) => !working && !submitInFlight\.current\)/);
     assert.match(review, /allowKeepOpen/);

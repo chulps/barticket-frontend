@@ -4,7 +4,7 @@ import { accountApi, type ShiftReport } from "../api/account";
 import { ApiError } from "../api/client";
 import { ticketsApi, type ApiTicket } from "../api/tickets";
 import { useModal } from "../hooks/useModal";
-import { closeBlockers, previewPaidTotals } from "./shiftControlPolicy";
+import { closeBlockers, isReadinessForShift, previewPaidTotals } from "./shiftControlPolicy";
 import "./ShiftControls.css";
 
 type Preview = { shift: ShiftReport; tickets: ApiTicket[] };
@@ -52,7 +52,15 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
                     setError(ja ? "このシフトはすでに変更されています。画面を更新してください。" : "This shift has changed. Refresh its status before closing.");
                 } else {
                     setPreview({ shift: current, tickets });
-                    if (ready.shift?.id === shiftId) setReadiness(ready);
+                    if (isReadinessForShift(ready, shiftId)) {
+                        setReadiness(ready);
+                    } else {
+                        setReadiness(null);
+                        setAcknowledged(false);
+                        setError(ja
+                            ? "閉店情報を確認できません。再読み込みしてから閉店してください。"
+                            : "Close readiness could not be verified. Refresh and recheck before closing.");
+                    }
                 }
             } catch {
                 if (active) setError(ja ? "最新の伝票とシフトを確認できません。接続を確認してください。" : "Could not verify the current shift and tickets. Check the connection.");
@@ -70,14 +78,16 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
     }, [working, registerCloseGuard]);
 
     const blockers = closeBlockers(preview?.tickets ?? []);
-    const carryForwards = readiness?.approved_carry_forwards ?? [];
+    const readinessMatches = isReadinessForShift(readiness, shiftId);
+    const verifiedReadiness = readinessMatches ? readiness : null;
+    const carryForwards = verifiedReadiness?.approved_carry_forwards ?? [];
     const active = preview?.shift.punches.filter(punch => punch.clock_out === null) ?? [];
     const live = preview ? previewPaidTotals(preview.tickets, preview.shift.id) : null;
     const stale = Boolean(preview && preview.shift.business_date !== businessDate);
     const yen = (n: number) => "¥" + n.toLocaleString("ja-JP");
 
     async function confirmClose() {
-        if (!preview || blockers.length || !acknowledged || working || uncertain || submitInFlight.current) return;
+        if (!preview || !readinessMatches || blockers.length || !acknowledged || working || uncertain || submitInFlight.current) return;
         submitInFlight.current = true;
         setWorking(true);
         setError("");
@@ -88,6 +98,14 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
             if (!latest || latest.status !== "open" || latest.id !== shiftId) {
                 setPreview(null);
                 setError(ja ? "シフトの状態が変わりました。再確認してください。" : "The active shift changed. Review it again before closing.");
+                return;
+            }
+            if (!isReadinessForShift(ready, shiftId)) {
+                setReadiness(null);
+                setAcknowledged(false);
+                setError(ja
+                    ? "閉店情報を確認できません。再読み込みしてから閉店してください。"
+                    : "Close readiness could not be verified. Refresh and recheck before closing.");
                 return;
             }
             if (!ready.can_close || closeBlockers(latestTickets).length) {
@@ -141,7 +159,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
                 : (ja ? "シフトを保留できませんでした。" : "Could not keep the shift open.") + " (" + err.message + ")");
             try {
                 const [latest, ready] = await Promise.all([getActiveShift(), accountApi.closeReadiness()]);
-                if (latest?.id === shiftId && ready.shift?.id === shiftId) {
+                if (latest?.id === shiftId && isReadinessForShift(ready, shiftId)) {
                     setPreview(current => current ? { ...current, shift: latest } : current);
                     setReadiness(ready);
                 }
@@ -172,8 +190,11 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
                 <div><small>{ja ? "シフト" : "Shift"}</small><strong>#{preview.shift.id}</strong></div>
                 <div><small>{ja ? "会計済み売上（推定）" : "Paid revenue (preview)"}</small><strong>{yen(live?.paidTotal ?? 0)}</strong></div>
                 <div><small>{ja ? "未会計伝票" : "Open tickets"}</small><strong>{blockers.length}</strong></div>
-                <div><small>{ja ? "繰越残高" : "Carried balance"}</small><strong>{yen(readiness?.receivables.outstanding_total ?? 0)}</strong></div>
+                <div><small>{ja ? "繰越残高" : "Carried balance"}</small><strong>{verifiedReadiness ? yen(verifiedReadiness.receivables.outstanding_total) : "—"}</strong></div>
             </div>
+            {!readinessMatches ? <p className="shift-alert" role="alert">{ja
+                ? "繰越残高と閉店可否を確認できません。最新情報を再読み込みしてください。"
+                : "Carry balances and close eligibility are unavailable until this shift’s readiness is verified. Refresh and recheck."}</p> : null}
             <p className="shift-muted">{ja ? "現金" : "Cash"} {yen(live?.cash ?? 0)}
                 {" · "}{ja ? "カード" : "Card"} {yen(live?.card ?? 0)}
                 {" · "}{ja ? "その他" : "Other"} {yen(live?.other ?? 0)}</p>
@@ -191,8 +212,8 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
                 <p>{ja ? "閉店しても債権は消えず、後日の回収はこの営業日の売上や来店人数を変更しません。" : "Closing does not erase the debt. Later collections do not alter this shift's service sales or guest count."}</p>
             </div> : null}
             <div className="shift-warning">
-                <strong>{ja ? "勤務中のスタッフ" : "People currently clocked in"}: {readiness?.automatic_clock_out.will_clock_out_count ?? active.length}</strong>
-                {(readiness?.automatic_clock_out.will_clock_out_staff ?? active).length ? <ul>{(readiness?.automatic_clock_out.will_clock_out_staff ?? active).map(punch => <li key={punch.user_id}>{punch.name}</li>)}</ul>
+                <strong>{ja ? "勤務中のスタッフ" : "People currently clocked in"}: {verifiedReadiness?.automatic_clock_out.will_clock_out_count ?? active.length}</strong>
+                {(verifiedReadiness?.automatic_clock_out.will_clock_out_staff ?? active).length ? <ul>{(verifiedReadiness?.automatic_clock_out.will_clock_out_staff ?? active).map(punch => <li key={punch.user_id}>{punch.name}</li>)}</ul>
                     : <p>{ja ? "全員退勤済みです。" : "No one is clocked in."}</p>}
                 <p>{ja
                     ? "現在のサーバー仕様では、シフトを閉じると勤務中の全員が自動退勤となります。勤務時間に影響するため確認してください。"

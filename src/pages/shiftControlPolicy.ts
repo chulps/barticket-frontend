@@ -3,6 +3,11 @@ import type { ApiTicket } from "../api/tickets";
 
 export type ShiftLookupStatus = "loading" | "ready" | "error";
 
+/** Readiness totals are trustworthy only when the API scopes them to this shift. */
+export function isReadinessForShift(readiness: { shift?: { id?: number } | null } | null | undefined, shiftId: number): boolean {
+    return readiness?.shift?.id === shiftId;
+}
+
 /** Venue business day rolls at 12:00 Japan time, not at midnight. */
 export function businessDateJst(nowMs: number): string {
     const parts = new Intl.DateTimeFormat("en-US", {
