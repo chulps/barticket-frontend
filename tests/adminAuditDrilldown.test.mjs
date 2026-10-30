@@ -40,6 +40,7 @@ test("Admin uses Analytics time-scale tabs for activity and shares its month wit
     assert.match(team, /<AdminShiftActivity/);
     assert.match(team, /accountApi\.analyticsShifts\(\)/);
     assert.match(team, /<TabGroup<TimeScale>/);
+    assert.match(team, /loading \|\| loadError \? "—" : totals\.recordedShifts/);
     for (const scale of ["all", "year", "month", "day"]) assert.match(team, new RegExp(`id: "${scale}"`));
     assert.match(team, /<AnalyticsDatePicker/);
     assert.match(team, /timeScale === "month" \? <AdminMonthlyPayOverview/);
