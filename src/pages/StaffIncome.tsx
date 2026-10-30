@@ -433,7 +433,7 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                             </Metric>
                             <Metric>
                                 <span>{ja ? "スタッフドリンク手当" : "Staff-drink bonus"}</span>
-                                <strong>{money(bonus?.amount_yen ?? 0, locale)}</strong>
+                                <strong>{money(bonus?.complete ? bonus.amount_yen : null, locale)}</strong>
                             </Metric>
                         </Summary>
                         {staffChartComplete && (staffChartRows[0]?.total ?? 0) > 0 ? <DonutChart title={ja ? "月間収入の内訳" : "Monthly income breakdown"}
