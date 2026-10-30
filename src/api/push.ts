@@ -4,9 +4,12 @@ type PushKeys = { p256dh: string; auth: string };
 type PushSubscriptionPayload = { endpoint: string; keys: PushKeys };
 
 export class PushRequestError extends Error {
-  constructor(message: string, readonly status: number) {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
     super(message);
     this.name = "PushRequestError";
+    this.status = status;
   }
 }
 
