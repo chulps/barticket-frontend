@@ -5,6 +5,11 @@ import { useI18n } from "../i18n";
 
 type Availability = "checking" | "ready" | "unavailable" | "unsupported" | "error";
 
+function isAppleMobileDevice(): boolean {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
 export default function PushSettings() {
   const { locale } = useI18n();
   const ja = locale === "ja";
@@ -37,6 +42,7 @@ export default function PushSettings() {
   }, [checkVersion]);
 
   const supported = supportsPush();
+  const showAppleInstallGuide = !supported && isAppleMobileDevice();
   const canEnable = enabled || availability === "ready";
   const statusText = availability === "checking"
     ? (ja ? "通知の利用状況を確認しています…" : "Checking notification availability…")
@@ -62,6 +68,21 @@ export default function PushSettings() {
         <StatusDot aria-hidden="true" />
         <span>{statusText}</span>
       </Status>
+      {showAppleInstallGuide ? (
+        <InstallGuide>
+          <h4>{ja ? "iPhoneで通知を使う準備" : "Set up notifications on iPhone or iPad"}</h4>
+          <ol>
+            <li>{ja ? "Safariでこのページを開きます。" : "Open this page in Safari."}</li>
+            <li>{ja ? "画面下の共有ボタン（四角から上向き矢印）をタップします。" : "Tap Share — the button that looks like a square with an arrow pointing up."}</li>
+            <li>{ja ? "「ホーム画面に追加」をタップし、右上の「追加」をタップします。" : "Tap “Add to Home Screen,” then tap “Add” in the top corner."}</li>
+            <li>{ja ? "ホーム画面にできたBarTicketのアイコンを開きます。" : "Open the new BarTicket icon on your Home Screen."}</li>
+            <li>{ja ? "この画面に戻り、「この端末で通知を有効にする」をタップして「許可」を選びます。" : "Return here, tap “Enable notifications,” then tap “Allow.”"}</li>
+          </ol>
+          <p>{ja
+            ? "すでにホーム画面にBarTicketのアイコンがある場合は、削除せず、そのアイコンから開いて通知を有効にしてください。"
+            : "Already have a BarTicket icon on your Home Screen? Keep it. Open that icon and enable notifications; you don’t need to delete or reinstall it."}</p>
+        </InstallGuide>
+      ) : null}
       {error ? <Error role="alert">{error}</Error> : null}
       <Actions>
         <ActionButton
@@ -156,6 +177,19 @@ const StatusDot = styled.span`
   [data-state="unavailable"] &, [data-state="error"] &, [data-state="unsupported"] & {
     background: var(--neutral-400);
   }
+`;
+
+const InstallGuide = styled.div`
+  min-width: 0;
+  padding: var(--space-1);
+  background: var(--neutral-800);
+  border: 1px solid var(--neutral-600);
+  border-radius: 8px;
+  h4 { margin: 0 0 var(--space-0); font-size: var(--font-size-default); }
+  ol { margin: 0; padding-left: 1.35rem; }
+  li { padding-left: 2px; }
+  li + li { margin-top: 6px; }
+  p { margin: var(--space-1) 0 0; color: var(--neutral-300); }
 `;
 
 const Actions = styled.div`
