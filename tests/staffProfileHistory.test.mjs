@@ -98,8 +98,8 @@ test("Summaries count drinks/shift records without inventing unrecorded history"
 });
 
 test("Frontend does not pretend compensation API or historical import is available", () => {
-    assert.match(history, /Not available yet/);
-    assert.match(history, /does not mean ¥0/);
+    assert.match(history, /StaffIncome userId=\{userId\} locale=\{locale\} role=\{role\}/);
+    assert.doesNotMatch(history, /Not available yet|Bonuses & adjustments|benefits/);
+    assert.match(history, /means unavailable, not zero/);
     assert.doesNotMatch(history, /\/payroll/);
-    assert.match(history, /not available yet/);
 });
