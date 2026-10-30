@@ -702,6 +702,24 @@ test("Profile work tabs follow arrow-key selection and keep their panels connect
   await expect(hours).toHaveAttribute("aria-selected", "true");
 });
 
+test("historical-hours reconciliation reveals each step only when it is actionable", async ({ page }) => {
+  await mockedPOS(page);
+  await page.goto("/admin");
+  await page.getByRole("button", { name: "Historical hours" }).click();
+
+  const chooseCsv = page.getByRole("heading", { name: "Choose the staff-hours CSV" });
+  const reconcile = page.getByRole("heading", { name: "Reconcile and review staff hours" });
+  await expect(chooseCsv).toBeVisible();
+  await expect(reconcile).toHaveCount(0);
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "verified-hours.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("Date,Staff,Hours\n2026-10-27,Haruka,6.5\n"),
+  });
+  await expect(reconcile).toBeVisible();
+});
+
 test("mobile picker traps focus and contains scroll; keyboard dismissal restores focus",async ({page})=>{
   const state=await mockedPOS(page);
   state.activeMenu.items=Array.from({length:24},(_,index)=>({

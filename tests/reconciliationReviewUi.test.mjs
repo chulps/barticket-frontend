@@ -46,6 +46,11 @@ test("mobile reconciliation uses labeled records and separates the four work ste
   assert.match(code,/Current effective hours/);
   assert.match(code,/role="list" aria-label/);
 });
+test("historical-hours reconciliation is hidden until its required columns are mapped",()=>{
+  assert.match(code,/const canReconcileHistory = Boolean\(csv && mapping\.date && mapping\.staff && mapping\.hours\)/);
+  assert.match(code,/\{canReconcileHistory \? <Block>/);
+  assert.match(code,/disabled=\{!canReconcileHistory \|\| Boolean\(preview\?\.errors\.length\) \|\| historyBusy\}/);
+});
 test("reconciliation UI parses",()=>{
   const parsed=ts.createSourceFile("Reconciliation.tsx",code,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
   assert.deepEqual(parsed.parseDiagnostics.map(d=>d.messageText),[]);
