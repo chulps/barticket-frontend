@@ -342,11 +342,11 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                         : chuckStats ? <>
                             <Summary>
                                 <Metric><span>{ja ? "担当した営業日" : "Managed nights"}</span><strong>{chuckStats.nights.length}</strong></Metric>
-                                <Metric><span>{ja ? "記録済み売上" : "Billed service sales"}</span><strong>{money(chuckBilledSales, locale)}</strong></Metric>
+                                <Metric><span>{ja ? "記録済み売上" : "Recorded sales"}</span><strong>{money(chuckBilledSales, locale)}</strong></Metric>
                                 <Metric><span>{ja ? "来客数" : "Guests"}</span><strong>{chuckGuests === null ? "—" : chuckGuests.toLocaleString(localeTag(locale))}</strong></Metric>
                             </Summary>
                             {chuckRevenueBars.length ? <HorizontalBarChart
-                                title={ja ? "営業日別の売上" : "Billed service sales by night"}
+                                title={ja ? "営業日別の売上" : "Recorded sales by night"}
                                 bars={chuckRevenueBars} locale={locale} />
                                 : <ChartNote role="note">{chuckStats.nights.length === 0
                                     ? (ja ? "この月にChuck担当で終了したシフトはありません。" : "No closed shifts assigned to Chuck were recorded this month.")
@@ -354,13 +354,13 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                                 </ChartNote>}
                             {chuckMissingSalesNights > 0 ? <ChartNote role="note">{ja
                                 ? `売上記録がない営業日が ${chuckMissingSalesNights} 日あります。合計では不明な金額を0円として扱いません。`
-                                : `Ticket-level sales are missing for ${chuckMissingSalesNights} managed night(s). The total is unavailable rather than treating missing amounts as ¥0.`}</ChartNote> : null}
+                                : `Ticket details are missing for ${chuckMissingSalesNights} managed night(s); each date uses its recorded shift total.`}</ChartNote> : null}
                             {chuckStats.unassignedManagerDays || chuckStats.ambiguousManagerDays ? <ChartNote role="note">{ja
                                 ? `担当未設定または担当が重複した営業日は個人の統計に含めていません（未設定 ${chuckStats.unassignedManagerDays} 日、要確認 ${chuckStats.ambiguousManagerDays} 日）。`
                                 : `Days without one confirmed manager are excluded from your stats (${chuckStats.unassignedManagerDays} unassigned, ${chuckStats.ambiguousManagerDays} needing review).`}</ChartNote> : null}
                             <ChartNote>{ja
-                                ? "売上はサービス提供日の請求額です。未収分は営業日に一度だけ含み、後日の回収は加算しません。"
-                                : "Sales use the original service date. Deferred tickets count once on that date; later collections are not added again."}</ChartNote>
+                                ? "チケット明細がある日は請求額を、ない日はシフトに記録された合計を表示します。未収分はサービス日に一度だけ含み、後日の回収は加算しません。"
+                                : "Ticket totals are used when available; otherwise, recorded shift totals fill the gap. Deferred tickets count once on their service date; later collections are not added again."}</ChartNote>
                         </> : null}
             </StatsPanel> : null}
 
