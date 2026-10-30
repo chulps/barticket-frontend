@@ -227,3 +227,51 @@ test("signing out revokes the previous token's push subscription before unsubscr
     }
   }
 });
+
+
+test("push setup checks server configuration before asking for device permission", async () => {
+  const names = ["localStorage", "navigator", "window", "Notification", "fetch", "__BARTICKET_TEST_ENV__"];
+  const original = new Map(names.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  const install = (name, value) => Object.defineProperty(globalThis, name, {
+    configurable: true, writable: true, value,
+  });
+  let permissionPrompts = 0;
+  const calls = [];
+  try {
+    install("localStorage", { getItem: key => key === "barticket_token" ? "signed-in-token" : null });
+    install("navigator", { serviceWorker: { register: async () => ({}) } });
+    install("window", { PushManager: function PushManager() {}, Notification: true });
+    install("Notification", {
+      permission: "default",
+      requestPermission: async () => { permissionPrompts++; return "granted"; },
+    });
+    install("fetch", async (url) => {
+      calls.push(url);
+      return { ok: false, status: 503, json: async () => ({ detail: "Web push is not configured on the server" }) };
+    });
+    install("__BARTICKET_TEST_ENV__", {
+      API_URL: "https://api.example.test",
+      BASE_URL: "/barticket-frontend/",
+      VITE_API_URL: "https://api.example.test",
+      getDeviceId: () => "test-device",
+      getToken: () => "signed-in-token",
+    });
+    const { enablePush, getPushPublicKey } = await loadTypeScript("../src/api/push.ts", [
+      ['import { API_URL, getDeviceId, getToken } from "./client";', "const { API_URL, getDeviceId, getToken } = globalThis.__BARTICKET_TEST_ENV__;"],
+      ["import.meta.env.", "globalThis.__BARTICKET_TEST_ENV__."],
+    ]);
+    assert.equal(await getPushPublicKey(), null, "503 is reported as a known unconfigured server");
+    await assert.rejects(enablePush, error => error.status === 503);
+    assert.deepEqual(calls, [
+      "https://api.example.test/push/vapid-public-key",
+      "https://api.example.test/push/vapid-public-key",
+    ]);
+    assert.equal(permissionPrompts, 0, "do not show a permission prompt until server push is configured");
+  } finally {
+    for (const name of names) {
+      const descriptor = original.get(name);
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else delete globalThis[name];
+    }
+  }
+});
