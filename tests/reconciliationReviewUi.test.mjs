@@ -30,11 +30,21 @@ test("manager values are separated by source and the report comparison starts co
   assert.match(code,/<details>\s*<summary>\{ja \? "営業日レポート比較/);
 });
 test("staff-hours mapping preserves the original staff and total-hours columns",()=>{
-  assert.match(code,/Historical staff-hours columns/);
-  assert.match(code,/Daily report comparison \(read-only\)/);
+  assert.match(code,/Map the staff-hours columns/);
+  assert.match(code,/compare daily reports \(read-only\)/);
   assert.match(code,/source_row/);
   assert.match(code,/source_column/);
   assert.match(code,/Rows with blank hours are skipped/);
+});
+test("mobile reconciliation uses labeled records and separates the four work steps",()=>{
+  assert.match(code,/Choose the staff-hours CSV/);
+  assert.match(code,/Map the staff-hours columns/);
+  assert.match(code,/Reconcile and review staff hours/);
+  assert.match(code,/Save the selected staff hours/);
+  assert.equal((code.match(/<MobileRows/g) ?? []).length,2);
+  assert.match(code,/Spreadsheet hours/);
+  assert.match(code,/Current effective hours/);
+  assert.match(code,/role="list" aria-label/);
 });
 test("reconciliation UI parses",()=>{
   const parsed=ts.createSourceFile("Reconciliation.tsx",code,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import styled from "styled-components";
 import type { Account, ShiftReport } from "../api/account";
 import { historicalHoursApi, type HistoricalHoursPreview, type HistoricalHoursSourceRow } from "../api/historicalHours";
@@ -7,6 +7,17 @@ import { importPreview, parseCsv, type CsvData } from "./reconciliationCsv";
 import { canDiscard, defaultCsvMapping } from "./reconciliationDraftSafety";
 
 type Field = "manager" | "revenue" | "guests" | "event";
+type MobileRecordField = { label: string; value: ReactNode };
+
+function MobileRecord({ title, fields }: { title: string; fields: MobileRecordField[] }) {
+    return <RecordCard>
+        <h5>{title}</h5>
+        <dl>{fields.map((field, index) => <div key={`${field.label}-${index}`}>
+            <dt>{field.label}</dt><dd>{field.value}</dd>
+        </div>)}</dl>
+    </RecordCard>;
+}
+
 type Draft = { manager: string; revenue: string; guests: string; event: string; notes: string; staff: string; guestName: string; guestPayType: string; guestPayAmount: string; guestDrinkback: string; staffHours: Record<string, string> };
 const fresh = (shift: ShiftReport): Draft => ({
     manager: shift.opened_by ?? "", revenue: String(shift.paid_total), guests: String(shift.guest_count),
@@ -352,7 +363,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
             </details>
         </Block>
         <Block>
-            <h3>{ja ? "勤務表CSV" : "Staff-hours spreadsheet"}</h3>
+            <StepHeading><span>1</span><h3>{ja ? "勤務表CSVを選ぶ" : "Choose the staff-hours CSV"}</h3></StepHeading>
             <p>{ja ? "1. CSVを選び、日付・スタッフ名・合計時間の列を確認します。2. 勤務時間を照合して結果を確認します。照合だけでは保存されません。" : "1. Choose the CSV and check the date, staff-name, and total-hours columns. 2. Reconcile staff hours to preview the results. This step does not save anything."}</p>
             <label>CSV (.csv, UTF-8)<input type="file" accept=".csv,text/csv" onChange={e => {
                 const file = e.currentTarget.files?.[0];
@@ -363,13 +374,13 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
             {csv ? <>
                 <p>{csv.rows.length} {ja ? "行" : "rows"} · {csv.headers.length} {ja ? "列" : "columns"}</p>
                 <fieldset>
-                    <legend>{ja ? "履歴勤務時間の列" : "Historical staff-hours columns"}</legend>
+                    <legend>{ja ? "2. 勤務時間の列を対応付ける" : "2. Map the staff-hours columns"}</legend>
                     <p>{ja ? "日付、スタッフ名、合計時間を選びます。時間が空の行は取り込み対象外です。" : "Choose the date, staff name, and total-hours columns. Rows with blank hours are skipped."}</p>
                     <Fields>{(["date", "staff", "hours"] as const).map(key => mapOption(key, key === "staff" ? (ja ? "スタッフ名" : "Staff name") : key === "hours" ? text.hours : text.date))}</Fields>
                 </fieldset>
                 <fieldset>
-                    <legend>{ja ? "営業日レポートの比較（読み取り専用）" : "Daily report comparison (read-only)"}</legend>
-                    <p>{ja ? "比較にはマネージャー、売上、来客数、イベントの列も使用します。" : "Manager, revenue, guests, and event columns are used for the separate read-only report comparison."}</p>
+                    <legend>{ja ? "任意：営業日レポートを比較（読み取り専用）" : "Optional: compare daily reports (read-only)"}</legend>
+                    <p>{ja ? "この比較は勤務時間の取り込みとは別です。マネージャー、売上、来客数、イベントの照合だけを行い、保存しません。" : "This is separate from staff-hours import. It compares manager, revenue, guests, and event values only; nothing is saved."}</p>
                     <Fields>{(["manager", "revenue", "guests", "event"] as const).map(key => mapOption(key, text[key]))}</Fields>
                 </fieldset>
                 {preview?.errors.length ? <Notice role="alert">{preview.errors.slice(0, 20).map(message => <p key={message}>{message}</p>)}{preview.errors.length > 20 ? <p>+ {preview.errors.length - 20}</p> : null}</Notice> : null}
@@ -389,7 +400,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                         ))}
                     </Actions>
                     <p className="shift-muted" role="status">{ja ? "表示中" : "Showing"}: {previewRows.length} / {preview.preview.length}</p>
-                    <TableWrap><table><thead><tr>
+                    <DesktopRows><TableWrap><table><thead><tr>
                         <th>{text.date}</th>
                         <th>{ja ? "マネージャー（勤務表）" : "Manager (spreadsheet)"}</th>
                         <th>{ja ? "マネージャー（BarTicket）" : "Manager (BarTicket)"}</th>
@@ -413,7 +424,24 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                                     : state === "match" ? (ja ? "一致" : "Match")
                                         : details.join("; ")}</td>
                             </tr>;
-                        })}</tbody></table></TableWrap>
+                        })}</tbody></table></TableWrap></DesktopRows>
+                    <MobileRows role="list" aria-label={ja ? "営業日比較" : "Daily report comparison"}>
+                        {previewRows.map(({ imported, existing, state, differences }) => {
+                            const details = differences.map(field => field === "manager"
+                                ? `${ja ? "マネージャーの記録が不一致" : "Manager records differ"}: ${ja ? "勤務表" : "Spreadsheet"} ${imported.manager} · BarTicket ${existing?.opened_by ?? "—"}`
+                                : field === "revenue"
+                                    ? `${text.revenue}: ¥${imported.revenue.toLocaleString()} · BarTicket ¥${(existing?.paid_total ?? 0).toLocaleString()}`
+                                    : `${text.guests}: ${imported.guests} · BarTicket ${existing?.guest_count ?? "—"}`);
+                            return <MobileRecord key={imported.line} title={imported.date} fields={[
+                                { label: ja ? "マネージャー（勤務表）" : "Manager (spreadsheet)", value: imported.manager },
+                                { label: ja ? "マネージャー（BarTicket）" : "Manager (BarTicket)", value: existing?.opened_by ?? "—" },
+                                { label: ja ? "イベント" : "Event", value: imported.event || "—" },
+                                { label: ja ? "売上（勤務表 / BarTicket）" : "Revenue (spreadsheet / BarTicket)", value: `¥${imported.revenue.toLocaleString()} / ${existing ? `¥${existing.paid_total.toLocaleString()}` : "—"}` },
+                                { label: ja ? "来客数（勤務表 / BarTicket）" : "Guests (spreadsheet / BarTicket)", value: `${imported.guests} / ${existing?.guest_count ?? "—"}` },
+                                { label: ja ? "差異" : "Differences", value: state === "new" ? (ja ? "記録なし" : "No recorded shift") : state === "match" ? (ja ? "一致" : "Match") : details.join("; ") },
+                            ]} />;
+                        })}
+                    </MobileRows>
                     <Actions>
                         <button type="button" className="secondary" onClick={() => void copyComparisonReport()}>
                             {ja ? "比較レポートJSONをコピー" : "Copy comparison JSON"}
@@ -424,7 +452,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                 </details> : null}
             </> : null}
             <Block>
-                <h4>{ja ? "履歴勤務時間の照合" : "Historical staff-hours reconciliation"}</h4>
+                <StepHeading><span>3</span><h4>{ja ? "勤務時間を照合して確認" : "Reconcile and review staff hours"}</h4></StepHeading>
                 <p>{ja ? "2026年10月から1か月ずつ確認します。実際の打刻時刻は作成せず、差異修正は理由とともに監査記録へ保存します。" : "Review one month at a time, starting with October 2026. No clock times are created; corrections to conflicting totals are audited with a reason."}</p>
                 <Actions>
                     <button type="button" className="secondary" disabled={!csv || historyBusy} onClick={() => void reconcileHistory()}>
@@ -438,7 +466,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                 {historyError ? <p role="alert">{historyError}</p> : null}
                 {historyPreview ? <>
                     <p role="status">{historyBatch?.sourceFile} · {ja ? "一致" : "Matches"}: {historyPreview.counts.match} · {ja ? "不足" : "Missing"}: {historyPreview.counts.new} · {ja ? "差異" : "Conflicts"}: {historyPreview.counts.conflict} · {ja ? "未対応名" : "Unmapped"}: {historyPreview.counts.unmapped} · {ja ? "重複候補" : "Duplicate candidates"}: {historyPreview.counts.duplicate_candidate}</p>
-                    <TableWrap><table><thead><tr><th>{ja ? "取り込み" : "Import"}</th><th>{text.date}</th><th>{ja ? "スタッフ" : "Staff"}</th><th>{ja ? "勤務表時間" : "Spreadsheet hours"}</th><th>{ja ? "現在の有効時間" : "Current effective hours"}</th><th>{ja ? "結果" : "Result"}</th><th>{ja ? "出典" : "Source"}</th></tr></thead>
+                    <DesktopRows><TableWrap><table><thead><tr><th>{ja ? "取り込み" : "Import"}</th><th>{text.date}</th><th>{ja ? "スタッフ" : "Staff"}</th><th>{ja ? "勤務表時間" : "Spreadsheet hours"}</th><th>{ja ? "現在の有効時間" : "Current effective hours"}</th><th>{ja ? "結果" : "Result"}</th><th>{ja ? "出典" : "Source"}</th></tr></thead>
                         <tbody>{historyPreview.rows.map(row => {
                             const cellKey = historyCellKey(row.source_row, row.source_column);
                             const canImport = (row.state === "new" || row.state === "conflict") && row.user_id !== null;
@@ -459,7 +487,35 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                                 <td>{row.effective_seconds === null ? (ja ? "不明" : "Unknown") : row.effective_seconds / 3600}</td>
                                 <td>{statusLabel} — {row.reason}</td><td>{row.source_row} · {row.source_column}</td>
                             </tr>;
-                        })}</tbody></table></TableWrap>
+                        })}</tbody></table></TableWrap></DesktopRows>
+                    <MobileRows role="list" aria-label={ja ? "勤務時間の照合結果" : "Staff-hours reconciliation results"}>
+                        {historyPreview.rows.map(row => {
+                            const cellKey = historyCellKey(row.source_row, row.source_column);
+                            const canImport = (row.state === "new" || row.state === "conflict") && row.user_id !== null;
+                            const statusLabel = row.state === "new" ? (ja ? "不足" : "Missing")
+                                : row.state === "match" ? (ja ? "一致" : "Match")
+                                    : row.state === "conflict" ? (ja ? "差異・要理由" : "Conflict — reason required")
+                                        : row.state === "unmapped" ? (ja ? "未対応名" : "Unmapped")
+                                            : row.state === "duplicate_candidate" ? (ja ? "重複候補" : "Duplicate")
+                                                : row.state === "already_imported" ? (ja ? "取り込み済み" : "Imported")
+                                                    : (ja ? "却下済み" : "Rejected");
+                            const checkbox = <label className="import-choice"><input type="checkbox"
+                                aria-label={`${row.business_date} ${row.staff_name} ${row.source_seconds / 3600} hours`}
+                                disabled={!canImport || historyBusy} checked={canImport && selectedHistoryCells.includes(cellKey)}
+                                onChange={event => setSelectedHistoryCells(current => event.target.checked
+                                    ? [...current, cellKey]
+                                    : current.filter(item => item !== cellKey))} />
+                                {ja ? "選択" : "Select"}</label>;
+                            return <MobileRecord key={cellKey} title={`${row.business_date} · ${row.staff_name}`} fields={[
+                                { label: ja ? "取り込み" : "Import", value: checkbox },
+                                { label: ja ? "勤務表時間" : "Spreadsheet hours", value: `${row.source_seconds / 3600} h` },
+                                { label: ja ? "現在の有効時間" : "Current effective hours", value: row.effective_seconds === null ? (ja ? "不明" : "Unknown") : `${row.effective_seconds / 3600} h` },
+                                { label: ja ? "結果・理由" : "Result and reason", value: `${statusLabel} — ${row.reason}` },
+                                { label: ja ? "出典" : "Source", value: `${row.source_row} · ${row.source_column}` },
+                            ]} />;
+                        })}
+                    </MobileRows>
+                    <StepHeading><span>4</span><h4>{ja ? "選択した勤務時間を保存" : "Save the selected staff hours"}</h4></StepHeading>
                     <Actions>
                         {selectedHistoryCells.some(key => historyPreview.rows.some(row => row.state === "conflict" && row.user_id !== null && historyCellKey(row.source_row, row.source_column) === key)) ? <label>
                             {ja ? "差異の修正理由（監査記録）" : "Reason for correcting spreadsheet conflicts (audited)"}
@@ -478,9 +534,13 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
     </Wrap>;
 }
 
-const Wrap = styled.div`display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; h2 { font-size: var(--font-size-h4); } h3 { font-size: var(--font-size-default); } label { display: flex; flex-direction: column; gap: var(--space-0); min-width: 0; } input,select { width: 100%; box-sizing: border-box; } details > summary { cursor: pointer; font-weight: 600; padding: var(--space-1) 0; }`;
+const Wrap = styled.div`display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; h2 { font-size: var(--font-size-h4); } h3 { font-size: var(--font-size-default); } label { display: flex; flex-direction: column; gap: var(--space-0); min-width: 0; } input,select { width: 100%; box-sizing: border-box; } .import-choice { flex-direction: row; align-items: center; } .import-choice input { width: auto; min-width: 20px; min-height: 20px; } details > summary { cursor: pointer; font-weight: 600; padding: var(--space-1) 0; }`;
 const Block = styled.section`display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2); background: var(--neutral-900); border-radius: 12px; min-width: 0;`;
 const Notice = styled.div`padding: var(--space-2); border: 1px solid var(--neutral-600); border-radius: 8px; p { margin-top: var(--space-1); }`;
+const StepHeading = styled.div`display: flex; align-items: center; gap: var(--space-1); h3,h4 { margin: 0; } span { display: grid; place-items: center; flex: 0 0 2rem; height: 2rem; border-radius: 50%; background: var(--royal-500); color: white; font-weight: 700; }`;
+const DesktopRows = styled.div`display: block; @media (max-width: 700px) { display: none; }`;
+const MobileRows = styled.div`display: none; @media (max-width: 700px) { display: grid; gap: var(--space-1); }`;
+const RecordCard = styled.article`padding: var(--space-1) var(--space-2); border: 1px solid var(--neutral-700); border-radius: 10px; background: var(--neutral-800); min-width: 0; h5 { margin: 0 0 var(--space-1); font-size: var(--font-size-default); font-weight: 600; overflow-wrap: anywhere; } dl { margin: 0; } dl > div { display: grid; grid-template-columns: minmax(7rem, 0.8fr) minmax(0, 1.2fr); gap: var(--space-1); padding: 0.55rem 0; border-top: 1px solid var(--neutral-700); } dt { color: var(--neutral-300); } dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }`;
 const TableWrap = styled.div`overflow-x: auto; width: 100%; table { border-collapse: collapse; min-width: 650px; width: 100%; } th, td { text-align: left; padding: var(--space-1); border-bottom: 1px solid var(--neutral-700); } td button { width: auto; }`;
 const Editor = styled.div`display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2); border: 1px solid var(--neutral-600); border-radius: 8px;`;
 const Fields = styled.div`display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); @media (min-width: 700px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }`;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 
 import { accountApi, type PersonalWorkHistory } from "../api/account";
@@ -43,6 +43,22 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
     const [refreshKey, setRefreshKey] = useState(0);
     const [section, setSection] = useState<Panel>("hours");
     const [month, setMonth] = useState("all");
+    const tabRefs = useRef<Partial<Record<Panel, HTMLButtonElement | null>>>({});
+    const availableSections: Panel[] = role === "staff"
+        ? ["hours", "drinks", "income"]
+        : ["hours", "drinks", "benefits", "income"];
+    const activeSection: Panel = availableSections.includes(section) ? section : "hours";
+
+    function moveTabFocus(current: Panel, key: string) {
+        const currentIndex = availableSections.indexOf(current);
+        const nextIndex = key === "Home" ? 0
+            : key === "End" ? availableSections.length - 1
+                : key === "ArrowRight" ? (currentIndex + 1) % availableSections.length
+                    : (currentIndex - 1 + availableSections.length) % availableSections.length;
+        const next = availableSections[nextIndex];
+        setSection(next);
+        tabRefs.current[next]?.focus();
+    }
 
     useEffect(() => {
         let cancelled = false;
@@ -127,15 +143,20 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                 </button>
             </Heading>
 
-            <Tabs role="tablist" aria-label={ja ? "勤務履歴の項目" : "Work history sections"}>
-                {(role === "staff"
-                    ? ["hours", "drinks", "income"] as const
-                    : ["hours", "drinks", "benefits", "income"] as const).map(key => (
-                    <button key={key} type="button" role="tab"
-                        aria-selected={section === key}
-                        aria-controls="profile-work-panel"
-                        className={section === key ? "secondary" : "hollow secondary"}
-                        onClick={() => setSection(key)}>
+            <Tabs role="tablist" aria-orientation="horizontal" aria-label={ja ? "勤務履歴の項目" : "Work history sections"}>
+                {availableSections.map(key => (
+                    <button key={key} ref={element => { tabRefs.current[key] = element; }} type="button" role="tab"
+                        id={`profile-work-tab-${key}`}
+                        aria-selected={activeSection === key}
+                        aria-controls={`profile-work-panel-${key}`}
+                        tabIndex={activeSection === key ? 0 : -1}
+                        className={activeSection === key ? "secondary" : "hollow secondary"}
+                        onClick={() => setSection(key)}
+                        onKeyDown={event => {
+                            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                            event.preventDefault();
+                            moveTabFocus(key, event.key);
+                        }}>
                         {key === "hours" ? (ja ? "勤務時間" : "Hours")
                             : key === "drinks" ? (ja ? "スタッフドリンク" : "Staff drinks")
                                 : key === "income" ? (ja ? "収入内訳" : "Income")
@@ -144,10 +165,12 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                 ))}
             </Tabs>
 
-            {section === "income" ? (
-                <StaffIncome userId={userId} locale={locale} role={role} />
-            ) : section === "benefits" ? (
-                <PanelBody id="profile-work-panel" role="tabpanel">
+            {activeSection === "income" ? (
+                <PanelBody id="profile-work-panel-income" role="tabpanel" aria-labelledby="profile-work-tab-income" tabIndex={0}>
+                    <StaffIncome userId={userId} locale={locale} role={role} />
+                </PanelBody>
+            ) : activeSection === "benefits" ? (
+                <PanelBody id="profile-work-panel-benefits" role="tabpanel" aria-labelledby="profile-work-tab-benefits" tabIndex={0}>
                     <h3>{ja ? "手当・調整・控除" : "Bonuses, adjustments & deductions"}</h3>
                     <p>{ja
                         ? "承認済みの給与・手当・控除記録はまだありません。表示がないことは0円という意味ではありません。"
@@ -155,7 +178,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                     <Muted>{ja ? "現在は利用できません" : "Not available yet"}</Muted>
                 </PanelBody>
             ) : (
-                <PanelBody id="profile-work-panel" role="tabpanel">
+                <PanelBody id={`profile-work-panel-${activeSection}`} role="tabpanel" aria-labelledby={`profile-work-tab-${activeSection}`} tabIndex={0}>
                     <Toolbar>
                         <label>
                             {ja ? "対象月" : "Period"}
@@ -189,7 +212,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                                         <strong>{totals.drinkCount === null ? "—" : totals.drinkCount}</strong>
                                     </Metric>
                                 </Summary>
-                                {section === "hours" ? (
+                                {activeSection === "hours" ? (
                                     <>
                                         {hoursChartBars.length ? <HorizontalBarChart
                                             title={month === "all"
@@ -268,7 +291,8 @@ const Tabs = styled.div`
     display: grid; grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: var(--space-1);
     @media (min-width: 570px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    button { min-width: 0; width: 100%; }
+    button { min-width: 0; width: 100%; min-height: 44px; }
+    button:focus-visible { outline: 2px solid var(--royal-400); outline-offset: 2px; }
 `;
 const PanelBody = styled.div`
     display: flex; flex-direction: column; gap: var(--space-2);
