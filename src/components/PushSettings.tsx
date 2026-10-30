@@ -103,7 +103,7 @@ export default function PushSettings() {
               : (ja ? "この端末で通知を有効にする" : "Enable notifications")}
         </ActionButton>
         {(availability === "unavailable" || availability === "error") && !enabled ? (
-          <RetryButton type="button" onClick={() => void checkAvailability()} disabled={availability === "checking"}>
+          <RetryButton type="button" onClick={() => void checkAvailability()}>
             {ja ? "再確認" : "Check again"}
           </RetryButton>
         ) : null}
@@ -154,7 +154,7 @@ const StatusDot = styled.span`
   height: 9px;
   margin-top: 0.4em;
   border-radius: 50%;
-  background: var(--primary-400);
+  background: var(--royal-400);
   [data-state="unavailable"] &, [data-state="error"] &, [data-state="unsupported"] & {
     background: var(--neutral-400);
   }
