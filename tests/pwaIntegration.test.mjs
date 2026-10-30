@@ -240,7 +240,7 @@ test("push setup checks server configuration before asking for device permission
   try {
     install("localStorage", { getItem: key => key === "barticket_token" ? "signed-in-token" : null });
     install("navigator", { serviceWorker: { register: async () => ({}) } });
-    install("window", { PushManager: function PushManager() {} });
+    install("window", { PushManager: function PushManager() {}, Notification: true });
     install("Notification", {
       permission: "default",
       requestPermission: async () => { permissionPrompts++; return "granted"; },
