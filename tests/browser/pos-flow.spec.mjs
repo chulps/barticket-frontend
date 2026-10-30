@@ -667,6 +667,40 @@ test("Japanese My Time Clock remains readable and tappable at phone width",async
   await expect(clockOut).toHaveCSS("min-height","44px");
 });
 
+test("mobile navigation closes on Escape and returns focus to its toggle", async ({ page }) => {
+  await mockedPOS(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/tickets");
+  const toggle = page.getByRole("button", { name: "Navigation menu" });
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toBeFocused();
+
+  await toggle.click();
+  await page.getByRole("link", { name: "Analytics" }).click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(toggle).toBeFocused();
+});
+
+test("Profile work tabs follow arrow-key selection and keep their panels connected", async ({ page }) => {
+  await mockedPOS(page);
+  await page.goto("/profile");
+  const hours = page.getByRole("tab", { name: "Hours" });
+  await expect(hours).toBeVisible();
+  await hours.focus();
+  await page.keyboard.press("ArrowRight");
+  const drinks = page.getByRole("tab", { name: "Staff drinks" });
+  await expect(drinks).toBeFocused();
+  await expect(drinks).toHaveAttribute("aria-selected", "true");
+  await expect(drinks).toHaveAttribute("tabindex", "0");
+  const panelId = await drinks.getAttribute("aria-controls");
+  await expect(page.locator(`#${panelId}`)).toHaveAttribute("aria-labelledby", await drinks.getAttribute("id"));
+  await page.keyboard.press("Home");
+  await expect(hours).toBeFocused();
+  await expect(hours).toHaveAttribute("aria-selected", "true");
+});
 
 test("mobile picker traps focus and contains scroll; keyboard dismissal restores focus",async ({page})=>{
   const state=await mockedPOS(page);

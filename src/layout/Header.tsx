@@ -1,6 +1,6 @@
 // src/components/Header.tsx
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import Icon from "../components/Icon";
 import FxxkupLogo from "../components/FxxkupLogo"
@@ -18,6 +18,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [isManager, setIsManager] = useState(false);
@@ -31,6 +32,13 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
   const { t, locale, setLocale } = useI18n();
   const { modal, openModal } = useModal();
   const canSeeNotices = isManager || clockedIn;
+
+  const closeMainNavigation = useCallback((restoreFocus = false) => {
+    setIsOpen(false);
+    if (restoreFocus && window.matchMedia("(max-width: 768px)").matches) {
+      window.requestAnimationFrame(() => menuButtonRef.current?.focus());
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -135,15 +143,24 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
 
   useEffect(() => {
     if (!isOpen) return;
+    function escape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      closeMainNavigation(true);
+    }
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
       if (navRef.current?.contains(target)) return;
       if (menuButtonRef.current?.contains(target)) return;
-      setIsOpen(false);
+      closeMainNavigation();
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isOpen]);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [closeMainNavigation, isOpen]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -151,7 +168,11 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       if (!moreRef.current?.contains(event.target as Node)) setMoreOpen(false);
     }
     function escape(event: KeyboardEvent) {
-      if (event.key === "Escape") setMoreOpen(false);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMoreOpen(false);
+        moreButtonRef.current?.focus();
+      }
     }
     document.addEventListener("mousedown", dismiss);
     document.addEventListener("keydown", escape);
@@ -190,10 +211,10 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
 
       {authenticated ? (
         <MobilePrimary aria-label={locale === "ja" ? "メインナビゲーション" : "Primary navigation"}>
-          <MobilePrimaryLink to="/tickets" aria-label={t("tickets")} title={t("tickets")} onClick={() => setIsOpen(false)}>
+          <MobilePrimaryLink to="/tickets" aria-label={t("tickets")} title={t("tickets")} onClick={() => closeMainNavigation(true)}>
             {({ isActive }) => <Icon name="ListDashes" weight={isActive ? "fill" : "regular"} />}
           </MobilePrimaryLink>
-          <MobilePrimaryLink to="/menu" aria-label={t("drinkMenu")} title={t("drinkMenu")} onClick={() => setIsOpen(false)}>
+          <MobilePrimaryLink to="/menu" aria-label={t("drinkMenu")} title={t("drinkMenu")} onClick={() => closeMainNavigation(true)}>
             {({ isActive }) => <Icon name="Book" weight={isActive ? "fill" : "regular"} />}
           </MobilePrimaryLink>
         </MobilePrimary>
@@ -206,7 +227,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         aria-expanded={isOpen}
         aria-controls="main-navigation"
         className="hollow secondary"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => setIsOpen(open => !open)}
       >
         <Icon name={isOpen ? "X" : "List"} />
         {alertCount > 0 ? <MenuBadge>{alertCount}</MenuBadge> : null}
@@ -215,7 +236,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       <Nav id="main-navigation" ref={navRef} $isOpen={isOpen} $authenticated={authenticated}>
         {authenticated ? <NavTabs>
         <PrimaryNavLink
-          onClick={() => setIsOpen(false)}
+          onClick={() => closeMainNavigation(true)}
           to="/tickets">
           {({ isActive }) => (
             <>
@@ -229,7 +250,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         </PrimaryNavLink>
 
         <PrimaryNavLink
-          onClick={() => setIsOpen(false)}
+          onClick={() => closeMainNavigation(true)}
           to="/menu">
           {({ isActive }) => (
             <>
@@ -243,7 +264,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         </PrimaryNavLink>
 
         <SecondaryNavLink
-          onClick={() => setIsOpen(false)}
+          onClick={() => closeMainNavigation(true)}
           to="/profile">
           {({ isActive }) => (
             <>
@@ -258,7 +279,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
 
         {canSeeNotices ? (
           <SecondaryNavLink
-            onClick={() => setIsOpen(false)}
+            onClick={() => closeMainNavigation(true)}
             to="/notifications">
             {({ isActive }) => (
               <>
@@ -274,7 +295,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         ) : null}
 
         <SecondaryNavLink
-          onClick={() => setIsOpen(false)}
+          onClick={() => closeMainNavigation(true)}
           to="/analytics">
           {({ isActive }) => (
             <>
@@ -287,16 +308,16 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           )}
         </SecondaryNavLink>
 
-        <SecondaryNavLink onClick={() => setIsOpen(false)} to="/receivables">
+        <SecondaryNavLink onClick={() => closeMainNavigation(true)} to="/receivables">
           {({ isActive }) => <><Icon name="HandCoins" weight={isActive ? "fill" : "regular"} />{locale === "ja" ? "未払い伝票" : "Unpaid tickets"}</>}
         </SecondaryNavLink>
 
-        <SecondaryNavLink onClick={() => setIsOpen(false)} to="/schedules">
+        <SecondaryNavLink onClick={() => closeMainNavigation(true)} to="/schedules">
           {({ isActive }) => <><Icon name="CalendarBlank" weight={isActive ? "fill" : "regular"} />{locale === "ja" ? "シフト予定" : "Schedule"}</>}
         </SecondaryNavLink>
 
         {isManager ? (
-          <SecondaryNavLink onClick={() => setIsOpen(false)} to="/admin">
+          <SecondaryNavLink onClick={() => closeMainNavigation(true)} to="/admin">
             {({ isActive }) => (
               <>
                 <Icon name="GearSix" weight={isActive ? "fill" : "regular"} />
@@ -306,7 +327,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           </SecondaryNavLink>
         ) : null}
         </NavTabs> : (
-          <PublicMenuLink to="/menu" onClick={() => setIsOpen(false)}>
+          <PublicMenuLink to="/menu" onClick={() => closeMainNavigation(true)}>
             <Icon name="Book" />
             {t("drinkMenu")}
           </PublicMenuLink>
@@ -335,6 +356,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       {authenticated ? (
         <MoreWrap ref={moreRef}>
           <MoreButton
+            ref={moreButtonRef}
             type="button"
             aria-label={locale === "ja" ? "その他のナビゲーション" : "More navigation options"}
             aria-expanded={moreOpen}
@@ -346,23 +368,23 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           {moreOpen ? (
             <MoreDropdown id="desktop-more-menu">
               {isManager ? (
-                <MoreLink to="/admin" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+                <MoreLink to="/admin" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
                   <Icon name="GearSix" />{locale === "ja" ? "管理" : "Admin"}
                 </MoreLink>
               ) : null}
-              <MoreLink to="/profile" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+              <MoreLink to="/profile" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
                 <Icon name="UserCircle" />{userName ?? t("profile")}
               </MoreLink>
               {canSeeNotices ? (
-                <MoreLink to="/notifications" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+                <MoreLink to="/notifications" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
                   <Icon name="Bell" />{t("notifications")}
                   {alertCount > 0 ? <AlertCount>{alertCount}</AlertCount> : null}
                 </MoreLink>
               ) : null}
-              <MoreLink to="/analytics" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+              <MoreLink to="/analytics" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
                 <Icon name="ChartDonut" />{t("analytics")}
               </MoreLink>
-              <MoreLink to="/schedules" onClick={() => { setMoreOpen(false); setIsOpen(false); }}>
+              <MoreLink to="/schedules" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
                 <Icon name="CalendarBlank" />{locale === "ja" ? "シフト予定" : "Schedule"}
               </MoreLink>
             </MoreDropdown>
@@ -484,12 +506,18 @@ const Nav = styled.nav<{ $isOpen: boolean; $authenticated: boolean }>`
 
     opacity: ${({ $isOpen, $authenticated }) => (!$authenticated || $isOpen ? 1 : 0)};
 
-    transition:
-      transform 0.3s ease,
-      opacity 0.2s ease;
-
     pointer-events: ${({ $isOpen, $authenticated }) =>
     !$authenticated || $isOpen ? "auto" : "none"};
+    visibility: ${({ $isOpen, $authenticated }) =>
+    !$authenticated || $isOpen ? "visible" : "hidden"};
+    transition:
+      transform 0.3s ease,
+      opacity 0.2s ease,
+      visibility 0s linear ${({ $isOpen }) => $isOpen ? "0s" : "0.3s"};
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
   }
 `;
 
