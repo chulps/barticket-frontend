@@ -259,8 +259,8 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
             display: money(person.total_owed_yen, locale),
         }))
         : [];
-    const knownChuckSales = (chuckStats?.nights ?? []).flatMap(night =>
-        night.billedSalesYen === null ? [] : [night]);
+    const knownChuckSales = (chuckStats?.nights ?? []).filter(
+        (night): night is typeof night & { billedSalesYen: number } => night.billedSalesYen !== null);
     const chuckRevenueBars: NamedBar[] = knownChuckSales.map(night => ({
         id: String(night.shiftId),
         label: new Date(`${night.businessDate}T12:00:00`).toLocaleDateString(localeTag(locale), { month: "short", day: "numeric" }),
