@@ -14,6 +14,10 @@ import { shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 
 type Panel = "hours" | "drinks" | "income";
 type TimeScale = "all" | "year" | "month" | "day";
+type PersonalHistoryRow = Omit<StaffActivityRow, "shiftId" | "status"> & {
+    shiftId: number | null;
+    status: "open" | "closed" | null;
+};
 
 function formatBusinessDate(date: string, locale: Locale) {
     const [year, month, day] = date.split("-").map(Number);
@@ -96,7 +100,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
         return () => { cancelled = true; };
     }, [userId, refreshKey, ja]);
 
-    const rows = useMemo<StaffActivityRow[]>(() => (history?.shifts ?? []).map(shift => ({
+    const rows = useMemo<PersonalHistoryRow[]>(() => (history?.shifts ?? []).map(shift => ({
         shiftId: shift.shift_id,
         businessDate: shift.business_date,
         status: shift.status,
