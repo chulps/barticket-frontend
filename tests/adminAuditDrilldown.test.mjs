@@ -14,7 +14,7 @@ const app = read("src/App.tsx");
 test("Manager profiles including Chuck and Nori omit staff pay, time, and bonus editors", () => {
     assert.match(team, /const isStaffProfile = person\?\.role === "staff"/);
     assert.match(team, /!loading && !loadError && isStaffProfile/);
-    assert.match(team, /\{isStaffProfile \? <Metric>/);
+    assert.doesNotMatch(team, /Current pay \/ bonuses/);
     assert.match(team, /<AdminManagerShare/);
     assert.match(team, /canSeeChuckRevenueShare\(viewer, person\.id, revenueShareViewers\)/);
     assert.doesNotMatch(team, /person\.name === ["']Chuck/);
@@ -35,17 +35,19 @@ test("Audit history is a distinct manager-only screen with a back link, not an e
     assert.match(audit, /accountApi\.adminAuditHistory\(person\.id\)/);
 });
 
-test("Activity drill-down navigates years, months and expandable nights without a 20-shift cutoff", () => {
+test("One month navigator filters imported activity and expandable shift details", () => {
     assert.match(team, /<AdminShiftActivity/);
+    assert.match(team, /accountApi\.analyticsShifts\(\)/);
+    assert.match(team, /type="month" value=\{month\}/);
+    assert.match(team, /<AdminMonthlyPayOverview[\s\S]*month=\{month\}/);
     assert.doesNotMatch(team, /filteredActivity\.slice\(0, 20\)/);
     assert.match(activity, /const PAGE_SIZE = 12/);
-    assert.match(activity, /<Groups aria-label=.*Choose year/);
-    assert.match(activity, /<Groups aria-label=.*Choose month/);
+    assert.match(activity, /rows\.filter\(row => row\.businessDate\.startsWith\(selectedMonth\)\)/);
+    assert.match(activity, /No shift records for this month/);
     assert.match(activity, /monthRows\.slice\(0, visible\)/);
     assert.match(activity, /<Night key=\{row\.shiftId\}>/);
     assert.match(activity, /<summary>/);
-    assert.match(activity, /<Back.*Show 12 more shifts/s);
-    assert.match(activity, /onMonthChange\(value\)/);
+    assert.match(activity, /<LoadMore.*Show 12 more shifts/s);
     assert.doesNotMatch(activity, /accountApi\.|apiRequest\(|\bfetch\(/);
 });
 

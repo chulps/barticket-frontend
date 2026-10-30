@@ -198,7 +198,6 @@ export default function Admin() {
                 <h1>{locale === "ja" ? "管理" : "Admin"}</h1>
                 <p>{locale === "ja" ? "管理者向けのアカウント管理画面です。" : "Manager-only account management."}</p>
             </header>
-            <DataDownload locale={locale} scope="admin" />
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             <TabGroup
                 tabs={[
@@ -246,6 +245,7 @@ export default function Admin() {
                         <p>{locale === "ja"
                             ? "現在の登録アカウントを表示します。過去のスタッフ記録や無効化されたアカウントは含まれません。"
                             : "Only accounts currently returned by the API are shown. Historical and deactivated accounts are not included."}</p>
+                        <DataDownload locale={locale} scope="admin" />
                         {accountsError ? <ErrorText role="alert">{accountsError}</ErrorText> : null}
                         <button type="button" className="small hollow secondary" disabled={accountsLoading || busy} onClick={() => void refreshAccounts()}>
                             {accountsLoading ? (locale === "ja" ? "更新中…" : "Refreshing…") : (locale === "ja" ? "一覧を更新" : "Refresh accounts")}

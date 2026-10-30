@@ -29,6 +29,17 @@ function hoursLabel(seconds: number) {
     }) + " h";
 }
 
+function currentMonth() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function shiftMonth(value: string, amount: number) {
+    const [year, month] = value.split("-").map(Number);
+    const date = new Date(year, month - 1 + amount, 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 /**
  * Nested under Admin's manager-only role guard. Reads manager shift history and
  * writes only through existing audited rate and punch-correction APIs.
@@ -37,7 +48,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
     const ja = locale === "ja";
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<"all" | "staff" | "manager">("all");
-    const [month, setMonth] = useState("all");
+    const [month, setMonth] = useState(currentMonth);
     const [closed, setClosed] = useState<ShiftReport[]>([]);
     const [current, setCurrent] = useState<ShiftReport | null>(null);
     const [loading, setLoading] = useState(true);
@@ -50,7 +61,10 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
             setLoading(true);
             setLoadError("");
             try {
-                const shiftHistory = await accountApi.shiftHistory();
+                // /analytics/shifts includes verified spreadsheet hours merged
+                // into each date. /shifts contains clock data only.
+                const shiftHistory = (await accountApi.analyticsShifts())
+                    .filter(shift => shift.id !== null && shift.status !== null) as ShiftReport[];
                 if (!cancelled) {
                     setClosed(shiftHistory.filter(shift => shift.status === "closed"));
                     setCurrent(shiftHistory.find(shift => shift.status === "open") ?? null);
@@ -90,7 +104,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
         person ? buildStaffActivity(person.id, closed, current) : [],
     [person, closed, current]);
     const filteredActivity = useMemo(() =>
-        activity.filter(row => month === "all" || row.businessDate.startsWith(month)),
+        activity.filter(row => row.businessDate.startsWith(month)),
     [activity, month]);
     const totals = useMemo(() => recordedStaffTotals(filteredActivity), [filteredActivity]);
     const drinkLines = useMemo<AdminDrinkLine[]>(() => {
@@ -104,7 +118,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                 name: drink.drink_name,
                 quantity: drink.quantity,
                 revenue: drink.revenue,
-            }))).filter(line => month === "all" || line.businessDate.startsWith(month))
+            }))).filter(line => line.businessDate.startsWith(month))
             .sort((a, b) => b.businessDate.localeCompare(a.businessDate) || b.shiftId - a.shiftId);
     }, [shifts, person, month]);
 
@@ -113,17 +127,20 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
             <Toolbar>
                 <div>
                     <h2>{ja ? "チームメンバー" : "Team members"}</h2>
-                    <Muted>{ja
-                        ? "スタッフ別の勤務状況と、給与・ドリンクバックの調整画面です。"
-                        : "View team activity and prepare pay, time and drinkback adjustments."}</Muted>
+                    <Muted>{ja ? "月を選び、メンバーごとの勤務と給与を確認します。" : "Choose a month to review each person’s work and pay."}</Muted>
                 </div>
-                <button type="button" className="small hollow secondary"
-                    disabled={loading} onClick={() => setRefreshKey(key => key + 1)}>
-                    {ja ? "勤務履歴を更新" : "Refresh activity"}
-                </button>
+                <MonthNav aria-label={ja ? "表示する月" : "Choose month"}>
+                    <button type="button" className="small hollow secondary" aria-label={ja ? "前の月" : "Previous month"}
+                        onClick={() => setMonth(value => shiftMonth(value, -1))}>‹</button>
+                    <input aria-label={ja ? "表示する月" : "Month"} type="month" value={month}
+                        onChange={event => setMonth(event.target.value)} />
+                    <button type="button" className="small hollow secondary" aria-label={ja ? "次の月" : "Next month"}
+                        onClick={() => setMonth(value => shiftMonth(value, 1))}>›</button>
+                    <button type="button" className="small hollow secondary" disabled={loading}
+                        onClick={() => setRefreshKey(key => key + 1)}>{ja ? "更新" : "Refresh"}</button>
+                </MonthNav>
             </Toolbar>
-            <AdminMonthlyPayOverview viewer={viewer} people={people} locale={locale} refreshVersion={refreshKey} />
-            <Layout>
+            <Layout $hasSelection={selectedId !== null}>
                 <Directory aria-label={ja ? "チーム一覧" : "Team directory"}>
                     <label>{ja ? "スタッフを検索" : "Search team"}
                         <input type="search" value={query}
@@ -143,7 +160,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                             key={member.id} type="button"
                             className={selectedId === member.id ? "secondary" : "hollow secondary"}
                             aria-current={selectedId === member.id ? "page" : undefined}
-                            onClick={() => { setMonth("all"); onSelect(member.id); }}>
+                            onClick={() => onSelect(member.id)}>
                             <Badge aria-hidden="true">{member.name.trim().slice(0, 1).toUpperCase() || "•"}</Badge>
                             <MemberText>
                                 <strong>{member.name}</strong>
@@ -191,21 +208,17 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
 
                             <Summary>
                                 <Metric>
-                                    <span>{ja ? "記録された稼働シフト" : "Recorded activity shifts"}</span>
+                                    <span>{ja ? "今月のシフト" : "Shifts this month"}</span>
                                     <strong>{loading || loadError || !totals.recordedShifts ? "—" : totals.recordedShifts}</strong>
                                 </Metric>
                                 <Metric>
-                                    <span>{ja ? "記録された勤務時間" : "Recorded hours"}</span>
+                                    <span>{ja ? "今月の勤務時間" : "Hours this month"}</span>
                                     <strong>{loading || loadError || totals.hoursSeconds === null ? "—" : hoursLabel(totals.hoursSeconds)}</strong>
                                 </Metric>
                                 <Metric>
-                                    <span>{ja ? "記録されたスタッフドリンク" : "Recorded drinks"}</span>
+                                    <span>{ja ? "今月のスタッフドリンク" : "Staff drinks this month"}</span>
                                     <strong>{loading || loadError || totals.drinkCount === null ? "—" : totals.drinkCount}</strong>
                                 </Metric>
-                                {isStaffProfile ? <Metric>
-                                    <span>{ja ? "現在の時給・手当" : "Current pay / bonuses"}</span>
-                                    <strong>—</strong>
-                                </Metric> : null}
                             </Summary>
                             {loading ? <Muted role="status">{ja ? "勤務記録を読み込み中…" : "Loading recorded activity…"}</Muted> : null}
                             {loadError ? (
@@ -222,13 +235,12 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     rows={activity}
                                     locale={locale}
                                     selectedMonth={month}
-                                    onMonthChange={setMonth}
                                 />
                             ) : null}
                             <Coverage>
                                 {ja
-                                    ? "表示される時間・ドリンクは現在のAPIにある記録だけです。未照合の過去データや名前だけのドリンク記録は含まれません。売上・給与は推測しません。"
-                                    : "Hours and drinks include only current API records linked by user ID. Unverified historical hours and name-only drink records are excluded. Pay is never inferred."}
+                                    ? "勤務時間は打刻と確認済みの過去データを表示します。記録のない情報は推測しません。"
+                                    : "Hours include clock records and verified spreadsheet history. Missing amounts are never treated as zero."}
                             </Coverage>
                             {!loading && !loadError && canSeeChuckRevenueShare(viewer, person.id, revenueShareViewers) ? (
                                 <AdminManagerShare
@@ -242,6 +254,8 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                 />
                             ) : null}
                             {!loading && !loadError && isStaffProfile ? (
+                                <EditorDisclosure>
+                                    <summary>{ja ? "勤務時間・手当を修正" : "Edit hours and bonuses"}</summary>
                                 <AdminTeamEditors
                                     key={person.id + ":" + month}
                                     person={person}
@@ -250,11 +264,14 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     drinkLines={drinkLines}
                                     onRefresh={() => setRefreshKey(value => value + 1)}
                                 />
+                                </EditorDisclosure>
                             ) : null}
                         </>
                     )}
                 </Detail>
             </Layout>
+            <AdminMonthlyPayOverview viewer={viewer} people={people} locale={locale}
+                month={month} refreshVersion={refreshKey} />
         </Root>
     );
 }
@@ -268,9 +285,20 @@ const Toolbar = styled.div`
     h2{font-size:var(--font-size-h4);font-weight:500;}
     button{width:auto;}
 `;
-const Layout = styled.div`
+const MonthNav = styled.div`
+    display:flex;align-items:center;gap:var(--space-0);flex-wrap:wrap;
+    input{width:170px;min-height:42px;background:var(--dark);}
+    button{width:auto;min-width:42px;}
+`;
+const EditorDisclosure = styled.details`
+    padding:var(--space-1);border:1px solid var(--neutral-700);border-radius:10px;
+    summary{cursor:pointer;font-weight:500;}
+`;
+const Layout = styled.div<{ $hasSelection: boolean }>`
     display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2);
-    @media(min-width:1050px){grid-template-columns:minmax(230px,290px) minmax(0,1fr);align-items:start;}
+    & > nav{order:${({ $hasSelection }) => $hasSelection ? 2 : 1};}
+    & > div{order:${({ $hasSelection }) => $hasSelection ? 1 : 2};}
+    @media(min-width:1050px){grid-template-columns:minmax(230px,290px) minmax(0,1fr);align-items:start;& > nav,& > div{order:initial;}}
 `;
 const Directory = styled.nav`
     display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-2);
