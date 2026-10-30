@@ -3,11 +3,12 @@ import styled from "styled-components";
 import { accountApi, type Account, type RevenueSharePreview, type ShiftReport } from "../api/account";
 import { localeTag, type Locale } from "../i18n";
 import {
-    DEFAULT_SHARE_POLICY, distinctShareShifts, shareBrackets, shareMonths,
+    DEFAULT_SHARE_POLICY, distinctShareShifts, shareBrackets,
 } from "./managerRevenueShare";
 
 type Props = {
     person: Account;
+    month: string;
     locale: Locale;
     shifts: ShiftReport[];
     managers: Account[];
@@ -24,13 +25,6 @@ function dateLabel(value: string, locale: Locale): string {
         month: "short", day: "numeric", weekday: "short",
     });
 }
-function monthLabel(value: string, locale: Locale): string {
-    const [y, m] = value.split("-").map(Number);
-    return new Date(y, m - 1, 1).toLocaleDateString(localeTag(locale), {
-        month: "long", year: "numeric",
-    });
-}
-
 function blockerLabel(code: string, ja: boolean): string {
     const labels: Record<string, [string, string]> = {
         no_recorded_shifts: ["記録済みシフトがありません", "No shifts are recorded for this month"],
@@ -47,12 +41,10 @@ function blockerLabel(code: string, ja: boolean): string {
 }
 
 /** Preview only: final payable is unavailable until cost data is verified. */
-export default function AdminManagerShare({ person, locale, shifts, managers, onRefresh, refreshVersion }: Props) {
+export default function AdminManagerShare({ person, month, locale, shifts, managers, onRefresh, refreshVersion }: Props) {
     const ja = locale === "ja";
     const allShifts = useMemo(() => distinctShareShifts(shifts), [shifts]);
-    const months = useMemo(() => shareMonths(allShifts), [allShifts]);
-    const [month, setMonth] = useState("");
-    const selectedMonth = months.includes(month) ? month : months[0] ?? "";
+    const selectedMonth = month;
     const [showTiers, setShowTiers] = useState(false);
     const [managerDrafts, setManagerDrafts] = useState<Record<number, { managerId: string; reason: string }>>({});
     const [savingManagerId, setSavingManagerId] = useState<number | null>(null);
@@ -115,9 +107,6 @@ export default function AdminManagerShare({ person, locale, shifts, managers, on
     const progress = Math.max(0, Math.min(100,
         progressTarget > 0 ? (scenario.knownRevenue ?? 0) / progressTarget * 100 : 0));
 
-    function selectMonth(value: string) {
-        setMonth(value);
-    }
     async function saveWorkingManager(shift: Pick<ShiftReport, "id">) {
         const draft = managerDrafts[shift.id];
         if (!draft || !draft.reason.trim()) return;
@@ -201,18 +190,11 @@ export default function AdminManagerShare({ person, locale, shifts, managers, on
             <Card>
                 <CardHeader>
                     <div>
-                        <h5>{ja ? "2. 対象月と担当シフト" : "2. Month and qualifying shifts"}</h5>
+                        <h5>{ja ? "2. 担当シフト" : "2. Qualifying shifts"}</h5>
                         <Muted>{ja
                             ? "担当マネージャーとして記録されたシフトだけを対象にします。開店担当者名からは判定しません。"
                             : "Only shifts with an explicit working-manager assignment qualify. The opener's name is not used to infer eligibility."}</Muted>
                     </div>
-                    <select aria-label={ja ? "対象月" : "Revenue-share month"}
-                        value={selectedMonth} disabled={!months.length}
-                        onChange={event => selectMonth(event.target.value)}>
-                        {months.length ? months.map(item => (
-                            <option key={item} value={item}>{monthLabel(item, locale)}</option>
-                        )) : <option value="">{ja ? "記録なし" : "No recorded months"}</option>}
-                    </select>
                 </CardHeader>
                 {monthShifts.length ? (
                     <ShiftList>
