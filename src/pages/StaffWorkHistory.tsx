@@ -101,6 +101,8 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
         businessDate: shift.business_date,
         status: shift.status,
         hoursSeconds: shift.hours_seconds,
+        historicalHoursSeconds: shift.historical_hours_seconds,
+        hoursBasis: shift.hours_basis,
         hoursState: shift.hours_state,
         clockedIn: shift.clocked_in,
         drinks: shift.drinks,
@@ -134,7 +136,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                 month: "short", day: "numeric",
             });
             return {
-                id: String(row.shiftId),
+                id: String(row.shiftId ?? row.businessDate),
                 label,
                 value: (row.hoursSeconds ?? 0) / 3600,
                 display: hoursLabel(row.hoursSeconds),
@@ -271,12 +273,13 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                                         {filtered.some(row => row.hoursSeconds !== null || row.hoursState === "incomplete") ? (
                                             <HistoryList>
                                                 {filtered.filter(row => row.hoursSeconds !== null || row.hoursState === "incomplete").map(row =>
-                                                    <HistoryEntry key={row.shiftId}>
+                                                    <HistoryEntry key={row.shiftId ?? row.businessDate}>
                                                         <div>
                                                             <strong>{formatBusinessDate(row.businessDate, locale)}</strong>
-                                                            <Meta>{row.status === "open" ? (ja ? "営業中" : "Open shift") : (ja ? "終了" : "Closed shift")}
+                                                            <Meta>{row.status === "open" ? (ja ? "営業中" : "Open shift") : row.status === "closed" ? (ja ? "終了" : "Closed shift") : (ja ? "過去の記録" : "Historical entry")}
                                                                 {row.clockedIn ? " · " + (ja ? "勤務中" : "Clocked in") : ""}
                                                                 {row.hoursState === "incomplete" ? " · " + (ja ? "打刻時間が不完全" : "Incomplete punch") : ""}
+                                                                {row.hoursBasis && row.hoursBasis !== "clock" ? " · " + (ja ? "確認済み過去時間を含む" : "Includes verified historical hours") : ""}
                                                             </Meta>
                                                         </div>
                                                         <Value>{hoursLabel(row.hoursSeconds)}</Value>
@@ -307,8 +310,8 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                                 )}
                                 <Coverage role="note">
                                     {ja
-                                        ? "勤務時間は打刻記録のみで集計し、未取込の過去時間は含みません。グラフでは不明な勤務時間を除外します。スタッフIDが確認できるドリンクのみ表示し、受取人不明の記録は確認用に除外します。勤務中の時間は経過時間です。「—」は未記録・不明で、0とは異なります。営業日は正午に切り替わります。"
-                                        : "Hours use clock punches only; historical totals have not been imported. The chart excludes unavailable hours. Drinks appear only when a staff ID is verified; unattributed records are excluded for review. Ongoing hours show elapsed time. “—” means unavailable, not zero. Business dates roll over at noon."}
+                                        ? "打刻時間と確認済みの過去の合計時間を表示します。過去の合計時間には出退勤時刻はありません。グラフでは不明な勤務時間を除外します。スタッフIDが確認できるドリンクのみ表示し、受取人不明の記録は確認用に除外します。勤務中の時間は経過時間です。「—」は未記録・不明で、0とは異なります。営業日は正午に切り替わります。"
+                                        : "Hours include clock punches and verified historical totals. Historical entries show total hours only, not clock-in/out times. The chart excludes unavailable hours. Drinks appear only when a staff ID is verified; unattributed records are excluded for review. Ongoing hours show elapsed time. “—” means unavailable, not zero. Business dates roll over at noon."}
                                 </Coverage>
                             </>
                         )}
