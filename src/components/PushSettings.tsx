@@ -15,6 +15,7 @@ export default function PushSettings() {
   const mounted = useRef(false);
 
   const checkAvailability = useCallback(async () => {
+    await Promise.resolve();
     if (!supportsPush()) return;
     try {
       const subscriptionExists = await getPushEnabled();
