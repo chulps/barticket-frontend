@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "styled-components";
 import { disablePush, enablePush, getPushEnabled, getPushPublicKey, PushRequestError, supportsPush } from "../api/push";
 import { useI18n } from "../i18n";
@@ -12,31 +12,29 @@ export default function PushSettings() {
   const [availability, setAvailability] = useState<Availability>(() => supportsPush() ? "checking" : "unsupported");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const mounted = useRef(false);
-
-  const checkAvailability = useCallback(async () => {
-    await Promise.resolve();
-    if (!supportsPush()) return;
-    try {
-      const subscriptionExists = await getPushEnabled();
-      if (!mounted.current) return;
-      setEnabled(subscriptionExists);
-      if (subscriptionExists) {
-        setAvailability("ready");
-        return;
-      }
-      const publicKey = await getPushPublicKey();
-      if (mounted.current) setAvailability(publicKey ? "ready" : "unavailable");
-    } catch {
-      if (mounted.current) setAvailability("error");
-    }
-  }, []);
+  const [checkVersion, setCheckVersion] = useState(0);
 
   useEffect(() => {
-    mounted.current = true;
-    void checkAvailability();
-    return () => { mounted.current = false; };
-  }, [checkAvailability]);
+    let active = true;
+    async function check() {
+      if (!supportsPush()) return;
+      try {
+        const subscriptionExists = await getPushEnabled();
+        if (!active) return;
+        setEnabled(subscriptionExists);
+        if (subscriptionExists) {
+          setAvailability("ready");
+          return;
+        }
+        const publicKey = await getPushPublicKey();
+        if (active) setAvailability(publicKey ? "ready" : "unavailable");
+      } catch {
+        if (active) setAvailability("error");
+      }
+    }
+    void check();
+    return () => { active = false; };
+  }, [checkVersion]);
 
   const supported = supportsPush();
   const canEnable = enabled || availability === "ready";
@@ -99,7 +97,11 @@ export default function PushSettings() {
               : (ja ? "この端末で通知を有効にする" : "Enable notifications")}
         </ActionButton>
         {(availability === "unavailable" || availability === "error") && !enabled ? (
-          <RetryButton type="button" onClick={() => { setAvailability("checking"); setError(""); void checkAvailability(); }}>
+          <RetryButton type="button" onClick={() => {
+            setAvailability("checking");
+            setError("");
+            setCheckVersion(version => version + 1);
+          }}>
             {ja ? "再確認" : "Check again"}
           </RetryButton>
         ) : null}
