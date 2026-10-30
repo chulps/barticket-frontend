@@ -576,6 +576,7 @@ test("My Time Clock renders the server punch at phone width without writing on p
   const state=await mockedPOS(page);
   await page.setViewportSize({width:390,height:844});
   await page.goto("/profile");
+  await page.getByRole("button",{name:"Shift",exact:true}).click();
 
   const clock=page.getByRole("region",{name:"My time clock"});
   await expect(clock.getByRole("heading",{name:"My Time Clock"})).toBeVisible();
@@ -594,6 +595,7 @@ test("My Time Clock renders the server punch at phone width without writing on p
 test("manager can mark venue closed while time clock remains available and POS creation is blocked",async ({page})=>{
   const state=await mockedPOS(page);
   await page.goto("/profile");
+  await page.getByRole("button",{name:"Shift",exact:true}).click();
   const venue=page.getByRole("region",{name:"Venue Status"});
   await expect(venue.getByText("Venue open")).toBeVisible();
   await venue.getByLabel("Event / closure note (optional)").fill("Maintenance");
@@ -646,6 +648,7 @@ test("clock controls stay unavailable when the current shift cannot be verified"
   state.failShiftLookup=true;
   await page.setViewportSize({width:390,height:844});
   await page.goto("/profile");
+  await page.getByRole("button",{name:"Shift",exact:true}).click();
 
   const clock=page.getByRole("region",{name:"My time clock"});
   await expect(clock.getByRole("heading",{name:"My Time Clock"})).toBeVisible();
@@ -658,6 +661,7 @@ test("Japanese My Time Clock remains readable and tappable at phone width",async
   await mockedPOS(page,{locale:"ja"});
   await page.setViewportSize({width:390,height:844});
   await page.goto("/profile");
+  await page.getByRole("button",{name:"勤務",exact:true}).click();
 
   const clock=page.getByRole("region",{name:"自分のタイムカード"});
   await expect(clock.getByRole("heading",{name:"自分のタイムカード"})).toBeVisible();
@@ -700,6 +704,22 @@ test("Profile work tabs follow arrow-key selection and keep their panels connect
   await page.keyboard.press("Home");
   await expect(hours).toBeFocused();
   await expect(hours).toHaveAttribute("aria-selected", "true");
+});
+
+test("Profile opens on personal stats and keeps shift controls and account settings in separate views", async ({ page }) => {
+  await mockedPOS(page);
+  await page.goto("/profile");
+  await expect(page.getByRole("region", { name: "My work records" })).toBeVisible();
+  const scales = page.getByRole("group", { name: "Time scale" });
+  await expect(scales.getByRole("button", { name: "All Time" })).toHaveAttribute("aria-pressed", "true");
+  await scales.getByRole("button", { name: "Monthly" }).click();
+  await expect(page.getByRole("button", { name: "Previous month" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "My time clock" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Shift", exact: true }).click();
+  await expect(page.getByRole("region", { name: "My time clock" })).toBeVisible();
+  await page.getByRole("button", { name: "Account", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Account settings" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "My time clock" })).toHaveCount(0);
 });
 
 test("historical-hours reconciliation reveals each step only when it is actionable", async ({ page }) => {
