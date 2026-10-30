@@ -6,8 +6,11 @@ import { useNavigate } from "react-router-dom";
 import { accountApi, type Account } from "../api/account";
 import { ApiError, getToken } from "../api/client";
 import { readLocale, translate, useI18n } from "../i18n";
+import TabGroup from "../components/TabGroup";
 import ShiftControls from "./ShiftControls";
 import StaffWorkHistory from "./StaffWorkHistory";
+
+type ProfileView = "stats" | "shift" | "account";
 
 export default function Profile() {
     const { t, locale } = useI18n();
@@ -20,6 +23,7 @@ export default function Profile() {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [view, setView] = useState<ProfileView>("stats");
 
     async function refresh(next?: Account | null) {
         const current = next === undefined ? account : next;
@@ -127,11 +131,22 @@ export default function Profile() {
                 </Section>
             ) : (
                 <>
-                    <ShiftControls account={account} locale={locale} />
+                    <TabGroup<ProfileView>
+                        label={locale === "ja" ? "プロフィール表示" : "Profile sections"}
+                        activeTab={view}
+                        onChange={setView}
+                        tabs={[
+                            { id: "stats", label: locale === "ja" ? "統計" : "Stats" },
+                            { id: "shift", label: locale === "ja" ? "勤務" : "Shift" },
+                            { id: "account", label: locale === "ja" ? "アカウント" : "Account" },
+                        ]}
+                    />
 
-                    <StaffWorkHistory key={account.id} userId={account.id} locale={locale} role={account.role} />
+                    {view === "stats" ? <StaffWorkHistory key={account.id} userId={account.id} locale={locale} role={account.role} /> : null}
+                    {view === "shift" ? <ShiftControls account={account} locale={locale} /> : null}
 
-                    <Section>
+                    {view === "account" ? <Section aria-label={locale === "ja" ? "アカウント設定" : "Account settings"}>
+                        <h2>{locale === "ja" ? "アカウント設定" : "Account settings"}</h2>
                         <Who>
                             <strong>{account.name}</strong>
                             <span>{account.email}</span>
@@ -188,7 +203,7 @@ export default function Profile() {
                                 {t("signOut")}
                             </SignOutButton>
                         </Row>
-                    </Section>
+                    </Section> : null}
 
                 </>
             )}
@@ -212,6 +227,7 @@ const Page = styled.main<{ $signedIn: boolean }>`
         font-size: var(--font-size-h4);
         font-weight: 500;
     }
+
 `;
 
 const Section = styled.section`

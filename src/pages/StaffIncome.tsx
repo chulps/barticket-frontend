@@ -5,10 +5,12 @@ import { accountApi, type ChuckMonthlyPayPreview, type PersonalEarningsPreview }
 import { ApiError } from "../api/client";
 import { localeTag, type Locale } from "../i18n";
 import { DonutChart, HorizontalBarChart, type DonutSlice, type NamedBar } from "../components/AnalyticsCharts";
+import Icon from "../components/Icon";
 import type { PayChartRow } from "../components/PayBreakdownChart";
 import { canViewChuckPersonalPay } from "./chuckProfileAccess";
 import { buildChuckProfileStats, type ChuckProfileStats } from "./chuckProfileStats";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
+import { shiftMonth } from "./analyticsNavigation";
 
 type Category = "all" | "hourly_wages" | "staff_drink_bonus";
 type SortOrder = "date" | "category";
@@ -24,6 +26,11 @@ type IncomeEntry = {
 function thisMonth() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthTitle(month: string, locale: Locale) {
+    const [year, number] = month.split("-").map(Number);
+    return new Date(year, number - 1, 1).toLocaleDateString(localeTag(locale), { month: "long", year: "numeric" });
 }
 
 function money(amount: number | string | null, locale: Locale) {
@@ -287,26 +294,36 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
             </Heading>
 
             {!isNoriProfile ? <Toolbar>
-                <label>
-                    {ja ? "対象月" : "Month"}
-                    <input type="month" value={month} onChange={event => setMonth(event.target.value)} />
-                </label>
+                <MonthNav aria-label={ja ? "月を選択" : "Choose month"}>
+                    <PeriodButton type="button" className="hollow secondary" aria-label={ja ? "前月" : "Previous month"}
+                        onClick={() => setMonth(value => shiftMonth(value, -1))}>
+                        <Icon name="CaretLeft" size="var(--font-size-h4)" />
+                    </PeriodButton>
+                    <strong aria-live="polite">{monthTitle(month, locale)}</strong>
+                    <PeriodButton type="button" className="hollow secondary" aria-label={ja ? "翌月" : "Next month"}
+                        onClick={() => setMonth(value => shiftMonth(value, 1))}>
+                        <Icon name="CaretRight" size="var(--font-size-h4)" />
+                    </PeriodButton>
+                </MonthNav>
                 {!isChuckProfile ? <>
-                    <label>
-                        {ja ? "種類" : "Category"}
-                        <select value={category} onChange={event => setCategory(event.target.value as Category)}>
-                            <option value="all">{ja ? "すべて" : "All categories"}</option>
-                            <option value="hourly_wages">{ja ? "賃金" : "Wages"}</option>
-                            <option value="staff_drink_bonus">{ja ? "スタッフドリンク" : "Staff drinks"}</option>
-                        </select>
-                    </label>
-                    <label>
-                        {ja ? "並び順" : "Sort by"}
-                        <select value={sort} onChange={event => setSort(event.target.value as SortOrder)}>
-                            <option value="date">{ja ? "日付（新しい順）" : "Date (newest)"}</option>
-                            <option value="category">{ja ? "種類、日付" : "Category, date"}</option>
-                        </select>
-                    </label>
+                    <Filters>
+                        <summary>{ja ? "種類・並び順" : "Filter & sort"}</summary>
+                        <label>
+                            {ja ? "種類" : "Category"}
+                            <select value={category} onChange={event => setCategory(event.target.value as Category)}>
+                                <option value="all">{ja ? "すべて" : "All categories"}</option>
+                                <option value="hourly_wages">{ja ? "賃金" : "Wages"}</option>
+                                <option value="staff_drink_bonus">{ja ? "スタッフドリンク" : "Staff drinks"}</option>
+                            </select>
+                        </label>
+                        <label>
+                            {ja ? "並び順" : "Sort by"}
+                            <select value={sort} onChange={event => setSort(event.target.value as SortOrder)}>
+                                <option value="date">{ja ? "日付（新しい順）" : "Date (newest)"}</option>
+                                <option value="category">{ja ? "種類、日付" : "Category, date"}</option>
+                            </select>
+                        </label>
+                    </Filters>
                 </> : null}
             </Toolbar> : null}
 
@@ -478,10 +495,30 @@ const Heading = styled.div`
 `;
 const Toolbar = styled.div`
     display: flex;
+    flex-direction: column;
     flex-wrap: wrap;
     gap: var(--space-2);
     label { display: flex; flex-direction: column; gap: var(--space-0); min-width: 180px; }
     input, select { box-sizing: border-box; }
+`;
+const MonthNav = styled.div`
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: var(--space-1);
+    strong { text-align: center; }
+`;
+const PeriodButton = styled.button`
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+`;
+const Filters = styled.details`
+    padding: var(--space-1);
+    border: 1px solid var(--neutral-700);
+    border-radius: 8px;
+    summary { cursor: pointer; min-height: 32px; }
+    label { margin-top: var(--space-1); }
 `;
 const Summary = styled.div`
     display: grid;

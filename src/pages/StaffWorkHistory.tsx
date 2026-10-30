@@ -5,10 +5,15 @@ import { accountApi, type PersonalWorkHistory } from "../api/account";
 import { ApiError } from "../api/client";
 import { localeTag, type Locale } from "../i18n";
 import { HorizontalBarChart, type NamedBar } from "../components/AnalyticsCharts";
+import AnalyticsDatePicker from "../components/AnalyticsDatePicker";
+import Icon from "../components/Icon";
+import TabGroup from "../components/TabGroup";
 import { recordedStaffTotals, type StaffActivityRow } from "./staffProfileData";
 import StaffIncome from "./StaffIncome";
+import { shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 
 type Panel = "hours" | "drinks" | "benefits" | "income";
+type TimeScale = "all" | "year" | "month" | "day";
 
 function formatBusinessDate(date: string, locale: Locale) {
     const [year, month, day] = date.split("-").map(Number);
@@ -31,6 +36,13 @@ function hoursLabel(seconds: number | null) {
     }) + " h";
 }
 
+function currentDate() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function currentMonth() { return currentDate().slice(0, 7); }
+
 /**
  * Loads the backend's self-only profile endpoint; no shared Analytics payload
  * is downloaded to build this private view.
@@ -42,7 +54,10 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
     const [section, setSection] = useState<Panel>("hours");
-    const [month, setMonth] = useState("all");
+    const [timeScale, setTimeScale] = useState<TimeScale>("all");
+    const [month, setMonth] = useState(currentMonth);
+    const [year, setYear] = useState(() => currentDate().slice(0, 4));
+    const [day, setDay] = useState(currentDate);
     const tabRefs = useRef<Partial<Record<Panel, HTMLButtonElement | null>>>({});
     const availableSections: Panel[] = role === "staff"
         ? ["hours", "drinks", "income"]
@@ -92,16 +107,16 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
         clockedIn: shift.clocked_in,
         drinks: shift.drinks,
     })), [history]);
-    const months = useMemo(() =>
-        [...new Set(rows.map(row => row.businessDate.slice(0, 7)))].sort().reverse(),
-    [rows]);
-    const filtered = useMemo(() =>
-        rows.filter(row => month === "all" || row.businessDate.startsWith(month)),
-    [rows, month]);
+    const filtered = useMemo(() => rows.filter(row => {
+        if (timeScale === "all") return true;
+        if (timeScale === "year") return row.businessDate.startsWith(year);
+        if (timeScale === "month") return row.businessDate.startsWith(month);
+        return row.businessDate === day;
+    }), [rows, timeScale, year, month, day]);
     const totals = useMemo(() => recordedStaffTotals(filtered), [filtered]);
     const hoursChartBars = useMemo<NamedBar[]>(() => {
         const known = filtered.filter(row => row.hoursSeconds !== null);
-        if (month === "all") {
+        if (timeScale === "all" || timeScale === "year") {
             const byMonth = new Map<string, number>();
             known.forEach(row => {
                 const key = row.businessDate.slice(0, 7);
@@ -128,7 +143,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                 color: "var(--royal-400)",
             };
         });
-    }, [filtered, month, locale]);
+    }, [filtered, timeScale, locale]);
 
     return (
         <Wrapper aria-label={ja ? "自分の勤務記録" : "My work records"}>
@@ -179,15 +194,59 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                 </PanelBody>
             ) : (
                 <PanelBody id={`profile-work-panel-${activeSection}`} role="tabpanel" aria-labelledby={`profile-work-tab-${activeSection}`} tabIndex={0}>
-                    <Toolbar>
-                        <label>
-                            {ja ? "対象月" : "Period"}
-                            <select value={month} onChange={event => setMonth(event.target.value)}>
-                                <option value="all">{ja ? "記録のある全期間" : "All recorded months"}</option>
-                                {months.map(value => <option key={value} value={value}>{formatMonth(value, locale)}</option>)}
-                            </select>
-                        </label>
-                    </Toolbar>
+                    <TimeControls>
+                        <TabGroup<TimeScale>
+                            label={ja ? "表示期間" : "Time scale"}
+                            tabs={[
+                                { id: "all", label: ja ? "全期間" : "All Time" },
+                                { id: "year", label: ja ? "年" : "Year" },
+                                { id: "month", label: ja ? "月次" : "Monthly" },
+                                { id: "day", label: ja ? "日次" : "Daily" },
+                            ]}
+                            activeTab={timeScale}
+                            onChange={scale => {
+                                setTimeScale(scale);
+                                if (scale === "year") setYear(month.slice(0, 4));
+                                if (scale === "month") setMonth(value => `${year}-${value.slice(5, 7)}`);
+                                if (scale === "day") setDay(value => `${month}-${value.slice(8, 10)}`);
+                            }}
+                        />
+                        {timeScale === "year" ? <PeriodNav>
+                            <StepButton type="button" className="hollow secondary" aria-label={ja ? "前年" : "Previous year"}
+                                onClick={() => { const next = shiftYear(year, -1); setYear(next); setMonth(value => `${next}-${value.slice(5, 7)}`); }}>
+                                <Icon name="CaretLeft" size="var(--font-size-h4)" />
+                            </StepButton>
+                            <strong>{year}</strong>
+                            <StepButton type="button" className="hollow secondary" aria-label={ja ? "翌年" : "Next year"}
+                                onClick={() => { const next = shiftYear(year, 1); setYear(next); setMonth(value => `${next}-${value.slice(5, 7)}`); }}>
+                                <Icon name="CaretRight" size="var(--font-size-h4)" />
+                            </StepButton>
+                        </PeriodNav> : null}
+                        {timeScale === "month" ? <PeriodNav>
+                            <StepButton type="button" className="hollow secondary" aria-label={ja ? "前月" : "Previous month"}
+                                onClick={() => { const next = shiftMonth(month, -1); setMonth(next); setYear(next.slice(0, 4)); }}>
+                                <Icon name="CaretLeft" size="var(--font-size-h4)" />
+                            </StepButton>
+                            <strong>{formatMonth(month, locale)}</strong>
+                            <StepButton type="button" className="hollow secondary" aria-label={ja ? "翌月" : "Next month"}
+                                onClick={() => { const next = shiftMonth(month, 1); setMonth(next); setYear(next.slice(0, 4)); }}>
+                                <Icon name="CaretRight" size="var(--font-size-h4)" />
+                            </StepButton>
+                        </PeriodNav> : null}
+                        {timeScale === "day" ? <PeriodNav>
+                            <StepButton type="button" className="hollow secondary" aria-label={ja ? "前日" : "Previous day"}
+                                onClick={() => { const next = shiftDay(day, -1); setDay(next); setMonth(next.slice(0, 7)); setYear(next.slice(0, 4)); }}>
+                                <Icon name="CaretLeft" size="var(--font-size-h4)" />
+                            </StepButton>
+                            <AnalyticsDatePicker label={day} value={day} shiftDates={rows.map(row => row.businessDate)} onChange={value => {
+                                setDay(value); setMonth(value.slice(0, 7)); setYear(value.slice(0, 4));
+                            }} />
+                            <StepButton type="button" className="hollow secondary" aria-label={ja ? "翌日" : "Next day"}
+                                onClick={() => { const next = shiftDay(day, 1); setDay(next); setMonth(next.slice(0, 7)); setYear(next.slice(0, 4)); }}>
+                                <Icon name="CaretRight" size="var(--font-size-h4)" />
+                            </StepButton>
+                        </PeriodNav> : null}
+                    </TimeControls>
                     {loading ? <p role="status">{ja ? "勤務履歴を読み込み中…" : "Loading work history…"}</p>
                         : error ? (
                             <ErrorArea role="alert">
@@ -215,7 +274,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                                 {activeSection === "hours" ? (
                                     <>
                                         {hoursChartBars.length ? <HorizontalBarChart
-                                            title={month === "all"
+                                            title={timeScale === "all" || timeScale === "year"
                                                 ? (ja ? "月別の勤務時間" : "Recorded hours by month")
                                                 : (ja ? "シフト別の勤務時間" : "Recorded hours by shift")}
                                             bars={hoursChartBars} locale={locale} /> : null}
@@ -298,10 +357,18 @@ const PanelBody = styled.div`
     display: flex; flex-direction: column; gap: var(--space-2);
     min-width: 0;
 `;
-const Toolbar = styled.div`
-    display: flex; justify-content: flex-end;
-    label { display: flex; flex-direction: column; gap: var(--space-0); width: min(100%, 260px); }
-    select { background: var(--dark); width: 100%; }
+const TimeControls = styled.div`
+    display: flex; flex-direction: column; gap: var(--space-1);
+    min-width: 0;
+    > [role="group"] { width: 100%; }
+`;
+const PeriodNav = styled.div`
+    display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px;
+    align-items: center; gap: var(--space-1); min-height: 48px;
+    strong { text-align: center; overflow-wrap: anywhere; }
+`;
+const StepButton = styled.button`
+    width: 44px; min-height: 44px; padding: 0;
 `;
 const Summary = styled.div`
     display: grid; grid-template-columns: repeat(1, minmax(0, 1fr));
