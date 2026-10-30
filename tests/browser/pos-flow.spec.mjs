@@ -727,8 +727,13 @@ test("Profile opens on personal stats and keeps shift controls and account setti
 
 test("historical-hours reconciliation reveals each step only when it is actionable", async ({ page }) => {
   await mockedPOS(page);
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin");
-  await page.getByRole("button", { name: "Historical hours" }).click();
+  const adminNav = page.getByRole("navigation", { name: "Admin sections" });
+  await expect(adminNav.getByRole("button", { name: "Overview" })).toBeVisible();
+  await expect(adminNav.getByRole("button", { name: "Pay deductions" })).toBeVisible();
+  expect(await adminNav.evaluate(element => element.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
+  await adminNav.getByRole("button", { name: "Historical hours" }).click();
 
   const chooseCsv = page.getByRole("heading", { name: "Choose the staff-hours CSV" });
   const reconcile = page.getByRole("heading", { name: "Reconcile and review staff hours" });
