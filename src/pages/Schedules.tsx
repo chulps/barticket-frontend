@@ -13,6 +13,7 @@ export default function Schedules() {
     const { locale } = useI18n();
     const ja = locale === "ja";
     const [rows, setRows] = useState<ScheduledShift[]>([]);
+    const [dateRange, setDateRange] = useState<{ from: string; to: string } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -20,8 +21,11 @@ export default function Schedules() {
         try {
             const today = businessDateJst(Date.now());
             // Keep a useful window of upcoming entries and past plans that never became actual shifts.
-            const result = await scheduledShiftsApi.list(offsetDate(today, -180), offsetDate(today, 180));
+            const from = offsetDate(today, -180);
+            const to = offsetDate(today, 180);
+            const result = await scheduledShiftsApi.list(from, to);
             setError("");
+            setDateRange({ from, to });
             setRows(result);
         } catch (err) {
             setRows([]);
@@ -57,13 +61,17 @@ export default function Schedules() {
                 ? "勤務表から確認した予定です。シフト、打刻、履歴勤務時間とは別に保存され、予定から勤務時間は作成されません。"
                 : "Reviewed spreadsheet assignments. These are separate from shifts, clock punches, and historical hours; schedules never create worked time."}</p>
         </header>
+        {dateRange ? <RangeText aria-live="polite">{ja
+            ? `表示期間：${dateRange.from} ～ ${dateRange.to}`
+            : `Showing schedule entries from ${dateRange.from} through ${dateRange.to}.`}</RangeText> : null}
         {loading ? <RequestState kind="loading" detail={ja ? "予定を読み込んでいます…" : "Loading schedules…"} /> : null}
         {error ? <ErrorBox role="alert">
             <span>{ja ? "シフト予定を読み込めませんでした。" : "Could not load the schedule."} ({error})</span>
             <button type="button" className="small secondary" onClick={() => void load()}>{ja ? "再試行" : "Retry"}</button>
         </ErrorBox> : null}
         {!loading && !error && rows.length === 0 ? <Section>
-            <p>{ja ? "この期間に登録された予定はありません。" : "There are no schedule entries in this date range."}</p>
+            <strong>{ja ? "この期間に予定はありません" : "No scheduled shifts in this period."}</strong>
+            <p>{ja ? "表示期間を確認してください。" : "The date range above includes the past and upcoming six months."}</p>
         </Section> : null}
         {!loading && !error && rows.length ? <List aria-label={ja ? "シフト予定一覧" : "Scheduled shifts"}>
             {rows.map(row => <Entry key={row.id}>
@@ -93,6 +101,7 @@ export default function Schedules() {
 
 const Page = styled.main`width: min(100% - 2rem, 980px); margin: 0 auto; padding: var(--space-2) 0 var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); h1 { font-size: var(--font-size-h3); } header p { color: var(--neutral-300); }`;
 const Section = styled.section`padding: var(--space-2); background: var(--neutral-900); border-radius: 12px;`;
+const RangeText = styled.p`color:var(--neutral-300);font-size:var(--font-size-small);font-family:var(--font-family-data);`;
 const List = styled.div`display: grid; gap: var(--space-2);`;
 const Entry = styled.article`padding: var(--space-2); background: var(--neutral-900); border: 1px solid var(--neutral-700); border-radius: 12px; display: flex; flex-direction: column; gap: var(--space-1); h2 { font-size: var(--font-size-default); margin: 0; } dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-1); margin: 0; } dt { color: var(--neutral-400); font-size: var(--font-size-small); } dd { margin: 0.2rem 0 0; overflow-wrap: anywhere; }`;
 const EntryHeader = styled.div`display: flex; justify-content: space-between; align-items: center; gap: var(--space-1); flex-wrap: wrap;`;

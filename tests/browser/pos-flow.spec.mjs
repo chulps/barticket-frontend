@@ -633,6 +633,7 @@ test("schedule page separates assigned people from actual work records and prese
   const state=await mockedPOS(page);
   await page.goto("/schedules");
   await expect(page.getByRole("heading",{name:"Shift schedule"})).toBeVisible();
+  await expect(page.getByText(/Showing schedule entries from/)).toBeVisible();
   await expect(page.getByText("Scheduled",{exact:true})).toBeVisible();
   await expect(page.getByText("Past plan · no actual shift recorded")).toBeVisible();
   await expect(page.getByText("Haruka").first()).toBeVisible();

@@ -10,6 +10,16 @@ import { useModal } from "../hooks/useModal";
 const PAGE_SIZE = 50;
 const STATUSES = ["outstanding", "partially_paid", "settled", "written_off"] as const;
 
+function statusLabel(status: string, ja: boolean) {
+    const labels: Record<string, [string, string]> = {
+        outstanding: ["Needs collection", "未回収"],
+        partially_paid: ["Partially collected", "一部回収"],
+        settled: ["Settled", "回収済み"],
+        written_off: ["Written off", "免除済み"],
+    };
+    return labels[status]?.[ja ? 1 : 0] ?? status;
+}
+
 export default function Receivables() {
     const { locale } = useI18n();
     const { openModal } = useModal();
@@ -75,12 +85,12 @@ export default function Receivables() {
         <p>{ja
             ? "サービス営業日、実際の回収額、残高を分けて表示します。後日の支払いは元のシフトや来店人数を変更しません。"
             : "Service date, actual collections, and remaining balance are shown separately. Later payments do not change the original shift or attendance."}</p>
-        <FilterRow>
+        <FilterRow aria-label={ja ? "未払い伝票の絞り込み" : "Filter receivables"}>
             <label>{ja ? "状態" : "Status"}
                 <select value={status} onChange={event => { setStatus(event.target.value); setOffset(0); }}>
-                    <option value="unresolved">{ja ? "未払い・一部回収" : "Outstanding and partially paid"}</option>
+                    <option value="unresolved">{ja ? "未回収・一部回収" : "Needs collection (unpaid or partial)"}</option>
                     <option value="all">{ja ? "すべて" : "All receivables"}</option>
-                    {STATUSES.map(value => <option key={value} value={value}>{value.replace("_", " ")}</option>)}
+                    {STATUSES.map(value => <option key={value} value={value}>{statusLabel(value, ja)}</option>)}
                 </select>
             </label>
             {!unresolved ? <label>{ja ? "理由" : "Reason"}
@@ -93,7 +103,15 @@ export default function Receivables() {
         </FilterRow>
         {loading ? <p role="status">{ja ? "未払い伝票を読み込み中…" : "Loading receivables…"}</p> : null}
         {error ? <div role="alert"><p>{error}</p><button type="button" onClick={reload}>{ja ? "再試行" : "Retry"}</button></div> : null}
-        {!loading && !error && items.length === 0 ? <p role="status">{ja ? "該当する未払い伝票はありません。" : "No receivables match these filters."}</p> : null}
+        {!loading && !error ? <ResultsCount role="status">{ja ? `該当 ${total} 件` : `${total} receivable${total === 1 ? "" : "s"}`}</ResultsCount> : null}
+        {!loading && !error && items.length === 0 ? <EmptyState role="status">
+            <strong>{ja ? "該当する伝票はありません" : "No receivables match these filters."}</strong>
+            <span>{ja ? "状態や理由の条件を確認してください。" : "Try a different status or reason filter."}</span>
+            {status !== "unresolved" || reason ? <button type="button" className="small hollow secondary"
+                onClick={() => { setStatus("unresolved"); setReason(""); setOffset(0); }}>
+                {ja ? "未回収の表示に戻す" : "Show unpaid balances"}
+            </button> : null}
+        </EmptyState> : null}
         <List>
             {items.map(ticket => {
                 const converted = toTicket(ticket);
@@ -104,7 +122,7 @@ export default function Receivables() {
                         <p>{ja ? "サービス営業日" : "Service date"}: {ticket.service_business_date ?? "—"}
                             {ageDays !== null ? ` · ${ja ? "経過" : "Age"}: ${ageDays} ${ja ? "日" : "days"}` : ""}
                             {ticket.follow_up_date ? ` · ${ja ? "フォロー" : "Follow-up"}: ${ticket.follow_up_date}` : ""}</p>
-                    </div><strong>{(ticket.settlement_status ?? "outstanding").replace("_", " ")}</strong></header>
+                    </div><StatusBadge>{statusLabel(ticket.settlement_status ?? "outstanding", ja)}</StatusBadge></header>
                     <dl>
                         <dt>{ja ? "請求額" : "Billed"}</dt><dd>{yen(ticket.total)}</dd>
                         <dt>{ja ? "回収済み" : "Collected"}</dt><dd>{yen(ticket.amount_paid ?? 0)}</dd>
@@ -204,7 +222,10 @@ function VoidPaymentForm({ ticketId, paymentId, locale, onSaved }: { ticketId: n
     </span>;
 }
 
-const FilterRow = styled.div`display:flex; flex-wrap:wrap; align-items:end; gap:var(--space-2); margin-block:var(--space-2); label{display:grid; gap:var(--space-1);}`;
+const FilterRow = styled.div`display:grid; grid-template-columns:minmax(0,1fr); align-items:end; gap:var(--space-1); margin-block:var(--space-2); label{display:grid; gap:var(--space-1); min-width:0;} select{width:100%;} button{width:100%;} @media(min-width:600px){grid-template-columns:repeat(3,minmax(0,1fr)); button{width:auto;}}`;
+const ResultsCount = styled.p`color:var(--neutral-300); font-family:var(--font-family-data); margin:0 0 var(--space-1);`;
+const EmptyState = styled.section`display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-1);padding:var(--space-2);background:var(--neutral-900);border-radius:12px;color:var(--neutral-300);strong{color:var(--neutral-100);}button{width:auto;}`;
+const StatusBadge = styled.strong`display:inline-flex;padding:.25rem .7rem;border-radius:999px;background:var(--neutral-800);color:var(--neutral-100);font-size:var(--font-size-small);`;
 const List = styled.section`display:grid; gap:var(--space-2);`;
 const ReceivableCard = styled.article`border:1px solid var(--neutral-700); border-radius:var(--space-2); padding:var(--space-2); display:grid; gap:var(--space-2); overflow-wrap:anywhere; header{display:flex; justify-content:space-between; gap:var(--space-2); flex-wrap:wrap;} h2{font-size:var(--font-size-h4); margin:0;} p{margin:var(--space-1) 0;} dl{display:grid; grid-template-columns:minmax(8rem, 1fr) auto; gap:var(--space-1); margin:0;} dt,dd{margin:0;} dd{text-align:right;} details{min-width:0;} summary{cursor:pointer;} ul{padding-left:1.25rem;}`;
 const ActionRow = styled.div`display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-1);`;

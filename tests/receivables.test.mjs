@@ -35,6 +35,17 @@ test("later collections are idempotent, partial, and visible across business dat
     assert.match(page, /collection_business_date/);
 });
 
+test("receivables use readable localized status labels and a clear empty-filter reset", () => {
+    const page = source("pages/Receivables.tsx");
+    assert.match(page, /Needs collection/);
+    assert.match(page, /Partially collected/);
+    assert.match(page, /未回収/);
+    assert.match(page, /No receivables match these filters/);
+    assert.match(page, /Show unpaid balances/);
+    assert.match(page, /setStatus\("unresolved"\); setReason\(""\); setOffset\(0\)/);
+    assert.match(page, /\$\{total\} receivable/);
+});
+
 test("write-offs and payment voids are manager-only, audited, and never represented as processor refunds", () => {
     const page = source("pages/Receivables.tsx");
     assert.match(page, /account\?\.role === "manager" && isUnresolved \? <WriteOffForm/);
