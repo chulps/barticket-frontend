@@ -32,6 +32,11 @@ test("ticket/admin tab groups and payment methods expose a single pressed button
   assert.match(tab, /role="group"/);
   assert.match(tab, /aria-pressed=\{tab\.id === activeTab\}/);
   assert.match(tab, /onKeyDown=\{event => handleArrow\(event, index\)\}/);
+  assert.match(tab, /button\.offsetWidth/);
+  assert.match(tab, /button\.offsetLeft/);
+  assert.match(tab, /overflow-x: auto/);
+  assert.match(tab, /scroller\.scrollTo/);
+  assert.match(tab, /prefers-reduced-motion: reduce/);
   assert.match(payment, /role="group" aria-label=\{t\("receivePayment"\)\}/);
   assert.match(payment, /aria-pressed=\{paymentType === method\.type\}/);
   assert.match(payment, /onKeyDown=\{event => handleMethodArrow\(event, index\)\}/);
