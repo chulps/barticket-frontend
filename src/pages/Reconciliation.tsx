@@ -68,6 +68,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
         draft.guests !== String(selected.guest_count) || draft.event || draft.notes || draft.staff !== "none" || draft.guestName || draft.guestPayType || draft.guestPayAmount || draft.guestDrinkback ||
         Object.entries(draft.staffHours).some(([name, value]) => value !== String((selected.staff_hours.find(row => row.name === name)?.seconds ?? 0) / 3600))));
     const preview = useMemo(() => csv ? importPreview(csv, mapping, shifts) : null, [csv, mapping, shifts]);
+    const canReconcileHistory = Boolean(csv && mapping.date && mapping.staff && mapping.hours);
     const hasUnsavedWork = changed || csv !== null;
     const previewRows = useMemo(() => (preview?.preview ?? []).filter(row =>
         previewFilter === "all" || row.state === previewFilter
@@ -364,7 +365,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
         </Block>
         <Block>
             <StepHeading><span>1</span><h3>{ja ? "勤務表CSVを選ぶ" : "Choose the staff-hours CSV"}</h3></StepHeading>
-            <p>{ja ? "1. CSVを選び、日付・スタッフ名・合計時間の列を確認します。2. 勤務時間を照合して結果を確認します。照合だけでは保存されません。" : "1. Choose the CSV and check the date, staff-name, and total-hours columns. 2. Reconcile staff hours to preview the results. This step does not save anything."}</p>
+            <p>{ja ? "勤務時間のCSVを選びます。列の対応付けと照合結果の確認に進んでから、必要な時間だけを保存します。" : "Choose the staff-hours CSV to begin. You’ll map its columns and review the matches before saving selected hours."}</p>
             <label>CSV (.csv, UTF-8)<input type="file" accept=".csv,text/csv" onChange={e => {
                 const file = e.currentTarget.files?.[0];
                 e.currentTarget.value = "";
@@ -451,11 +452,11 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                     {reportNotice ? <p role="status">{reportNotice}</p> : null}
                 </details> : null}
             </> : null}
-            <Block>
+            {canReconcileHistory ? <Block>
                 <StepHeading><span>3</span><h4>{ja ? "勤務時間を照合して確認" : "Reconcile and review staff hours"}</h4></StepHeading>
                 <p>{ja ? "2026年10月から1か月ずつ確認します。実際の打刻時刻は作成せず、差異修正は理由とともに監査記録へ保存します。" : "Review one month at a time, starting with October 2026. No clock times are created; corrections to conflicting totals are audited with a reason."}</p>
                 <Actions>
-                    <button type="button" className="secondary" disabled={!csv || historyBusy} onClick={() => void reconcileHistory()}>
+                    <button type="button" className="secondary" disabled={!canReconcileHistory || Boolean(preview?.errors.length) || historyBusy} onClick={() => void reconcileHistory()}>
                         {historyBusy ? (ja ? "処理中…" : "Working…") : (ja ? "勤務時間を照合" : "Reconcile staff hours")}
                     </button>
                     {historyPreview?.rows.some(row => (row.state === "new" || row.state === "conflict") && row.user_id !== null) ? <button type="button" className="hollow secondary" disabled={historyBusy} onClick={() => {
@@ -529,7 +530,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                         <p>{ja ? "差異の修正は理由とともに監査記録へ保存され、元の打刻時刻は変更されません。" : "Corrections are audited with your reason. Original clock timestamps are preserved."}</p>
                     </Actions>
                 </> : null}
-            </Block>
+            </Block> : null}
         </Block>
     </Wrap>;
 }
