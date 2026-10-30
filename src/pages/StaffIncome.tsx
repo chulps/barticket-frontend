@@ -360,7 +360,7 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                                 : `Days without one confirmed manager are excluded from your stats (${chuckStats.unassignedManagerDays} unassigned, ${chuckStats.ambiguousManagerDays} needing review).`}</ChartNote> : null}
                             <ChartNote>{ja
                                 ? "チケット明細がある日は請求額を、ない日はシフトに記録された合計を表示します。未収分はサービス日に一度だけ含み、後日の回収は加算しません。"
-                                : "Ticket totals are used when available; otherwise, recorded shift totals fill the gap. Deferred tickets count once on their service date; later collections are not added again."}</ChartNote>
+                                : "Sales use the original service date: ticket totals when available; otherwise, the recorded shift total fills the gap. Deferred tickets count once on that date; later collections are not added again."}</ChartNote>
                         </> : null}
             </StatsPanel> : null}
 
