@@ -3,7 +3,7 @@ import type { AnalyticsShiftReport, ServiceSalesReport } from "../api/account";
 export type ChuckProfileNight = {
     businessDate: string;
     shiftId: number;
-    billedSalesYen: number;
+    billedSalesYen: number | null;
     guests: number;
 };
 
@@ -52,7 +52,7 @@ export function buildChuckProfileStats(
         result.nights.push({
             businessDate,
             shiftId: shift.id!,
-            billedSalesYen: salesByDate.get(businessDate)?.original_billed_total ?? 0,
+            billedSalesYen: salesByDate.get(businessDate)?.original_billed_total ?? null,
             guests: shift.guest_count,
         });
     }
