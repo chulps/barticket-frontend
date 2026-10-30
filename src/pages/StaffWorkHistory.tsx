@@ -12,7 +12,7 @@ import { recordedStaffTotals, type StaffActivityRow } from "./staffProfileData";
 import StaffIncome from "./StaffIncome";
 import { shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 
-type Panel = "hours" | "drinks" | "benefits" | "income";
+type Panel = "hours" | "drinks" | "income";
 type TimeScale = "all" | "year" | "month" | "day";
 
 function formatBusinessDate(date: string, locale: Locale) {
@@ -59,9 +59,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
     const [year, setYear] = useState(() => currentDate().slice(0, 4));
     const [day, setDay] = useState(currentDate);
     const tabRefs = useRef<Partial<Record<Panel, HTMLButtonElement | null>>>({});
-    const availableSections: Panel[] = role === "staff"
-        ? ["hours", "drinks", "income"]
-        : ["hours", "drinks", "benefits", "income"];
+    const availableSections: Panel[] = ["hours", "drinks", "income"];
     const activeSection: Panel = availableSections.includes(section) ? section : "hours";
 
     function moveTabFocus(current: Panel, key: string) {
@@ -174,8 +172,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                         }}>
                         {key === "hours" ? (ja ? "勤務時間" : "Hours")
                             : key === "drinks" ? (ja ? "スタッフドリンク" : "Staff drinks")
-                                : key === "income" ? (ja ? "収入内訳" : "Income")
-                                : (ja ? "手当・控除" : "Bonuses & adjustments")}
+                                : (ja ? "収入内訳" : "Income")}
                     </button>
                 ))}
             </Tabs>
@@ -183,14 +180,6 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
             {activeSection === "income" ? (
                 <PanelBody id="profile-work-panel-income" role="tabpanel" aria-labelledby="profile-work-tab-income" tabIndex={0}>
                     <StaffIncome userId={userId} locale={locale} role={role} />
-                </PanelBody>
-            ) : activeSection === "benefits" ? (
-                <PanelBody id="profile-work-panel-benefits" role="tabpanel" aria-labelledby="profile-work-tab-benefits" tabIndex={0}>
-                    <h3>{ja ? "手当・調整・控除" : "Bonuses, adjustments & deductions"}</h3>
-                    <p>{ja
-                        ? "承認済みの給与・手当・控除記録はまだありません。表示がないことは0円という意味ではありません。"
-                        : "Approved personal pay, bonus and deduction records are not available yet. Missing data does not mean ¥0."}</p>
-                    <Muted>{ja ? "現在は利用できません" : "Not available yet"}</Muted>
                 </PanelBody>
             ) : (
                 <PanelBody id={`profile-work-panel-${activeSection}`} role="tabpanel" aria-labelledby={`profile-work-tab-${activeSection}`} tabIndex={0}>
