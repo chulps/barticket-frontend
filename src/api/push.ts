@@ -3,6 +3,13 @@ import { API_URL, getDeviceId, getToken } from "./client";
 type PushKeys = { p256dh: string; auth: string };
 type PushSubscriptionPayload = { endpoint: string; keys: PushKeys };
 
+export class PushRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "PushRequestError";
+  }
+}
+
 function decodeBase64Url(value: string): Uint8Array<ArrayBuffer> {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   const binary = atob(padded);
@@ -36,7 +43,10 @@ async function pushRequest<T>(path: string, method = "GET", body?: unknown): Pro
   });
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}));
-    throw new Error(typeof detail.detail === "string" ? detail.detail : `Push request failed (${response.status})`);
+    throw new PushRequestError(
+      typeof detail.detail === "string" ? detail.detail : `Push request failed (${response.status})`,
+      response.status,
+    );
   }
   return response.json() as Promise<T>;
 }
@@ -47,17 +57,28 @@ export async function getPushEnabled(): Promise<boolean> {
   return Boolean(await registration?.pushManager.getSubscription());
 }
 
+export async function getPushPublicKey(): Promise<string | null> {
+  try {
+    const { public_key } = await pushRequest<{ public_key: string }>("/vapid-public-key");
+    return public_key;
+  } catch (error) {
+    if (error instanceof PushRequestError && error.status === 503) return null;
+    throw error;
+  }
+}
+
 export async function enablePush(): Promise<void> {
   if (!supportsPush()) throw new Error("This browser does not support web push notifications");
   if (Notification.permission === "denied") throw new Error("Notifications are blocked in your device settings");
+  const publicKey = await getPushPublicKey();
+  if (!publicKey) throw new PushRequestError("Push notifications are not configured on the server", 503);
   const registration = await registerBarTicketWorker();
   if (!registration) throw new Error("Unable to register service worker");
   const permission = await Notification.requestPermission();
   if (permission !== "granted") throw new Error("Notification permission was not granted");
-  const { public_key } = await pushRequest<{ public_key: string }>("/vapid-public-key");
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: decodeBase64Url(public_key),
+    applicationServerKey: decodeBase64Url(publicKey),
   });
   try {
     await pushRequest("/subscriptions", "POST", subscription.toJSON() as PushSubscriptionPayload);
