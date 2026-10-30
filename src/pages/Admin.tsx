@@ -50,7 +50,7 @@ export default function Admin() {
         () => staffId === undefined ? "overview" : "team",
     );
     const activeSection = staffId === undefined ? section : "team";
-    const sectionNavRef = useRef<HTMLNavElement>(null);
+    const sectionNavRef = useRef<HTMLElement>(null);
     const sectionButtons = useRef<(HTMLButtonElement | null)[]>([]);
     const [tabIndicator, setTabIndicator] = useState({ left: 0, top: 0, width: 0, height: 0 });
 
