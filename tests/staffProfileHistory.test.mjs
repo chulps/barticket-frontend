@@ -28,6 +28,7 @@ test("Profile mounts personal history only after authentication, without calling
     assert.match(history, /Incomplete punch/);
     assert.match(history, /Recorded hours by month/);
     assert.match(history, /Recorded hours by shift/);
+    assert.match(history, /<strong>\{totals\.recordedShifts\}<\/strong>/);
     assert.match(history, /The chart excludes unavailable hours/);
     assert.doesNotMatch(history, /accountApi\.listUsers\(|accountApi\.createUser\(|accountApi\.removeUser\(/);
     for (const [name, source] of [["Profile", profile], ["StaffWorkHistory", history]]) {
