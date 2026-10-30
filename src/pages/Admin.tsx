@@ -5,7 +5,6 @@ import RequestState from "../components/RequestState";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
-import TabGroup from "../components/TabGroup";
 import { useI18n } from "../i18n";
 import { confirmAccountRole } from "./adminAccountRole";
 import AdminTeam from "./AdminTeam";
@@ -14,6 +13,17 @@ import AdminAuditHistory from "./AdminAuditHistory";
 import Reconciliation from "./Reconciliation";
 import ScheduleImport from "./ScheduleImport";
 import AdminPayDeductions from "./AdminPayDeductions";
+
+type AdminSection = "overview" | "accounts" | "team" | "historicalHours" | "schedules" | "adjustments";
+
+const adminSectionTabs: { id: AdminSection; label: { en: string; ja: string } }[] = [
+    { id: "overview", label: { en: "Overview", ja: "概要" } },
+    { id: "accounts", label: { en: "Accounts", ja: "アカウント" } },
+    { id: "team", label: { en: "Team", ja: "チーム" } },
+    { id: "historicalHours", label: { en: "Historical hours", ja: "履歴勤務時間" } },
+    { id: "schedules", label: { en: "Schedules", ja: "シフト予定" } },
+    { id: "adjustments", label: { en: "Pay deductions", ja: "報酬控除" } },
+];
 
 /**
  * Manager-only dashboard: Phase 1 accounts plus frontend-only Team editor previews.
@@ -36,7 +46,7 @@ export default function Admin() {
     const [accountsError, setAccountsError] = useState("");
     const [accountsLoading, setAccountsLoading] = useState(false);
     const [busy, setBusy] = useState(false);
-    const [section, setSection] = useState<"overview" | "accounts" | "team" | "historicalHours" | "schedules" | "adjustments">(
+    const [section, setSection] = useState<AdminSection>(
         () => staffId === undefined ? "overview" : "team",
     );
     const activeSection = staffId === undefined ? section : "team";
@@ -44,7 +54,7 @@ export default function Admin() {
         : /^[1-9][0-9]*$/.test(staffId) && Number.isSafeInteger(Number(staffId))
             ? Number(staffId) : -1;
 
-    function chooseSection(next: "overview" | "accounts" | "team" | "historicalHours" | "schedules" | "adjustments") {
+    function chooseSection(next: AdminSection) {
         setSection(next);
         if (staffId !== undefined) navigate("/admin");
         if (next === "historicalHours") void loadHistoricalShifts();
@@ -199,18 +209,13 @@ export default function Admin() {
                 <p>{locale === "ja" ? "管理者向けのアカウント管理画面です。" : "Manager-only account management."}</p>
             </header>
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
-            <TabGroup
-                tabs={[
-                    { id: "overview", label: locale === "ja" ? "概要" : "Overview" },
-                    { id: "accounts", label: locale === "ja" ? "アカウント" : "Accounts" },
-                    { id: "team", label: locale === "ja" ? "チーム" : "Team" },
-                    { id: "historicalHours", label: locale === "ja" ? "履歴勤務時間" : "Historical hours" },
-                    { id: "schedules", label: locale === "ja" ? "シフト予定" : "Schedules" },
-                    { id: "adjustments", label: locale === "ja" ? "報酬控除" : "Pay deductions" },
-                ]}
-                activeTab={activeSection}
-                onChange={chooseSection}
-            />
+            <SectionNav aria-label={locale === "ja" ? "管理セクション" : "Admin sections"}>
+                {adminSectionTabs.map(tab => <SectionButton
+                    key={tab.id} type="button" aria-pressed={activeSection === tab.id}
+                    $active={activeSection === tab.id} onClick={() => chooseSection(tab.id)}>
+                    {locale === "ja" ? tab.label.ja : tab.label.en}
+                </SectionButton>)}
+            </SectionNav>
             {activeSection === "overview" ? (
                 <>
                     <SummaryGrid>
@@ -343,6 +348,29 @@ const Page = styled.main`
     h1 { font-size: var(--font-size-h3); }
     h2 { font-size: var(--font-size-h4); font-weight: 500; }
     header p { color: var(--neutral-300); }
+`;
+const SectionNav = styled.nav`
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-0);
+    padding: var(--space-0);
+    border: 1px solid var(--neutral-700);
+    border-radius: var(--space-1);
+    @media (min-width: 640px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    @media (min-width: 1000px) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+`;
+const SectionButton = styled.button<{ $active: boolean }>`
+    min-width: 0;
+    min-height: 48px;
+    padding: var(--space-1);
+    border: 1px solid transparent;
+    border-radius: calc(var(--space-1) - 2px);
+    background: ${({ $active }) => $active ? "var(--neutral-800)" : "transparent"};
+    color: ${({ $active }) => $active ? "white" : "var(--neutral-300)"};
+    overflow-wrap: anywhere;
+    text-align: center;
+    &:hover { color: white; }
+    &:focus-visible { outline: 2px solid var(--royal-400); outline-offset: 1px; }
 `;
 const Grid = styled.div`
     display: grid;
