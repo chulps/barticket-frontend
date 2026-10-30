@@ -1,15 +1,16 @@
 import type { ShiftPunch, ShiftReport } from "../api/account";
 
 /**
- * Read-only view of *currently recorded* data. Historical imported hours and
- * private compensation will be handled by the dedicated backend contract.
- * Never associate records based on a display name.
+ * Read-only view of this user's recorded activity. Historical hour totals stay
+ * distinct from clock punches; identities are never inferred by display name.
  */
 export type StaffActivityRow = {
-    shiftId: number;
+    shiftId: number | null;
     businessDate: string;
-    status: "open" | "closed";
+    status: "open" | "closed" | null;
     hoursSeconds: number | null;
+    historicalHoursSeconds?: number | null;
+    hoursBasis?: "clock" | "spreadsheet" | "spreadsheet_authoritative" | "clock_plus_spreadsheet";
     hoursState?: "recorded" | "in_progress" | "incomplete" | "unavailable";
     clockedIn: boolean;
     punches?: ShiftPunch[];
@@ -46,13 +47,15 @@ export function buildStaffActivity(
             hoursSeconds: hours.length
                 ? hours.reduce((seconds, record) => seconds + Math.max(0, record.seconds), 0)
                 : null,
+            historicalHoursSeconds: null,
+            hoursBasis: hours.length ? "clock" : undefined,
             clockedIn: shift.status === "open" && punches.some(record => record.clock_out === null),
             punches,
             drinks,
         });
     }
     return rows.sort((a, b) =>
-        b.businessDate.localeCompare(a.businessDate) || b.shiftId - a.shiftId,
+        b.businessDate.localeCompare(a.businessDate) || (b.shiftId ?? 0) - (a.shiftId ?? 0),
     );
 }
 
