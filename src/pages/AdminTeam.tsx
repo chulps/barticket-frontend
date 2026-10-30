@@ -273,7 +273,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                             <Summary>
                                 <Metric>
                                     <span>{ja ? "シフト" : "Shifts"}</span>
-                                    <strong>{loading || loadError || !totals.recordedShifts ? "—" : totals.recordedShifts}</strong>
+                                    <strong>{loading || loadError ? "—" : totals.recordedShifts}</strong>
                                 </Metric>
                                 <Metric>
                                     <span>{ja ? "勤務時間" : "Hours"}</span>
