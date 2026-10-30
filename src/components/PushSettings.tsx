@@ -9,18 +9,13 @@ export default function PushSettings() {
   const { locale } = useI18n();
   const ja = locale === "ja";
   const [enabled, setEnabled] = useState(false);
-  const [availability, setAvailability] = useState<Availability>("checking");
+  const [availability, setAvailability] = useState<Availability>(() => supportsPush() ? "checking" : "unsupported");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const mounted = useRef(false);
 
   const checkAvailability = useCallback(async () => {
-    if (!supportsPush()) {
-      setAvailability("unsupported");
-      return;
-    }
-    setAvailability("checking");
-    setError("");
+    if (!supportsPush()) return;
     try {
       const subscriptionExists = await getPushEnabled();
       if (!mounted.current) return;
@@ -103,7 +98,7 @@ export default function PushSettings() {
               : (ja ? "この端末で通知を有効にする" : "Enable notifications")}
         </ActionButton>
         {(availability === "unavailable" || availability === "error") && !enabled ? (
-          <RetryButton type="button" onClick={() => void checkAvailability()}>
+          <RetryButton type="button" onClick={() => { setAvailability("checking"); setError(""); void checkAvailability(); }}>
             {ja ? "再確認" : "Check again"}
           </RetryButton>
         ) : null}
