@@ -61,5 +61,7 @@ test("staff income never presents an estimate as a paid amount or treats unknown
     assert.match(income, /amount_yen_unrounded/);
     assert.match(income, /Hourly rate unavailable/);
     assert.match(income, /Could not load income breakdown/);
+    assert.match(income, /これはChuck担当シフトに基づく月次の支払見積もりです/);
+    assert.match(income, /: chuckReport\.note/);
     assert.match(income, /bonus\?\.complete \? bonus\.amount_yen : null/);
 });

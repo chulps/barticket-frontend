@@ -389,7 +389,9 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                         {chuckDonutSlices.length && (chuckChartRows[0]?.total ?? 0) > 0 ? <DonutChart title={ja ? "総給与の内訳" : "Gross salary breakdown"}
                             slices={chuckDonutSlices} center={money(chuckReport.gross_salary_yen, locale)} locale={locale}
                             note={ja ? "総給与は支払予定額、スタッフ給与、その他の控除に分かれます。" : "Gross salary is divided into amount owed to Chuck, staff pay, and other deductions."} /> : null}
-                        <Notice role="note">{chuckReport.note}</Notice>
+                        <Notice role="note">{ja
+                            ? "これはChuck担当シフトに基づく月次の支払見積もりです。勤務時間・時給・対象スタッフドリンク・控除がすべて確認できるまで、支払予定額は表示されません。これは支払記録ではなく、不明な項目を0円とは扱いません。"
+                            : chuckReport.note}</Notice>
                         {!chuckReport.complete && chuckReport.blockers.length ? (
                             <ErrorArea role="status">
                                 <ul>{chuckReport.blockers.map(code => <li key={code}>{payBlockerLabel(code, ja)}</li>)}</ul>
