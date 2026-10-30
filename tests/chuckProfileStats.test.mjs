@@ -50,3 +50,18 @@ test("open shifts and closure-only rows are excluded from monthly earned stats",
     assert.deepEqual(result.nights, []);
     assert.equal(result.unassignedManagerDays, 0);
 });
+test("missing ticket-level sales remain unavailable instead of becoming zero", () => {
+    const result = buildChuckProfileStats(
+        [shift(4, "2026-10-04", 10, 2)],
+        { items: [], basis: "original_service_business_date", label: "Billed" },
+        10,
+        "2026-10",
+    );
+
+    assert.deepEqual(result.nights, [{
+        businessDate: "2026-10-04",
+        shiftId: 4,
+        billedSalesYen: null,
+        guests: 2,
+    }]);
+});
