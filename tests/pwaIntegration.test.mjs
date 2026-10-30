@@ -253,14 +253,13 @@ test("push setup checks server configuration before asking for device permission
       API_URL: "https://api.example.test",
       BASE_URL: "/barticket-frontend/",
       VITE_API_URL: "https://api.example.test",
+      getDeviceId: () => "test-device",
+      getToken: () => "signed-in-token",
     });
     const { enablePush, getPushPublicKey } = await loadTypeScript("../src/api/push.ts", [
       ['import { API_URL, getDeviceId, getToken } from "./client";', "const { API_URL, getDeviceId, getToken } = globalThis.__BARTICKET_TEST_ENV__;"],
       ["import.meta.env.", "globalThis.__BARTICKET_TEST_ENV__."],
     ]);
-    globalThis.__BARTICKET_TEST_ENV__.getDeviceId = () => "test-device";
-    globalThis.__BARTICKET_TEST_ENV__.getToken = () => "signed-in-token";
-
     assert.equal(await getPushPublicKey(), null, "503 is reported as a known unconfigured server");
     await assert.rejects(enablePush, error => error.status === 503);
     assert.deepEqual(calls, [
