@@ -11,10 +11,12 @@ const transpiled = ts.transpileModule(policy, {
 const { confirmAccountRole } = await import("data:text/javascript," + encodeURIComponent(transpiled));
 
 test("Admin renders Overview, Accounts, Team, historical hours, and spreadsheet schedules", () => {
-    assert.match(admin, /import TabGroup from "\.\.\/components\/TabGroup"/);
-    assert.match(admin, /<TabGroup\b/);
-    assert.match(admin, /activeTab=\{activeSection\}/);
-    assert.match(admin, /onChange=\{chooseSection\}/);
+    assert.match(admin, /<SectionNav aria-label=/);
+    assert.match(admin, /adminSectionTabs\.map/);
+    assert.match(admin, /aria-pressed=\{activeSection === tab\.id\}/);
+    assert.match(admin, /onClick=\{\(\) => chooseSection\(tab\.id\)\}/);
+    assert.match(admin, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+    assert.match(admin, /grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
     for (const section of ["overview", "accounts", "team", "schedules"]) {
         assert.match(admin, new RegExp(`\\{ id: "${section}", label:`));
     }
