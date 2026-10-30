@@ -44,12 +44,15 @@ function bonusDateRange(rows: StaffActivityRow[], drinkLines: AdminDrinkLine[]) 
 
 /** Manager-only controls; rate and clock corrections write through audited APIs. */
 function PunchCorrectionCard({
-    shiftId, businessDate, punch, locale, onSaved,
+    shiftId, businessDate, punch, locale, expanded, onEdit, onCancel, onSaved,
 }: {
     shiftId: number;
     businessDate: string;
     punch: ShiftPunch;
     locale: Locale;
+    expanded: boolean;
+    onEdit: () => void;
+    onCancel: () => void;
     onSaved: () => void;
 }) {
     const ja = locale === "ja";
@@ -85,6 +88,7 @@ function PunchCorrectionCard({
             });
             setSuccess(ja ? "修正を保存しました。監査履歴に記録されています。" : "Correction saved to audit history.");
             setReason("");
+            onCancel();
             onSaved();
         } catch (cause) {
             setError(cause instanceof Error ? cause.message :
@@ -95,9 +99,23 @@ function PunchCorrectionCard({
     }
 
     const history = punch.correction_history ?? [];
+    function cancelEditing() {
+        setClockIn(originalIn); setClockOut(originalOut); setReason(""); setError(""); setSuccess(""); onCancel();
+    }
     return (
         <Card>
-            <strong>{dateLabel(businessDate, locale)} · {punch.name}</strong>
+            <PunchSummary>
+                <div>
+                    <strong>{dateLabel(businessDate, locale)} · {punch.name}</strong>
+                    <Muted>{ja ? "出勤" : "In"}: {new Date(punch.clock_in * 1000).toLocaleTimeString(localeTag(locale), { timeZone: "Asia/Tokyo", hour: "numeric", minute: "2-digit" })}
+                        {" · "}{ja ? "退勤" : "Out"}: {punch.clock_out === null ? "—" : new Date(punch.clock_out * 1000).toLocaleTimeString(localeTag(locale), { timeZone: "Asia/Tokyo", hour: "numeric", minute: "2-digit" })}</Muted>
+                </div>
+                <button type="button" className="small hollow secondary" aria-expanded={expanded}
+                    onClick={expanded ? cancelEditing : onEdit}>
+                    {expanded ? (ja ? "編集をキャンセル" : "Cancel edits") : (ja ? "時刻を修正" : "Edit times")}
+                </button>
+            </PunchSummary>
+            {expanded ? <>
             <Fields>
                 <label>{ja ? "出勤（日本時間）" : "Clock in (JST)"}
                     <input type="datetime-local" step="1" value={clockIn}
@@ -133,6 +151,7 @@ function PunchCorrectionCard({
                     ))}
                 </details>
             ) : null}
+            </> : null}
         </Card>
     );
 }
@@ -140,6 +159,7 @@ function PunchCorrectionCard({
 export default function AdminTeamEditors({ person, locale, rows, drinkLines, onRefresh }: Props) {
     const ja = locale === "ja";
     const [tab, setTab] = useState<EditorTab>("terms");
+    const [editingPunchId, setEditingPunchId] = useState<number | null>(null);
     const [rate, setRate] = useState({ ...initialRateDraft, basis: "hourly" as const });
     const [bonus, setBonus] = useState(initialBonusDraft);
     const bonusIdempotencyKey = useRef(crypto.randomUUID());
@@ -416,6 +436,9 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                                     businessDate={row.businessDate}
                                     punch={punch}
                                     locale={locale}
+                                    expanded={editingPunchId === punch.id}
+                                    onEdit={() => setEditingPunchId(punch.id)}
+                                    onCancel={() => setEditingPunchId(current => current === punch.id ? null : current)}
                                     onSaved={onRefresh}
                                 />
                             ))}
@@ -569,6 +592,13 @@ const Card = styled.section`
     display:flex; flex-direction:column; gap:var(--space-1); min-width:0;
     padding:var(--space-2); background:var(--neutral-900); border-radius:8px;
     p {line-height:1.5}
+`;
+const PunchSummary = styled.div`
+    display:flex;align-items:center;justify-content:space-between;gap:var(--space-1);min-width:0;
+    & > div{min-width:0;}
+    strong{display:block;overflow-wrap:anywhere;}
+    button{width:auto;flex-shrink:0;}
+    @media(max-width:480px){align-items:flex-start;flex-direction:column;button{width:100%;}}
 `;
 const Fields = styled.div`
     display:grid; gap:var(--space-1);
