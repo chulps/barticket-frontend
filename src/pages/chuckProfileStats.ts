@@ -3,7 +3,7 @@ import type { AnalyticsShiftReport, ServiceSalesReport } from "../api/account";
 export type ChuckProfileNight = {
     businessDate: string;
     shiftId: number;
-    billedSalesYen: number;
+    billedSalesYen: number | null;
     guests: number;
 };
 
@@ -13,7 +13,7 @@ export type ChuckProfileStats = {
     ambiguousManagerDays: number;
 };
 
-/** Join the existing manager assignment and service-date sales feeds without inferring a manager. */
+/** Join manager assignments and service-date sales; use the recorded shift total when ticket detail is absent. */
 export function buildChuckProfileStats(
     shifts: AnalyticsShiftReport[],
     serviceSales: ServiceSalesReport,
@@ -52,7 +52,7 @@ export function buildChuckProfileStats(
         result.nights.push({
             businessDate,
             shiftId: shift.id!,
-            billedSalesYen: salesByDate.get(businessDate)?.original_billed_total ?? 0,
+            billedSalesYen: salesByDate.get(businessDate)?.original_billed_total ?? shift.paid_total,
             guests: shift.guest_count,
         });
     }

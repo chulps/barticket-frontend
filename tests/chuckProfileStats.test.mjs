@@ -9,8 +9,8 @@ const helper = ts.transpileModule(source, {
 }).outputText;
 const { buildChuckProfileStats } = await import(`data:text/javascript;base64,${Buffer.from(helper).toString("base64")}`);
 
-function shift(id, business_date, working_manager_user_id, guest_count = 0, status = "closed") {
-    return { id, business_date, working_manager_user_id, guest_count, status };
+function shift(id, business_date, working_manager_user_id, guest_count = 0, status = "closed", paid_total = 0) {
+    return { id, business_date, working_manager_user_id, guest_count, status, paid_total };
 }
 
 test("Chuck stats use original billed sales on confirmed Chuck-managed dates", () => {
@@ -49,4 +49,19 @@ test("open shifts and closure-only rows are excluded from monthly earned stats",
 
     assert.deepEqual(result.nights, []);
     assert.equal(result.unassignedManagerDays, 0);
+});
+test("recorded shift totals fill dates without ticket-level detail", () => {
+    const result = buildChuckProfileStats(
+        [shift(4, "2026-10-04", 10, 2, "closed", 29900)],
+        { items: [], basis: "original_service_business_date", label: "Billed" },
+        10,
+        "2026-10",
+    );
+
+    assert.deepEqual(result.nights, [{
+        businessDate: "2026-10-04",
+        shiftId: 4,
+        billedSalesYen: 29900,
+        guests: 2,
+    }]);
 });

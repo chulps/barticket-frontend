@@ -32,7 +32,7 @@ test("Profile income is personal for staff and managers and shows wages and drin
     assert.match(income, /Estimated income by day/);
     assert.match(income, /Staff pay owed by person/);
     assert.match(income, /Chuck-managed shift stats/);
-    assert.match(income, /Billed service sales by night/);
+    assert.match(income, /Recorded sales by night/);
     assert.match(income, /original service date/);
     assert.match(account, /serviceSales: \(dateFrom: string, dateTo: string\)/);
     assert.match(account, /\/analytics\/service-sales/);
