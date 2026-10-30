@@ -259,13 +259,18 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
             display: money(person.total_owed_yen, locale),
         }))
         : [];
-    const chuckRevenueBars: NamedBar[] = (chuckStats?.nights ?? []).map(night => ({
+    const knownChuckSales = (chuckStats?.nights ?? []).flatMap(night =>
+        night.billedSalesYen === null ? [] : [night]);
+    const chuckRevenueBars: NamedBar[] = knownChuckSales.map(night => ({
         id: String(night.shiftId),
         label: new Date(`${night.businessDate}T12:00:00`).toLocaleDateString(localeTag(locale), { month: "short", day: "numeric" }),
         value: night.billedSalesYen,
         display: money(night.billedSalesYen, locale),
     }));
-    const chuckBilledSales = chuckStats?.nights.reduce((sum, night) => sum + night.billedSalesYen, 0) ?? null;
+    const chuckBilledSales = chuckStats && chuckStats.nights.every(night => night.billedSalesYen !== null)
+        ? chuckStats.nights.reduce((sum, night) => sum + (night.billedSalesYen ?? 0), 0)
+        : null;
+    const chuckMissingSalesNights = chuckStats?.nights.filter(night => night.billedSalesYen === null).length ?? 0;
     const chuckGuests = chuckStats?.nights.reduce((sum, night) => sum + night.guests, 0) ?? null;
 
     return (
@@ -343,9 +348,13 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                             {chuckRevenueBars.length ? <HorizontalBarChart
                                 title={ja ? "営業日別の売上" : "Billed service sales by night"}
                                 bars={chuckRevenueBars} locale={locale} />
-                                : <ChartNote role="note">{ja
-                                    ? "この月にChuck担当で終了したシフトはありません。"
-                                    : "No closed shifts assigned to Chuck were recorded this month."}</ChartNote>}
+                                : <ChartNote role="note">{chuckStats.nights.length === 0
+                                    ? (ja ? "この月にChuck担当で終了したシフトはありません。" : "No closed shifts assigned to Chuck were recorded this month.")
+                                    : (ja ? "スタッフ別売上の記録がないため、グラフを表示できません。" : "Ticket-level sales are unavailable for the recorded Chuck-managed shifts.")}
+                                </ChartNote>}
+                            {chuckMissingSalesNights > 0 ? <ChartNote role="note">{ja
+                                ? `売上記録がない営業日が ${chuckMissingSalesNights} 日あります。合計では不明な金額を0円として扱いません。`
+                                : `Ticket-level sales are missing for ${chuckMissingSalesNights} managed night(s). The total is unavailable rather than treating missing amounts as ¥0.`}</ChartNote> : null}
                             {chuckStats.unassignedManagerDays || chuckStats.ambiguousManagerDays ? <ChartNote role="note">{ja
                                 ? `担当未設定または担当が重複した営業日は個人の統計に含めていません（未設定 ${chuckStats.unassignedManagerDays} 日、要確認 ${chuckStats.ambiguousManagerDays} 日）。`
                                 : `Days without one confirmed manager are excluded from your stats (${chuckStats.unassignedManagerDays} unassigned, ${chuckStats.ambiguousManagerDays} needing review).`}</ChartNote> : null}
