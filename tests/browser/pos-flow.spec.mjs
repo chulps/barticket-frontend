@@ -131,6 +131,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
     else if(key==="GET /tickets") response=state.tickets;
     else if(key==="GET /users") response=[account];
     else if(key==="GET /users/recipients") response=[{id:7,name:account.name}];
+    else if(key==="GET /profile/work-history") response={user_id:7,coverage:{hours_source:"clock_punches_only",historical_hours:"not_imported",staff_drink_attribution:"verified_staff_id_only",unattributed_staff_drinks:"excluded_pending_review",compensation:"not_available"},shifts:[]};
     else if(key==="GET /analytics/shifts") {
       state.analyticsReads++;
       if(state.delayAnalyticsReads) await new Promise(resolve=>setTimeout(resolve,500));
@@ -724,6 +725,22 @@ test("Profile opens on personal stats and keeps shift controls and account setti
   await page.getByRole("button", { name: "Account", exact: true }).click();
   await expect(page.getByRole("region", { name: "Account settings" })).toBeVisible();
   await expect(page.getByRole("region", { name: "My time clock" })).toHaveCount(0);
+});
+
+test("Profile and Admin show a verified zero shift count as zero", async ({ page }) => {
+  await mockedPOS(page);
+  await page.goto("/profile");
+  const personal = page.getByRole("region", { name: "My work records" });
+  const personalShifts = personal.getByText("Recorded shifts").locator("..").locator("strong");
+  await expect(personalShifts).toHaveText("0");
+
+  await page.goto("/admin");
+  const adminNav = page.getByRole("navigation", { name: "Admin sections" });
+  await adminNav.getByRole("button", { name: "Team" }).click();
+  const directory = page.getByRole("navigation", { name: "Team directory" });
+  await directory.getByRole("button", { name: /Test Bartender/ }).click();
+  const teamShifts = page.getByText("Shifts", { exact: true }).locator("..").locator("strong");
+  await expect(teamShifts).toHaveText("0");
 });
 
 test("historical-hours reconciliation reveals each step only when it is actionable", async ({ page }) => {
