@@ -58,6 +58,18 @@ test("Team time corrections use the audited API; unsupported pay writes remain d
     assert.match(editors, /Impact preview \(unrounded estimate\)/);
 });
 
+test("Clock corrections stay compact until one date is selected for editing", () => {
+    assert.match(editors, /const \[editingPunchId, setEditingPunchId\] = useState<number \| null>\(null\)/);
+    assert.match(editors, /expanded=\{editingPunchId === punch\.id\}/);
+    assert.match(editors, /onEdit=\{\(\) => setEditingPunchId\(punch\.id\)\}/);
+    assert.match(editors, /onCancel=\{\(\) => setEditingPunchId\(current => current === punch\.id \? null : current\)\}/);
+    assert.match(editors, /\{expanded \? <>[\s\S]*?<Fields>[\s\S]*?Clock in \(JST\)/);
+    assert.match(editors, /Edit times/);
+    assert.match(editors, /Cancel edits/);
+    assert.match(editors, /aria-expanded=\{expanded\}/);
+    assert.match(directory, /Time scale/);
+});
+
 test("UI components and draft helpers parse as TypeScript", () => {
     const punchHelper = readFileSync(new URL("../src/pages/adminPunchCorrections.ts", import.meta.url), "utf8");
     for (const [name, contents, kind] of [
