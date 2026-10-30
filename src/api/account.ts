@@ -227,17 +227,19 @@ export type VenueStatus = {
 export type PersonalWorkHistory = {
     user_id: number;
     coverage: {
-        hours_source: "clock_punches_only";
-        historical_hours: "not_imported";
+        hours_source: "clock_punches_and_verified_historical_totals";
+        historical_hours: "verified_date_totals_included";
         staff_drink_attribution: "verified_staff_id_only";
         unattributed_staff_drinks: "excluded_pending_review";
         compensation: "not_available";
     };
     shifts: {
-        shift_id: number;
+        shift_id: number | null;
         business_date: string;
-        status: "open" | "closed";
+        status: "open" | "closed" | null;
         hours_seconds: number | null;
+        historical_hours_seconds: number | null;
+        hours_basis: "clock" | "spreadsheet" | "spreadsheet_authoritative" | "clock_plus_spreadsheet";
         hours_state: "recorded" | "in_progress" | "incomplete" | "unavailable";
         clocked_in: boolean;
         drinks: { name: string; quantity: number }[];
