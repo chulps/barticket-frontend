@@ -4,6 +4,7 @@
 import styled from "styled-components";
 import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { isApiAvailable } from "./api/client";
+import { startRealtime } from "./api/realtime";
 import { useI18n } from "./i18n";
 import { notifyMutation } from "./utils/mutationFeedback";
 import {
@@ -49,6 +50,20 @@ export default function App() {
   }, []);
 
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (authenticated !== true) return;
+    const stopRealtime = startRealtime();
+    const onExpired = () => {
+      setToken(null);
+      setAuthenticated(false);
+    };
+    window.addEventListener("barticket-session-expired", onExpired);
+    return () => {
+      window.removeEventListener("barticket-session-expired", onExpired);
+      stopRealtime();
+    };
+  }, [authenticated]);
 
   useEffect(() => {
     let version = 0;
@@ -219,12 +234,14 @@ export default function App() {
     load();
     const timer = window.setInterval(load, 20000);
     window.addEventListener("barticket-notices", load);
+    window.addEventListener("barticket-menu-updated", load);
     window.addEventListener("barticket-retry-menu", load);
     window.addEventListener("online", load);
     return () => {
       reader.dispose();
       window.clearInterval(timer);
       window.removeEventListener("barticket-notices", load);
+      window.removeEventListener("barticket-menu-updated", load);
       window.removeEventListener("barticket-retry-menu", load);
       window.removeEventListener("online", load);
     };
