@@ -714,6 +714,9 @@ test("Profile opens on personal stats and keeps shift controls and account setti
   await expect(scales.getByRole("button", { name: "All Time" })).toHaveAttribute("aria-pressed", "true");
   await scales.getByRole("button", { name: "Monthly" }).click();
   await expect(page.getByRole("button", { name: "Previous month" })).toBeVisible();
+  await page.getByRole("tab", { name: "Income" }).click();
+  await expect(page.getByRole("heading", { name: "Income breakdown" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Previous month" })).toBeVisible();
   await expect(page.getByRole("region", { name: "My time clock" })).toHaveCount(0);
   await page.getByRole("button", { name: "Shift", exact: true }).click();
   await expect(page.getByRole("region", { name: "My time clock" })).toBeVisible();
