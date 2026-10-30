@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Navigate, useMatch, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
@@ -50,6 +50,38 @@ export default function Admin() {
         () => staffId === undefined ? "overview" : "team",
     );
     const activeSection = staffId === undefined ? section : "team";
+    const sectionNavRef = useRef<HTMLElement>(null);
+    const sectionButtons = useRef<(HTMLButtonElement | null)[]>([]);
+    const [tabIndicator, setTabIndicator] = useState({ left: 0, top: 0, width: 0, height: 0 });
+
+    useLayoutEffect(() => {
+        const nav = sectionNavRef.current;
+        const activeIndex = adminSectionTabs.findIndex(tab => tab.id === activeSection);
+        const activeButton = sectionButtons.current[activeIndex];
+        if (!nav || !activeButton) return;
+
+        const measure = () => {
+            const navRect = nav.getBoundingClientRect();
+            const buttonRect = activeButton.getBoundingClientRect();
+            setTabIndicator({
+                left: buttonRect.left - navRect.left - nav.clientLeft,
+                top: buttonRect.top - navRect.top - nav.clientTop,
+                width: buttonRect.width,
+                height: buttonRect.height,
+            });
+        };
+
+        measure();
+        if (typeof ResizeObserver === "undefined") {
+            window.addEventListener("resize", measure);
+            return () => window.removeEventListener("resize", measure);
+        }
+
+        const observer = new ResizeObserver(measure);
+        observer.observe(nav);
+        sectionButtons.current.forEach(button => { if (button) observer.observe(button); });
+        return () => observer.disconnect();
+    }, [activeSection]);
     const selectedId = staffId === undefined ? null
         : /^[1-9][0-9]*$/.test(staffId) && Number.isSafeInteger(Number(staffId))
             ? Number(staffId) : -1;
@@ -209,10 +241,22 @@ export default function Admin() {
                 <p>{locale === "ja" ? "管理者向けのアカウント管理画面です。" : "Manager-only account management."}</p>
             </header>
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
-            <SectionNav aria-label={locale === "ja" ? "管理セクション" : "Admin sections"}>
-                {adminSectionTabs.map(tab => <SectionButton
-                    key={tab.id} type="button" aria-pressed={activeSection === tab.id}
-                    $active={activeSection === tab.id} onClick={() => chooseSection(tab.id)}>
+            <SectionNav ref={sectionNavRef} aria-label={locale === "ja" ? "管理セクション" : "Admin sections"}>
+                <SectionIndicator
+                    aria-hidden="true"
+                    $left={tabIndicator.left}
+                    $top={tabIndicator.top}
+                    $width={tabIndicator.width}
+                    $height={tabIndicator.height}
+                />
+                {adminSectionTabs.map((tab, index) => <SectionButton
+                    key={tab.id}
+                    ref={node => { sectionButtons.current[index] = node; }}
+                    type="button"
+                    aria-pressed={activeSection === tab.id}
+                    $active={activeSection === tab.id}
+                    onClick={() => chooseSection(tab.id)}
+                >
                     {locale === "ja" ? tab.label.ja : tab.label.en}
                 </SectionButton>)}
             </SectionNav>
@@ -350,6 +394,7 @@ const Page = styled.main`
     header p { color: var(--neutral-300); }
 `;
 const SectionNav = styled.nav`
+    position: relative;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-0);
@@ -359,13 +404,43 @@ const SectionNav = styled.nav`
     @media (min-width: 640px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     @media (min-width: 1000px) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 `;
+const SectionIndicator = styled.div<{
+    $left: number;
+    $top: number;
+    $width: number;
+    $height: number;
+}>`
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    left: 0;
+    top: 0;
+    width: ${({ $width }) => `${$width}px`};
+    height: ${({ $height }) => `${$height}px`};
+    opacity: ${({ $width, $height }) => $width && $height ? 1 : 0};
+    border-radius: calc(var(--space-1) - 2px);
+    background: var(--royal-500, #577ff5);
+    box-shadow: 0 0 0 1px var(--royal-400, #7899ff);
+    transform: translate(${({ $left, $top }) => `${$left}px, ${$top}px`});
+    transition:
+        transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1),
+        width 180ms ease,
+        height 180ms ease,
+        opacity 100ms ease;
+
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
+`;
 const SectionButton = styled.button<{ $active: boolean }>`
+    position: relative;
+    z-index: 1;
     min-width: 0;
     min-height: 48px;
     padding: var(--space-1);
     border: 1px solid transparent;
     border-radius: calc(var(--space-1) - 2px);
-    background: ${({ $active }) => $active ? "var(--neutral-800)" : "transparent"};
+    background: transparent;
     color: ${({ $active }) => $active ? "white" : "var(--neutral-300)"};
     overflow-wrap: anywhere;
     text-align: center;
