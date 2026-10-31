@@ -16,7 +16,7 @@ import TicketSidebar from "../components/TicketSidebar";
 
 // import types
 import type { MenuData } from "../types/Menu";
-import type { Ticket, PaymentType } from "../types/Ticket"
+import type { CollectionDateConfirmation, Ticket, PaymentType } from "../types/Ticket"
 
 // import hooks 
 import { useTickets } from "../hooks/useTickets"; // (business logic for creating or updating tickets)
@@ -214,9 +214,10 @@ export default function Dashboard({
     paymentType: PaymentType,
     amount: number,
     idempotencyKey?: string,
+    collection?: CollectionDateConfirmation,
   ) => {
     const current = tickets.find(ticket => ticket.id === ticketId);
-    if (!(await payTicket(ticketId, paymentType, amount, idempotencyKey))) return false;
+    if (!(await payTicket(ticketId, paymentType, amount, idempotencyKey, collection))) return false;
 
     const partialReceivable = current?.serviceStatus === "completed" && amount < (current.balanceDue ?? 0);
     setActiveTab(partialReceivable ? "open" : "paid");

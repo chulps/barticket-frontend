@@ -46,18 +46,21 @@ export function liveAnalyticsShift(
     // The merged backend records multiple tenders per ticket. A returned
     // customer can have an open ticket WITH earlier payments already collected.
     // Count each non-voided actual payment, never the entire ticket total again.
-    for (const ticket of shiftTickets) {
+    for (const ticket of tickets) {
         if (ticket.status === "cancelled") continue;
         const recorded = ticket.payments;
         const activePayments = recorded?.filter(payment => payment.voided_at == null);
         if (recorded !== undefined) {
             for (const payment of activePayments ?? []) {
+                // Null means no collecting shift. Only legacy undefined uses service ownership.
+                const collectionShiftId = payment.collection_shift_id === undefined ? ticket.shiftId : payment.collection_shift_id;
+                if (collectionShiftId !== openShift.id) continue;
                 paidTotal += payment.amount;
                 if (payment.type === "cash") cashTotal += payment.amount;
                 else if (payment.type === "card") cardTotal += payment.amount;
                 else otherTotal += payment.amount;
             }
-        } else if (ticket.status === "paid") {
+        } else if (ticket.shiftId === openShift.id && ticket.status === "paid") {
             // Historic or fixture records without an expanded payment ledger.
             const total = ticket.items.reduce((sum, item) => sum + item.subtotal, 0);
             paidTotal += total;
@@ -112,3 +115,4 @@ export function clockedInTeam(shift: ShiftReport, members: readonly Account[] | 
         a.name.localeCompare(b.name),
     );
 }
+

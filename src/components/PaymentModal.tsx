@@ -1,11 +1,13 @@
 // src/components/PaymentModal.tsx
 
 import { useRef, useState, type KeyboardEvent } from "react";
+import { businessDateJst } from "../pages/shiftControlPolicy";
+import { isPreviousServiceDate, validCollectionConfirmation } from "./paymentCollectionPolicy";
 import { nextSelectorIndex } from "./selectorNavigation";
 import styled from "styled-components";
 
 import { useModal } from "../hooks/useModal";
-import type { Ticket } from "../types/Ticket";
+import type { CollectionDateConfirmation, Ticket } from "../types/Ticket";
 
 import Icon from "../components/Icon"
 import { useI18n, type MessageKey } from "../i18n";
@@ -14,7 +16,8 @@ type IconName = React.ComponentProps<typeof Icon>["name"];type PaymentType = "ca
 
 type PaymentModalProps = {
     ticket: Ticket;
-    onConfirm: (paymentType: PaymentType, amount: number, idempotencyKey?: string) => Promise<boolean>;
+    canConfirmCollectionDate?: boolean;
+    onConfirm: (paymentType: PaymentType, amount: number, idempotencyKey?: string, collection?: CollectionDateConfirmation) => Promise<boolean>;
 };
 
 
@@ -43,6 +46,7 @@ const paymentMethods = [
 export default function PaymentModal({
     ticket,
     onConfirm,
+    canConfirmCollectionDate = false,
 }: PaymentModalProps) {
     const { closeModal } = useModal();
     const { t, locale } = useI18n();
@@ -74,18 +78,31 @@ export default function PaymentModal({
     // returns. Never display the historical total as the next amount to collect.
     const total = ticket.balanceDue ?? Math.max(0, ticketTotal - (ticket.amountPaid ?? 0));
     const isReceivable = ticket.serviceStatus === "completed" && ticket.deferredAt != null;
+    const [currentBusinessDate] = useState(() => businessDateJst(Date.now()));
+    const serviceBusinessDate = ticket.serviceBusinessDate ?? businessDateJst(ticket.created_at * 1000);
+    const previousNight = isPreviousServiceDate(serviceBusinessDate, currentBusinessDate);
+    const requiresDate = previousNight && (!isReceivable || canConfirmCollectionDate);
+    const [collectionDate, setCollectionDate] = useState("");
+    const [collectionReason, setCollectionReason] = useState("");
+    const dateConfirmed = !requiresDate || (canConfirmCollectionDate && validCollectionConfirmation(
+        collectionDate, collectionReason, serviceBusinessDate, currentBusinessDate,
+    ));
     const [amount, setAmount] = useState(String(total));
-    const idempotencyKey = useRef(isReceivable ? crypto.randomUUID() : undefined);
+    const idempotencyKey = useRef(crypto.randomUUID());
     const numericAmount = Number(amount);
 
     const handleConfirm = async () => {
         if (pending.current) return;
+        if (!dateConfirmed) return;
         pending.current = true;
         setAttempted(true);
         setSaving(true);
         setError("");
         try {
-            const confirmed = await onConfirm(paymentType, numericAmount, idempotencyKey.current);
+            const confirmed = await onConfirm(paymentType, numericAmount, idempotencyKey.current, requiresDate ? {
+                collection_business_date: collectionDate,
+                collection_date_reason: collectionReason.trim(),
+            } : undefined);
             if (confirmed) setStep("success");
             else setError(locale === "ja" ? "お支払いを確認できませんでした。再試行前にチケットの状態を確認してください。" : "Payment not confirmed. Check the ticket before retrying.");
         } catch {
@@ -131,6 +148,21 @@ export default function PaymentModal({
                 </label> : <small>{t("receivePayment")}</small>}
             </TotalContainer>
 
+            {requiresDate ? <fieldset disabled={saving || attempted} style={{ display: "grid", gap: "var(--space-1)" }}>
+                <legend>{locale === "ja" ? "過去の営業日の支払いを確認" : "Confirm previous-night collection"}</legend>
+                <p>{locale === "ja" ? `サービス営業日: ${serviceBusinessDate}。実際にお金を受け取った営業日を選んでください（日本時間の正午で切替）。記録日時は変更されません。` : `Service night: ${serviceBusinessDate}. Choose the business date when money was actually received (noon JST cutoff). The recording timestamp stays unchanged.`}</p>
+                {canConfirmCollectionDate ? <>
+                    <label>{locale === "ja" ? "実際の回収営業日" : "Actual collection business date"}
+                        <input type="date" value={collectionDate} min={serviceBusinessDate} max={currentBusinessDate}
+                            onChange={event => setCollectionDate(event.target.value)} required />
+                    </label>
+                    <label>{locale === "ja" ? "確認理由" : "Confirmation reason"}
+                        <textarea value={collectionReason} maxLength={255} required
+                            onChange={event => setCollectionReason(event.target.value)} />
+                    </label>
+                    <small>{locale === "ja" ? "未回収の場合は支払いを記録せず、未払い残高として繰り越してください。" : "If money has not been received, do not record payment. Carry the unpaid balance forward instead."}</small>
+                </> : <p role="alert">{locale === "ja" ? "管理者が回収営業日を確認する必要があります。未払いの場合は残高を繰り越してください。" : "A manager must confirm the collection date. If still unpaid, carry the balance forward instead."}</p>}
+            </fieldset> : null}
             <Methods role="group" aria-label={t("receivePayment")}>
                 {paymentMethods.map((method, index) => (
                     <MethodButton
@@ -139,7 +171,7 @@ export default function PaymentModal({
                         ref={node => { methodButtons.current[index] = node; }}
                         aria-pressed={paymentType === method.type}
                         $active={paymentType === method.type}
-                        disabled={saving || (attempted && isReceivable)}
+                        disabled={saving || attempted}
                         onKeyDown={event => handleMethodArrow(event, index)}
                         onClick={() => setPaymentType(method.type)}
                     >
@@ -161,8 +193,8 @@ export default function PaymentModal({
                     {t("cancel")}
                 </button>
 
-                <button disabled={saving || !Number.isSafeInteger(numericAmount) || numericAmount < 1 || numericAmount > total} onClick={() => void handleConfirm()}>
-                    {saving ? (locale === "ja" ? "処理中…" : "Processing…") : attempted && isReceivable
+                <button disabled={saving || !dateConfirmed || !Number.isSafeInteger(numericAmount) || numericAmount < 1 || numericAmount > total} onClick={() => void handleConfirm()}>
+                    {saving ? (locale === "ja" ? "処理中…" : "Processing…") : attempted
                         ? (locale === "ja" ? "同じ記録を安全に再確認" : "Safely retry same collection") : t("confirmPayment")}
                 </button>
             </Footer>
@@ -298,3 +330,4 @@ const Check = styled.h1`
 const SuccessTotal = styled.data`
     font-size: var(--font-size-h2);
 `
+

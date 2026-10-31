@@ -284,7 +284,7 @@ test("payment conflict displays an error without duplicate POST, then paid/reope
   await confirm.dblclick();
   await expect.poll(()=>state.paymentPosts).toBe(1);
   await expect(dialog.getByRole("alert")).toBeVisible();
-  await confirm.click();
+  await dialog.getByRole("button",{name:/Safely retry same collection/i}).click();
   await expect.poll(()=>state.tickets[0].status).toBe("paid");
   await page.keyboard.press("Escape");
   await page.getByRole("button",{name:"Paid"}).click();
@@ -960,4 +960,40 @@ test("healthy occupancy clock advances locally without ticket/report traffic, th
   expect(relevant()-before).toBe(2); // one scoped ticket read and one scoped report read, no duplicate fanout
   expect(state.requests.some(path=>/^(POST|PATCH|DELETE) /.test(path))).toBe(false);
   console.log(JSON.stringify({scenario:'occupancy-local-clock',stableSeconds:64,stableTicketReportReads:0,changeTicketReportReads:2,heartbeatJsonBytes:Buffer.byteLength(heartbeat)}));
+});
+
+
+test("previous-night payment requires explicit collection date and reason; Cancel is read-only",async ({page})=>{
+  const state=await mockedPOS(page);
+  state.tickets[0].service_business_date=dateOffset(-1);
+  state.tickets[0].service_status="active";
+  const payments=[];
+  page.on("request",request=>{
+    if(request.method()==="POST"&&new URL(request.url()).pathname==="/tickets/11/pay")
+      payments.push({body:request.postDataJSON(),key:request.headers()["idempotency-key"]});
+  });
+  await openTicket(page);
+  await closeStep(page);
+  await page.getByRole("button",{name:/Take Payment/i}).click();
+  let dialog=page.getByRole("dialog");
+  await expect(dialog.getByLabel("Actual collection business date")).toHaveValue("");
+  await expect(dialog.getByRole("button",{name:/Confirm Payment/i})).toBeDisabled();
+  await dialog.getByRole("button",{name:"Cancel",exact:true}).click();
+  expect(state.paymentPosts).toBe(0);
+  await page.getByRole("button",{name:/Take Payment/i}).click();
+  dialog=page.getByRole("dialog");
+  await dialog.getByLabel("Actual collection business date").fill(dateOffset(-1));
+  await expect(dialog.getByRole("button",{name:/Confirm Payment/i})).toBeDisabled();
+  await dialog.getByLabel("Confirmation reason").fill("Receipt confirms cash last night");
+  state.failNextPayment=true;
+  await dialog.getByRole("button",{name:/Confirm Payment/i}).click();
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  await expect(dialog.getByLabel("Actual collection business date")).toBeDisabled();
+  await dialog.getByRole("button",{name:/Safely retry same collection/i}).click();
+  await expect.poll(()=>state.tickets[0].status).toBe("paid");
+  expect(payments).toHaveLength(2);
+  expect(payments[0]).toEqual(payments[1]);
+  expect(payments[0].key).toBeTruthy();
+  expect(payments[0].body.collection_business_date).toBe(dateOffset(-1));
+  expect(payments[0].body.collection_date_reason).toBe("Receipt confirms cash last night");
 });

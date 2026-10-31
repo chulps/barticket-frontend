@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 // import types
 import type { MenuItem, Prices } from "../types/Menu";
-import type { PaymentType, Ticket } from "../types/Ticket";
+import type { CollectionDateConfirmation, PaymentType, Ticket } from "../types/Ticket";
 
 // import api
 import { COVER_ITEM_ID, ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
@@ -484,9 +484,9 @@ export function useTickets(shiftId: number | null = null) {
     terminalMutation(ticketId, "open", () => enqueue(ticketId, () => ticketsApi.cancel(ticketId), undefined, true))
       .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票をキャンセルしました" : "Ticket cancelled"); return saved; });
 
-  const payTicket = (ticketId: number, paymentType: PaymentType, amount?: number, idempotencyKey?: string) =>
+  const payTicket = (ticketId: number, paymentType: PaymentType, amount?: number, idempotencyKey?: string, collection?: CollectionDateConfirmation) =>
     terminalMutation(ticketId, "open", () => enqueue(ticketId, () =>
-      ticketsApi.pay(ticketId, paymentType, amount, idempotencyKey), undefined, true));
+      ticketsApi.pay(ticketId, paymentType, amount, idempotencyKey, collection), undefined, true));
 
   const deferTicket = (ticketId: number, body: {
     reason: string; confirmed_balance: number; note?: string; follow_up_date?: string;

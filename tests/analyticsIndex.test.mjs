@@ -5,7 +5,7 @@ const read=p=>readFileSync(new URL('../src/'+p,import.meta.url),'utf8');
 test('calendar/default selection use lightweight index while detailed reports are scoped',()=>{
  const s=read('pages/Analytics.tsx');
  assert.match(s,/accountApi.analyticsShiftIndex\(\)/);
- assert.match(s,/const initial = current \?\? ordered\[0\]/);
+ assert.match(s,/const initial = current\.shift \?\? ordered\[0\]/);
  assert.match(s,/shiftDates=\{\[\.\.\.\(shiftIndex \?\? \[\]\)/);
  assert.match(s,/useAnalyticsReports\(range, periodKey, signedIn\)/);
  assert.match(s,/ticketsReady && reportsReady && !ticketsError && !reportsError/);

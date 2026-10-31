@@ -98,7 +98,7 @@ test("close POST is called only from reviewed explicit confirmation", () => {
     assert.match(review, /isReadinessForShift\(ready, shiftId\)/);
     assert.match(review, /verifiedReadiness/);
     assert.match(review, /!readinessMatches/);
-    assert.match(review, /accountApi\.closeShift\(\)/);
+    assert.match(review, /accountApi\.closeShift\(shiftId\)/);
     assert.match(review, /registerCloseGuard\(\(\) => !working && !submitInFlight\.current\)/);
     assert.match(review, /allowKeepOpen/);
     assert.match(review, /accountApi\.keepShiftOpen\(shiftId, reason\)/);

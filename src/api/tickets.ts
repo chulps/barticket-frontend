@@ -1,7 +1,7 @@
 import { ticketListPath, type TicketReadScope } from "../hooks/ticketReadScope";
 // api/tickets.ts
 
-import type { PaymentType, Ticket } from "../types/Ticket";
+import type { CollectionDateConfirmation, PaymentType, Ticket } from "../types/Ticket";
 import { apiRequest } from "./client";
 
 // The cover charge is stored as guest_count on the backend; the UI shows it as a line.
@@ -197,10 +197,10 @@ export const ticketsApi = {
             method: "DELETE",
         }),
 
-    pay: (ticketId: number, method: PaymentType, amount?: number, idempotencyKey?: string) =>
+    pay: (ticketId: number, method: PaymentType, amount?: number, idempotencyKey?: string, collection?: CollectionDateConfirmation) =>
         apiRequest<ApiTicket>(`/tickets/${ticketId}/pay`, {
             method: "POST",
-            body: { method, ...(amount === undefined ? {} : { amount }) },
+            body: { method, ...(amount === undefined ? {} : { amount }), ...collection },
             ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
         }),
 

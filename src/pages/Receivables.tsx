@@ -144,9 +144,9 @@ export default function Receivables() {
                         {isUnresolved ? <button type="button" onClick={() => openModal({
                             title: ja ? "後日の支払いを記録" : "Record later payment",
                             maxWidth: "560px",
-                            content: <PaymentModal ticket={converted} onConfirm={async (method, amount, key) => {
+                            content: <PaymentModal ticket={converted} canConfirmCollectionDate={account?.role === "manager"} onConfirm={async (method, amount, key, collection) => {
                                 if (!key) throw new Error("A retry-safe collection key is missing.");
-                                await ticketsApi.pay(ticket.id, method, amount, key);
+                                await ticketsApi.pay(ticket.id, method, amount, key, collection);
                                 window.dispatchEvent(new Event("barticket-receivables-updated"));
                                 return true;
                             }} />,
@@ -247,3 +247,4 @@ const StatusBadge = styled.strong`display:inline-flex;padding:.25rem .7rem;borde
 const List = styled.section`display:grid; gap:var(--space-2);`;
 const ReceivableCard = styled.article`border:1px solid var(--neutral-700); border-radius:var(--space-2); padding:var(--space-2); display:grid; gap:var(--space-2); overflow-wrap:anywhere; header{display:flex; justify-content:space-between; gap:var(--space-2); flex-wrap:wrap;} h2{font-size:var(--font-size-h4); margin:0;} p{margin:var(--space-1) 0;} dl{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.4fr); gap:var(--space-1); margin:0;} dt,dd{margin:0;} dd{text-align:right;} details{min-width:0;} summary{cursor:pointer;} ul{padding-left:1.25rem;}`;
 const ActionRow = styled.div`display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-1);`;
+

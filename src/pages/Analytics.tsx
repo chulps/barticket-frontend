@@ -6,6 +6,8 @@ import { startBackgroundRefresh } from "../hooks/backgroundRefresh";
 import { shouldPoll } from "../api/realtime";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import styled from "styled-components";
+import { Link } from "react-router-dom";
+import { formatBusinessNight, staleAnalyticsShift, type StaleAnalyticsShift } from "./analyticsStaleShift";
 import RequestState from "../components/RequestState";
 
 import { accountApi, type Account, type AnalyticsShiftReport, type AnalyticsShiftIndex, type ShiftReport } from "../api/account";
@@ -113,22 +115,7 @@ function formatMonth(key: string, locale: Locale) {
     });
 }
 
-function formatNight(iso: string, locale: Locale) {
-    const start = parseDate(iso);
-    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
-    const tag = localeTag(locale);
-    const weekday = start.toLocaleDateString(tag, { weekday: "short" });
-    const startDay = start.getDate();
-    const endDay = end.getDate();
-    if (locale === "ja") {
-        const startMonth = start.getMonth() + 1;
-        const endLabel = start.getMonth() === end.getMonth() ? `${endDay}日` : `${end.getMonth() + 1}月${endDay}日`;
-        return `${startMonth}月${startDay}日(${weekday})~${endLabel}`;
-    }
-    const month = start.toLocaleDateString(tag, { month: "short" });
-    const endLabel = start.getMonth() === end.getMonth() ? String(endDay) : end.toLocaleDateString(tag, { month: "short", day: "numeric" });
-    return `${weekday}, ${month} ${startDay}~${endLabel}`;
-}
+const formatNight = formatBusinessNight;
 
 function yen(amount: number) {
     return `¥${amount.toLocaleString()}`;
@@ -495,6 +482,7 @@ export default function Analytics() {
     const { t, locale } = useI18n();
     const [shiftIndex, setShiftIndex] = useState<AnalyticsShiftIndex[] | null>(null);
     const [openShift, setOpenShift] = useState<ShiftReport | null>(null);
+    const [staleShift, setStaleShift] = useState<StaleAnalyticsShift | null>(null);
     const [account, setAccount] = useState<Account | null>(null);
     const [team, setTeam] = useState<Account[] | null>(null);
     const [notices, setNotices] = useState<NoticeList | null>(null);
@@ -539,12 +527,17 @@ export default function Analytics() {
                         indexSupported = false;
                         return accountApi.analyticsShifts();
                     }) : accountApi.analyticsShifts(),
-                    accountApi.currentShift(),
+                    accountApi.currentShift().then(shift => ({ shift, stale: null as StaleAnalyticsShift | null })).catch(err => {
+                        const stale = staleAnalyticsShift(err);
+                        if (!stale) throw err;
+                        return { shift: null, stale };
+                    }),
                 ]);
                 if (cancelled || token !== getToken()) return;
                 const ordered = [...rows].sort((a, b) => b.business_date.localeCompare(a.business_date));
                 setShiftIndex(ordered);
-                setOpenShift(current);
+                setOpenShift(current.shift);
+                setStaleShift(current.stale);
                 setLastUpdated(Math.floor(Date.now() / 1000));
                 setError("");
                 setLoading(false);
@@ -553,7 +546,7 @@ export default function Analytics() {
                 // Background refreshes must not interrupt the date the user is viewing.
                 if (!initiallySelected) {
                     initiallySelected = true;
-                    const initial = current ?? ordered[0];
+                    const initial = current.shift ?? ordered[0];
                     if (initial) {
                         setMonth(monthKey(initial.business_date));
                         setYear(yearKey(initial.business_date));
@@ -747,6 +740,15 @@ export default function Analytics() {
             {error ? <RequestState kind="error" detail={error} onRetry={() => window.location.reload()} /> : null}
             {account && shiftIndex ? (
                 <>
+                    {staleShift ? <div role="status" className="shift-warning">
+                        <p>{locale === "ja"
+                            ? `${staleShift.businessDate} のシフト #${staleShift.shiftId} は未締めです。過去のレポートは引き続き表示できます。管理者が未解決残高を確認してください。`
+                            : `Shift #${staleShift.shiftId} (${staleShift.businessDate}) needs reconciliation. Historical reports remain available. A manager must review the unresolved balances.`}</p>
+                        <Link to="/profile">{locale === "ja" ? "シフトを確認する" : "Review shift"}</Link>
+                    </div> : null}
+                    {openShift ? <button type="button" className="secondary" onClick={() => { pickDate(openShift.business_date); setRange("day"); }}>
+                        {locale === "ja" ? "現在の営業日" : "Current night"} · {openShift.business_date}
+                    </button> : null}
                     <TabGroup
                         tabs={[
                             { id: "all", label: t("allTime") },
