@@ -1,0 +1,21 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync,readdirSync} from 'node:fs';
+const css=readFileSync('src/index.css','utf8');
+test('all native dropdowns share the canonical regular Phosphor caret and spacing',()=>{
+ assert.match(css,/--dropdown-caret-size: 18px/);
+ assert.match(css,/background-image: var\(--dropdown-caret-image\) !important/);
+ assert.match(css,/padding-right: calc\(var\(--dropdown-caret-inset\) \+ var\(--dropdown-caret-size\) \+ var\(--dropdown-caret-gap\)\)/);
+ const phosphor=readFileSync('node_modules/@phosphor-icons/react/dist/defs/CaretDown.es.js','utf8');
+ const path=css.match(/%3Cpath d='([^']+)'/)[1];assert.ok(phosphor.includes(path));
+ assert.match(css,/@media \(forced-colors: active\)/);
+});
+test('no platform-dependent text carets remain on select controls',()=>{
+ for(const file of readdirSync('src',{recursive:true}).filter(f=>f.endsWith('.tsx'))){
+  assert.doesNotMatch(readFileSync('src/'+file,'utf8'),/>[▾⌄▼]</,file);
+ }
+});
+test('overflow actions and unrelated quantity arrows stay intact',()=>{
+ const item=readFileSync('src/components/TicketDetails/TicketItem.tsx','utf8');
+ assert.match(item,/DotsThreeOutlineVertical/);assert.match(item,/name="CaretUp"/);assert.match(item,/name="CaretDown"/);
+});
