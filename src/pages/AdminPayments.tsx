@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import { apiRequest, getToken } from "../api/client";
+import { ApiError, apiRequest, getToken } from "../api/client";
 type Setup = { provider: string; channel: string; methods: string[]; revision: number };
 
 const providers = [
@@ -19,29 +19,68 @@ export default function AdminPayments({ locale }: { locale: string }) {
   const [channel, setChannel] = useState("online");
   const [methods, setMethods] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [needsReload, setNeedsReload] = useState(false);
+  const [loadError, setLoadError] = useState<"denied" | "unavailable" | "">("");
+  const [message, setMessage] = useState<"saved" | "uncertain" | "">("");
+  const generation = useRef(0);
+  const writePending = useRef(false);
   useEffect(() => {
     let cancelled = false;
-    const token = getToken();
-    apiRequest<Setup>("/admin/payment-setup").then(data => {
-      if (cancelled || getToken() !== token) return;
-      setSetup(data); setProviderId(data.provider); setChannel(data.channel); setMethods(data.methods);
-    }).catch(() => { if (!cancelled && getToken() === token) setMessage(ja ? "保存設定を読み込めません。所有者の権限と接続を確認してください。" : "Saved setup unavailable. Check owner access and connection."); });
-    return () => { cancelled = true; };
-  }, [ja]);
+    async function load() {
+      const request = ++generation.current;
+      const token = getToken();
+      setSetup(null); setLoading(true); setLoadError(""); setMessage("");
+      setNeedsReload(false); setBusy(false); writePending.current = false;
+      if (!token) {
+        setLoadError("denied"); setLoading(false);
+        return;
+      }
+      try {
+        const data = await apiRequest<Setup>("/admin/payment-setup");
+        if (cancelled || request !== generation.current || getToken() !== token) return;
+        setSetup(data); setProviderId(data.provider); setChannel(data.channel); setMethods(data.methods);
+      } catch (error) {
+        if (cancelled || request !== generation.current || getToken() !== token) return;
+        setLoadError(error instanceof ApiError && (error.status === 401 || error.status === 403) ? "denied" : "unavailable");
+      } finally {
+        if (!cancelled && request === generation.current && getToken() === token) setLoading(false);
+      }
+    }
+    const reload = () => { void load(); };
+    reload();
+    window.addEventListener("barticket-auth", reload);
+    return () => {
+      cancelled = true;
+      // Invalidate pending writes too; this counter is not a DOM ref.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      generation.current++;
+      window.removeEventListener("barticket-auth", reload);
+    };
+  }, [reloadKey]);
   async function save() {
-    if (!setup || busy) return;
     const token = getToken();
+    if (!setup || loading || busy || writePending.current || needsReload || !token) return;
+    const request = generation.current;
+    writePending.current = true;
     setBusy(true); setMessage("");
     try {
       const data = await apiRequest<Setup>("/admin/payment-setup", {method: "PUT", body: {provider: providerId, channel, methods, revision: setup.revision}});
-      if (getToken() !== token) return;
-      setSetup(data); setMessage(ja ? "希望を保存しました。決済はまだ有効ではありません。" : "Preferences saved. Payments are not enabled.");
-    } catch {
-      if (getToken() !== token) return;
-      setMessage(ja ? "保存を確認できません。ページを再読み込みして確認してください。" : "Save could not be confirmed. Reload to check the latest setup before retrying.");
-      setSetup(null);
-    } finally { setBusy(false); }
+      if (request !== generation.current || getToken() !== token) return;
+      setSetup(data); setMessage("saved");
+    } catch (error) {
+      if (request !== generation.current || getToken() !== token) return;
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        setSetup(null); setLoadError("denied");
+      } else {
+        setMessage("uncertain"); setNeedsReload(true);
+      }
+    } finally {
+      if (request === generation.current && getToken() === token) {
+        writePending.current = false; setBusy(false);
+      }
+    }
   }
   const [sales, setSales] = useState("");
   const [rate, setRate] = useState("");
@@ -52,21 +91,34 @@ export default function AdminPayments({ locale }: { locale: string }) {
   const valid = inputs.every(v => v.trim() !== "" && Number.isFinite(Number(v)) && Number(v) >= 0) && Number(rate) <= 100;
   const cost = valid ? Number(sales) * Number(rate) / 100 + Number(fixed) : null;
   const t = (en: string, jp: string) => ja ? jp : en;
+  if (loading || !setup) return <Panel>
+    <h2>{t("Payment setup", "決済設定")}</h2>
+    {loading ? <p role="status">{t("Checking payment setup access…", "決済設定の権限を確認中…")}</p> : <>
+      <p role="alert">{loadError === "denied"
+        ? t("Only the payment account owner can view or change saved payment settings.", "保存した決済設定は決済アカウントの所有者のみが確認・変更できます。")
+        : t("Saved setup is unavailable. Check the connection and try again.", "保存した設定を読み込めません。接続を確認して再試行してください。")}</p>
+      <button type="button" onClick={() => setReloadKey(key => key + 1)}>{t("Reload saved setup", "保存した設定を再読み込み")}</button>
+    </>}
+  </Panel>;
+  const disabled = busy || needsReload;
   return <Panel>
     <header><h2>{t("Payment setup", "決済設定")}</h2>
       <p>{t("Start with Nori’s existing provider", "まずNoriの現在の決済会社を確認")}</p></header>
     <Status role="status">{t("Payment processing: not connected", "決済処理：未接続")}</Status>
     <p>{t("Save your provider and preferred methods here. Complete merchant registration with the provider; registration alone does not connect BarTicket.", "決済会社と希望する支払方法を保存できます。加盟店登録は決済会社で行います。登録だけではBarTicketは接続されません。")}</p>
     <label>{t("Current or proposed provider", "現在または検討中の決済会社")}
-      <select disabled={busy} value={providerId} onChange={e => setProviderId(e.target.value)}>{providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+      <select disabled={disabled} value={providerId} onChange={e => setProviderId(e.target.value)}>{providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
     </label>
     <p>{ja ? provider.ja : provider.en}</p>
     {provider.url && <a href={provider.url} target="_blank" rel="noopener noreferrer">{t("View official options and fees ↗", "公式のサービス・料金を見る ↗")}</a>}
-    <label>{t("Payment channel", "決済方式")}<select disabled={busy} value={channel} onChange={e => setChannel(e.target.value)}><option value="online">{t("Customer phone / online checkout", "お客様のスマホ・オンライン決済")}</option><option value="terminal">{t("In-person terminal", "対面端末")}</option></select></label>
-    <fieldset disabled={busy}><legend>{t("Requested payment methods", "希望する支払方法")}</legend>{["card", "apple_pay", "google_pay", "paypay", "rakuten_pay"].map(method => <label key={method}><span><input style={{width:"auto"}} type="checkbox" checked={methods.includes(method)} onChange={e => setMethods(current => e.target.checked ? [...current, method] : current.filter(m => m !== method))} /> {{card: ja ? "カード" : "Cards", apple_pay: "Apple Pay", google_pay:"Google Pay", paypay:"PayPay", rakuten_pay:"楽天ペイ"}[method]}</span></label>)}</fieldset>
+    <label>{t("Payment channel", "決済方式")}<select disabled={disabled} value={channel} onChange={e => setChannel(e.target.value)}><option value="online">{t("Customer phone / online checkout", "お客様のスマホ・オンライン決済")}</option><option value="terminal">{t("In-person terminal", "対面端末")}</option></select></label>
+    <fieldset disabled={disabled}><legend>{t("Requested payment methods", "希望する支払方法")}</legend>{["card", "apple_pay", "google_pay", "paypay", "rakuten_pay"].map(method => <label key={method}><span><input style={{width:"auto"}} type="checkbox" checked={methods.includes(method)} onChange={e => setMethods(current => e.target.checked ? [...current, method] : current.filter(m => m !== method))} /> {{card: ja ? "カード" : "Cards", apple_pay: "Apple Pay", google_pay:"Google Pay", paypay:"PayPay", rakuten_pay:"楽天ペイ"}[method]}</span></label>)}</fieldset>
     <p>{t("Availability depends on your provider, payment channel and merchant approval.", "利用可否は決済会社、決済方式、加盟店審査によります。")}</p>
-    <button type="button" disabled={!setup || busy} onClick={() => void save()}>{busy ? t("Saving…", "保存中…") : t("Save setup preferences", "設定の希望を保存")}</button>
-    {message && <p role="status">{message}</p>}
+    <button type="button" disabled={disabled} onClick={() => void save()}>{busy ? t("Saving…", "保存中…") : t("Save setup preferences", "設定の希望を保存")}</button>
+    {message && <p role={message === "uncertain" ? "alert" : "status"}>{message === "saved"
+      ? t("Preferences saved. Payments are not enabled.", "希望を保存しました。決済はまだ有効ではありません。")
+      : t("Save could not be confirmed. Reload the saved setup before making another change. Your unsaved selections will be replaced.", "保存を確認できません。次の変更前に保存した設定を再読み込みしてください。未保存の選択内容は置き換わります。")}</p>}
+    {needsReload ? <button type="button" onClick={() => setReloadKey(key => key + 1)}>{t("Reload saved setup", "保存した設定を再読み込み")}</button> : null}
     {onboardingUrl && <a href={onboardingUrl} target="_blank" rel="noopener noreferrer">{t("Continue setup with provider ↗", "決済会社で登録を進める ↗")}</a>}
     <details><summary>{t("Compare fees", "手数料を比較")}</summary>
     <h3>{t("Compare your actual quote", "実際の契約料金で比較")}</h3>
@@ -92,9 +144,11 @@ export default function AdminPayments({ locale }: { locale: string }) {
 }
 
 const Panel = styled.section`
-  max-width: 960px; display: grid; gap: var(--space-2);
+  width:100%; min-width:0; box-sizing:border-box; max-width: 960px; display: grid; grid-template-columns:minmax(0, 1fr); gap: var(--space-2);
   padding: var(--space-3); background: var(--neutral-900); border-radius: var(--space-2);
   h2, h3, p { margin: 0; } h3 { margin-top: var(--space-2); }
+  fieldset { min-width:0; margin:0; }
+  a, p, button, summary { overflow-wrap:anywhere; }
   label { display: grid; gap: var(--space-1); min-width: 0; }
   input, select { width: 100%; min-width: 0; box-sizing: border-box; font-size: 16px; }
   a { color: var(--primary-300, #a8bcff); } li { margin-bottom: var(--space-1); }
