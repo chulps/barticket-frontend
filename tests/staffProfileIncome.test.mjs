@@ -11,9 +11,9 @@ const sharedCharts = readFileSync(new URL("../src/components/AnalyticsCharts.tsx
 const account = readFileSync(new URL("../src/api/account.ts", import.meta.url), "utf8");
 
 test("Profile income is personal for staff and managers and shows wages and drink bonuses", () => {
-    assert.match(history, /const availableSections: Panel\[\] = \["hours", "drinks", "income"\]/);
+    assert.match(history, /const availableSections: Panel\[\] = \["hours", "drinks"\]/);
     assert.doesNotMatch(history, /benefits|Bonuses, adjustments & deductions|Not available yet/);
-    assert.match(profile, /<StaffWorkHistory[^>]*role=\{account\.role\}/);
+    assert.match(profile, /<StaffIncome[^>]*role=\{account\.role\}/);
     assert.match(income, /accountApi\.personalEarnings\(month\)/);
     assert.match(income, /canViewChuckPersonalPay/);
     assert.match(income, /accountApi\.chuckMonthlyPay\(month\)/);
