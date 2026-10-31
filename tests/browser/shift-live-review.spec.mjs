@@ -16,7 +16,7 @@ async function fixture(page, shared) {
     if (req.method() !== 'GET') writes.push(path);
     const values = {'/auth/status':{has_accounts:true},'/auth/me':{id:7,name:'Fixture manager',role:'manager'}, '/menu':{items:[],coverCharge:0},
       '/shifts/current':shared.current, '/shifts': shared.current ? [shared.current] : [], '/analytics/shifts': shared.current ? [] : [{...shift,status:'closed'}], '/tickets':[], '/users':[], '/notices':{notices:[]},
-      '/shifts/close-readiness': {shift:shared.current,can_close:true,approved_carry_forwards:[],finalized_totals:{collected_total:0,cash_total:0,card_total:0,other_total:0},receivables:{outstanding_total:0}}, '/push/config':{enabled:false}};
+      '/shifts/close-readiness': {shift:shared.current,can_close:true,blockers:[],open_ticket_count:0,clocked_in_staff:[],automatic_clock_out:{will_clock_out_count:0,will_clock_out_staff:[],source:"shift_close"},manager_keep_open:false,manager_keep_open_history:[],approved_carry_forwards:[],finalized_totals:{collected_total:0,cash_total:0,card_total:0,other_total:0},receivables:{count:0,billed_total:0,collected_total:0,outstanding_total:0}}, '/push/config':{enabled:false}};
     if (path === '/shifts/close-readiness' && shared.holdReadiness) {
       shared.holdReadiness = false;
       await new Promise(resolve => { shared.releaseReadiness = resolve; });
