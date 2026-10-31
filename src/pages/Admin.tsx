@@ -268,6 +268,14 @@ export default function Admin() {
             </header>
             {refreshing ? <p role="status">{locale === "ja" ? "最新情報を確認中…" : "Checking for updates…"}</p> : null}
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
+            <MobileSectionPicker>
+                <span>{locale === "ja" ? "管理メニュー" : "Admin section"}</span>
+                <select value={activeSection} onChange={event => chooseSection(event.target.value as AdminSection)}>
+                    {adminSectionTabs.map(tab => <option key={tab.id} value={tab.id}>
+                        {locale === "ja" ? tab.label.ja : tab.label.en}
+                    </option>)}
+                </select>
+            </MobileSectionPicker>
             <SectionNav ref={sectionNavRef} aria-label={locale === "ja" ? "管理セクション" : "Admin sections"}>
                 <SectionIndicator
                     aria-hidden="true"
@@ -426,6 +434,16 @@ const Page = styled.main`
     h2 { font-size: var(--font-size-h4); font-weight: 500; }
     header p { color: var(--neutral-300); }
 `;
+const MobileSectionPicker = styled.label`
+    display: grid;
+    gap: var(--space-1);
+    min-width: 0;
+    color: var(--neutral-200);
+    text-transform: none;
+    letter-spacing: normal;
+    select { width: 100%; min-width: 0; box-sizing: border-box; font-size: 16px; min-height: 48px; }
+    @media (min-width: 570px) { display: none; }
+`;
 const SectionNav = styled.nav`
     position: relative;
     display: grid;
@@ -434,6 +452,7 @@ const SectionNav = styled.nav`
     padding: var(--space-0);
     border: 1px solid var(--neutral-700);
     border-radius: var(--space-1);
+    @media (max-width: 569px) { display: none; }
     @media (min-width: 640px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     @media (min-width: 1000px) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 `;

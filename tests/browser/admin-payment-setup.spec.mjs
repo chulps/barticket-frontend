@@ -30,7 +30,8 @@ async function fixture(page,{readStatus=200}={}) {
     await route.fulfill({status,json:data,headers:{"Access-Control-Allow-Origin":"*"}});
   });
   await page.goto("/admin");
-  await page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true}).click();
+  if(page.viewportSize().width<570)await page.getByRole("combobox",{name:"Admin section",exact:true}).selectOption("payments");
+  else await page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true}).click();
   return state;
 }
 test("only an owner-authorized response exposes payment settings",async({page})=>{

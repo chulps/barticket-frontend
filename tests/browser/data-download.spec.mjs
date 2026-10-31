@@ -68,7 +68,7 @@ test("Menu downloads active and archived items regardless of search; Admin downl
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: "/tmp/barticket-menu-export-mobile.png" });
   await page.goto("/admin");
-  await page.getByRole("button", { name: "Accounts", exact: true }).click();
+  await page.getByRole("combobox", { name: "Admin section", exact: true }).selectOption("accounts");
   const admin = await download(page, "Download admin data (JSON)");
   expect(admin.data.scope).toBe("admin");
   expect(admin.data.data.users[0].id).toBe(7);
