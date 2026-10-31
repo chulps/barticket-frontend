@@ -48,7 +48,7 @@ function schedule(id, date, state, actual = false) {
 }
 async function mockedPOS(page, { authenticated = true, locale = "en", role = "manager", noticeCount = 0, onShift = true } = {}) {
   await page.clock.setFixedTime(new Date(FIXTURE_NOW_MS));
-  const state = { tickets:[ticket()], requests:[], paymentPosts:0,
+  const state = { tickets:[ticket()], requests:[], requestUrls:[], paymentPosts:0,
     newTicketPosts:0, delayTicketCreate:false, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
     analyticsReads:0, delayAnalyticsReads:false, analyticsShifts:[], failShiftLookup:false,
     currentShift:shift(), venueStatus:{business_date:dayJst(),status:"open",event_value:null,updated_by:null,updated_at:null},
@@ -79,6 +79,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en", role = "ma
       return;
     }
     state.requests.push(key);
+    state.requestUrls.push(req.url());
     let status=200, response=null;
     const json=() => { try { return req.postDataJSON() ?? {}; } catch { return {}; } };
     if(key==="GET /auth/status") response={has_accounts:true,google_enabled:false};
@@ -878,4 +879,40 @@ test("Admin overview leads to team pay, records and account access", async ({pag
   await page.getByRole("button",{name:"Manage accounts",exact:true}).click();
   await expect(page.getByRole("button",{name:"Refresh accounts",exact:true})).toBeVisible();
   expect(state.requests.filter(r=>/^(POST|PUT|PATCH|DELETE) /.test(r))).toEqual([]);
+});
+
+
+
+test("known ticket push reads only its ID; delete and unknown hint resync remain safe", async ({page}) => {
+  const state=await mockedPOS(page);
+  await openTicket(page);
+  await expect.poll(()=>state.requestUrls.some(url=>url.includes("include_open=true")&&url.includes("shift_id=3"))).toBe(true);
+  await page.waitForTimeout(500);
+  const lists=state.requests.filter(x=>x==="GET /tickets").length;
+  state.tickets[0].name="Targeted rename";
+  await page.evaluate(()=>{
+    const detail={eventType:"ticket_updated",ticketId:11};
+    window.dispatchEvent(new CustomEvent("barticket-push",{detail}));
+    window.dispatchEvent(new CustomEvent("barticket-push",{detail}));
+  });
+  await expect.poll(()=>state.requests.filter(x=>x==="GET /tickets/11").length).toBe(1);
+  await expect(page.getByText("Targeted rename",{exact:true}).first()).toBeVisible();
+  expect(state.requests.filter(x=>x==="GET /tickets").length).toBe(lists);
+  state.tickets=[];
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent("barticket-push",{detail:{eventType:"ticket_updated",ticketId:11}})));
+  await expect(page.getByText("Targeted rename",{exact:true})).toHaveCount(0);
+  await page.evaluate(()=>window.dispatchEvent(new Event("barticket-push")));
+  await expect.poll(()=>state.requests.filter(x=>x==="GET /tickets").length).toBeGreaterThan(lists);
+  expect(state.requests.some(x=>/^(POST|PATCH|DELETE) /.test(x))).toBe(false);
+});
+
+test("Analytics fetches selected period tickets, expanding to all only on explicit All Time", async ({page}) => {
+  const state=await mockedPOS(page);
+  await page.goto("/analytics");
+  await expect.poll(()=>state.requestUrls.some(url=>url.includes("/tickets?date_from="+dayJst())&&url.includes("date_to="+dayJst()))).toBe(true);
+  expect(state.requestUrls.some(url=>url.endsWith("/tickets"))).toBe(false);
+  await page.getByRole("button",{name:"Monthly",exact:true}).click();
+  await expect.poll(()=>state.requestUrls.some(url=>url.includes("/tickets?date_from=2026-10-01")&&url.includes("date_to=2026-10-31"))).toBe(true);
+  await page.getByRole("button",{name:"All time",exact:true}).click();
+  await expect.poll(()=>state.requestUrls.some(url=>url.endsWith("/tickets"))).toBe(true);
 });

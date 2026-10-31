@@ -1,3 +1,4 @@
+import { ticketListPath, type TicketReadScope } from "../hooks/ticketReadScope";
 // api/tickets.ts
 
 import type { PaymentType, Ticket } from "../types/Ticket";
@@ -127,7 +128,7 @@ export function toTicket(api: ApiTicket): Ticket {
 }
 
 export const ticketsApi = {
-    list: () => apiRequest<ApiTicket[]>("/tickets"),
+    list: (scope?: TicketReadScope) => apiRequest<ApiTicket[]>(ticketListPath(scope)),
 
     get: (ticketId: number) => apiRequest<ApiTicket>(`/tickets/${ticketId}`),
 
@@ -222,3 +223,4 @@ export const ticketsApi = {
             method: "POST", body: { reason },
         }),
 };
+

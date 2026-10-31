@@ -1,3 +1,5 @@
+import { ApiError, getToken } from "../api/client";
+import { ticketInvalidationId, mergeTicketDelta } from "./ticketDelta";
 import { shouldPoll } from "../api/realtime";
 // useTickets.ts
 import { useEffect, useRef, useState } from "react";
@@ -24,7 +26,7 @@ function reportError(error: unknown) {
   notifyMutation("error", readLocale() === "ja" ? "変更を確認できませんでした。再実行する前に伝票を確認してください。" : "Ticket update not confirmed. Check the ticket before retrying.");
 }
 
-export function useTickets() {
+export function useTickets(shiftId: number | null = null) {
   const { t, locale } = useI18n();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
@@ -143,26 +145,43 @@ export function useTickets() {
     let lastActivityAt = Date.now();
     let lastRefreshAt = 0;
     let deferredRefresh: number | undefined;
+    let pendingFull = true;
+    const pendingIds = new Set<number>();
     const retryRead = () => {
       if (cancelled || deferredRefresh !== undefined) return;
-      deferredRefresh = window.setTimeout(() => { deferredRefresh = undefined; void refresh(); }, 250);
+      deferredRefresh = window.setTimeout(() => { deferredRefresh = undefined; void refresh(false); }, 250);
     };
 
-    const refresh = async () => {
+    const refresh = async (full = true) => {
+      if (full) pendingFull = true;
       if (cancelled || document.visibilityState === "hidden") return;
       if (fetching || pendingWrites.current > 0) { retryRead(); return; }
       fetching = true;
       lastRefreshAt = Date.now();
       const revision = localRevision.current;
+      const token = getToken();
+      const fullRead = pendingFull;
+      const ids = [...pendingIds];
+      pendingFull = false;
+      pendingIds.clear();
       try {
-        const list = await ticketsApi.list();
-        const loaded = acceptBackgroundSnapshot(list.map(toTicket).sort((a, b) => b.id - a.id), {
+        // All open tickets remain recoverable; closed history is scoped to the verified night.
+        const list = fullRead
+          ? await ticketsApi.list({ include_open: true, ...(shiftId === null ? {} : {shift_id: shiftId}) })
+          : (await Promise.all(ids.map(async id => {
+              try { return await ticketsApi.get(id); }
+              catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; }
+            }))).filter((ticket): ticket is ApiTicket => ticket !== null);
+        const incoming = list.map(toTicket);
+        const snapshot = fullRead ? incoming.sort((a,b) => b.id - a.id)
+          : mergeTicketDelta([...confirmed.current.values()], ids, incoming, shiftId);
+        const loaded = acceptBackgroundSnapshot(snapshot, {
           startedRevision: revision,
           currentRevision: localRevision.current,
           pendingWrite: pendingWrites.current > 0,
-          cancelled,
+          cancelled: cancelled || token !== getToken(),
         });
-        if (loaded === null) { retryRead(); return; }
+        if (loaded === null) { pendingFull = true; retryRead(); return; }
         setTicketsError(false);
         // Never overwrite a name being edited or awaiting its debounced save.
         const next = loaded.map((ticket) => {
@@ -173,6 +192,7 @@ export function useTickets() {
         ticketsRef.current = next;
         setTickets(next);
       } catch (error) {
+        pendingFull = true; // An uncertain partial read requires authoritative scoped resync.
         if (!cancelled) {
           setTicketsError(true);
           if (!initialErrorReported) {
@@ -183,6 +203,7 @@ export function useTickets() {
       } finally {
         if (!cancelled) setTicketsLoading(false);
         fetching = false;
+        if (pendingIds.size) retryRead();
       }
     };
 
@@ -200,6 +221,16 @@ export function useTickets() {
       markActivity();
       void refresh();
     };
+    const onPush = (event: Event) => {
+      const id = ticketInvalidationId((event as CustomEvent).detail);
+      if (id === null) { onFocus(); return; }
+      pendingIds.add(id);
+      if (pendingIds.size > 50) { pendingFull = true; pendingIds.clear(); }
+      markActivity();
+      // A burst of reliable hints becomes one bounded read batch. Legacy/realtime
+      // scope-only events, reconnects and fallback timers still replace the scope.
+      retryRead();
+    };
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         markActivity();
@@ -209,7 +240,8 @@ export function useTickets() {
     window.addEventListener("pointerdown", markActivity, { passive: true });
     window.addEventListener("keydown", markActivity);
     window.addEventListener("focus", onFocus);
-    window.addEventListener("barticket-push", onFocus);
+    window.addEventListener("barticket-auth", onFocus);
+    window.addEventListener("barticket-push", onPush);
     window.addEventListener("barticket-api-restored", onFocus);
     window.addEventListener("barticket-retry-tickets", onFocus);
     document.addEventListener("visibilitychange", onVisibility);
@@ -220,12 +252,13 @@ export function useTickets() {
       window.removeEventListener("pointerdown", markActivity);
       window.removeEventListener("keydown", markActivity);
       window.removeEventListener("focus", onFocus);
-      window.removeEventListener("barticket-push", onFocus);
+      window.removeEventListener("barticket-auth", onFocus);
+      window.removeEventListener("barticket-push", onPush);
       window.removeEventListener("barticket-api-restored", onFocus);
       window.removeEventListener("barticket-retry-tickets", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [shiftId]);
 
   // Ticket actions
   const updateItemQuantity = (
@@ -490,3 +523,4 @@ export function useTickets() {
     reopenTicket,
   };
 }
+
