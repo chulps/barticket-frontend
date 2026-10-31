@@ -64,6 +64,7 @@ test('UI explicitly separates account push, device sounds, and background OS beh
   assert.match(ui,/across devices/); assert.match(ui,/role="switch"/); assert.match(ui,/lock-screen notification sounds/);
   assert.match(ui,/setPreferences\(null\)/);assert.match(ui,/getToken\(\) === token/);
   assert.match(ui,/Previews do not turn sounds on/);
+  assert.match(ui,/turn Silent mode off/);
 });
 
 test('shared persisted identity deduplicates across two active tabs', async () => {

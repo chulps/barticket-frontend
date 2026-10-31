@@ -97,6 +97,7 @@ export default function NotificationPreferences() {
       {!audioSupported ? <p role="status">{ja ? 'このブラウザーでは安全な自動サウンド再生を利用できません。対応ブラウザーで開いてください。通知自体は影響を受けません。' : 'Automatic sounds aren’t supported safely in this browser. Use a supported browser; notifications are unaffected.'}</p> : null}
       {enabled && !ready && audioSupported ? <p role="status">{ja ? 'この画面でタップしてサウンドを再開してください。' : 'Tap to resume sounds for this open session.'} <button type="button" disabled={audioBusy} onClick={() => void audio()}>{ja ? 'サウンドを再開' : 'Resume sounds'}</button></p> : null}
       {soundError ? <p role="alert">{soundError}</p> : null}
+      <p>{ja ? 'iPhoneで試聴するには、消音モードを解除してメディア音量を確認してください。' : 'On iPhone, turn Silent mode off and check media volume to hear previews.'}</p>
       <Previews>{([
         ['ticket_created', 'Preview new ticket', '新しい伝票の音'],
         ['stock_out', 'Preview stockout', '在庫切れの音'],
