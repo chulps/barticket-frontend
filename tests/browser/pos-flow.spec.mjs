@@ -1075,5 +1075,5 @@ test('ticket action cues: mobile reduced motion keeps Japanese text and partial 
   expect(await cue.locator('.ticket-action-symbol').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button',{name:/会計/,exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:/チケットを閉じる/})).toBeVisible();
 });
