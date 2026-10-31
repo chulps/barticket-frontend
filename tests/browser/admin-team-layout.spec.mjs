@@ -71,6 +71,14 @@ test("team payroll is an explicit destination, not appended to profiles",async({
   await expect(page.getByRole("region",{name:"Monthly team pay",exact:true})).toBeVisible();
   await expect(page.getByRole("navigation",{name:"Team directory"})).toHaveCount(0);
   await expect(page.getByText("Total staff pay",{exact:true})).toBeVisible();
+  const chart=page.getByRole("figure",{name:"Monthly staff pay by person",exact:true});
+  await expect(chart).toBeHidden();
+  await expect(page.getByLabel("Pay by team member",{exact:true}).getByText(people[2].name,{exact:true})).toBeVisible();
+  await page.locator("summary").filter({hasText:"Pay comparison charts"}).click();
+  await expect(chart).toBeVisible();
+  await page.locator("summary").filter({hasText:"Pay comparison charts"}).click();
+  await expect(chart).toBeHidden();
+  await expect(page.getByText("Total staff pay",{exact:true})).toBeVisible();
   await expect.poll(()=>new Set(requests.filter(r=>r.path.endsWith("/earnings")).map(r=>r.path)).size).toBe(2);
   expect(requests.some(r=>r.method!=="GET")).toBe(false);
 });
