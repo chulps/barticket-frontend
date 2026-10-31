@@ -1,3 +1,4 @@
+import PaymentDateHistory from "../components/PaymentDateHistory";
 import { useCallback, useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { accountApi, type Account } from "../api/account";
@@ -132,6 +133,7 @@ export default function Receivables() {
                     </dl>
                     <details><summary>{ja ? "品目・回収履歴・監査記録" : "Items, collection history, and audit trail"}</summary>
                         <ul>{converted.items.map((item, index) => <li key={`${item.id}-${index}`}>{item.name} × {item.quantity} — {yen(item.subtotal)}</li>)}</ul>
+                        <PaymentDateHistory ticket={converted} canCorrect={account?.role === "manager"} />
                         <ul>{(ticket.payments ?? []).map(payment => <li key={payment.id ?? `${payment.paid_at}-${payment.amount}`}>
                             {payment.type} · {yen(payment.amount)} · {payment.collection_business_date ?? "—"} · {payment.collected_by ?? "—"}
                             {payment.voided_at ? ` · ${ja ? "取消" : "Voided"} (${payment.void_reason ?? ""}; ${ja ? "返金ではありません" : "not a processor refund"})` : ""}
