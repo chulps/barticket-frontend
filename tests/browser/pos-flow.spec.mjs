@@ -934,6 +934,8 @@ test("healthy occupancy clock advances locally without ticket/report traffic, th
       if(JSON.parse(message).type==='authenticate') peer.send(JSON.stringify({type:'ready',version:1,cursor:100000}));
     });
   });
+  // Install before mounting: intervals registered before installation remain native.
+  await page.clock.install({time:new Date(FIXTURE_NOW_MS)});
   await page.goto('/analytics');
   const chart=page.getByTestId('guest-occupancy-chart');
   await expect(chart).toBeVisible();
@@ -942,12 +944,12 @@ test("healthy occupancy clock advances locally without ticket/report traffic, th
   await page.waitForTimeout(500);
   const relevant=()=>state.requests.filter(path=>['GET /tickets','GET /analytics/shifts'].includes(path)).length;
   const before=relevant();
-  await page.clock.install({time:new Date(FIXTURE_NOW_MS)});
   const heartbeat=JSON.stringify({type:'heartbeat',version:1,cursor:100000,scopes:[]});
   for(let i=0;i<16;i++){
     socket.send(heartbeat);
     await page.clock.runFor(4000);
   }
+  console.log(JSON.stringify({scenario:'occupancy-clock-before-assert',browserNow:await page.evaluate(()=>Date.now()),ticketReportReads:relevant()-before}));
   await expect(chart).toContainText('21:01');
   await expect(chart.locator('strong').first()).toHaveText('2');
   expect(relevant()).toBe(before);
