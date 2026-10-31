@@ -47,6 +47,11 @@ for(const locale of ["en","ja"]) {
     const ja=locale==="ja";
     const sections=page.getByRole("group",{name:ja?"プロフィール表示":"Profile sections"});
     await expect(sections.getByRole("button",{name:ja?"給与":"My pay",exact:true})).toHaveAttribute("aria-pressed","true");
+    for(const button of await sections.getByRole("button").all()) {
+      const box=await button.boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x+box.width).toBeLessThanOrEqual(375);
+    }
     const total=page.getByText(ja?"月間給与の見積もり":"Monthly pay estimate",{exact:true}).locator("..");
     await expect(total.locator("strong")).toHaveText("—");
     const bonus=page.getByText(ja?"スタッフドリンク手当":"Staff-drink bonus",{exact:true}).locator("..");
