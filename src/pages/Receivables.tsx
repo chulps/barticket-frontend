@@ -69,7 +69,6 @@ export default function Receivables() {
 
     const reload = () => { window.dispatchEvent(new Event("barticket-receivables-updated")); };
     const yen = (value: number) => "¥" + value.toLocaleString("ja-JP");
-    const unresolved = status === "unresolved";
     const reasonOptions = [
         ["walkout", ja ? "支払い前に退店" : "Left without paying"],
         ["failed_payment", ja ? "決済失敗" : "Payment failed"],
@@ -93,12 +92,12 @@ export default function Receivables() {
                     {STATUSES.map(value => <option key={value} value={value}>{statusLabel(value, ja)}</option>)}
                 </select>
             </label>
-            {!unresolved ? <label>{ja ? "理由" : "Reason"}
+            <label>{ja ? "理由" : "Reason"}
                 <select value={reason} onChange={event => { setReason(event.target.value); setOffset(0); }}>
                     <option value="">{ja ? "すべて" : "All reasons"}</option>
                     {reasonOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
-            </label> : null}
+            </label>
             <button type="button" className="hollow secondary" onClick={reload} disabled={loading}>{ja ? "更新" : "Refresh"}</button>
         </FilterRow>
         {loading ? <p role="status">{ja ? "未払い伝票を読み込み中…" : "Loading receivables…"}</p> : null}
