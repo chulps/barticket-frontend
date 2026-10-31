@@ -150,3 +150,23 @@ test("failed capability revalidation hides owner settings until explicit access 
  state.accessStatus=200;await page.getByRole("button",{name:"Reload saved setup",exact:true}).click();await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toBeVisible();
  await expect(page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true})).toBeVisible();expect(state.reads).toBe(before+1);expect(state.writes).toEqual([]);
 });
+
+test("Stripe setup is an explicit preference choice with provider-hosted registration",async({page})=>{
+  const state=await fixture(page);
+  await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveValue("unknown");
+  await page.getByRole("button",{name:"Choose Stripe online setup",exact:true}).click();
+  await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveValue("stripe");
+  await expect(page.getByRole("combobox",{name:"Payment channel",exact:true})).toHaveValue("online");
+  const guide=page.getByRole("region",{name:"Stripe online setup",exact:true});
+  await guide.getByText("Prepare your Stripe account",{exact:true}).click();
+  await expect(guide).toContainText("Account registration alone does not enable ticket payments");
+  await expect(guide.getByRole("link",{name:"Create a Stripe account"})).toHaveAttribute("href","https://dashboard.stripe.com/register");
+  await expect(guide.getByRole("link",{name:"Open Stripe Dashboard"})).toHaveAttribute("href","https://dashboard.stripe.com/");
+  expect(state.writes).toEqual([]);
+  await page.getByRole("button",{name:"Save setup preferences",exact:true}).click();
+  await expect.poll(()=>state.writes.length).toBe(1);
+  expect(state.writes[0]).toMatchObject({provider:"stripe",channel:"online",methods:[]});
+  await expect(page.getByText("Payment processing: not connected",{exact:true})).toBeVisible();
+  await page.getByRole("combobox",{name:"Payment channel",exact:true}).selectOption("terminal");
+  await expect(guide).toHaveCount(0);
+});

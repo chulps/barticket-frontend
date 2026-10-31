@@ -6,7 +6,7 @@ type Setup = { provider: string; channel: string; methods: string[]; revision: n
 
 const providers = [
   { id: "unknown", name: "Other / Unknown · その他・不明", url: "", en: "Check the name on your terminal or settlement statement first.", ja: "まず端末または入金明細で決済会社名を確認してください。" },
-  { id: "stripe", name: "Stripe", url: "https://stripe.com/jp/pricing", en: "Web checkout candidate: cards, Apple Pay, Google Pay and PayPay. Rakuten Pay requires early-access approval. Merchant review applies.", ja: "オンライン決済の候補：カード、Apple Pay、Google Pay、PayPay。楽天ペイは先行提供の承認が必要です。加盟店審査があります。" },
+  { id: "stripe", name: "Stripe", url: "https://stripe.com/jp/pricing", en: "Recommended for customer phone checkout. Cards and eligible Apple Pay / Google Pay wallets; PayPay requires merchant review. Rakuten Pay requires early-access approval.", ja: "お客様のスマホ決済におすすめ。カードと利用条件を満たすApple Pay・Google Payに対応。PayPayは加盟店審査、楽天ペイは先行提供の承認が必要です。" },
   { id: "square", name: "Square", url: "https://squareup.com/jp/ja/payments/pricing", en: "Online links support cards, Apple Pay and Google Pay. Terminal and online rates differ; confirm the product and contract.", ja: "オンラインリンクはカード、Apple Pay、Google Payに対応。対面とオンラインでは料金が異なるため、商品と契約を確認してください。" },
   { id: "airpay", name: "Airペイ", url: "https://airregi.jp/payment/service/online/", en: "Offers online payment through its own management screen. Automatic BarTicket integration is not confirmed.", ja: "専用管理画面からオンライン決済を利用できます。BarTicketとの自動連携は未確認です。" },
   { id: "paypay", name: "PayPay", url: "https://paypay.ne.jp/store-online/", en: "Online merchant setup is separate from assuming an existing shop QR contract supports web payments.", ja: "店舗用QRの契約だけでオンライン決済が使えるとは限りません。オンライン加盟店の利用条件を確認してください。" },
@@ -113,13 +113,15 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
   const disabled = busy || needsReload;
   return <Panel>
     <header><h2>{t("Payment setup", "決済設定")}</h2>
-      <p>{t("Start with Nori’s existing provider", "まずNoriの現在の決済会社を確認")}</p></header>
+      <p>{t("Set up Stripe for customer phone payments", "お客様のスマホ決済にStripeを設定")}</p></header>
     <Status role="status">{t("Payment processing: not connected", "決済処理：未接続")}</Status>
-    <p>{t("Save your provider and preferred methods here. Complete merchant registration with the provider; registration alone does not connect BarTicket.", "決済会社と希望する支払方法を保存できます。加盟店登録は決済会社で行います。登録だけではBarTicketは接続されません。")}</p>
+    <p>{t("Save your preferences, then register with your provider. Payments remain disabled until connected.", "希望を保存し、決済会社で登録してください。接続が完了するまで決済は無効です。")}</p>
+    <p>{t("We recommend Stripe for online payments; you can keep your existing card terminal.", "オンライン決済にはStripeをおすすめします。現在のカード端末はそのまま使えます。")}</p>
+    {(providerId !== "stripe" || channel !== "online") && <button type="button" className="hollow secondary" disabled={disabled} onClick={() => { setProviderId("stripe"); setChannel("online"); }}>{t("Choose Stripe online setup", "Stripeのオンライン設定を選択")}</button>}
     <label>{t("Current or proposed provider", "現在または検討中の決済会社")}
       <select disabled={disabled} value={providerId} onChange={e => setProviderId(e.target.value)}>{providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
     </label>
-    <p>{ja ? provider.ja : provider.en}</p>
+    {providerId !== "stripe" && <p>{ja ? provider.ja : provider.en}</p>}
     {provider.url && <a href={provider.url} target="_blank" rel="noopener noreferrer">{t("View official options and fees ↗", "公式のサービス・料金を見る ↗")}</a>}
     <label>{t("Payment channel", "決済方式")}<select disabled={disabled} value={channel} onChange={e => setChannel(e.target.value)}><option value="online">{t("Customer phone / online checkout", "お客様のスマホ・オンライン決済")}</option><option value="terminal">{t("In-person terminal", "対面端末")}</option></select></label>
     <fieldset disabled={disabled}><legend>{t("Requested payment methods", "希望する支払方法")}</legend>{["card", "apple_pay", "google_pay", "paypay", "rakuten_pay"].map(method => <label key={method}><span><input style={{width:"auto"}} type="checkbox" checked={methods.includes(method)} onChange={e => setMethods(current => e.target.checked ? [...current, method] : current.filter(m => m !== method))} /> {{card: ja ? "カード" : "Cards", apple_pay: "Apple Pay", google_pay:"Google Pay", paypay:"PayPay", rakuten_pay:"楽天ペイ"}[method]}</span></label>)}</fieldset>
@@ -129,7 +131,8 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
       ? t("Preferences saved. Payments are not enabled.", "希望を保存しました。決済はまだ有効ではありません。")
       : t("Save could not be confirmed. Reload the saved setup before making another change. Your unsaved selections will be replaced.", "保存を確認できません。次の変更前に保存した設定を再読み込みしてください。未保存の選択内容は置き換わります。")}</p>}
     {needsReload ? <button type="button" onClick={() => setReloadKey(key => key + 1)}>{t("Reload saved setup", "保存した設定を再読み込み")}</button> : null}
-    {onboardingUrl && <a href={onboardingUrl} target="_blank" rel="noopener noreferrer">{t("Continue setup with provider ↗", "決済会社で登録を進める ↗")}</a>}
+    {providerId === "stripe" && channel === "online" && <StripeGuide ja={ja} />}
+    {onboardingUrl && providerId !== "stripe" && <a href={onboardingUrl} target="_blank" rel="noopener noreferrer">{t("Continue setup with provider ↗", "決済会社で登録を進める ↗")}</a>}
     <details><summary>{t("Compare fees", "手数料を比較")}</summary>
     <h3>{t("Compare your actual quote", "実際の契約料金で比較")}</h3>
     <p>{t("Use tax-inclusive fees for the same payment channel. Online and in-person rates are not interchangeable. Include hardware and other charges separately.", "同じ決済方式の税込手数料で比較してください。オンラインと対面の料率は異なります。端末代などは別途考慮してください。")}</p>
@@ -153,11 +156,29 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
   </Panel>;
 }
 
+function StripeGuide({ ja }: { ja: boolean }) {
+  const t = (en: string, jp: string) => ja ? jp : en;
+  return <section aria-label={t("Stripe online setup", "Stripeのオンライン設定")}>
+    <details><summary>{t("Prepare your Stripe account", "Stripeアカウントの準備")}</summary>
+    <ol>
+      <li>{t("Create a Stripe account for the bar, or sign in to its existing Stripe account. Complete business verification and payout details in Stripe.", "お店のStripeアカウントを作成、または既存のアカウントにログインし、Stripeで事業者確認と入金先の登録を完了してください。")}</li>
+      <li>{t("Review payment methods in Stripe. Apple Pay and Google Pay depend on customer device and eligibility; PayPay needs approval. Rakuten Pay is early access, not guaranteed.", "Stripeで支払方法を確認してください。Apple Pay・Google Payは端末や利用条件によります。PayPayは審査が必要です。楽天ペイは先行提供のため、利用は保証されません。")}</li>
+      <li>{t("Save these preferences, then have the BarTicket administrator arrange the secure Stripe connection and sandbox checks. Account registration alone does not enable ticket payments.", "この設定の希望を保存した後、BarTicket管理者に安全なStripe連携とテスト環境での確認を依頼してください。アカウント登録だけではチケットの決済は有効になりません。")}</li>
+    </ol></details>
+    <p><a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener noreferrer">{t("Create a Stripe account ↗", "Stripeアカウントを作成 ↗")}</a>{" · "}<a href="https://dashboard.stripe.com/" target="_blank" rel="noopener noreferrer">{t("Open Stripe Dashboard ↗", "Stripeダッシュボードを開く ↗")}</a></p>
+    <details><summary>{t("Payment method requirements", "支払方法の利用条件")}</summary>
+      <p><a href="https://docs.stripe.com/payments/wallets" target="_blank" rel="noopener noreferrer">{t("Wallet requirements ↗", "ウォレットの利用条件 ↗")}</a>{" · "}<a href="https://support.stripe.com/questions/accepting-paypay-payments-for-japan-based-stripe-accounts" target="_blank" rel="noopener noreferrer">{t("PayPay review ↗", "PayPayの審査 ↗")}</a>{" · "}<a href="https://docs.stripe.com/payments/rakuten-pay" target="_blank" rel="noopener noreferrer">{t("Rakuten Pay early access ↗", "楽天ペイの先行提供 ↗")}</a></p>
+    </details>
+  </section>;
+}
+
 const Panel = styled.section`
   width:100%; min-width:0; box-sizing:border-box; max-width: 960px; display: grid; grid-template-columns:minmax(0, 1fr); gap: var(--space-2);
   padding: var(--space-3); background: var(--neutral-900); border-radius: var(--space-2);
   h2, h3, p { margin: 0; } h3 { margin-top: var(--space-2); }
-  fieldset { min-width:0; margin:0; }
+  fieldset { min-width:0; margin:0; padding: var(--space-2); display:grid; gap:var(--space-2); }
+  fieldset label span { display:flex; align-items:center; gap:var(--space-2); }
+  fieldset input { flex:none; min-width:18px; min-height:18px; }
   a, p, button, summary { overflow-wrap:anywhere; }
   label { display: grid; gap: var(--space-1); min-width: 0; }
   input, select { width: 100%; min-width: 0; box-sizing: border-box; font-size: 16px; }
