@@ -11,6 +11,8 @@ const baseReport = {
   note:"Estimates from recorded inputs; not payment records.",
 };
 async function fixture(page,{locale="en",status=200,report={},delayed=false}={}) {
+  // Keep monthly fixtures and screenshots independent of the machine date.
+  await page.clock.install({time:new Date("2026-10-31T00:00:00Z")});
   const calls=[];
   await page.addInitScript(locale=>{
     localStorage.setItem("barticket_token","ISOLATED_NORI_PROFILE");

@@ -2,6 +2,8 @@ import {test, expect} from "@playwright/test";
 const API = "http://127.0.0.1:8765";
 
 async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
+  // Keep monthly fixtures and screenshots independent of the machine date.
+  await page.clock.install({time:new Date("2026-10-31T00:00:00Z")});
   const calls = [];
   const role = id === 901 || id === 902 ? "manager" : "staff";
   await page.addInitScript(({locale}) => {
@@ -62,6 +64,7 @@ for(const locale of ["en","ja"]) for(const width of [320,1280]) {
   expect(await drinks.evaluate(button=>button.scrollWidth<=button.clientWidth)).toBe(true);
   await drinks.click();
   await periods.getByRole("button",{name:ja?"月次":"Monthly",exact:true}).click();
+  await expect(page.getByText(ja?"2026年10月":"October 2026",{exact:true})).toBeVisible();
   await expect(page.getByText("季節限定の国産柚子と香り豊かな生姜を使った特製ノンアルコールカクテル × 2")).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   expect(calls.filter(call=>!call.startsWith("GET "))).toEqual([]);
