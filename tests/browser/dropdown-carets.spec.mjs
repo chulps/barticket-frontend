@@ -61,6 +61,9 @@ for(const locale of ["en","ja"])for(const width of [320,390,1280])test(`consiste
  await inspect();
  await role.focus();await expect(role).toBeFocused();await role.press("End");await role.press("Enter");await expect(role).toHaveValue("manager");
  if(width<700){await picker.selectOption("payments");await inspect();await picker.selectOption("accounts");await expect(role).toHaveValue("manager");}
+ // Enter can leave the desktop OS picker open; close it before screenshot capture.
+ await role.press("Escape");
+ await page.getByRole("heading",{name:locale==="ja"?"管理":"Admin",exact:true}).click();
  await page.screenshot({path:testInfo.outputPath("carets.png"),fullPage:true});
  await page.emulateMedia({forcedColors:"active"});
  await expect(selects.first()).toHaveCSS("appearance","auto");
