@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
+import { useSearchParams } from "react-router-dom";
+import NotificationTicket from "../components/NotificationTicket";
+import { clearNotificationReturn } from "../api/notificationNavigation";
 
 import { accountApi } from "../api/account";
 import PushSettings from "../components/PushSettings";
@@ -18,6 +21,10 @@ function formatWhen(unix: number, locale: Locale) {
 
 export default function Notifications() {
     const { t, locale } = useI18n();
+    const [searchParams] = useSearchParams();
+    const rawTicket = searchParams.get("ticket");
+    const ticketId = rawTicket && /^[1-9]\d*$/.test(rawTicket) && Number.isSafeInteger(Number(rawTicket)) ? Number(rawTicket) : null;
+    useEffect(() => { if (ticketId === null) clearNotificationReturn(); }, [ticketId]);
     const [notices, setNotices] = useState<NoticeList | null>(null);
     const [denied, setDenied] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -113,6 +120,8 @@ export default function Notifications() {
     return (
         <main>
             <Heading>{t("notifications")}</Heading>
+            {ticketId !== null ? <NotificationTicket key={ticketId} ticketId={ticketId} /> : null}
+            {rawTicket && ticketId === null ? <p role="alert">{locale === "ja" ? "通知のリンクが無効です。通知一覧を表示しています。" : "The notification link is invalid. Your notifications are shown below."}</p> : null}
             <PushSettings />
             {loading ? <p role="status">{locale === "ja" ? "通知を読み込み中…" : "Loading notifications…"}</p> : null}
             {denied ? <p>{t("clockInForNotices")}</p> : null}
