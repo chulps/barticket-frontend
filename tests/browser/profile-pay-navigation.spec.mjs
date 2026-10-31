@@ -2,6 +2,8 @@ import {test, expect} from "@playwright/test";
 const API = "http://127.0.0.1:8765";
 
 async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
+  // Keep monthly fixtures and screenshots independent of the machine date.
+  await page.clock.install({time:new Date("2026-10-31T00:00:00Z")});
   const calls = [];
   const role = id === 901 || id === 902 ? "manager" : "staff";
   await page.addInitScript(({locale}) => {
