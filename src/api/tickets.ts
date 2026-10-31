@@ -36,6 +36,7 @@ export type ApiTicket = {
     amount_paid?: number;
     balance_due?: number;
     payments?: NonNullable<Ticket["payments"]>;
+    service_completed_at?: number | null;
     service_status?: Ticket["serviceStatus"];
     settlement_status?: Ticket["settlementStatus"];
     service_business_date?: string | null;
@@ -114,6 +115,7 @@ export function toTicket(api: ApiTicket): Ticket {
         balanceDue: api.balance_due,
         payments: api.payments,
         serviceStatus: api.service_status,
+        serviceCompletedAt: api.service_completed_at,
         settlementStatus: api.settlement_status,
         serviceBusinessDate: api.service_business_date,
         unpaidReason: api.unpaid_reason,

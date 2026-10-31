@@ -923,3 +923,39 @@ test("Analytics fetches selected period tickets, expanding to all only on explic
   await expect.poll(()=>state.requestUrls.some(url=>url.endsWith("/tickets"))).toBe(true);
   await expect.poll(()=>state.requestUrls.some(url=>url.endsWith("/analytics/shifts"))).toBe(true);
 });
+
+test("healthy occupancy clock advances locally without ticket/report traffic, then applies a guest change", async ({page}) => {
+  const state=await mockedPOS(page);
+  state.tickets[0].guest_count=2;
+  let socket;
+  await page.routeWebSocket('**/realtime/ws', peer => {
+    socket=peer;
+    peer.onMessage(message=>{
+      if(JSON.parse(message).type==='authenticate') peer.send(JSON.stringify({type:'ready',version:1,cursor:100000}));
+    });
+  });
+  await page.goto('/analytics');
+  const chart=page.getByTestId('guest-occupancy-chart');
+  await expect(chart).toBeVisible();
+  await expect(chart.locator('strong').first()).toHaveText('2');
+  await expect.poll(()=>Boolean(socket)).toBe(true);
+  await page.waitForTimeout(500);
+  const relevant=()=>state.requests.filter(path=>['GET /tickets','GET /analytics/shifts'].includes(path)).length;
+  const before=relevant();
+  await page.clock.install({time:new Date(FIXTURE_NOW_MS)});
+  const heartbeat=JSON.stringify({type:'heartbeat',version:1,cursor:100000,scopes:[]});
+  for(let i=0;i<16;i++){
+    socket.send(heartbeat);
+    await page.clock.runFor(4000);
+  }
+  await expect(chart).toContainText('21:01');
+  await expect(chart.locator('strong').first()).toHaveText('2');
+  expect(relevant()).toBe(before);
+  state.tickets[0].guest_count=4;
+  socket.send(JSON.stringify({type:'invalidate',version:1,cursor:100001,scopes:['tickets','analytics']}));
+  await page.clock.runFor(500);
+  await expect(chart.locator('strong').first()).toHaveText('4');
+  expect(relevant()-before).toBe(2); // one scoped ticket read and one scoped report read, no duplicate fanout
+  expect(state.requests.some(path=>/^(POST|PATCH|DELETE) /.test(path))).toBe(false);
+  console.log(JSON.stringify({scenario:'occupancy-local-clock',stableSeconds:64,stableTicketReportReads:0,changeTicketReportReads:2,heartbeatJsonBytes:Buffer.byteLength(heartbeat)}));
+});
