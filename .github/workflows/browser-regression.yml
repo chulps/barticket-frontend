@@ -32,6 +32,10 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run mocked browser tests
         run: npx playwright test --config=playwright.config.mjs
+      - name: Build old/new deployment fixtures
+        run: node scripts/build-deployment-fixtures.mjs
+      - name: Verify active-session deployment continuity
+        run: npx playwright test --config=playwright.deployment.config.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

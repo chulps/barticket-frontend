@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -46,6 +47,58 @@ jobs:
           VITE_REVENUE_SHARE_CHUCK_USER_ID: ${{ vars.VITE_REVENUE_SHARE_CHUCK_USER_ID }}
           VITE_REVENUE_SHARE_NORI_USER_ID: ${{ vars.VITE_REVENUE_SHARE_NORI_USER_ID }}
 
+      # Fail closed if we cannot preserve the last successful deployment.
+      # This protects already-open pre-fix clients during the first rollout too.
+      - name: Download previous successful public Pages artifact
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('node:fs');
+            const { execFileSync } = require('node:child_process');
+            fs.mkdirSync('previous-pages');
+            const runs = await github.rest.actions.listWorkflowRuns({
+              ...context.repo, workflow_id: 'deploy.yml', branch: 'main', status: 'success', per_page: 100
+            });
+            const previous = runs.data.workflow_runs[0];
+            if (!previous) throw new Error('No successful Pages deployment available for safe asset continuity');
+            const archives = [];
+            async function download(run, required) {
+              const artifacts = await github.rest.actions.listWorkflowRunArtifacts({ ...context.repo, run_id: run.id });
+              const artifact = artifacts.data.artifacts.find(item => item.name === 'github-pages' && !item.expired);
+              if (!artifact) {
+                if (required) throw new Error('Previous Pages artifact unavailable; restore immutable assets before deployment');
+                core.warning(`Historical deployment ${run.id} artifact expired; its pre-fix clients cannot be restored automatically`);
+                return;
+              }
+              const response = await github.rest.actions.downloadArtifact({ ...context.repo, artifact_id: artifact.id, archive_format: 'zip' });
+              const file = `${run.id}.zip`;
+              fs.writeFileSync(`previous-pages/${file}`, Buffer.from(response.data));
+              archives.push({ file, created: Date.parse(run.created_at) / 1000 });
+            }
+            await download(previous, true);
+            const hasLedger = execFileSync('python3', ['-c',
+              'import io,sys,tarfile,zipfile; z=zipfile.ZipFile(sys.argv[1]); t=tarfile.open(fileobj=io.BytesIO(z.read("artifact.tar"))); print(any(m.name.removeprefix("./")=="asset-retention.json" for m in t.getmembers()))',
+              `previous-pages/${archives[0].file}`], { encoding: 'utf8' }).trim() === 'True';
+            if (!hasLedger) {
+              // One-time bootstrap for tabs predating the immediately previous release.
+              // Only successful main deployments, never PR/private artifacts.
+              const cutoff = Date.now() - 30 * 86400_000;
+              let page = 1, batch = runs.data.workflow_runs;
+              while (batch.length) {
+                for (const run of batch) {
+                  if (Date.parse(run.created_at) < cutoff) { batch = []; break; }
+                  if (run.id !== previous.id) await download(run, false);
+                }
+                if (!batch.length || batch.length < 100) break;
+                batch = (await github.rest.actions.listWorkflowRuns({ ...context.repo,
+                  workflow_id: 'deploy.yml', branch: 'main', status: 'success', per_page: 100, page: ++page
+                })).data.workflow_runs;
+              }
+            }
+            fs.writeFileSync('previous-pages/archives.json', JSON.stringify(archives));
+      - name: Retain public immutable assets for 30 days
+        run: python3 scripts/retain-pages-assets.py previous-pages dist
+
       - name: Reject unsafe build artifacts
         run: node scripts/audit-frontend-security.mjs --dist
 
@@ -57,6 +110,7 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
+          retention-days: 90
 
   deploy:
     needs: build
@@ -67,3 +121,4 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v5
+
