@@ -25,7 +25,7 @@ async function previewFixture(page, locale = "en") {
     } else if (req.url().includes("working-manager-history")) body = [];
     await route.fulfill({status,json:body,headers:{"Access-Control-Allow-Origin":"*"}});
   });
-  await page.route("http://127.0.0.1:4173/pay-preview-fixture", route => route.fulfill({
+  await page.route("**/pay-preview-fixture", route => route.fulfill({
     contentType:"text/html",body:`<html><div id="root"></div><script type="module">
       import React from '/node_modules/.vite/deps/react.js';
       import ReactDOM from '/node_modules/.vite/deps/react-dom_client.js';
