@@ -61,7 +61,7 @@ async function correctionFixture(page, { role = 'manager', locale = 'en' } = {})
       '/push/status': { enabled: false }, '/realtime/events': { cursor: 0, scopes: [] },
     };
     return route.fulfill({ headers, status: req.method() === 'GET' && path in values ? 200 : 404,
-      json: values[path] ?? { detail: 'Unmocked isolated route' } });
+      json: path in values ? values[path] : { detail: 'Unmocked isolated route' } });
   });
   return state;
 }
