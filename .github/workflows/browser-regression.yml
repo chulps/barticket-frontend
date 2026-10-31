@@ -33,11 +33,12 @@ jobs:
       - name: Run mocked browser tests
         run: npx playwright test --config=playwright.config.mjs
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
-          name: browser-regression-failure
+          name: browser-regression-results
           path: |
             playwright-report/
             test-results/
           if-no-files-found: ignore
           retention-days: 5
+
