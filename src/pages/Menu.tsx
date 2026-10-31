@@ -239,6 +239,15 @@ export default function Menu({
             </li>)}
           </ArchiveList>
         </ArchivePanel>
+      ) : !displayMenu?.items.length ? (
+        <RequestState kind="empty" detail={t("noMenu")} />
+      ) : Object.keys(groupedMenu).length === 0 ? (
+        <SearchEmpty role="status">
+          <p>{locale === "ja" ? `「${searchTerm.trim()}」に一致するドリンクはありません。` : `No drinks match “${searchTerm.trim()}”.`}</p>
+          <button type="button" className="small secondary" onClick={() => setSearchTerm("")}>
+            {locale === "ja" ? "検索をクリア" : "Clear search"}
+          </button>
+        </SearchEmpty>
       ) : <MenuGridContainer>
         {Object.entries(groupedMenu).map(([category, subcategories]) => (
           <MenuCategory
@@ -344,3 +353,5 @@ const ArchiveItemInfo = styled.div`
   min-width: 0;
   small { color: var(--neutral-400); }
 `;
+
+const SearchEmpty = styled.div`display: grid; gap: var(--space-2); padding: var(--space-3) 0; overflow-wrap: anywhere; button { justify-self: start; }`;
