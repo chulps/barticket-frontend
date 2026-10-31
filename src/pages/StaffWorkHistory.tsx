@@ -335,10 +335,9 @@ const Heading = styled.div`
     button { width: auto; }
 `;
 const Tabs = styled.div`
-    display: grid; grid-template-columns: repeat(1, minmax(0, 1fr));
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-1);
-    @media (min-width: 570px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    button { min-width: 0; width: 100%; min-height: 44px; }
+    button { min-width: 0; width: 100%; min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
     button:focus-visible { outline: 2px solid var(--royal-400); outline-offset: 2px; }
 `;
 const PanelBody = styled.div`
@@ -346,13 +345,14 @@ const PanelBody = styled.div`
     min-width: 0;
 `;
 const TimeControls = styled.div`
-    display: flex; flex-direction: column; gap: var(--space-1);
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2);
     min-width: 0;
-    > [role="group"] { width: 100%; }
+    > [role="group"] { width: max-content; max-width: 100%; }
 `;
 const PeriodNav = styled.div`
     display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px;
     align-items: center; gap: var(--space-1); min-height: 48px;
+    width: min(100%, 300px);
     strong { text-align: center; overflow-wrap: anywhere; }
 `;
 const StepButton = styled.button`
@@ -374,6 +374,7 @@ const HistoryEntry = styled.div`
     display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2);
     padding: var(--space-1) 0; border-bottom: 1px solid var(--neutral-700);
     min-width: 0;
+    > div { min-width: 0; }
     strong { display: block; font-weight: 500; }
 `;
 const Meta = styled.p`color: var(--neutral-300); overflow-wrap: anywhere;`;
