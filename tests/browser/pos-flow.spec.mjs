@@ -750,11 +750,11 @@ test("historical-hours reconciliation reveals each step only when it is actionab
   await mockedPOS(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin");
-  const adminNav = page.getByRole("navigation", { name: "Admin sections" });
-  await expect(adminNav.getByRole("button", { name: "Overview" })).toBeVisible();
-  await expect(adminNav.getByRole("button", { name: "Pay deductions" })).toBeVisible();
-  expect(await adminNav.evaluate(element => element.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
-  await adminNav.getByRole("button", { name: "Historical hours" }).click();
+  const adminSection = page.getByRole("combobox", { name: "Admin section", exact: true });
+  await expect(adminSection).toHaveValue("overview");
+  await expect(adminSection.locator('option[value="adjustments"]')).toHaveText("Pay deductions");
+  expect(await adminSection.evaluate(element => element.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
+  await adminSection.selectOption("historicalHours");
 
   const chooseCsv = page.getByRole("heading", { name: "Choose the staff-hours CSV" });
   const reconcile = page.getByRole("heading", { name: "Reconcile and review staff hours" });
