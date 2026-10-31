@@ -94,11 +94,12 @@ const Panel = styled.section`
 const Rows = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 0 var(--space-3);`;
 const Row = styled.div`display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); min-height: 48px; border-bottom: 1px solid var(--neutral-800); span { min-width: 0; }`;
 const Switch = styled.button`
+  display: block; text-align: left;
   flex: 0 0 48px; width: 48px; min-width: 48px; height: 44px; min-height: 44px; padding: 11px 3px; border-radius: 20px;
   background: transparent; border: 0; position: relative;
   &::before { content: ""; position: absolute; inset: 8px 0; border-radius: 20px; background: var(--neutral-700); border: 1px solid var(--neutral-400); }
   span { display: block; width: 20px; height: 20px; border-radius: 50%; background: white; position: relative; transform: translateX(0); }
-  &[aria-checked='true']::before { background: var(--success-500, #21854b); }
+  &[aria-checked='true']::before { background: var(--success-700, #12793d); }
   &[aria-checked='true'] span { transform: translateX(19px); }
   &:focus-visible { outline: 3px solid var(--royal-400); outline-offset: 3px; }
   &:disabled { opacity: .6; }

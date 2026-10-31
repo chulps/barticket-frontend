@@ -1,3 +1,4 @@
+import PaymentDateHistory from "../PaymentDateHistory";
 // TicketFooter.tsx
 
 import styled from "styled-components";
@@ -80,23 +81,7 @@ export default function TicketFooter({
                     <summary style={{ fontSize: "var(--font-size-small)", cursor: "pointer" }}>
                         {locale === "ja" ? "お支払い履歴" : "Payment history"} ({ticket.payments?.length})
                     </summary>
-                    <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                        {ticket.payments?.map((payment, index) => (
-                            <li key={index} style={{ paddingBlock: "var(--space-1)" }}>
-                                {t(payment.type)} · ¥{payment.amount.toLocaleString()}
-                                {" · "}
-                                {locale === "ja" ? "記録日時: " : "Recorded: "}
-                                {new Date(payment.paid_at * 1000).toLocaleString(locale === "ja" ? "ja-JP" : "en-US", { timeZone: "Asia/Tokyo" })}
-                                {payment.collection_business_date ? ` · ${payment.collection_business_date}` : ""}
-                                {payment.collected_by ? ` · ${payment.collected_by}` : ""}
-                                {payment.voided_at != null && <strong style={{ color: "var(--danger-400)" }}>
-                                    {" · "}{locale === "ja" ? "POS記録取消済（返金ではありません）" : "POS-voided (not refunded)"}
-                                    {payment.voided_by ? " · " + payment.voided_by : ""}
-                                    {payment.void_reason ? " · " + payment.void_reason : ""}
-                                </strong>}
-                            </li>
-                        ))}
-                    </ul>
+                    <PaymentDateHistory ticket={ticket} canCorrect={canCorrectPayment} />
                 </details>}
                 {ticket.serviceStatus === "completed" && ticket.deferredAt ? <section aria-label={locale === "ja" ? "未払い情報" : "Unpaid balance details"}>
                     <p><strong>{locale === "ja" ? "サービス営業日" : "Service date"}:</strong> {ticket.serviceBusinessDate ?? "—"}</p>

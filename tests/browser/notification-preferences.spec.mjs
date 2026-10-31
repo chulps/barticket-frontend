@@ -25,7 +25,12 @@ async function fixture(page) {
 for(const width of [320,1280])test(`notification preferences accessible at ${width}`,async({page},testInfo)=>{
   await page.setViewportSize({width,height:900});const writes=await fixture(page);await page.goto('/notifications');
   const toggle=page.getByRole('switch',{name:'New tickets',exact:true});await expect(toggle).toHaveAttribute('aria-checked','true');
-  await toggle.click();await expect(toggle).toHaveAttribute('aria-checked','false');expect(writes).toEqual([{preferences:{ticket_created:false}}]);
+  const onThumb=await toggle.locator('span').boundingBox(), onTrack=await toggle.boundingBox();
+  expect(onThumb.x+onThumb.width).toBeLessThanOrEqual(onTrack.x+onTrack.width);
+  await toggle.click();await expect(toggle).toHaveAttribute('aria-checked','false');
+  const offThumb=await toggle.locator('span').boundingBox(), offTrack=await toggle.boundingBox();
+  expect(offThumb.x).toBeLessThan(offTrack.x+10);
+  expect(writes).toEqual([{preferences:{ticket_created:false}}]);
   await expect(page.getByRole('switch',{name:'Use sounds on this device'})).toHaveAttribute('aria-checked','false');
   await page.getByRole('button',{name:'Preview cha-ching'}).click();
   await expect(page.getByRole('switch',{name:'Use sounds on this device'})).toHaveAttribute('aria-checked','false');

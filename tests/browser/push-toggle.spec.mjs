@@ -31,6 +31,7 @@ async function fixture(page,{locale='en',permission='granted',subscribed=true,ow
     else if(path==='/menu')body={items:[]};
     else if(path==='/notices')body={notices:[]};
     else if(path==='/tickets')body=[];
+    else if(path==='/push/preferences')body={preferences:Object.fromEntries('ticket_created ticket_updated ticket_payment_recorded ticket_payment_deferred ticket_balance_written_off ticket_payment_corrected ticket_closed stock staff_drink shift_opened shift_closed shift_kept_open punch_corrected clock_in clock_out noon_clock_out'.split(' ').map(key=>[key,true]))};
     else if(path==='/push/vapid-public-key')body={public_key:'dGVzdA'};
     else if(path==='/push/subscriptions/status'){
       expect(request.method()).toBe('POST');

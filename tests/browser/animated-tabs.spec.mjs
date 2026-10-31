@@ -2,7 +2,7 @@ import {test, expect} from '@playwright/test';
 
 async function geometry(group) {
   return group.evaluate(el => {
-    const track=el.firstElementChild, indicator=track.firstElementChild;
+    const track=el.firstElementChild, indicator=track.querySelector("[data-tab-indicator]");
     const rect=node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,top:r.top,bottom:r.bottom}};
     return {track:rect(track),indicator:rect(indicator),buttons:[...track.querySelectorAll('button')].map(rect),active:rect(track.querySelector('[aria-pressed="true"]'))};
   });
@@ -56,11 +56,16 @@ test('indicator stays bounded throughout repeated transitions and reduced motion
   for(const index of [2,0,2,1,0]){
     await group.getByRole('button').nth(index).click();
     const bounded=await group.evaluate(async el=>{
-      const track=el.firstElementChild,indicator=track.firstElementChild;
+      const track=el.firstElementChild,indicator=track.querySelector("[data-tab-indicator]");
       for(let i=0;i<24;i++){
         await new Promise(requestAnimationFrame);
         const t=track.getBoundingClientRect(),r=indicator.getBoundingClientRect();
-        if(r.left<t.left || r.right>t.right)return false;
+        const clip=track.querySelector('[data-tab-indicator-clip]');
+        const c=clip.getBoundingClientRect(),style=getComputedStyle(clip);
+        // Only the decorative layer is clipped; focus and labels are siblings.
+        if(!style.clipPath.startsWith('inset(')||style.pointerEvents!=='none')return false;
+        if(Math.abs(c.left-t.left)>0.1||Math.abs(c.right-t.right)>0.1)return false;
+        if(r.right<=t.left||r.left>=t.right)return false;
       }
       return true;
     });
@@ -70,11 +75,11 @@ test('indicator stays bounded throughout repeated transitions and reduced motion
   await page.emulateMedia({reducedMotion:'reduce'});
   await group.getByRole('button').last().click();
   await aligned(group);
-  expect(await group.locator('> div > div').evaluate(el=>getComputedStyle(el).transitionDuration)).toBe('0s');
+  expect(await group.locator('[data-tab-indicator]').evaluate(el=>getComputedStyle(el).transitionDuration)).toBe('0s');
 });
 
 
-test('Profile slides between rows rather than switching static backgrounds',async({page})=>{
+test('Profile has a quick rebound between rows with bounded decoration',async({page})=>{
   await page.setViewportSize({width:375,height:812});
   await page.emulateMedia({reducedMotion:'no-preference'});
   await page.goto('/tests/browser/fixtures/tab-group.html');
@@ -82,7 +87,7 @@ test('Profile slides between rows rather than switching static backgrounds',asyn
   await aligned(group);
   for(const index of [3,0,2,1]){
     const result=await group.evaluate(async(el,index)=>{
-      const indicator=el.firstElementChild.firstElementChild;
+      const indicator=el.querySelector("[data-tab-indicator]");
       const buttons=[...el.querySelectorAll('button')], target=buttons[index].getBoundingClientRect();
       const start=indicator.getBoundingClientRect(),samples=[];
       buttons[index].click();
@@ -95,6 +100,8 @@ test('Profile slides between rows rather than switching static backgrounds',asyn
     },index);
     const distance=(a,b)=>Math.hypot(a.left-b.left,a.top-b.top);
     expect(result.samples.some(p=>distance(p,result.start)>1&&distance(p,result.target)>1)).toBe(true);
+    const dx=result.target.left-result.start.left,dy=result.target.top-result.start.top;
+    expect(result.samples.some(p=>(p.left-result.target.left)*dx+(p.top-result.target.top)*dy>Math.hypot(dx,dy))).toBe(true);
     await aligned(group);
   }
 });
