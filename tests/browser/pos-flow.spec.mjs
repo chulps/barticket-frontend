@@ -845,3 +845,15 @@ test("clocked-in staff get a bell without a zero badge",async ({page}) => {
   await expect(bell).toBeVisible();
   await expect(bell).toHaveText("");
 });
+
+test("Admin overview leads to team pay, records and account access", async ({page}) => {
+  const state=await mockedPOS(page);
+  await page.goto("/admin");
+  await expect(page.getByRole("heading",{name:"Team and pay"})).toBeVisible();
+  await page.getByRole("button",{name:"Review team and pay",exact:true}).click();
+  await expect(page.getByRole("navigation",{name:"Team directory"})).toBeVisible();
+  await page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Overview",exact:true}).click();
+  await page.getByRole("button",{name:"Manage accounts",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Refresh accounts",exact:true})).toBeVisible();
+  expect(state.requests.filter(r=>/^(POST|PUT|PATCH|DELETE) /.test(r))).toEqual([]);
+});

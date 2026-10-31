@@ -26,10 +26,10 @@ const adminSectionTabs: { id: AdminSection; label: { en: string; ja: string } }[
 ];
 
 /**
- * Manager-only dashboard: Phase 1 accounts plus frontend-only Team editor previews.
+ * Manager-only account, work-record and pay administration.
  * Role access is checked via /auth/me before rendering any team view.
  * All privileged account writes are additionally enforced by backend /users APIs.
- * Team rate/time/drinkback controls never write to the backend.
+ * Team edits use audited, authorized backend endpoints.
  */
 export default function Admin() {
     const { t, locale } = useI18n();
@@ -264,26 +264,30 @@ export default function Admin() {
                 <>
                     <SummaryGrid>
                         <Section>
-                            <span>{locale === "ja" ? "登録アカウント数" : "Active accounts"}</span>
-                            <strong>{accountsError ? "—" : team.length}</strong>
+                            <h2>{locale === "ja" ? "チーム・給与" : "Team and pay"}</h2>
+                            <p>{locale === "ja" ? "スタッフ別の勤務記録、給与見積もり、時給を確認します。" : "Review each person's work history, pay estimates and hourly rates."}</p>
+                            <button type="button" onClick={() => chooseSection("team")}>{locale === "ja" ? "チームを確認" : "Review team and pay"}</button>
                         </Section>
                         <Section>
-                            <span>{locale === "ja" ? "スタッフ" : "Staff"}</span>
-                            <strong>{accountsError ? "—" : team.filter(person => person.role === "staff").length}</strong>
+                            <h2>{locale === "ja" ? "勤務記録の照合" : "Review work records"}</h2>
+                            <p>{locale === "ja" ? "過去の勤務時間を原本と照合し、差異を確認します。" : "Compare historical hours with source records and review discrepancies."}</p>
+                            <button type="button" className="secondary" onClick={() => chooseSection("historicalHours")}>{locale === "ja" ? "勤務時間を照合" : "Review historical hours"}</button>
                         </Section>
                         <Section>
-                            <span>{locale === "ja" ? "マネージャー" : "Managers"}</span>
-                            <strong>{accountsError ? "—" : team.filter(person => person.role === "manager").length}</strong>
+                            <h2>{locale === "ja" ? "報酬控除" : "Pay deductions"}</h2>
+                            <p>{locale === "ja" ? "承認済みのマネージャー報酬控除と履歴を確認します。" : "Review recorded manager-pay deductions and their history."}</p>
+                            <button type="button" className="secondary" onClick={() => chooseSection("adjustments")}>{locale === "ja" ? "控除を確認" : "Review deductions"}</button>
                         </Section>
                     </SummaryGrid>
-                    {accountsError ? <ErrorText role="alert">{accountsError}</ErrorText> : null}
+                    <p>{locale === "ja" ? "給与は見積もりであり、実際の支払記録ではありません。" : "Pay figures are estimates, not records of payments made."}</p>
                     <Section>
-                        <h2>{locale === "ja" ? "アカウント管理" : "Manage accounts"}</h2>
-                        <p>{locale === "ja"
-                            ? "アカウントタブではメンバーを管理し、チームタブでは勤務記録、給与見積もり、時給、打刻修正、ドリンク手当を確認できます。保存された変更は監査履歴に記録されます。給与の金額は支払記録ではありません。"
-                            : "Manage accounts, review team activity and pay estimates, and update hourly rates, clock corrections and drink bonuses in Team. Saved changes appear in the audit history. Pay amounts are estimates, not payment records."}</p>
-                        <button type="button" className="small secondary" onClick={() => chooseSection("accounts")}>
-                            {locale === "ja" ? "アカウントを表示" : "View accounts"}
+                        <h2>{locale === "ja" ? "アカウント・アクセス権" : "Accounts and access"}</h2>
+                        <p>{locale === "ja" ? "ログイン情報、スタッフ権限、マネージャー権限を管理します。勤務記録や給与はチームで確認してください。" : "Manage sign-in details and staff or manager access. Work records and pay are in Team."}</p>
+                        {accountsError ? <ErrorText role="alert">{accountsError}</ErrorText> : <p>{locale === "ja"
+                            ? `アカウント ${team.length}件 · スタッフ ${team.filter(person => person.role === "staff").length}名 · マネージャー ${team.filter(person => person.role === "manager").length}名`
+                            : `${team.length} accounts · ${team.filter(person => person.role === "staff").length} staff · ${team.filter(person => person.role === "manager").length} managers`}</p>}
+                        <button type="button" className="small hollow secondary" onClick={() => chooseSection("accounts")}>
+                            {locale === "ja" ? "アカウントを管理" : "Manage accounts"}
                         </button>
                     </Section>
                 </>
