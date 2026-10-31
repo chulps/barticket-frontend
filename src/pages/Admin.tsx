@@ -13,8 +13,9 @@ import AdminAuditHistory from "./AdminAuditHistory";
 import Reconciliation from "./Reconciliation";
 import ScheduleImport from "./ScheduleImport";
 import AdminPayDeductions from "./AdminPayDeductions";
+import AdminPayments from "./AdminPayments";
 
-type AdminSection = "overview" | "accounts" | "team" | "historicalHours" | "schedules" | "adjustments";
+type AdminSection = "overview" | "accounts" | "team" | "historicalHours" | "schedules" | "adjustments" | "payments";
 
 const adminSectionTabs: { id: AdminSection; label: { en: string; ja: string } }[] = [
     { id: "overview", label: { en: "Overview", ja: "概要" } },
@@ -23,6 +24,7 @@ const adminSectionTabs: { id: AdminSection; label: { en: string; ja: string } }[
     { id: "historicalHours", label: { en: "Historical hours", ja: "履歴勤務時間" } },
     { id: "schedules", label: { en: "Schedules", ja: "シフト予定" } },
     { id: "adjustments", label: { en: "Pay deductions", ja: "報酬控除" } },
+    { id: "payments", label: { en: "Payment setup", ja: "決済設定" } },
 ];
 
 /**
@@ -394,6 +396,8 @@ export default function Admin() {
                     </Section>
                     <ScheduleImport users={team} locale={locale} />
                 </>
+            ) : activeSection === "payments" ? (
+                <AdminPayments locale={locale} />
             ) : activeSection === "adjustments" ? (
                 <AdminPayDeductions managers={team.filter(person => person.role === "manager")} locale={locale} />
             ) : (
