@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import Icon from './Icon';
 import { getToken } from '../api/client';
 import { getNotificationPreferences, updateNotificationPreference, PUSH_TYPES, type PushPreferences, type PushType } from '../api/notificationPreferences';
 import { automaticSoundsSupported, disableSounds, enableSounds, previewSound, soundsEnabled, soundsReady } from '../api/notificationSounds';
@@ -75,7 +76,7 @@ export default function NotificationPreferences() {
   return <>
     <Panel ref={typesPanel} aria-labelledby="push-types-heading">
       <Heading><h3 id="push-types-heading">{ja ? 'プッシュ通知の種類' : 'Push notification types'}</h3>
-        <OptionsButton ref={typesButton} type="button" aria-label={ja ? '通知の種類の設定' : 'Notification type settings'} aria-expanded={typesOpen} aria-controls="push-type-controls" onClick={() => setTypesOpen(open => !open)}><span aria-hidden="true">⋯</span></OptionsButton>
+        <OptionsButton ref={typesButton} type="button" aria-label={ja ? '通知の種類の設定' : 'Notification type settings'} aria-expanded={typesOpen} aria-controls="push-type-controls" onClick={() => setTypesOpen(open => !open)}><Icon name="DotsThreeOutlineVertical" size={24} /></OptionsButton>
       </Heading>
       <p>{ja ? 'このアカウントのすべての端末に適用されます。各端末でプッシュ通知を有効にしてください。アプリ内の通知一覧には影響しません。' : 'Applies to your account across devices. Push must also be enabled on each device. Your in-app notification list is unchanged.'}</p>
       <p>{ja ? '営業開始・終了は勤務外でも届きます。その他の通知は出勤中のみです。' : 'Shift opening and closing alerts can arrive off shift. Other push alerts require you to be clocked in.'}</p>
@@ -128,8 +129,8 @@ const Switch = styled.button`
 `;
 const Previews = styled.div`display: flex; flex-wrap: wrap; gap: var(--space-1); button { white-space: normal; width: auto; min-height: 44px; }`;
 
-const Heading = styled.div`display: flex; align-items: center; justify-content: space-between; gap: var(--space-1); h3 { margin: 0; min-width: 0; }`;
+const Heading = styled.div`display: flex; align-items: center; justify-content: space-between; gap: var(--space-1); h3 { margin: 0; min-width: 0; flex: 1; }`;
 const OptionsButton = styled.button`
-  && { flex: none; width: 44px; height: 44px; min-height: 44px; padding: 0; background: transparent; color: var(--white); font-size: 28px; }
+  && { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; min-width: 44px; max-width: 44px; height: 44px; min-height: 44px; padding: 0; background: transparent; color: var(--white); font-size: 28px; }
   &&:focus-visible { outline: 2px solid var(--royal-300); outline-offset: 2px; }
 `;

@@ -49,6 +49,9 @@ test('type controls are disclosed with keyboard, dismissible, and switches never
   await page.setViewportSize({width:320,height:900}); await fixture(page); await page.goto('/notifications');
   const options=page.getByRole('button',{name:'Notification type settings'}), toggle=page.getByRole('switch',{name:'New tickets',exact:true});
   await expect(options).toHaveAttribute('aria-expanded','false'); await expect(toggle).toBeHidden();
+  const buttonBox=await options.boundingBox(),iconBox=await options.locator('svg').boundingBox();
+  expect(buttonBox.width).toBe(44);expect(iconBox.width).toBe(24);expect(iconBox.x).toBeGreaterThanOrEqual(buttonBox.x);expect(iconBox.x+iconBox.width).toBeLessThanOrEqual(320);
+  await expect(options.locator('svg')).toBeVisible();
   await options.focus(); await page.keyboard.press('Enter'); await expect(toggle).toBeVisible();
   await toggle.hover();
   expect(await toggle.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
