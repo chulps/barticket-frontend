@@ -30,6 +30,11 @@ test("Guests receive no add, stock, or price editing controls", () => {
     assert.match(api, /apiRequest<MenuData>\("\/menu"\)/);
 });
 
+test("Public drink menu omits cocktail ingredients while staff retain the full catalog", () => {
+    assert.match(menu, /const displayMenu = !authenticated && menu[\\s\\S]*items: menu\\.items\\.filter\\(item => !item\\.cocktailIngredient\\)/);
+    assert.match(menu, /useFilteredMenu\\(displayMenu, searchTerm\\)/);
+});
+
 test("Changed React files parse as TSX", () => {
     for (const [name, source] of [["App", app], ["Menu", menu], ["Header", header]]) {
         const parsed = ts.createSourceFile(name + ".tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
