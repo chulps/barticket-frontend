@@ -137,7 +137,10 @@ export async function disablePush(): Promise<void> {
     const subscription = await registration?.pushManager.getSubscription();
     requireSession(token);
     if (!subscription) return;
-    await subscription.unsubscribe();
+    const unsubscribed = await subscription.unsubscribe();
+    requireSession(token);
+    if (!unsubscribed) throw new Error("Could not unsubscribe this device");
     await pushRequest("/subscriptions", "DELETE", { endpoint: subscription.endpoint }, token);
   });
 }
+
