@@ -131,3 +131,13 @@ test('explicit opt-in replaces a stale local subscription rather than claiming a
   assert.equal(f.calls.filter(c=>c.options?.method==='DELETE').length,0);
   assert.equal(f.calls.filter(c=>c.url?.endsWith('/subscriptions')).length,1);
 });
+
+
+
+test('failed browser unsubscribe cannot be reported as a successful off operation',async()=>{
+  const f=fixture();
+  f.subscription.unsubscribe=async()=>false;
+  await assert.rejects(f.context.disablePush(),/Could not unsubscribe/);
+  assert.equal(f.subscribed,true);
+  assert.equal(f.calls.some(call=>call.options?.method==='DELETE'),false);
+});

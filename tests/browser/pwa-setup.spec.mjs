@@ -19,7 +19,7 @@ for (const locale of ['en','ja']) test(`existing iPhone setup guidance ${locale}
   });
   await page.goto('/notifications');
   await expect(page.getByRole('heading',{name:locale==='ja'?'iPhoneで通知を使う準備':'Set up notifications on iPhone or iPad',exact:true})).toBeVisible();
-  await expect(page.getByRole('button',{name:locale==='ja'?'この端末で通知を有効にする':'Enable notifications',exact:true})).toBeDisabled();
+  await expect(page.getByRole('switch',{name:locale==='ja'?'端末のプッシュ通知':'Device push notifications',exact:true})).toBeDisabled();
   await page.screenshot({path:testInfo.outputPath(`barticket-existing-iphone-setup-${locale}.png`),fullPage:true});
   await context.close();
 });
