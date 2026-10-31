@@ -23,7 +23,7 @@ test("ticket push destinations preserve entity ID and deployment base",async()=>
 });
 test("unknown types, stock, missing IDs and invalid URLs fall back to Notifications",async()=>{
   const w=worker();
-  for(const payload of [{type:"unknown",ticket_id:42},{type:"stock",ticket_id:42},{type:"ticket_updated"},{type:"ticket_updated",ticket_id:-1}]){
+  for(const payload of [null,{type:"unknown",ticket_id:42},{type:"stock",ticket_id:42},{type:"ticket_updated"},{type:"ticket_updated",ticket_id:-1}]){
     const n=await w.push(payload);assert.equal(new URL(n.data.url).searchParams.has("ticket"),false);
   }
   for(const url of ["javascript:alert(1)","https://evil.test/notifications?ticket=3","https://example.test/barticket-frontend/tickets","bad-url"]){
@@ -37,4 +37,26 @@ test("warm clicks never navigate a window with different work; exact destination
   const w=worker(undefined,[client]);
   await w.click(target);assert.equal(navigated,0);assert.deepEqual(w.opened,[target]);
   client.url=target;await w.click(target);assert.equal(focused,1);assert.equal(w.opened.length,1);
+});
+
+test("sign-in return rejects external or expired destinations",async()=>{
+  const ts=await import("typescript");
+  let code=readFileSync(new URL("../src/api/notificationNavigation.ts",import.meta.url),"utf8")
+    .replace(/import .*?;\n/, "").replaceAll("export function", "function")
+    .replaceAll("import.meta.env.BASE_URL",JSON.stringify("/barticket-frontend/"));
+  code=ts.default.transpileModule(code,{compilerOptions:{target:ts.default.ScriptTarget.ES2022}}).outputText;
+  const values=new Map(),listeners={},replaced=[];
+  const context={URL,Date,JSON,getToken:()=>"test",sessionStorage:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},window:{location:{origin:"https://example.test",href:"https://example.test/barticket-frontend/",replace:url=>replaced.push(url)},addEventListener:(name,fn)=>listeners[name]=fn}};
+  runInNewContext(code,context);
+  assert.equal(context.notificationDestination("https://evil.test/barticket-frontend/notifications?ticket=1","/barticket-frontend/"),null);
+  assert.equal(context.notificationDestination("https://example.test/barticket-frontend/admin","/barticket-frontend/"),null);
+  context.installNotificationReturn();
+  const key="barticket-notification-return";
+  values.set(key,JSON.stringify({url:"https://evil.test/",at:Date.now()}));listeners["barticket-auth"]();
+  values.set(key,JSON.stringify({url:"https://example.test/barticket-frontend/notifications?ticket=1",at:Date.now()-31*60*1000}));listeners["barticket-auth"]();
+  assert.deepEqual(replaced,[]);
+  values.set(key,JSON.stringify({url:"https://example.test/barticket-frontend/notifications?ticket=1",at:Date.now()}));listeners["barticket-auth"]();
+  assert.equal(replaced.length,1);
+  assert.equal(new URL(replaced[0]).searchParams.get("ticket"),"1");
+  assert.equal(values.has(key),false);
 });
