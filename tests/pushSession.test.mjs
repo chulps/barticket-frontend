@@ -120,3 +120,14 @@ test('stalled old-server cleanup times out without blocking subsequent new-accou
   assert.equal(await checking,false);
   assert.equal(f.subscribed,false);
 });
+
+test('explicit opt-in replaces a stale local subscription rather than claiming another account endpoint',async()=>{
+  const f=fixture();f.context.fetch=async(url,options)=>{
+    f.calls.push({url,options});
+    return {ok:true,json:async()=>url.endsWith('vapid-public-key')?{public_key:'dGVzdA'}:{enabled:!url.endsWith('/status')}};
+  };
+  await f.context.enablePush();
+  assert.ok(f.calls.indexOf('unsubscribe')<f.calls.indexOf('subscribe'));
+  assert.equal(f.calls.filter(c=>c.options?.method==='DELETE').length,0);
+  assert.equal(f.calls.filter(c=>c.url?.endsWith('/subscriptions')).length,1);
+});

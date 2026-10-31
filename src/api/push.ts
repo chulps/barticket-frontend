@@ -103,7 +103,17 @@ export async function enablePush(): Promise<void> {
     const registration = await registerBarTicketWorker();
     if (!registration) throw new Error("Unable to register service worker");
     requireSession(token);
-    const existing = await registration.pushManager.getSubscription();
+    let existing = await registration.pushManager.getSubscription();
+    requireSession(token);
+    if (existing) {
+      const status = await pushRequest<{ enabled: boolean }>("/subscriptions/status", "POST", { endpoint: existing.endpoint }, token);
+      if (status.enabled !== true) {
+        // Explicit opt-in may replace a stale local endpoint, but never claims
+        // or deletes a subscription registered to another server account.
+        await existing.unsubscribe();
+        existing = null;
+      }
+    }
     requireSession(token);
     const subscription = existing ?? await registration.pushManager.subscribe({
       userVisibleOnly: true,
