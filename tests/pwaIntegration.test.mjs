@@ -39,7 +39,7 @@ test("push-triggered ticket GET never overwrites an optimistic edit, even if it 
   // These are the actual event names used by src/main.tsx and useTickets.ts.
   const hooks = readFileSync(new URL("../src/hooks/useTickets.ts", import.meta.url), "utf8");
   const boot = readFileSync(new URL("../src/main.tsx", import.meta.url), "utf8");
-  assert.match(hooks, /addEventListener\("barticket-push", onFocus\)/);
+  assert.match(hooks, /addEventListener\("barticket-push", onPush\)/);
   assert.match(boot, /dispatchBarTicketPush\(event\.data, window\)/);
 
   const base = {
@@ -281,3 +281,4 @@ test("push setup checks server configuration before asking for device permission
     }
   }
 });
+

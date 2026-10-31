@@ -1,3 +1,5 @@
+import { businessDateJst } from "./shiftControlPolicy";
+import { useAnalyticsTickets } from "../hooks/useAnalyticsTickets";
 import { withLiveShiftHours } from "./analyticsLiveClock";
 import { startBackgroundRefresh } from "../hooks/backgroundRefresh";
 import { shouldPoll } from "../api/realtime";
@@ -6,7 +8,6 @@ import styled from "styled-components";
 import RequestState from "../components/RequestState";
 
 import { accountApi, type Account, type AnalyticsShiftReport, type ShiftReport } from "../api/account";
-import { ticketsApi, toTicket } from "../api/tickets";
 import { ApiError, getToken } from "../api/client";
 import { listNotices, type NoticeList } from "../api/notices";
 import { BarChart, DonutChart, HorizontalBarChart, CopyPanelButton, type TimeBar } from "../components/AnalyticsCharts";
@@ -493,7 +494,6 @@ export default function Analytics() {
     const { t, locale } = useI18n();
     const [shifts, setShifts] = useState<AnalyticsShiftReport[] | null>(null);
     const [openShift, setOpenShift] = useState<ShiftReport | null>(null);
-    const [tickets, setTickets] = useState<Ticket[]>([]);
     const [account, setAccount] = useState<Account | null>(null);
     const [team, setTeam] = useState<Account[] | null>(null);
     const [notices, setNotices] = useState<NoticeList | null>(null);
@@ -507,6 +507,9 @@ export default function Analytics() {
     const [dayId, setDayId] = useState<number | null>(null);
     const [pickedDate, setPickedDate] = useState("");
     const signedIn = getToken() !== null;
+    const { tickets, ready: ticketsReady, error: ticketsError } = useAnalyticsTickets(
+        range, range === "day" ? pickedDate : range === "month" ? month : range === "year" ? year : "all", signedIn,
+    );
 
     useEffect(() => {
         const updateClock = () => setClockNow(Math.floor(Date.now() / 1000));
@@ -525,16 +528,14 @@ export default function Analytics() {
         async function loadLatest() {
             if (cancelled) return;
             try {
-                const [rows, current, ticketRows] = await Promise.all([
+                const [rows, current] = await Promise.all([
                     accountApi.analyticsShifts(),
                     accountApi.currentShift(),
-                    ticketsApi.list(),
                 ]);
                 if (cancelled) return;
                 const ordered = [...rows].sort((a, b) => b.business_date.localeCompare(a.business_date));
                 setShifts(ordered);
                 setOpenShift(current);
-                setTickets(ticketRows.map(toTicket));
                 setLastUpdated(Math.floor(Date.now() / 1000));
                 setError("");
                 setLoading(false);
@@ -549,6 +550,11 @@ export default function Analytics() {
                         setYear(yearKey(initial.business_date));
                         setDayId(initial.id);
                         setPickedDate(initial.business_date);
+                    } else {
+                        const today = businessDateJst(Date.now());
+                        setMonth(monthKey(today));
+                        setYear(yearKey(today));
+                        setPickedDate(today);
                     }
                 }
             } catch (err: unknown) {
@@ -817,6 +823,9 @@ export default function Analytics() {
                         </DayNavigator>
                     ) : null}
                     {range === "all" && account.role === "manager" ? <DataDownload locale={locale} /> : null}
+                    {!ticketsReady ? <RequestState kind="loading" detail={locale === "ja" ? "伝票を読み込み中…" : "Loading tickets for this period…"} /> : null}
+                    {ticketsError ? <RequestState kind="error" detail={locale === "ja" ? "伝票を更新できませんでした。表示内容が古い可能性があります。" : "Could not refresh period tickets. Displayed data may be outdated."} /> : null}
+                    {ticketsReady && !ticketsError ? <>
                     <AnalyticsReportActions
                         key={[range, month, year, range === "day" ? dayId : null].join(":")}
                         textEn={reportText("en")}
@@ -880,6 +889,7 @@ export default function Analytics() {
                     {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} /> : null}
                         </>
                     )}
+                    </> : null}
                 </>
             ) : null}
         </Page>

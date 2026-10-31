@@ -71,7 +71,7 @@ export default function Dashboard({
     payTicket,
     deferTicket,
     reopenTicket
-  } = useTickets();
+  } = useTickets(shiftLookup.status === "ready" ? shiftLookup.shiftId : null);
 
   useEffect(() => {
     let cancelled = false;
