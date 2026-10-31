@@ -158,6 +158,7 @@ test("Stripe setup is an explicit preference choice with provider-hosted registr
   await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveValue("stripe");
   await expect(page.getByRole("combobox",{name:"Payment channel",exact:true})).toHaveValue("online");
   const guide=page.getByRole("region",{name:"Stripe online setup",exact:true});
+  await guide.getByText("Prepare your Stripe account",{exact:true}).click();
   await expect(guide).toContainText("Account registration alone does not enable ticket payments");
   await expect(guide.getByRole("link",{name:"Create a Stripe account"})).toHaveAttribute("href","https://dashboard.stripe.com/register");
   await expect(guide.getByRole("link",{name:"Open Stripe Dashboard"})).toHaveAttribute("href","https://dashboard.stripe.com/");

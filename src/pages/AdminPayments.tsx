@@ -159,12 +159,12 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
 function StripeGuide({ ja }: { ja: boolean }) {
   const t = (en: string, jp: string) => ja ? jp : en;
   return <section aria-label={t("Stripe online setup", "Stripeのオンライン設定")}>
-    <h3>{t("Next: prepare your Stripe account", "次のステップ：Stripeアカウントの準備")}</h3>
+    <details><summary>{t("Prepare your Stripe account", "Stripeアカウントの準備")}</summary>
     <ol>
       <li>{t("Create a Stripe account for the bar, or sign in to its existing Stripe account. Complete business verification and payout details in Stripe.", "お店のStripeアカウントを作成、または既存のアカウントにログインし、Stripeで事業者確認と入金先の登録を完了してください。")}</li>
       <li>{t("Review payment methods in Stripe. Apple Pay and Google Pay depend on customer device and eligibility; PayPay needs approval. Rakuten Pay is early access, not guaranteed.", "Stripeで支払方法を確認してください。Apple Pay・Google Payは端末や利用条件によります。PayPayは審査が必要です。楽天ペイは先行提供のため、利用は保証されません。")}</li>
       <li>{t("Save these preferences, then have the BarTicket administrator arrange the secure Stripe connection and sandbox checks. Account registration alone does not enable ticket payments.", "この設定の希望を保存した後、BarTicket管理者に安全なStripe連携とテスト環境での確認を依頼してください。アカウント登録だけではチケットの決済は有効になりません。")}</li>
-    </ol>
+    </ol></details>
     <p><a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener noreferrer">{t("Create a Stripe account ↗", "Stripeアカウントを作成 ↗")}</a>{" · "}<a href="https://dashboard.stripe.com/" target="_blank" rel="noopener noreferrer">{t("Open Stripe Dashboard ↗", "Stripeダッシュボードを開く ↗")}</a></p>
     <details><summary>{t("Payment method requirements", "支払方法の利用条件")}</summary>
       <p><a href="https://docs.stripe.com/payments/wallets" target="_blank" rel="noopener noreferrer">{t("Wallet requirements ↗", "ウォレットの利用条件 ↗")}</a>{" · "}<a href="https://support.stripe.com/questions/accepting-paypay-payments-for-japan-based-stripe-accounts" target="_blank" rel="noopener noreferrer">{t("PayPay review ↗", "PayPayの審査 ↗")}</a>{" · "}<a href="https://docs.stripe.com/payments/rakuten-pay" target="_blank" rel="noopener noreferrer">{t("Rakuten Pay early access ↗", "楽天ペイの先行提供 ↗")}</a></p>
