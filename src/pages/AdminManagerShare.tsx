@@ -35,6 +35,12 @@ function blockerLabel(code: string, ja: boolean): string {
         staff_payroll_costs_unavailable: ["スタッフ人件費を確認できません", "Staff payroll costs are unavailable"],
         adjustments_unavailable: ["控除・加算額を確認できません", "Deductions and additions are unavailable"],
         invalid_revenue: ["売上データに問題があります", "Revenue data is invalid"],
+        staff_hours_unverified: ["未確認のスタッフ勤務時間があります", "Some staff work hours are unverified"],
+        staff_hourly_rate_missing: ["時給未設定のスタッフがいます", "Some staff hourly rates are missing"],
+        unattributed_staff_drink: ["担当スタッフが不明なドリンク記録があります", "Some staff drinks have no assigned staff member"],
+        unassigned_staff_history: ["スタッフ未確認の履歴勤務記録があります", "Some historical work records have no confirmed staff member"],
+        staff_payroll_costs_incomplete: ["スタッフ人件費の記録が不足しています", "Staff payroll cost records are incomplete"],
+        negative_balance_policy_unconfirmed: ["差引額がマイナスの場合の扱いが未確認です", "The treatment of a negative balance is unconfirmed"],
     };
     const label = labels[code];
     return label ? label[ja ? 0 : 1] : code;
@@ -62,7 +68,7 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
     useEffect(() => {
         if (!selectedMonth) return;
         let cancelled = false;
-        const requestKey = `${selectedMonth}:${refreshVersion}:${ja ? "ja" : "en"}`;
+        const requestKey = `${person.id}:${selectedMonth}:${refreshVersion}:${ja ? "ja" : "en"}`;
         void accountApi.revenueSharePreview(selectedMonth).then(result => {
             if (!cancelled) setSharePreviewState({ requestKey, preview: result, error: "" });
         }).catch(error => {
@@ -76,14 +82,16 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
             }
         });
         return () => { cancelled = true; };
-    }, [selectedMonth, refreshVersion, ja]);
+    }, [person.id, selectedMonth, refreshVersion, ja]);
 
-    const requestKey = selectedMonth ? `${selectedMonth}:${refreshVersion}:${ja ? "ja" : "en"}` : "";
+    const requestKey = selectedMonth ? `${person.id}:${selectedMonth}:${refreshVersion}:${ja ? "ja" : "en"}` : "";
     const currentPreviewState = sharePreviewState?.requestKey === requestKey ? sharePreviewState : null;
     const sharePreview = currentPreviewState?.preview ?? null;
     const sharePreviewLoading = Boolean(selectedMonth && !currentPreviewState);
     const sharePreviewError = currentPreviewState?.error ?? "";
-    const previewForMonth = sharePreview?.month === selectedMonth ? sharePreview : null;
+    const previewForMonth = sharePreview?.month === selectedMonth && sharePreview.beneficiary_user_id === person.id ? sharePreview : null;
+    const payable = previewForMonth?.complete === true ? previewForMonth.payable_yen : null;
+    const amount = (value: number | null | undefined) => typeof value === "number" && Number.isFinite(value) ? yen(value, locale) : "—";
     const monthShifts = useMemo(() => allShifts.filter(shift =>
         shift.business_date.startsWith(selectedMonth),
     ), [allShifts, selectedMonth]);
@@ -177,8 +185,8 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                 <Flag>{ja ? "給与見積もり" : "PREVIEW ONLY"}</Flag>
             </Top>
             <Notice role="note">{ja
-                ? "これは給与見積もりであり、支払済みの記録ではありません。未確認の費用や勤務記録がある場合、最終支給額は表示されません。"
-                : "This is an estimate, not a payment record. Final pay is unavailable while required costs or work records remain unverified."}</Notice>
+                ? "これは給与見積もりであり、支払済みの記録ではありません。未確認の費用や勤務記録がある場合、支給見積額は表示されません。"
+                : "This is an estimate, not a payment record. The amount owed is unavailable while required costs or work records remain unverified."}</Notice>
 
             <Card>
                 <h5>{ja ? "給与の見積もり" : "Pay estimate"}</h5>
@@ -189,13 +197,13 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                 <Metrics>
                     <Metric><span>{ja ? "総歩合給プレビュー（費用控除前）" : "Gross share preview (before costs)"}</span>
                         <strong>{grossShare === null ? "—" : yen(grossShare, locale)}</strong></Metric>
-                    <Metric><span>{ja ? "最終支給額" : "Final payable"}</span>
-                        <strong>{previewForMonth?.payable_yen == null ? "—" : yen(previewForMonth.payable_yen, locale)}</strong></Metric>
+                    <Metric><span>{ja ? "支給見積額" : "Amount owed (estimate)"}</span>
+                        <strong>{amount(payable)}</strong></Metric>
                 </Metrics>
                 <details><summary>{ja ? "計算方法" : "How this is calculated"}</summary>
                 <Tiny>{ja
-                    ? "確認済み：到達した月間料率を対象売上全体に適用し、カバーチャージを含めます。未収チケットはサービス月に一度だけ計上し、歩合給プレビューは1円単位で四捨五入します。最終支給額は人件費、ドリンクバック、控除・加算の確認後に表示されます。"
-                    : "Confirmed: the reached monthly rate applies to all qualifying monthly sales, including cover charges. Unpaid tickets count once in the service month, and the gross-share preview rounds to the nearest yen. Final pay remains unavailable until staff costs, drinkback, deductions and additions are verified."}</Tiny></details>
+                    ? "確認済み：到達した月間料率を対象売上全体に適用し、カバーチャージを含めます。未収チケットはサービス月に一度だけ計上し、歩合給プレビューは1円単位で四捨五入します。支給見積額は必要な人件費、ドリンクバック、記録済み調整額の確認後に表示されます。"
+                    : "Confirmed: the reached monthly rate applies to all qualifying monthly sales, including cover charges. Unpaid tickets count once in the service month, and the gross-share preview rounds to the nearest yen. The amount owed remains unavailable until required staff costs, drinkback and recorded adjustments are verified."}</Tiny></details>
             </Card>
 
             <Card>
@@ -358,14 +366,16 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
             <details><summary>{ja ? "費用・調整額の内訳" : "Costs and adjustments"}</summary>
             <Card>
                 <Muted>{ja
-                    ? "人件費と調整額の確認が必要です。未確認の金額は0円として扱いません。"
-                    : "This breakdown needs verified staff costs and adjustments. Missing amounts do not count as ¥0."}</Muted>
+                    ? "サーバーの給与記録に基づく内訳です。未確認の金額は0円として扱いません。"
+                    : "This breakdown comes from the server’s payroll records. Missing amounts do not count as ¥0."}</Muted>
                 <Metrics>
-                    <Metric><span>{ja ? "スタッフ基本給" : "Staff base wages"}</span><strong>—</strong></Metric>
-                    <Metric><span>{ja ? "スタッフドリンクバック" : "Staff drinkback"}</span><strong>—</strong></Metric>
-                    <Metric><span>{ja ? "控除・加算" : "Deductions and additions"}</span><strong>—</strong></Metric>
-                    <Metric><span>{ja ? "差引額" : "Net payable"}</span><strong>—</strong></Metric>
+                    <Metric><span>{ja ? "スタッフ基本給" : "Staff base wages"}</span><strong>{amount(previewForMonth?.costs?.staff_base_wages_yen)}</strong></Metric>
+                    <Metric><span>{ja ? "スタッフドリンクバック" : "Staff drinkback"}</span><strong>{amount(previewForMonth?.costs?.staff_drinkback_yen)}</strong></Metric>
+                    <Metric><span>{ja ? "記録済み控除（取消分を反映）" : "Recorded deductions (net of reversals)"}</span><strong>{amount(previewForMonth?.costs?.deductions_yen)}</strong></Metric>
+                    <Metric><span>{ja ? "承認済み加算" : "Approved additions"}</span><strong>{amount(previewForMonth?.costs?.approved_additions_yen)}</strong></Metric>
+                    <Metric><span>{ja ? "支給見積額" : "Amount owed (estimate)"}</span><strong>{amount(payable)}</strong></Metric>
                 </Metrics>
+                <Tiny>{ja ? "控除の取消は新しい立替金・経費の加算ではありません。承認済み加算の記録がない場合は金額を表示しません。" : "A reversed deduction is not a new reimbursement. Approved additions remain unavailable when no approved additions source is recorded."}</Tiny>
             </Card>
             </details>
         </Root>
