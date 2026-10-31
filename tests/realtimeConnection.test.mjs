@@ -117,3 +117,16 @@ test("two independent clients become healthy only after ready and catch up after
   assert.deepEqual(first.invalidations.at(-1), Array.from(REALTIME_SCOPES));
   clients.forEach(h => h.connection.stop());
 });
+
+
+test('activity is capability-negotiated and separate from ordinary invalidations',()=>{
+ let sent;const frames=[],scopes=[];
+ const socket={onopen:null,onmessage:null,onerror:null,onclose:null,send:value=>{sent=JSON.parse(value)},close(){}};
+ const connection=createRealtimeConnection({open:()=>socket,token:()=> 'fixture',schedule:()=>()=>{},now:()=>0,random:()=>0,invalidate:value=>scopes.push(value),expired(){},activity:value=>frames.push(value)});
+ connection.start();socket.onopen();assert.deepEqual(sent.capabilities,['activity']);
+ const frame={type:'activity',version:1,cursor:2,shift_id:4,reset:true,items:[],has_more:false};
+ socket.onmessage({data:JSON.stringify(frame)});assert.equal(frames.length,0);
+ socket.onmessage({data:JSON.stringify({type:'ready',version:1,cursor:1})});const before=scopes.length;
+ socket.onmessage({data:JSON.stringify(frame)});assert.equal(frames.length,1);assert.equal(scopes.length,before);
+ connection.stop();
+});

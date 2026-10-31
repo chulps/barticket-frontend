@@ -1,3 +1,4 @@
+import NotificationActivityHistory from "../components/NotificationActivityHistory";
 import PaymentDateHistory from "../components/PaymentDateHistory";
 import { useAnalyticsReports } from "../hooks/useAnalyticsReports";
 import { businessDateJst } from "./shiftControlPolicy";
@@ -844,6 +845,7 @@ export default function Analytics() {
                         textJa={reportText("ja")}
                         locale={locale}
                     />
+                    {range === "day" && selected?.status === "closed" && selected.id !== null && selected.id > 0 ? <NotificationActivityHistory key={selected.id} shiftId={selected.id} /> : null}
                     {range === "day" && selected?.status === "open" ? (
                         <>
                             <OpenShiftOverview

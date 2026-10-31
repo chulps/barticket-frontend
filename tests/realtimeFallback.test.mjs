@@ -13,7 +13,7 @@ function fixture() {
   const mod={exports:{}};
   const code=ts.transpileModule(readFileSync(new URL('../src/api/realtime.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   runInNewContext(code,{module:mod,exports:mod.exports,window,document,navigator,URL,Event,CustomEvent,
-    require:path=>path==='./client'?{API_URL:'http://localhost:8765',getToken:()=>token,isApiAvailable:()=>api}:
+    require:path=>path==='./notificationActivityStore'?{receiveNotificationActivity(){},resetActivityAccount(){},activityConnectionChanged(){}}:path==='./client'?{API_URL:'http://localhost:8765',getToken:()=>token,isApiAvailable:()=>api}:
       {REALTIME_SCOPES:['tickets','menu','shift','notices','analytics','users','session'],createRealtimeConnection:options=>{
         transport=options;return{start(){},stop(){options.health(false)}};
       }}});
@@ -39,3 +39,4 @@ test('hidden/offline clients stop fallback reads and account changes reset healt
   h.document.visibilityState='visible';h.navigator.onLine=false;assert.equal(h.poll(),false);
   h.navigator.onLine=true;assert.equal(h.poll(),true);h.stop();
 });
+

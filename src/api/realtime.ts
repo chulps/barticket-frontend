@@ -1,3 +1,4 @@
+import { receiveNotificationActivity, resetActivityAccount, activityConnectionChanged } from "./notificationActivityStore";
 import { API_URL, getToken, isApiAvailable } from "./client";
 import { createRealtimeConnection, REALTIME_SCOPES, type RealtimeScope } from "./realtimeConnection";
 
@@ -33,8 +34,10 @@ export function startRealtime() {
     now: Date.now,
     random: Math.random,
     invalidate: dispatchInvalidation,
+    activity: frame => receiveNotificationActivity(frame, getToken()),
     health: ready => {
       healthy = ready;
+      activityConnectionChanged(ready);
       if (ready) restHealthy = true;
       if (!ready && getToken() && document.visibilityState !== "hidden" && navigator.onLine !== false) dispatchInvalidation(REALTIME_SCOPES);
     },
@@ -42,6 +45,7 @@ export function startRealtime() {
   });
 
   const restart = () => {
+    resetActivityAccount(getToken());
     connection.stop();
     if (getToken() && navigator.onLine !== false && document.visibilityState !== "hidden") connection.start();
   };
@@ -83,3 +87,4 @@ export function subscribeRealtime(scopes: readonly RealtimeScope[], refresh: () 
   window.addEventListener("barticket-realtime", receive);
   return () => { window.removeEventListener("barticket-realtime", receive); if (timer !== undefined) window.clearTimeout(timer); };
 }
+

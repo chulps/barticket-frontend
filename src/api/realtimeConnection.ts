@@ -1,4 +1,4 @@
-export const REALTIME_SCOPES = ["tickets", "menu", "shift", "notices", "analytics", "users", "session"] as const;
+export const REALTIME_SCOPES = ["tickets", "menu", "shift", "notices", "analytics", "users", "session", "activity"] as const;
 export type RealtimeScope = typeof REALTIME_SCOPES[number];
 
 export type SocketLike = Pick<WebSocket, "onopen" | "onmessage" | "onerror" | "onclose" | "send" | "close">;
@@ -12,6 +12,7 @@ export function createRealtimeConnection(options: {
   random: () => number;
   invalidate: (scopes: readonly RealtimeScope[]) => void;
   expired: () => void;
+  activity?: (frame: unknown) => void;
   health?: (ready: boolean) => void;
 }) {
   let stopped = true;
@@ -70,7 +71,7 @@ export function createRealtimeConnection(options: {
     watchdog = options.schedule(checkAlive, 5_000);
     const active = () => !stopped && socket === current && options.token() === token;
     current.onopen = () => {
-      if (active()) current.send(JSON.stringify({ type: "authenticate", token }));
+      if (active()) current.send(JSON.stringify({ type: "authenticate", token, capabilities: ["activity"] }));
     };
     current.onmessage = event => {
       if (!active()) return;
@@ -85,6 +86,7 @@ export function createRealtimeConnection(options: {
           return;
         }
         if (!ready) return;
+        if (data.type === "activity") { lastMessageAt = options.now(); options.activity?.(data); return; }
         if (data.type !== "heartbeat" && data.type !== "invalidate") return;
         if (!Array.isArray(data.scopes) ||
             data.scopes.some((scope: unknown) => !REALTIME_SCOPES.includes(scope as RealtimeScope))) return;
@@ -118,3 +120,4 @@ export function createRealtimeConnection(options: {
     },
   };
 }
+
