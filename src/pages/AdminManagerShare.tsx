@@ -45,6 +45,7 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
     const ja = locale === "ja";
     const allShifts = useMemo(() => distinctShareShifts(shifts), [shifts]);
     const selectedMonth = month;
+    const [editingShiftId, setEditingShiftId] = useState<number | null>(null);
     const [showTiers, setShowTiers] = useState(false);
     const [managerDrafts, setManagerDrafts] = useState<Record<number, { managerId: string; reason: string }>>({});
     const [savingManagerId, setSavingManagerId] = useState<number | null>(null);
@@ -109,7 +110,7 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
 
     async function saveWorkingManager(shift: Pick<ShiftReport, "id">) {
         const draft = managerDrafts[shift.id];
-        if (!draft || !draft.reason.trim()) return;
+        if (savingManagerId !== null || !draft || !draft.reason.trim()) return;
         setSavingManagerId(shift.id);
         setAssignmentError("");
         try {
@@ -133,6 +134,7 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                 next.delete(shift.id);
                 return next;
             });
+            setEditingShiftId(null);
             onRefresh();
         } catch (error) {
             setAssignmentError(error instanceof Error ? error.message
@@ -169,28 +171,37 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
             <Top>
                 <div>
                     <Eyebrow>{ja ? "マネージャー歩合給" : "MANAGER REVENUE SHARE"}</Eyebrow>
-                    <h4>{ja ? "月間歩合給プランナー" : "Monthly revenue-share planner"}</h4>
-                    <Muted>{ja ? person.name + " の給与ルール案" : "Provisional rule for " + person.name}</Muted>
+                    <h4>{ja ? "月間歩合給" : "Monthly revenue share"}</h4>
+                    <Muted>{person.name} · {month}</Muted>
                 </div>
-                <Flag>{ja ? "試算・未保存" : "PREVIEW ONLY"}</Flag>
+                <Flag>{ja ? "給与見積もり" : "PREVIEW ONLY"}</Flag>
             </Top>
             <Notice role="note">{ja
-                ? "これは給与明細ではありません。記録されたシフト割当を確認できますが、歩合給の計算方法はまだ確定していません。"
-                : "This is a preview, not a payslip. Recorded shift assignments are shown for review; the payout calculation is not confirmed."}</Notice>
+                ? "これは給与見積もりであり、支払済みの記録ではありません。未確認の費用や勤務記録がある場合、最終支給額は表示されません。"
+                : "This is an estimate, not a payment record. Final pay is unavailable while required costs or work records remain unverified."}</Notice>
 
             <Card>
-                <h5>{ja ? "1. 確認済みの歩合率" : "1. Confirmed revenue-share tiers"}</h5>
-                <Muted>{ja
-                    ? "料率と売上の段階を表示します。売上に対する料率の適用方法は、ご説明をいただくまで保留します。"
-                    : "The rate tiers are shown below. How the selected rate applies to revenue remains pending your explanation."}</Muted>
+                <h5>{ja ? "給与の見積もり" : "Pay estimate"}</h5>
+                {sharePreviewError ? <Notice role="alert">{sharePreviewError}</Notice> : null}
+                {previewForMonth?.blockers.length ? <Notice role="note">{ja
+                    ? "未確定項目：" + previewForMonth.blockers.map(code => blockerLabel(code, true)).join("、")
+                    : "Preview blockers: " + previewForMonth.blockers.map(code => blockerLabel(code, false)).join(", ")}</Notice> : null}
+                <Metrics>
+                    <Metric><span>{ja ? "総歩合給プレビュー（費用控除前）" : "Gross share preview (before costs)"}</span>
+                        <strong>{grossShare === null ? "—" : yen(grossShare, locale)}</strong></Metric>
+                    <Metric><span>{ja ? "最終支給額" : "Final payable"}</span>
+                        <strong>{previewForMonth?.payable_yen == null ? "—" : yen(previewForMonth.payable_yen, locale)}</strong></Metric>
+                </Metrics>
+                <details><summary>{ja ? "計算方法" : "How this is calculated"}</summary>
                 <Tiny>{ja
-                    ? "歩合率：40%から開始し、50万円で41%。以後5万円ごとに1ポイント上がり、145万円で60%に達します。"
-                    : "Rates start at 40%, reach 41% at ¥500,000, then rise by 1 point per ¥50,000 to the 60% cap at ¥1,450,000."}</Tiny>
+                    ? "確認済み：到達した月間料率を対象売上全体に適用し、カバーチャージを含めます。未収チケットはサービス月に一度だけ計上し、歩合給プレビューは1円単位で四捨五入します。最終支給額は人件費、ドリンクバック、控除・加算の確認後に表示されます。"
+                    : "Confirmed: the reached monthly rate applies to all qualifying monthly sales, including cover charges. Unpaid tickets count once in the service month, and the gross-share preview rounds to the nearest yen. Final pay remains unavailable until staff costs, drinkback, deductions and additions are verified."}</Tiny></details>
             </Card>
+
             <Card>
                 <CardHeader>
                     <div>
-                        <h5>{ja ? "2. 担当シフト" : "2. Qualifying shifts"}</h5>
+                        <h5>{ja ? "担当シフト" : "Qualifying shifts"}</h5>
                         <Muted>{ja
                             ? "担当マネージャーとして記録されたシフトだけを対象にします。開店担当者名からは判定しません。"
                             : "Only shifts with an explicit working-manager assignment qualify. The opener's name is not used to infer eligibility."}</Muted>
@@ -205,9 +216,15 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                                     <Muted>{ja ? "開店記録" : "Opened by"}: {shift.opened_by || "—"} · {ja ? "担当マネージャー" : "Working manager"}: {shift.working_manager_name || (ja ? "未設定" : "Unassigned")} · {shift.status === "open"
                                         ? (ja ? "営業中" : "Open / provisional")
                                         : (ja ? "終了" : "Closed")}</Muted>
-                                    <AssignmentFields>
+                                    <button type="button" className="small hollow secondary"
+                                        disabled={savingManagerId !== null}
+                                        aria-expanded={editingShiftId === shift.id}
+                                        onClick={() => setEditingShiftId(current => current === shift.id ? null : shift.id)}>
+                                        {editingShiftId === shift.id ? (ja ? "編集を閉じる" : "Close editor") : (ja ? "担当を修正" : "Correct assignment")}
+                                    </button>
+                                    {editingShiftId === shift.id ? <AssignmentFields>
                                         <label>{ja ? "担当マネージャー" : "Designated working manager"}
-                                            <select
+                                            <select disabled={savingManagerId !== null}
                                                 aria-label={(ja ? "担当マネージャーを選択 " : "Choose working manager for ") + dateLabel(shift.business_date, locale)}
                                                 value={managerDrafts[shift.id]?.managerId ?? (shift.working_manager_user_id ? String(shift.working_manager_user_id) : "")}
                                                 onChange={event => setManagerDrafts(previous => ({
@@ -222,7 +239,7 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                                             </select>
                                         </label>
                                         <label>{ja ? "変更理由" : "Reason for assignment or correction"}
-                                            <input
+                                            <input disabled={savingManagerId !== null}
                                                 maxLength={500}
                                                 value={managerDrafts[shift.id]?.reason ?? ""}
                                                 onChange={event => setManagerDrafts(previous => ({
@@ -235,12 +252,12 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                                             />
                                         </label>
                                         <button type="button" className="small hollow secondary"
-                                            disabled={savingManagerId === shift.id || !managerDrafts[shift.id]?.reason.trim() ||
+                                            disabled={savingManagerId !== null || !managerDrafts[shift.id]?.reason.trim() ||
                                                 (managerDrafts[shift.id]?.managerId ?? (shift.working_manager_user_id ? String(shift.working_manager_user_id) : "")) === (shift.working_manager_user_id ? String(shift.working_manager_user_id) : "")}
                                             onClick={() => void saveWorkingManager(shift)}>
                                             {savingManagerId === shift.id ? (ja ? "保存中…" : "Saving…") : (ja ? "担当を保存" : "Save assignment")}
                                         </button>
-                                    </AssignmentFields>
+                                    </AssignmentFields> : null}
                                     <button type="button" className="small hollow secondary"
                                         aria-expanded={expandedHistoryIds.has(shift.id)}
                                         onClick={() => void toggleWorkingManagerHistory(shift.id)}>
@@ -268,12 +285,12 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                 ) : <Muted>{ja ? "シフトがありません。" : "No recorded shifts in this month."}</Muted>}
                 {assignmentError ? <Notice role="alert">{assignmentError}</Notice> : null}
                 <Tiny>{ja
-                    ? "選択したシフトの paid_total（受領済み売上）のみを仮計算に使用。最終的な売上定義は未確定です。"
-                    : "This provisional scenario uses paid_total from selected shift reports only. The final revenue definition is not approved."}</Tiny>
+                    ? "各行は記録済みの入金額です。月間歩合給には対象となる未収売上も含まれるため、合計が異なる場合があります。"
+                    : "Rows show recorded collections. Monthly qualifying sales also include eligible unpaid sales, so totals may differ."}</Tiny>
             </Card>
 
+            <details><summary>{ja ? "対象売上・歩合率の内訳" : "Qualifying sales and rate details"}</summary>
             <Card>
-                <h5>{ja ? "3. 月間売上とレート" : "3. Monthly qualifying revenue and tiers"}</h5>
                 <Metrics>
                     <Metric><span>{ja ? "Chuck担当の終了シフト" : "Closed shifts assigned to Chuck"}</span><strong>{scenario.selected.length}</strong></Metric>
                     <Metric><span>{ja ? "Chuck担当シフトの記録売上（確認用）" : "Recorded revenue on Chuck-managed shifts (review only)"}</span>
@@ -336,28 +353,13 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                 ) : null}
             </Card>
 
-            <Card>
-                <h5>{ja ? "4. 歩合給の試算" : "4. Revenue-share calculation"}</h5>
-                {sharePreviewError ? <Notice role="alert">{sharePreviewError}</Notice> : null}
-                {previewForMonth?.blockers.length ? <Notice role="note">{ja
-                    ? "未確定項目：" + previewForMonth.blockers.map(code => blockerLabel(code, true)).join("、")
-                    : "Preview blockers: " + previewForMonth.blockers.map(code => blockerLabel(code, false)).join(", ")}</Notice> : null}
-                <Metrics>
-                    <Metric><span>{ja ? "総歩合給プレビュー（費用控除前）" : "Gross share preview (before costs)"}</span>
-                        <strong>{grossShare === null ? "—" : yen(grossShare, locale)}</strong></Metric>
-                    <Metric><span>{ja ? "最終支給額" : "Final payable"}</span>
-                        <strong>{previewForMonth?.payable_yen == null ? "—" : yen(previewForMonth.payable_yen, locale)}</strong></Metric>
-                </Metrics>
-                <Tiny>{ja
-                    ? "確認済み：到達した月間料率を対象売上全体に適用し、カバーチャージを含めます。未収チケットはサービス月に一度だけ計上し、歩合給プレビューは1円単位で四捨五入します。最終支給額は人件費、ドリンクバック、控除・加算の確認後に表示されます。"
-                    : "Confirmed: the reached monthly rate applies to all qualifying monthly sales, including cover charges. Unpaid tickets count once in the service month, and the gross-share preview rounds to the nearest yen. Final pay remains unavailable until staff costs, drinkback, deductions and additions are verified."}</Tiny>
-            </Card>
+            </details>
 
+            <details><summary>{ja ? "費用・調整額の内訳" : "Costs and adjustments"}</summary>
             <Card>
-                <h5>{ja ? "5. 給与明細の内訳" : "5. Pay statement details"}</h5>
                 <Muted>{ja
-                    ? "既知の人件費とその他の調整額をAPIが返すまで、この内訳は利用できません。空欄や欠落データは0円として扱いません。"
-                    : "This breakdown remains unavailable until verified staff costs and adjustments are available from the API. Blank or missing data never counts as ¥0."}</Muted>
+                    ? "人件費と調整額の確認が必要です。未確認の金額は0円として扱いません。"
+                    : "This breakdown needs verified staff costs and adjustments. Missing amounts do not count as ¥0."}</Muted>
                 <Metrics>
                     <Metric><span>{ja ? "スタッフ基本給" : "Staff base wages"}</span><strong>—</strong></Metric>
                     <Metric><span>{ja ? "スタッフドリンクバック" : "Staff drinkback"}</span><strong>—</strong></Metric>
@@ -365,9 +367,7 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                     <Metric><span>{ja ? "差引額" : "Net payable"}</span><strong>—</strong></Metric>
                 </Metrics>
             </Card>
-            <Footnote>{ja
-                ? "この画面はChuckさんのプロフィールでのみ表示されます。閲覧対象はChuckさんとNoriさんの管理者アカウントだけです。ユーザーIDのフロントエンド判定はデータ保護の代わりにはならず、給与の保存・公開にはバックエンドの権限確認が必要です。"
-                : "Visible only on Chuck's Admin profile to the configured Chuck and Nori manager accounts. Frontend ID checks do not replace server-side authorization. Real private compensation reads and writes require backend permissions."}</Footnote>
+            </details>
         </Root>
     );
 }
@@ -438,4 +438,3 @@ const TierTable = styled.table`
 `;
 const Muted = styled.p`color:var(--neutral-300);line-height:1.5;overflow-wrap:anywhere;`;
 const Tiny = styled.p`color:var(--neutral-300);font-size:var(--font-size-small);line-height:1.5;`;
-const Footnote = styled.p`color:var(--neutral-300);font-size:var(--font-size-small);line-height:1.6;`;
