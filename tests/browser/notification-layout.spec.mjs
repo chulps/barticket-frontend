@@ -21,7 +21,8 @@ async function fixture(page,{signedIn=true,missing=false,locale="en"}={}){
     else if(path==="/tickets/42"){
       status=missing?404:200;
       body=missing?{detail:"Not found"}:{id:42,name:"季節限定の特別な日本のお客様の長い名前".repeat(3),status:"paid",total:700,guest_count:0,cover_charge_total:0,cover_charge_per_person:0,items:[{id:1,name:"VeryLongUnbrokenSpecialEditionWhiskyName".repeat(4),quantity:1,unit_price:700,subtotal:700}],staff_drinks:[],payment:null,created_at:1,shift_id:2};
-    } else if(path.startsWith("/push/")){status=503;body={detail:"Disabled in test"};}
+    } else if(path==="/push/preferences")body={preferences:Object.fromEntries("ticket_created ticket_updated ticket_payment_recorded ticket_payment_deferred ticket_balance_written_off ticket_payment_corrected ticket_closed stock staff_drink shift_opened shift_closed shift_kept_open punch_corrected clock_in clock_out noon_clock_out".split(" ").map(key=>[key,true]))};
+    else if(path.startsWith("/push/")){status=503;body={detail:"Disabled in test"};}
     else if(path==="/tickets")body=[];
     await route.fulfill({status,json:body,headers:{"Access-Control-Allow-Origin":"*"}});
   });
@@ -57,3 +58,4 @@ for(const locale of ["en","ja"])for(const width of [320,1280])test("notification
  await page.screenshot({path:testInfo.outputPath("notification-error.png"),fullPage:true});
  expect(writes).toEqual([]);
 });
+

@@ -9,7 +9,7 @@ self.addEventListener("push", (event) => {
   const ticketId = Number.isSafeInteger(payload.ticket_id) && payload.ticket_id > 0 ? payload.ticket_id : null;
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-    await Promise.all(windows.map((client) => client.postMessage({ type: "barticket-push", eventType: type, ticketId })));
+    await Promise.all(windows.map((client) => client.postMessage({ type: "barticket-push", eventType: type, ticketId, eventId: payload.event_id, occurredAt: payload.occurred_at, soundCue: payload.sound_cue })));
     await self.registration.showNotification(title, {
     body,
     icon: new URL("favicon.svg", self.registration.scope).href,
@@ -52,4 +52,5 @@ function notificationTarget(type, ticketId) {
   if (ticketId && ticketEvents.includes(type)) url.searchParams.set("ticket", String(ticketId));
   return url;
 }
+
 
