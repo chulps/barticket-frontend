@@ -827,6 +827,10 @@ for (const locale of ["en", "ja"]) {
     await expect(page).toHaveURL(/\/notifications$/);
     await expect(bell).toHaveAttribute("aria-current","page");
     await page.setViewportSize({width:1280,height:800});
+    await expect(bell).toHaveCount(1);
+    await expect(bell).toHaveAttribute("aria-label",label);
+    await expect(bell).toContainText("99+");
+    await expect(page.locator("#desktop-more-menu")).toHaveCount(0);
     await page.getByRole("button",{name:locale === "ja" ? "その他のナビゲーション" : "More navigation options"}).click();
     const unpaid = page.locator('#desktop-more-menu a[href="/receivables"]');
     await expect(unpaid).toHaveText(locale === "ja" ? "未払い伝票" : "Unpaid tickets");
@@ -839,12 +843,20 @@ for (const locale of ["en", "ja"]) {
   });
 }
 
-test("notification shortcut preserves staff visibility and zero-count behavior",async ({page}) => {
+test("off-shift staff retain visible notifications on mobile and desktop without a zero badge",async ({page}) => {
   await page.setViewportSize({width:375,height:740});
   await mockedPOS(page, {role:"staff",onShift:false});
   await page.goto("/menu");
   await expect(page.getByRole("textbox",{name:"Search menu"})).toBeVisible();
-  await expect(page.locator('header a[href="/notifications"]:visible')).toHaveCount(0);
+  const bell=page.locator('header a[href="/notifications"]:visible');
+  await expect(bell).toHaveCount(1);
+  await expect(bell).toHaveText("");
+  await bell.click();
+  await expect(page.getByRole("heading",{name:"Notifications",exact:true})).toBeVisible();
+  await page.setViewportSize({width:1280,height:800});
+  await expect(bell).toHaveCount(1);
+  await expect(bell).toHaveAttribute("aria-current","page");
+  await expect(page.locator("#desktop-more-menu")).toHaveCount(0);
 });
 
 test("clocked-in staff get a bell without a zero badge",async ({page}) => {
