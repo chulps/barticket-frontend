@@ -12,6 +12,7 @@ export function createRealtimeConnection(options: {
   random: () => number;
   invalidate: (scopes: readonly RealtimeScope[]) => void;
   expired: () => void;
+  health?: (ready: boolean) => void;
 }) {
   let stopped = true;
   let socket: SocketLike | null = null;
@@ -19,6 +20,11 @@ export function createRealtimeConnection(options: {
   let watchdog = () => {};
   let attempts = 0;
   let lastMessageAt = 0;
+  let ready = false;
+  const setReady = (next: boolean) => {
+    if (ready === next) return;
+    ready = next; options.health?.(next);
+  };
 
   function checkAlive() {
     if (stopped || !socket) return;
@@ -30,6 +36,7 @@ export function createRealtimeConnection(options: {
   }
 
   function disconnect() {
+    setReady(false);
     watchdog();
     const previous = socket;
     socket = null;
@@ -73,9 +80,11 @@ export function createRealtimeConnection(options: {
         if (data.type === "ready") {
           lastMessageAt = options.now();
           attempts = 0;
+          setReady(true);
           options.invalidate(REALTIME_SCOPES);
           return;
         }
+        if (!ready) return;
         if (data.type !== "heartbeat" && data.type !== "invalidate") return;
         if (!Array.isArray(data.scopes) ||
             data.scopes.some((scope: unknown) => !REALTIME_SCOPES.includes(scope as RealtimeScope))) return;

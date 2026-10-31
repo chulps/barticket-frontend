@@ -17,6 +17,7 @@ function createHarness() {
   const timers = [];
   const invalidations = [];
   const expired = [];
+  const health = [];
   let now = 0;
   const connection = createRealtimeConnection({
     open: () => {
@@ -34,8 +35,9 @@ function createHarness() {
     random: () => 0,
     invalidate: scopes => invalidations.push([...scopes]),
     expired: () => expired.push(true),
+    health: ready => health.push(ready),
   });
-  return { connection, sockets, timers, invalidations, expired, advance: value => { now = value; } };
+  return { connection, sockets, timers, invalidations, expired, health, advance: value => { now = value; } };
 }
 
 test("authenticated ready and ticket invalidations refresh signed-in clients", () => {
@@ -86,7 +88,32 @@ test("the signed-in app starts realtime without using a clock-in check", () => {
   const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
   const transport = readFileSync(new URL("../src/api/realtime.ts", import.meta.url), "utf8");
   assert.match(app, /if \(authenticated !== true\) return;[\s\S]*?startRealtime\(\)/);
-  assert.match(transport, /if \(getToken\(\) && navigator\.onLine !== false\) connection\.start\(\)/);
+  assert.match(transport, /if \(getToken\(\) && navigator\.onLine !== false && document\.visibilityState !== "hidden"\) connection\.start\(\)/);
   assert.doesNotMatch(transport, /clockedIn|isClockedIn|clock_in/);
   assert.match(app, /barticket-menu-updated/);
+});
+
+
+test("two independent clients become healthy only after ready and catch up after missed heartbeat", () => {
+  const clients = [createHarness(), createHarness()];
+  for (const h of clients) {
+    h.connection.start();
+    h.sockets[0].onopen();
+    h.sockets[0].onmessage({data: JSON.stringify({type:"heartbeat",version:1,cursor:1,scopes:[]})});
+    assert.deepEqual(h.health, []);
+    h.sockets[0].onmessage({data: JSON.stringify({type:"ready",version:1,cursor:1})});
+    assert.deepEqual(h.health, [true]);
+    h.sockets[0].onmessage({data: JSON.stringify({type:"invalidate",version:1,cursor:2,scopes:["tickets","menu"]})});
+    assert.deepEqual(h.invalidations.at(-1), ["tickets","menu"]);
+  }
+  const first = clients[0];
+  first.advance(20_000);
+  first.timers.find(t => !t.cancelled).callback();
+  assert.deepEqual(first.health, [true,false]);
+  assert.deepEqual(clients[1].health, [true]);
+  first.timers.findLast(t => !t.cancelled).callback();
+  first.sockets[1].onmessage({data:JSON.stringify({type:"ready",version:1,cursor:8})});
+  assert.deepEqual(first.health, [true,false,true]);
+  assert.deepEqual(first.invalidations.at(-1), Array.from(REALTIME_SCOPES));
+  clients.forEach(h => h.connection.stop());
 });

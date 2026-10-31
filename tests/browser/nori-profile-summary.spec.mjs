@@ -103,3 +103,27 @@ test("changing month rejects an older summary response",async({page})=>{
   await oldResponse;
   await expect(page.getByText("Chuck",{exact:true}).first().locator("../..")).toContainText("98,765");
 });
+
+
+test("users-only invalidation rechecks configured payees without changing owner or month",async({page})=>{
+  let socket;
+  await page.routeWebSocket("**/realtime/ws",peer=>{
+    socket=peer;
+    peer.onMessage(raw=>{if(JSON.parse(raw).type==="authenticate")peer.send(JSON.stringify({type:"ready",version:1,cursor:0}));});
+  });
+  const report={staff_owed:structuredClone(baseReport.staff_owed)};
+  const {calls}=await fixture(page,{report});
+  const region=page.getByRole("region",{name:"Nori's monthly summary"});
+  await expect(region.getByText("Chuck",{exact:true}).locator("../..")).toContainText(/[¥￥]27,000/);
+  const prior=calls.filter(path=>path.includes("/profile/nori-monthly-pay")).length;
+  report.staff_owed[0]={payee:"chuck",user_id:901,name:"Chuck",amount_yen:null,status:"unavailable",
+    blockers:["payee_identity_unavailable"],source:null};
+  socket.send(JSON.stringify({type:"invalidate",version:1,cursor:1,scopes:["users"]}));
+  await expect.poll(()=>calls.filter(path=>path.includes("/profile/nori-monthly-pay")).length).toBeGreaterThan(prior);
+  const chuck=region.getByText("Chuck",{exact:true}).locator("../..");
+  await expect(chuck).toContainText("—");
+  await expect(chuck).toContainText("The payee account could not be verified.");
+  await expect(region).not.toContainText(/[¥￥]27,000/);
+  expect(calls.filter(path=>path.includes("/profile/nori-monthly-pay")).every(path=>path.includes("month=2026-10"))).toBe(true);
+  expect(calls.filter(path=>!path.startsWith("GET "))).toEqual([]);
+});

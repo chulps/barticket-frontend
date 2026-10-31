@@ -1,3 +1,4 @@
+import { subscribeRealtime } from "../api/realtime";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 
@@ -56,6 +57,7 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
+    useEffect(() => subscribeRealtime(["shift", "tickets", "analytics"], () => setRefreshKey(value => value + 1)), []);
     const [section, setSection] = useState<Panel>("hours");
     const [timeScale, setTimeScale] = useState<TimeScale>("all");
     const [month, setMonth] = useState(currentMonth);
@@ -76,15 +78,19 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
         tabRefs.current[next]?.focus();
     }
 
+    const loadedIdentity = useRef("");
     useEffect(() => {
         let cancelled = false;
+        const identity = `${userId}:${ja}`;
         async function load() {
-            setLoading(true);
-            setError("");
+            setLoading(loadedIdentity.current !== identity);
+            if (loadedIdentity.current !== identity) setError("");
             try {
                 const response = await accountApi.workHistory();
                 if (response.user_id !== userId) throw new Error("Profile identity mismatch");
                 if (cancelled) return;
+                loadedIdentity.current = identity;
+                setError("");
                 setHistory(response);
             } catch (err) {
                 if (!cancelled) {

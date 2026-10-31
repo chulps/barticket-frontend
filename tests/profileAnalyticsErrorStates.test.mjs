@@ -7,7 +7,7 @@ const src = name => readFileSync(new URL("../src/pages/" + name, import.meta.url
 test("Profile never flashes sign-in while account status is loading", () => {
   const p=src("Profile.tsx");
   assert.match(p, /const \[loading, setLoading\] = useState\(true\)/);
-  assert.match(p, /if \(!cancelled\) setLoading\(false\)/);
+  assert.match(p, /if \(active\(\)\) setLoading\(false\)/);
   assert.match(p, /if \(loading\) return <Page/);
   assert.match(p, /<RequestState kind="loading"/);
   assert.match(p, /role="alert"/);

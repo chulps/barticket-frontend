@@ -1,3 +1,4 @@
+import { shouldPoll } from "../api/realtime";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useSearchParams } from "react-router-dom";
@@ -37,8 +38,17 @@ export default function Notifications() {
 
     useEffect(() => {
         let cancelled = false;
+        let fetching = false;
+        let retry: number | undefined;
+        const retryRead = () => {
+            if (cancelled || retry !== undefined) return;
+            retry = window.setTimeout(() => { retry = undefined; void load(); }, 250);
+        };
         async function load() {
-            if (pendingRestock.current) return;
+            if (cancelled) return;
+            if (pendingRestock.current || fetching) { retryRead(); return; }
+            fetching = true;
+            const token = getToken();
             const startedAt = revision.current;
             try {
                 const data = await listNotices();
@@ -48,12 +58,12 @@ export default function Notifications() {
                     pendingWrite: pendingRestock.current,
                     cancelled,
                 });
-                if (safe === null) return;
+                if (safe === null || getToken() !== token) { retryRead(); return; }
                 setDenied(false);
                 setLoadFailed(false);
                 setNotices(safe);
             } catch (error) {
-                if (cancelled) return;
+                if (cancelled || getToken() !== token) return;
                 if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
                     setDenied(true);
                     setNotices(null);
@@ -62,24 +72,35 @@ export default function Notifications() {
                     setLoadFailed(true);
                 }
             } finally {
+                fetching = false;
                 if (!cancelled) setLoading(false);
             }
         }
         load();
-        if (getToken()) {
-            accountApi.me().then((me) => {
-                if (!cancelled) setIsManager(me.role === "manager");
-            }).catch(() => {
-                if (!cancelled) setIsManager(false);
-            });
-        }
-        const timer = window.setInterval(load, 20000);
+        let roleGeneration = 0;
+        const loadRole = async () => {
+            const generation = ++roleGeneration;
+            const token = getToken();
+            setIsManager(false);
+            if (!token) return;
+            try {
+                const me = await accountApi.me();
+                if (!cancelled && generation === roleGeneration && token === getToken()) setIsManager(me.role === "manager");
+            } catch { /* Fail closed until the next authenticated refresh. */ }
+        };
+        void loadRole();
+        window.addEventListener("barticket-users-updated", loadRole);
+        window.addEventListener("barticket-auth", loadRole);
+        const timer = window.setInterval(() => { if (shouldPoll()) void load(); }, 20000);
         window.addEventListener("barticket-auth", load);
         window.addEventListener("barticket-notices", load);
         window.addEventListener("barticket-api-restored", load);
         return () => {
             cancelled = true;
+            window.removeEventListener("barticket-users-updated", loadRole);
+            window.removeEventListener("barticket-auth", loadRole);
             window.clearInterval(timer);
+            if (retry !== undefined) window.clearTimeout(retry);
             window.removeEventListener("barticket-auth", load);
             window.removeEventListener("barticket-notices", load);
             window.removeEventListener("barticket-api-restored", load);
@@ -114,6 +135,7 @@ export default function Notifications() {
             revision.current++;
             pendingRestock.current = false;
             setPendingNoticeId(null);
+            window.dispatchEvent(new Event("barticket-notices"));
         }
     }
 

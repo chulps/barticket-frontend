@@ -8,4 +8,5 @@ const access = createSessionRead(getToken, async () => {
 });
 window.addEventListener("barticket-auth", access.invalidate);
 window.addEventListener("focus", access.revalidate);
+window.addEventListener("barticket-users-updated", access.invalidate);
 export const paymentSetupAccess = access;

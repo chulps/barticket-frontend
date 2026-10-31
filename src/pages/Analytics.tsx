@@ -564,21 +564,37 @@ export default function Analytics() {
 
         const refresh = createRefreshCoordinator(loadLatest);
 
-        async function start() {
+        let identityGeneration = 0;
+        async function refreshIdentity() {
+            const generation = ++identityGeneration;
+            const token = getToken();
+            setTeam(null);
             try {
                 const me = await accountApi.me();
-                if (cancelled) return;
+                if (cancelled || generation !== identityGeneration || token !== getToken()) return;
                 setAccount(me);
-                // Staff can view analytics, but the user directory remains manager-only.
                 if (me.role === "manager") {
-                    void accountApi.listUsers()
-                        .then((members) => { if (!cancelled) setTeam(members); })
-                        .catch(() => { if (!cancelled) setTeam(null); });
+                    const members = await accountApi.listUsers();
+                    if (!cancelled && generation === identityGeneration && token === getToken()) setTeam(members);
                 }
-
+            } catch {
+                if (!cancelled && generation === identityGeneration && token === getToken()) {
+                    setAccount(null);
+                    setTeam(null);
+                }
+            }
+        }
+        const onUsers = () => { void refreshIdentity(); void refresh(); };
+        window.addEventListener("barticket-users-updated", onUsers);
+        window.addEventListener("barticket-auth", onUsers);
+        async function start() {
+            try {
+                await refreshIdentity();
+                if (cancelled) return;
                 // Refresh live totals, roster/punches and shift-close status
                 // without requiring the manager to leave the Analytics page.
                 window.addEventListener("focus", refresh);
+                window.addEventListener("barticket-analytics-updated", refresh);
                 window.addEventListener("barticket-push", refresh);
                 window.addEventListener("barticket-notices", refresh);
                 window.addEventListener("barticket-api-restored", refresh);
@@ -600,8 +616,12 @@ export default function Analytics() {
         void start();
         return () => {
             cancelled = true;
+            identityGeneration++;
+            window.removeEventListener("barticket-users-updated", onUsers);
+            window.removeEventListener("barticket-auth", onUsers);
             if (timer !== null) window.clearInterval(timer);
             window.removeEventListener("focus", refresh);
+            window.removeEventListener("barticket-analytics-updated", refresh);
             window.removeEventListener("barticket-push", refresh);
             window.removeEventListener("barticket-notices", refresh);
             window.removeEventListener("barticket-api-restored", refresh);
