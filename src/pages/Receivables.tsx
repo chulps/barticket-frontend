@@ -167,25 +167,31 @@ export default function Receivables() {
 
 function WriteOffForm({ ticket, locale, onSaved }: { ticket: ApiTicket; locale: string; onSaved: () => void }) {
     const ja = locale === "ja";
-    const { openModal, closeModal } = useModal();
+    const { openModal } = useModal();
+    const [idempotencyKey] = useState(() => crypto.randomUUID());
+    return <button type="button" className="hollow danger" onClick={() => openModal({
+        title: ja ? "未回収残高を免除" : "Write off unpaid balance",
+        maxWidth: "520px",
+        content: <WriteOffDialog ticket={ticket} locale={locale} onSaved={onSaved} idempotencyKey={idempotencyKey} />,
+    })}>{ja ? "免除（管理者）" : "Write off (manager)"}</button>;
+}
+
+function WriteOffDialog({ ticket, locale, onSaved, idempotencyKey }: { ticket: ApiTicket; locale: string; onSaved: () => void; idempotencyKey: string }) {
+    const ja = locale === "ja";
+    const { closeModal } = useModal();
     const [amount, setAmount] = useState(String(ticket.balance_due ?? 0));
     const [reason, setReason] = useState("");
     const [working, setWorking] = useState(false);
     const [error, setError] = useState("");
     const [attempted, setAttempted] = useState(false);
-    const [key] = useState(() => crypto.randomUUID());
     const due = ticket.balance_due ?? 0;
-    return <>
-        <button type="button" className="hollow danger" onClick={() => openModal({
-            title: ja ? "未回収残高を免除" : "Write off unpaid balance",
-            maxWidth: "520px",
-            content: <form onSubmit={async event => {
+    return <form onSubmit={async event => {
                 event.preventDefault();
                 const parsed = Number(amount);
                 if (working || !Number.isSafeInteger(parsed) || parsed < 1 || parsed > due || !reason.trim()) return;
                 setAttempted(true); setWorking(true); setError("");
                 try {
-                    await ticketsApi.writeOff(ticket.id, { amount: parsed, reason: reason.trim() }, key);
+                    await ticketsApi.writeOff(ticket.id, { amount: parsed, reason: reason.trim() }, idempotencyKey);
                     closeModal(); onSaved();
                 } catch (err) { setError(err instanceof ApiError ? err.message : (ja ? "結果が不明です。再送信せず伝票を確認してください。" : "Outcome unknown. Verify the ticket before any retry.")); }
                 finally { setWorking(false); }
@@ -197,9 +203,7 @@ function WriteOffForm({ ticket, locale, onSaved }: { ticket: ApiTicket; locale: 
                 <button type="submit" className="danger" disabled={working}>{working ? (ja ? "保存中…" : "Saving…") : attempted
                     ? (ja ? "同じ記録を安全に再確認" : "Safely retry same write-off")
                     : (ja ? "免除を記録" : "Record write-off")}</button>
-            </form>,
-        })}>{ja ? "免除（管理者）" : "Write off (manager)"}</button>
-    </>;
+            </form>;
 }
 
 function VoidPaymentForm({ ticketId, paymentId, locale, onSaved }: { ticketId: number; paymentId: number; locale: string; onSaved: () => void }) {
