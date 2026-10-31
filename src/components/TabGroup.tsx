@@ -78,7 +78,9 @@ export default function TabGroup<T extends string>({
     return (
         <Viewport ref={viewport} role="group" aria-label={label ?? tabs.map(tab => tab.label).join(" / ")}>
             <Track ref={track} $mobileColumns={mobileColumns}>
-                {indicator.width > 0 && <Indicator aria-hidden="true" $left={indicator.left} $top={indicator.top} $width={indicator.width} $height={indicator.height} />}
+                {indicator.width > 0 && <IndicatorClip aria-hidden="true" data-tab-indicator-clip>
+                    <Indicator data-tab-indicator $left={indicator.left} $top={indicator.top} $width={indicator.width} $height={indicator.height} />
+                </IndicatorClip>}
                 {tabs.map((tab, index) => (
                     <TabButton
                         key={tab.id}
@@ -132,6 +134,15 @@ const Track = styled.div<{ $mobileColumns?: number }>`
   ` : ""}
 `;
 
+// Clip only decoration: labels, keyboard focus and hit targets remain untouched.
+const IndicatorClip = styled.div`
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  clip-path: inset(var(--space-0) round calc(var(--space-1) - 2px));
+  z-index: 0;
+`;
+
 const Indicator = styled.div<{
   $left: number;
   $top: number;
@@ -149,8 +160,8 @@ const Indicator = styled.div<{
   border-radius: calc(var(--space-1) - 2px);
 
   transform: translate(${({ $left }) => `${$left}px`}, ${({ $top }) => `${$top}px`});
-  /* A non-overshooting curve keeps the pill inside the padded track. */
-  transition: transform 300ms ease;
+  /* Restore the original quick bounce; the decorative clip contains overshoot. */
+  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
   z-index: 0;
   will-change: transform;
 
