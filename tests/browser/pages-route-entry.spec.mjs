@@ -69,5 +69,8 @@ test("built Pages static entries preserve direct Admin, assets, query and browse
  await page.goto(origin+base+"notifications?ticket=42&from_push=1");
  await expect(page.getByRole("region",{name:"Linked ticket",exact:true})).toContainText("Deep link fixture");
  await expect(page).toHaveURL(origin+base+"notifications/?ticket=42&from_push=1");
+ const dynamic=await page.goto(origin+base+"admin/staff/7/audit?fixture=1");expect(dynamic.status()).toBe(404);
+ await expect(page.getByRole("heading",{name:"Audit history",exact:true})).toBeVisible();
+ await expect(page).toHaveURL(origin+base+"admin/staff/7/audit?fixture=1");
  expect(assets.length).toBeGreaterThan(2);expect(assets.every(item=>item.status===200)).toBe(true);expect(writes).toEqual([]);
 });
