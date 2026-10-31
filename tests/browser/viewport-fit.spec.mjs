@@ -37,7 +37,7 @@ for (const locale of ['en', 'ja']) for (const [width, height] of [[390, 600], [3
     await page.setViewportSize({ width, height }); await fixture(page, locale); await page.goto('/tickets');
     const board = page.locator('[data-ticket-dashboard]');
     const group = page.getByRole('group', { name: locale === 'ja' ? '状態' : 'Status', exact: true });
-    await expect(page.getByRole('button', { name: /Guest 35/ })).toHaveCount(1);
+    await expect(page.getByRole('complementary').getByRole('button', { name: /Guest 35/ })).toHaveCount(1);
     await inViewport(board); await inViewport(group);
     expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
@@ -53,7 +53,7 @@ for (const locale of ['en', 'ja']) for (const [width, height] of [[390, 600], [3
       return Math.abs(active.left - indicator.left) + Math.abs(active.width - indicator.width);
     })).toBeLessThan(1);
     await group.getByRole('button').first().click();
-    const last = page.getByRole('button', { name: /Guest 35/ });
+    const last = page.getByRole('complementary').getByRole('button', { name: /Guest 35/ });
     await last.scrollIntoViewIfNeeded(); await inViewport(last);
     // Scroll the ticket rail, not the document/header.
     expect(await page.evaluate(() => scrollY)).toBe(0);
@@ -101,6 +101,8 @@ for (const width of [390, 1280]) test(`tall ticket, dialog and normal route cont
   const dialog = page.getByRole('dialog'); await inViewport(dialog);
   const lastDrink = dialog.getByText('Fixture drink 50', { exact: true });
   await lastDrink.scrollIntoViewIfNeeded(); await inViewport(lastDrink);
+  // The batch footer appears only after choosing a drink (no save/write).
+  await dialog.getByRole('button', { name: '¥700', exact: true }).last().click();
   const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
   await cancel.scrollIntoViewIfNeeded(); await inViewport(cancel); await cancel.click();
   await expect(dialog).toHaveCount(0);
