@@ -22,7 +22,7 @@ for(const locale of ['en','ja'])for(const width of [375,768,1440])test(`shared t
   await page.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
   await page.goto('/tests/browser/fixtures/tab-group.html');
   if(locale==='ja')await page.getByRole('button',{name:'Language'}).click();
-  for(const name of ['Status','Team views']){
+  for(const name of ['Status','Team views','Profile sections']){
     const group=page.getByRole('group',{name,exact:true});
     await aligned(group);
     const buttons=group.getByRole('button');
@@ -43,7 +43,7 @@ for(const locale of ['en','ja'])for(const width of [375,768,1440])test(`shared t
   await page.getByRole('button',{name:'Language'}).click();
   // Font metrics can change without a viewport resize (font loading / text zoom).
   await page.addStyleTag({content:'button {font-family: monospace !important; font-size: 22px !important}'});
-  for(const name of ['Status','Team views'])await aligned(page.getByRole('group',{name,exact:true}));
+  for(const name of ['Status','Team views','Profile sections'])await aligned(page.getByRole('group',{name,exact:true}));
 });
 
 test('indicator stays bounded throughout repeated transitions and reduced motion',async({page})=>{
@@ -69,4 +69,30 @@ test('indicator stays bounded throughout repeated transitions and reduced motion
   await group.getByRole('button').last().click();
   await aligned(group);
   expect(await group.locator('> div > div').evaluate(el=>getComputedStyle(el).transitionDuration)).toBe('0s');
+});
+
+
+test('Profile slides between rows rather than switching static backgrounds',async({page})=>{
+  await page.setViewportSize({width:375,height:812});
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.goto('/tests/browser/fixtures/tab-group.html');
+  const group=page.getByRole('group',{name:'Profile sections',exact:true});
+  await aligned(group);
+  for(const index of [3,0,2,1]){
+    const result=await group.evaluate(async(el,index)=>{
+      const indicator=el.firstElementChild.firstElementChild;
+      const buttons=[...el.querySelectorAll('button')], target=buttons[index].getBoundingClientRect();
+      const start=indicator.getBoundingClientRect(),samples=[];
+      buttons[index].click();
+      for(let i=0;i<24;i++){
+        await new Promise(requestAnimationFrame);
+        const rect=indicator.getBoundingClientRect();
+        samples.push({left:rect.left,top:rect.top});
+      }
+      return {samples,start:{left:start.left,top:start.top},target:{left:target.left,top:target.top}};
+    },index);
+    const distance=(a,b)=>Math.hypot(a.left-b.left,a.top-b.top);
+    expect(result.samples.some(p=>distance(p,result.start)>1&&distance(p,result.target)>1)).toBe(true);
+    await aligned(group);
+  }
 });

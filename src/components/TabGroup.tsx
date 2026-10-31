@@ -12,6 +12,7 @@ type TabGroupProps<T extends string> = {
   activeTab: T;
   onChange: (id: T) => void;
   label?: string;
+  mobileColumns?: number;
 };
 
 export default function TabGroup<T extends string>({
@@ -19,12 +20,13 @@ export default function TabGroup<T extends string>({
   activeTab,
   onChange,
   label,
+  mobileColumns,
 }: TabGroupProps<T>) {
     const activeIndex = tabs.findIndex(tab => tab.id === activeTab);
     const viewport = useRef<HTMLDivElement>(null);
     const track = useRef<HTMLDivElement>(null);
     const buttons = useRef<(HTMLButtonElement | null)[]>([]);
-    const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+    const [indicator, setIndicator] = useState({ left: 0, top: 0, width: 0, height: 0 });
 
     const measureActiveTab = useCallback(() => {
         const button = buttons.current[activeIndex];
@@ -32,9 +34,11 @@ export default function TabGroup<T extends string>({
         if (!button || !container) return;
         // Preserve fractional CSS pixels, and use the track origin exactly once.
         const rect = button.getBoundingClientRect();
-        const left = rect.left - container.getBoundingClientRect().left;
-        setIndicator(previous => previous.left === left && previous.width === rect.width
-            ? previous : { left, width: rect.width });
+        const containerRect = container.getBoundingClientRect();
+        const left = rect.left - containerRect.left;
+        const top = rect.top - containerRect.top;
+        setIndicator(previous => previous.left === left && previous.top === top && previous.width === rect.width && previous.height === rect.height
+            ? previous : { left, top, width: rect.width, height: rect.height });
     }, [activeIndex]);
 
     useLayoutEffect(() => {
@@ -73,8 +77,8 @@ export default function TabGroup<T extends string>({
 
     return (
         <Viewport ref={viewport} role="group" aria-label={label ?? tabs.map(tab => tab.label).join(" / ")}>
-            <Track ref={track}>
-                {indicator.width > 0 && <Indicator aria-hidden="true" $left={indicator.left} $width={indicator.width} />}
+            <Track ref={track} $mobileColumns={mobileColumns}>
+                {indicator.width > 0 && <Indicator aria-hidden="true" $left={indicator.left} $top={indicator.top} $width={indicator.width} $height={indicator.height} />}
                 {tabs.map((tab, index) => (
                     <TabButton
                         key={tab.id}
@@ -104,7 +108,7 @@ const Viewport = styled.div`
   &::-webkit-scrollbar { display: none; }
 `;
 
-const Track = styled.div`
+const Track = styled.div<{ $mobileColumns?: number }>`
   position: relative;
   display: grid;
   grid-auto-flow: column;
@@ -114,15 +118,29 @@ const Track = styled.div`
   gap: var(--space-0);
   padding: var(--space-0);
   box-sizing: border-box;
+
+  ${({ $mobileColumns }) => $mobileColumns ? `
+    @media (max-width: 600px) {
+      grid-auto-flow: row;
+      grid-template-columns: repeat(${$mobileColumns}, minmax(0, 1fr));
+      grid-auto-columns: auto;
+      grid-auto-rows: 1fr;
+      width: 100%;
+      min-width: 0;
+      > button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+    }
+  ` : ""}
 `;
 
 const Indicator = styled.div<{
   $left: number;
+  $top: number;
   $width: number;
+  $height: number;
 }>`
   position: absolute;
-  top: var(--space-0);
-  bottom: var(--space-0);
+  top: 0;
+  height: ${({ $height }) => `${$height}px`};
   left: 0;
   width: ${({ $width }) => `${$width}px`};
   pointer-events: none;
@@ -130,7 +148,7 @@ const Indicator = styled.div<{
   background: var(--neutral-800);
   border-radius: calc(var(--space-1) - 2px);
 
-  transform: translateX(${({ $left }) => `${$left}px`});
+  transform: translate(${({ $left }) => `${$left}px`}, ${({ $top }) => `${$top}px`});
   /* A non-overshooting curve keeps the pill inside the padded track. */
   transition: transform 300ms ease;
   z-index: 0;
