@@ -115,13 +115,13 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
     <header><h2>{t("Payment setup", "決済設定")}</h2>
       <p>{t("Set up Stripe for customer phone payments", "お客様のスマホ決済にStripeを設定")}</p></header>
     <Status role="status">{t("Payment processing: not connected", "決済処理：未接続")}</Status>
-    <p>{t("Save your provider and preferred methods here. Complete merchant registration with the provider; registration alone does not connect BarTicket.", "決済会社と希望する支払方法を保存できます。加盟店登録は決済会社で行います。登録だけではBarTicketは接続されません。")}</p>
-    <p>{t("Stripe is the recommended online option. You can keep your existing card terminal; choosing Stripe here only changes your setup preferences.", "オンライン決済にはStripeをおすすめします。現在のカード端末はそのまま使えます。ここでStripeを選んでも、設定の希望が変わるだけです。")}</p>
+    <p>{t("Save your preferences, then register with your provider. Payments remain disabled until connected.", "希望を保存し、決済会社で登録してください。接続が完了するまで決済は無効です。")}</p>
+    <p>{t("We recommend Stripe for online payments; you can keep your existing card terminal.", "オンライン決済にはStripeをおすすめします。現在のカード端末はそのまま使えます。")}</p>
     {(providerId !== "stripe" || channel !== "online") && <button type="button" className="hollow secondary" disabled={disabled} onClick={() => { setProviderId("stripe"); setChannel("online"); }}>{t("Choose Stripe online setup", "Stripeのオンライン設定を選択")}</button>}
     <label>{t("Current or proposed provider", "現在または検討中の決済会社")}
       <select disabled={disabled} value={providerId} onChange={e => setProviderId(e.target.value)}>{providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
     </label>
-    <p>{ja ? provider.ja : provider.en}</p>
+    {providerId !== "stripe" && <p>{ja ? provider.ja : provider.en}</p>}
     {provider.url && <a href={provider.url} target="_blank" rel="noopener noreferrer">{t("View official options and fees ↗", "公式のサービス・料金を見る ↗")}</a>}
     <label>{t("Payment channel", "決済方式")}<select disabled={disabled} value={channel} onChange={e => setChannel(e.target.value)}><option value="online">{t("Customer phone / online checkout", "お客様のスマホ・オンライン決済")}</option><option value="terminal">{t("In-person terminal", "対面端末")}</option></select></label>
     <fieldset disabled={disabled}><legend>{t("Requested payment methods", "希望する支払方法")}</legend>{["card", "apple_pay", "google_pay", "paypay", "rakuten_pay"].map(method => <label key={method}><span><input style={{width:"auto"}} type="checkbox" checked={methods.includes(method)} onChange={e => setMethods(current => e.target.checked ? [...current, method] : current.filter(m => m !== method))} /> {{card: ja ? "カード" : "Cards", apple_pay: "Apple Pay", google_pay:"Google Pay", paypay:"PayPay", rakuten_pay:"楽天ペイ"}[method]}</span></label>)}</fieldset>
@@ -176,7 +176,9 @@ const Panel = styled.section`
   width:100%; min-width:0; box-sizing:border-box; max-width: 960px; display: grid; grid-template-columns:minmax(0, 1fr); gap: var(--space-2);
   padding: var(--space-3); background: var(--neutral-900); border-radius: var(--space-2);
   h2, h3, p { margin: 0; } h3 { margin-top: var(--space-2); }
-  fieldset { min-width:0; margin:0; }
+  fieldset { min-width:0; margin:0; padding: var(--space-2); display:grid; gap:var(--space-2); }
+  fieldset label span { display:flex; align-items:center; gap:var(--space-2); }
+  fieldset input { flex:none; min-width:18px; min-height:18px; }
   a, p, button, summary { overflow-wrap:anywhere; }
   label { display: grid; gap: var(--space-1); min-width: 0; }
   input, select { width: 100%; min-width: 0; box-sizing: border-box; font-size: 16px; }
