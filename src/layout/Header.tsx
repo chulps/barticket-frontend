@@ -43,10 +43,12 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
   useEffect(() => {
     let cancelled = false;
     let generation = 0;
+    let activeToken: string | null = null;
     async function loadRole() {
       const request = ++generation;
       const token = getToken();
-      if (!token) {
+      if (!token || token !== activeToken) {
+        activeToken = token;
         if (!cancelled) {
           setIsManager(false);
           setUserName(null);
@@ -57,11 +59,10 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           setIsOpen(false);
           setMoreOpen(false);
         }
-        return;
+        if (!token) return;
       }
       try {
-        const me = await accountApi.me();
-        const shift = await accountApi.currentShift();
+        const [me, shift] = await Promise.all([accountApi.me(), accountApi.currentShift()]);
         if (cancelled || request !== generation || getToken() !== token) return;
         setIsManager(me.role === "manager");
         setUserName(me.name.trim() || null);
@@ -81,16 +82,17 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         }
       }
     }
+    const resetRole = () => { activeToken = null; void loadRole(); };
     void loadRole();
     const timer = window.setInterval(loadRole, 20000);
-    window.addEventListener("barticket-auth", loadRole);
+    window.addEventListener("barticket-auth", resetRole);
     window.addEventListener("barticket-shift-updated", loadRole);
     window.addEventListener("focus", loadRole);
     return () => {
       cancelled = true;
       generation++;
       window.clearInterval(timer);
-      window.removeEventListener("barticket-auth", loadRole);
+      window.removeEventListener("barticket-auth", resetRole);
       window.removeEventListener("barticket-shift-updated", loadRole);
       window.removeEventListener("focus", loadRole);
     };
@@ -217,6 +219,10 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           <MobilePrimaryLink to="/menu" aria-label={t("drinkMenu")} title={t("drinkMenu")} onClick={() => closeMainNavigation(true)}>
             {({ isActive }) => <Icon name="Book" weight={isActive ? "fill" : "regular"} />}
           </MobilePrimaryLink>
+          {canSeeNotices ? <MobilePrimaryLink to="/notifications" aria-label={t("notifications")} title={t("notifications")} onClick={() => closeMainNavigation()}>
+            {({ isActive }) => <><Icon name="Bell" weight={isActive ? "fill" : "regular"} />
+              {alertCount > 0 ? <MenuBadge>{alertCount > 99 ? "99+" : alertCount}</MenuBadge> : null}</>}
+          </MobilePrimaryLink> : null}
         </MobilePrimary>
       ) : null}
 
@@ -230,7 +236,6 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         onClick={() => setIsOpen(open => !open)}
       >
         <Icon name={isOpen ? "X" : "List"} />
-        {alertCount > 0 ? <MenuBadge>{alertCount}</MenuBadge> : null}
       </Hamburger> : null}
 
       <Nav id="main-navigation" ref={navRef} $isOpen={isOpen} $authenticated={authenticated}>
@@ -276,23 +281,6 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
             </>
           )}
         </SecondaryNavLink>
-
-        {canSeeNotices ? (
-          <SecondaryNavLink
-            onClick={() => closeMainNavigation(true)}
-            to="/notifications">
-            {({ isActive }) => (
-              <>
-                <Icon
-                  name="Bell"
-                  weight={isActive ? "fill" : "regular"}
-                />
-                {t("notifications")}
-                {alertCount > 0 ? <AlertCount>{alertCount}</AlertCount> : null}
-              </>
-            )}
-          </SecondaryNavLink>
-        ) : null}
 
         <SecondaryNavLink
           onClick={() => closeMainNavigation(true)}
@@ -384,6 +372,9 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
               <MoreLink to="/analytics" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
                 <Icon name="ChartDonut" />{t("analytics")}
               </MoreLink>
+              <MoreLink to="/receivables" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
+                <Icon name="HandCoins" />{locale === "ja" ? "未払い伝票" : "Unpaid tickets"}
+              </MoreLink>
               <MoreLink to="/schedules" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
                 <Icon name="CalendarBlank" />{locale === "ja" ? "シフト予定" : "Schedule"}
               </MoreLink>
@@ -431,6 +422,7 @@ const MobilePrimary = styled.nav`
 `;
 
 const MobilePrimaryLink = styled(RouterNavLink)`
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -469,7 +461,7 @@ const MenuBadge = styled.span`
   position: absolute;
   top: 0;
   right: 0;
-  transform: translate(35%, -35%);
+  transform: translate(10%, -10%);
   min-width: 1.4em;
   height: 1.4em;
   padding: 0 0.3em;
@@ -584,7 +576,7 @@ const MoreLink = styled(RouterNavLink)`
   color: var(--neutral-300);
   text-decoration: none;
   padding: var(--space-1) var(--space-2);
-  &:hover, &:focus-visible { color: white; background: var(--neutral-800); }
+  &:hover, &:focus-visible, &[aria-current="page"] { color: white; background: var(--neutral-800); }
 `;
 
 const LanguageToggle = styled.div`

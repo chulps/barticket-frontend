@@ -69,7 +69,7 @@ test("uncertain writes require explicit reload and never replay automatically",a
   expect(state.writes[1].revision).toBe(7);
 });
 test("failed reads can recover without exposing a stale editable form",async({page})=>{
-  const state=await fixture(page,{readStatus:400});
+  const state=await fixture(page,{readStatus:503});
   await expect(page.getByRole("alert")).toContainText("Saved setup is unavailable");
   await expect(page.getByRole("combobox")).toHaveCount(0);
   state.readStatus=200;state.saved.provider="square";

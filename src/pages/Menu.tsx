@@ -128,7 +128,11 @@ export default function Menu({
     }
   }
 
-  const groupedMenu = useFilteredMenu(menu, searchTerm);
+  const displayMenu = !authenticated && menu
+    ? { ...menu, items: menu.items.filter(item => !item.cocktailIngredient) }
+    : menu;
+  const groupedMenu = useFilteredMenu(displayMenu, searchTerm);
+  const categoryEntries = Object.entries(groupedMenu).sort(([a], [b]) => a.localeCompare(b, "en"));
   const archiveSearch = searchTerm.trim().toLowerCase();
   const filteredArchived = archivedItems.filter(item =>
     !archiveSearch || [
@@ -205,6 +209,11 @@ export default function Menu({
 
       <StickySearch>
         <SearchBar value={searchTerm} onChange={setSearchTerm} />
+        {!archivedMode && categoryEntries.length > 0 ? <CategoryNavigation aria-label={locale === "ja" ? "ドリンクのカテゴリー" : "Drink categories"}>
+          {categoryEntries.map(([category]) => <a key={category} href={`#${encodeURIComponent("menu-category-" + category)}`}>
+            {menuLabel(locale, category)}
+          </a>)}
+        </CategoryNavigation> : null}
       </StickySearch>
 
       {archivedMode ? (
@@ -236,8 +245,17 @@ export default function Menu({
             </li>)}
           </ArchiveList>
         </ArchivePanel>
+      ) : !displayMenu?.items.length ? (
+        <RequestState kind="empty" detail={t("noMenu")} />
+      ) : Object.keys(groupedMenu).length === 0 ? (
+        <SearchEmpty role="status">
+          <p>{locale === "ja" ? `「${searchTerm.trim()}」に一致するドリンクはありません。` : `No drinks match “${searchTerm.trim()}”.`}</p>
+          <button type="button" className="small secondary" onClick={() => setSearchTerm("")}>
+            {locale === "ja" ? "検索をクリア" : "Clear search"}
+          </button>
+        </SearchEmpty>
       ) : <MenuGridContainer>
-        {Object.entries(groupedMenu).map(([category, subcategories]) => (
+        {categoryEntries.map(([category, subcategories]) => (
           <MenuCategory
             key={category}
             category={category}
@@ -288,14 +306,32 @@ const AddButton = styled.button`
 `;
 
 const MenuGridContainer = styled.section`
-  columns: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
   margin-top: var(--space-3);
-    column-gap: var(--space-4);
-
-  @media (min-width: 768px) {
-    columns: var(--space-6);
+  min-width: 0;
+`;
+const CategoryNavigation = styled.nav`
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  padding: var(--space-1) 0;
+  scrollbar-width: thin;
+  a {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--neutral-600);
+    border-radius: var(--space-1);
+    color: var(--neutral-200);
+    text-decoration: none;
+    white-space: nowrap;
   }
-  `
+  a:hover, a:focus-visible { color: white; background: var(--neutral-800); }
+`;
 const LoadWarning = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -341,3 +377,5 @@ const ArchiveItemInfo = styled.div`
   min-width: 0;
   small { color: var(--neutral-400); }
 `;
+
+const SearchEmpty = styled.div`display: grid; gap: var(--space-2); padding: var(--space-3) 0; overflow-wrap: anywhere; button { justify-self: start; }`;

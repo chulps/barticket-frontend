@@ -9,10 +9,9 @@ import AnalyticsDatePicker from "../components/AnalyticsDatePicker";
 import Icon from "../components/Icon";
 import TabGroup from "../components/TabGroup";
 import { recordedStaffTotals, type StaffActivityRow } from "./staffProfileData";
-import StaffIncome from "./StaffIncome";
 import { shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
 
-type Panel = "hours" | "drinks" | "income";
+type Panel = "hours" | "drinks";
 type TimeScale = "all" | "year" | "month" | "day";
 type PersonalHistoryRow = Omit<StaffActivityRow, "shiftId" | "status"> & {
     shiftId: number | null;
@@ -51,7 +50,7 @@ function currentMonth() { return currentDate().slice(0, 7); }
  * Loads the backend's self-only profile endpoint; no shared Analytics payload
  * is downloaded to build this private view.
  */
-export default function StaffWorkHistory({ userId, locale, role }: { userId: number; locale: Locale; role: "staff" | "manager" }) {
+export default function StaffWorkHistory({ userId, locale }: { userId: number; locale: Locale }) {
     const ja = locale === "ja";
     const [history, setHistory] = useState<PersonalWorkHistory | null>(null);
     const [loading, setLoading] = useState(true);
@@ -63,7 +62,7 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
     const [year, setYear] = useState(() => currentDate().slice(0, 4));
     const [day, setDay] = useState(currentDate);
     const tabRefs = useRef<Partial<Record<Panel, HTMLButtonElement | null>>>({});
-    const availableSections: Panel[] = ["hours", "drinks", "income"];
+    const availableSections: Panel[] = ["hours", "drinks"];
     const activeSection: Panel = availableSections.includes(section) ? section : "hours";
 
     function moveTabFocus(current: Panel, key: string) {
@@ -177,17 +176,11 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                             moveTabFocus(key, event.key);
                         }}>
                         {key === "hours" ? (ja ? "勤務時間" : "Hours")
-                            : key === "drinks" ? (ja ? "スタッフドリンク" : "Staff drinks")
-                                : (ja ? "収入内訳" : "Income")}
+                            : (ja ? "スタッフドリンク" : "Staff drinks")}
                     </button>
                 ))}
             </Tabs>
 
-            {activeSection === "income" ? (
-                <PanelBody id="profile-work-panel-income" role="tabpanel" aria-labelledby="profile-work-tab-income" tabIndex={0}>
-                    <StaffIncome userId={userId} locale={locale} role={role} />
-                </PanelBody>
-            ) : (
                 <PanelBody id={`profile-work-panel-${activeSection}`} role="tabpanel" aria-labelledby={`profile-work-tab-${activeSection}`} tabIndex={0}>
                     <TimeControls>
                         <TabGroup<TimeScale>
@@ -268,11 +261,11 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                                 </Summary>
                                 {activeSection === "hours" ? (
                                     <>
-                                        {hoursChartBars.length ? <HorizontalBarChart
+                                        {hoursChartBars.length > 1 ? <details><summary>{ja ? "勤務時間の比較" : "Compare recorded hours"}</summary><HorizontalBarChart
                                             title={timeScale === "all" || timeScale === "year"
                                                 ? (ja ? "月別の勤務時間" : "Recorded hours by month")
                                                 : (ja ? "シフト別の勤務時間" : "Recorded hours by shift")}
-                                            bars={hoursChartBars} locale={locale} /> : null}
+                                            bars={hoursChartBars} locale={locale} /></details> : null}
                                         <h3>{ja ? "勤務記録のあるシフト" : "Shifts with recorded activity"}</h3>
                                         {filtered.some(row => row.hoursSeconds !== null || row.hoursState === "incomplete") ? (
                                             <HistoryList>
@@ -312,15 +305,14 @@ export default function StaffWorkHistory({ userId, locale, role }: { userId: num
                                         ) : <Muted>{ja ? "この期間には記録されたスタッフドリンクがありません。" : "No recorded staff drinks for this period."}</Muted>}
                                     </>
                                 )}
-                                <Coverage role="note">
+                                <details><summary>{ja ? "記録について" : "About these records"}</summary><Coverage role="note">
                                     {ja
                                         ? "打刻時間と確認済みの過去の合計時間を表示します。過去の合計時間には出退勤時刻はありません。グラフでは不明な勤務時間を除外します。スタッフIDが確認できるドリンクのみ表示し、受取人不明の記録は確認用に除外します。勤務中の時間は経過時間です。「—」は未記録・不明で、0とは異なります。営業日は正午に切り替わります。"
                                         : "Hours include clock punches and verified historical totals. Historical entries show total hours only, not clock-in/out times. The chart excludes unavailable hours. Drinks appear only when a staff ID is verified; unattributed records are excluded for review. Ongoing hours show elapsed time. “—” means unavailable, not zero. Business dates roll over at noon."}
-                                </Coverage>
+                                </Coverage></details>
                             </>
                         )}
                 </PanelBody>
-            )}
         </Wrapper>
     );
 }
@@ -343,10 +335,9 @@ const Heading = styled.div`
     button { width: auto; }
 `;
 const Tabs = styled.div`
-    display: grid; grid-template-columns: repeat(1, minmax(0, 1fr));
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-1);
-    @media (min-width: 570px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    button { min-width: 0; width: 100%; min-height: 44px; }
+    button { min-width: 0; width: 100%; min-height: 44px; padding: var(--space-1); white-space: normal; overflow-wrap: anywhere; }
     button:focus-visible { outline: 2px solid var(--royal-400); outline-offset: 2px; }
 `;
 const PanelBody = styled.div`
@@ -354,13 +345,14 @@ const PanelBody = styled.div`
     min-width: 0;
 `;
 const TimeControls = styled.div`
-    display: flex; flex-direction: column; gap: var(--space-1);
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2);
     min-width: 0;
-    > [role="group"] { width: 100%; }
+    > [role="group"] { width: max-content; max-width: 100%; }
 `;
 const PeriodNav = styled.div`
     display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px;
     align-items: center; gap: var(--space-1); min-height: 48px;
+    width: min(100%, 300px);
     strong { text-align: center; overflow-wrap: anywhere; }
 `;
 const StepButton = styled.button`
@@ -382,6 +374,7 @@ const HistoryEntry = styled.div`
     display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-2);
     padding: var(--space-1) 0; border-bottom: 1px solid var(--neutral-700);
     min-width: 0;
+    > div { min-width: 0; }
     strong { display: block; font-weight: 500; }
 `;
 const Meta = styled.p`color: var(--neutral-300); overflow-wrap: anywhere;`;

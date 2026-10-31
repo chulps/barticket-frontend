@@ -11,9 +11,9 @@ const sharedCharts = readFileSync(new URL("../src/components/AnalyticsCharts.tsx
 const account = readFileSync(new URL("../src/api/account.ts", import.meta.url), "utf8");
 
 test("Profile income is personal for staff and managers and shows wages and drink bonuses", () => {
-    assert.match(history, /const availableSections: Panel\[\] = \["hours", "drinks", "income"\]/);
+    assert.match(history, /const availableSections: Panel\[\] = \["hours", "drinks"\]/);
     assert.doesNotMatch(history, /benefits|Bonuses, adjustments & deductions|Not available yet/);
-    assert.match(profile, /<StaffWorkHistory[^>]*role=\{account\.role\}/);
+    assert.match(profile, /<StaffIncome[^>]*role=\{account\.role\}/);
     assert.match(income, /accountApi\.personalEarnings\(month\)/);
     assert.match(income, /canViewChuckPersonalPay/);
     assert.match(income, /accountApi\.chuckMonthlyPay\(month\)/);
@@ -37,8 +37,7 @@ test("Profile income is personal for staff and managers and shows wages and drin
     assert.match(account, /serviceSales: \(dateFrom: string, dateTo: string\)/);
     assert.match(account, /\/analytics\/service-sales/);
     assert.match(sharedCharts, /aria-label=\{title\}/);
-    assert.match(income, /isNoriProfile && !isChuckProfile/);
-    assert.match(income, /Nori’s monthly summary will appear when the verified manager data is available/);
+    assert.match(income, /<NoriMonthlySummary userId=\{props.userId\} locale=\{props.locale\}/);
     assert.match(income, /chuckReport\.complete/);
     assert.match(income, /amount_yen_unrounded == null/);
     assert.match(chart, /role="meter"/);

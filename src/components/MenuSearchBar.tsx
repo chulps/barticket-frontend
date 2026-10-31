@@ -10,11 +10,12 @@ export default function SearchBar({
   value,
   onChange,
 }: SearchBarProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   return (
     <SearchContainer>
       <Input
         type="text"
+        aria-label={locale === "ja" ? "メニューを検索" : "Search menu"}
         placeholder={t("searchPlaceholder")}
         value={value}
         onChange={(e) => onChange(e.target.value)}

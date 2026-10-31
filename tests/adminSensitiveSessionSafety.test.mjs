@@ -8,12 +8,13 @@ const admin=file("pages/Admin.tsx");
 const header=file("layout/Header.tsx");
 const modal=file("context/ModalProvider.tsx");
 
-test("Admin removes sensitive team data while revalidating an account",()=>{
+test("Admin removes sensitive team data on session changes and denied revalidation",()=>{
   assert.match(admin,/setLoading\(true\);\s*setMe\(null\);\s*setTeam\(\[\]\)/);
   assert.match(admin,/if \(account\.role !== "manager"\)/);
   assert.match(admin,/getToken\(\) !== token/);
   assert.match(admin,/window\.addEventListener\("barticket-auth", reload\)/);
-  assert.match(admin,/window\.addEventListener\("focus", reload\)/);
+  assert.match(admin,/window\.addEventListener\("focus", revalidate\)/);
+  assert.match(admin,/if \(!preserve \|\| denied\)/);
 });
 test("cross-session responses cannot restore manager-only navigation",()=>{
   assert.match(header,/request !== generation \|\| getToken\(\) !== token/);

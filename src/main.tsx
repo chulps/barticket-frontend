@@ -4,6 +4,9 @@ import './index.css'
 import App from './App.tsx'
 import { registerBarTicketWorker } from './api/push'
 import { dispatchBarTicketPush } from './api/pushEvents'
+import { installNotificationReturn } from './api/notificationNavigation'
+
+installNotificationReturn()
 
 if (import.meta.env.PROD) {
   void registerBarTicketWorker().catch((error) => console.warn('Service worker registration failed', error))
