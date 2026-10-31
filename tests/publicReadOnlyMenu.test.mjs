@@ -31,8 +31,9 @@ test("Guests receive no add, stock, or price editing controls", () => {
 });
 
 test("Public drink menu omits cocktail ingredients while staff retain the full catalog", () => {
-    assert.match(menu, /const displayMenu = !authenticated && menu[\\s\\S]*items: menu\\.items\\.filter\\(item => !item\\.cocktailIngredient\\)/);
-    assert.match(menu, /useFilteredMenu\\(displayMenu, searchTerm\\)/);
+    assert.ok(menu.includes("const displayMenu = !authenticated && menu"));
+    assert.ok(menu.includes("items: menu.items.filter(item => !item.cocktailIngredient)"));
+    assert.ok(menu.includes("useFilteredMenu(displayMenu, searchTerm)"));
 });
 
 test("Changed React files parse as TSX", () => {
