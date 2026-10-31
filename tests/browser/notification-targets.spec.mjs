@@ -21,7 +21,8 @@ async function fixture(page,{signedIn=true,missing=false}={}){
     else if(path==="/tickets/42"){
       status=missing?404:200;
       body=missing?{detail:"Not found"}:{id:42,name:"Linked guest",status:"paid",total:700,guest_count:0,cover_charge_total:0,cover_charge_per_person:0,items:[{id:1,name:"Highball",quantity:1,unit_price:700,subtotal:700}],staff_drinks:[],payment:null,created_at:1,shift_id:2};
-    } else if(path.startsWith("/push/")){status=503;body={detail:"Disabled in test"};}
+    } else if(path==="/push/preferences")body={preferences:Object.fromEntries("ticket_created ticket_updated ticket_payment_recorded ticket_payment_deferred ticket_balance_written_off ticket_payment_corrected ticket_closed stock staff_drink shift_opened shift_closed shift_kept_open punch_corrected clock_in clock_out noon_clock_out".split(" ").map(key=>[key,true]))};
+    else if(path.startsWith("/push/")){status=503;body={detail:"Disabled in test"};}
     else if(path==="/tickets")body=[];
     await route.fulfill({status,json:body,headers:{"Access-Control-Allow-Origin":"*"}});
   });
@@ -53,3 +54,4 @@ test("sign in resumes the tapped target",async({page})=>{
   await expect(page.getByRole("region",{name:"Linked ticket"})).toContainText("#42");
   expect(writes).toEqual(["POST /auth/login"]);
 });
+
