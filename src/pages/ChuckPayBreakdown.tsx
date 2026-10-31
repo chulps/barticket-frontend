@@ -43,12 +43,12 @@ export default function ChuckPayBreakdown({ report, locale }: { report: ChuckMon
             center={money(report.gross_salary_yen)} locale={locale}
             note={ja ? "自分の取り分・スタッフ別給与・記録済み控除の配分です。" : "Your remaining share, each staff member’s pay, and recorded deductions."} /> : null}
         <h3>{ja ? "スタッフ別の配分" : "What goes to each staff member"}</h3>
-        {data.staff.length ? <List>{data.staff.map(person => <Item key={person.id}>
+        {data.staff.length ? <List aria-label={ja ? "スタッフ別給与の明細" : "Staff pay entries"}>{data.staff.map(person => <Item key={person.id}>
             <div><strong>{person.name}</strong><Note>{ja ? "賃金" : "Wages"} {money(person.wages)} · {ja ? "スタッフドリンク手当" : "Staff-drink bonus"} {money(person.drinks)}</Note></div>
             <Amount>{money(person.total)}</Amount>
         </Item>)}</List> : <Note>{ja ? "この月の担当シフトにスタッフ給与の記録はありません。記録がないことは、スタッフがいなかったことの確認ではありません。" : "No staff-pay records for your managed shifts this month. Missing records do not confirm that no staff worked."}</Note>}
         <h3>{ja ? "給与からの記録済み控除" : "Recorded deductions from your share"}</h3>
-        {data.deductions.length ? <List>{data.deductions.map(item => <Item key={item.id}>
+        {data.deductions.length ? <List aria-label={ja ? "控除の明細" : "Deduction entries"}>{data.deductions.map(item => <Item key={item.id}>
             <div><strong>{categories[item.category] ?? item.category}</strong><Note>{item.business_date}{item.payee_name ? ` · ${item.payee_name}` : ""}</Note><p>{item.reason}</p>
                 {item.reversal_of_id !== null ? <Note>{ja ? "取消元の記録" : "Reversal of entry"} #{item.reversal_of_id}</Note> : null}</div>
             <Amount>{money(item.amount_yen)}</Amount>

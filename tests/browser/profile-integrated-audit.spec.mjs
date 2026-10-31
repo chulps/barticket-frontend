@@ -116,8 +116,8 @@ for (const locale of ["en", "ja"]) for (const width of [320, 1280]) test(`revenu
   await expect(breakdown).toContainText(/[¥￥]25,000/);
   await expect(breakdown).toContainText("40%");
   await expect(breakdown.getByText(ja ? "差引後の自分の取り分（見積もり）" : "Your remaining share (estimate)", {exact:true}).locator("..")).toContainText(/[¥￥]6,500/);
-  await expect(breakdown.getByText("Staff A", {exact:true}).locator("../..")).toContainText(/[¥￥]1,000/);
-  await expect(breakdown.getByText("Staff B", {exact:true}).locator("../..")).toContainText(/[¥￥]2,000/);
+  await expect(breakdown.getByRole("list", {name:ja ? "スタッフ別給与の明細" : "Staff pay entries"}).getByText("Staff A", {exact:true}).locator("../..")).toContainText(/[¥￥]1,000/);
+  await expect(breakdown.getByRole("list", {name:ja ? "スタッフ別給与の明細" : "Staff pay entries"}).getByText("Staff B", {exact:true}).locator("../..")).toContainText(/[¥￥]2,000/);
   await expect(breakdown).toContainText(/-[¥￥]500/);
   await expect(breakdown).toContainText(ja ? "取消元の記録" : "Reversal of entry");
   await expect(breakdown).toContainText(ja ? "支払・現金受領の証明ではありません" : "not a payment or cash-receipt record");
