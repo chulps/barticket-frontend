@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../src/components/TabGroup.tsx',import.meta.url),'utf8');
-test('shared tabs use equal intrinsic-safe columns, not label-weighted flex widths',()=>{
-  assert.match(source,/grid-auto-columns: minmax\(max-content, 1fr\)/);
+test('shared tabs use equal available-width columns, not label-weighted flex widths',()=>{
+  assert.match(source,/grid-auto-columns: minmax\(0, 1fr\)/);
   assert.doesNotMatch(source,/flex: 1 0 max-content/);
 });
 test('indicator has one origin and cannot spring beyond its target',()=>{

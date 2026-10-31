@@ -12,6 +12,8 @@ async function aligned(group) {
     const g=await geometry(group);
     return Math.max(...['left','right','top','bottom'].map(k=>Math.abs(g.indicator[k]-g.active[k])));
   }).toBeLessThan(0.6);
+  expect(await group.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  expect(await group.getByRole('button').evaluateAll(buttons=>buttons.every(button=>button.scrollWidth<=button.clientWidth+1&&button.scrollHeight<=button.clientHeight+1))).toBe(true);
   const g=await geometry(group);
   expect(Math.max(...g.buttons.map(b=>b.width))-Math.min(...g.buttons.map(b=>b.width))).toBeLessThan(0.6);
   expect(g.indicator.left).toBeGreaterThan(g.track.left);

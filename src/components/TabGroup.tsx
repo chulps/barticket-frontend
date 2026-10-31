@@ -112,8 +112,8 @@ const Track = styled.div<{ $mobileColumns?: number }>`
   position: relative;
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(max-content, 1fr);
-  width: max-content;
+  grid-auto-columns: minmax(0, 1fr);
+  width: 100%;
   min-width: 100%;
   gap: var(--space-0);
   padding: var(--space-0);
@@ -163,9 +163,11 @@ const TabButton = styled.button<{ $active: boolean }>`
   position: relative;
   z-index: 1;
 
+  min-width: 0;
   min-height: 44px;
   padding: var(--space-1);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 
   border: none;
   border-radius: calc(var(--space-1) - 2px);
