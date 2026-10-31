@@ -131,7 +131,7 @@ const Indicator = styled.div<{
   border-radius: calc(var(--space-1) - 2px);
 
   transform: translateX(${({ $left }) => `${$left}px`});
-  // A non-overshooting curve keeps the pill inside the padded track.
+  /* A non-overshooting curve keeps the pill inside the padded track. */
   transition: transform 300ms ease;
   z-index: 0;
   will-change: transform;
