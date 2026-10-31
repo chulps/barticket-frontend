@@ -385,7 +385,7 @@ type Session = { token: string; user: Account };
 // Fresh focus/auth checks retire this snapshot before component listeners run.
 const sessionAccount = createSessionRead(getToken, () => apiRequest<Account>("/auth/me"));
 window.addEventListener("barticket-auth", sessionAccount.invalidate);
-window.addEventListener("focus", sessionAccount.invalidate);
+window.addEventListener("focus", sessionAccount.revalidate);
 
 export const accountApi = {
     status: () =>

@@ -116,3 +116,18 @@ test("warm Profile and Admin transitions do not fan out authentication reads",as
   expect(state.calls.filter(x=>x.path==="/auth/me").length-before).toBeLessThanOrEqual(2);
   expect(state.calls.filter(x=>x.method!=="GET")).toEqual([]);
 });
+
+test("focus during slow initial Profile authentication keeps the pending same-session check",async({page})=>{
+  test.skip(baseline);
+  const state=await fixture(page);
+  state.delay=900;
+  await page.goto("/profile");
+  await expect.poll(()=>state.calls.filter(x=>x.path==="/auth/me").length).toBe(1);
+  await page.evaluate(()=>{
+    window.dispatchEvent(new Event("focus"));
+    window.dispatchEvent(new Event("focus"));
+  });
+  await expect(page.getByRole("tablist",{name:"Profile sections"})).toBeVisible();
+  await expect(page.getByText("Session changed during account verification",{exact:true})).toHaveCount(0);
+  expect(state.calls.filter(x=>x.path==="/auth/me")).toHaveLength(1);
+});

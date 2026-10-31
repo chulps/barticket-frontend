@@ -31,5 +31,10 @@ export function createSessionRead<T>(
         entry = next;
         return next.promise;
     }
-    return { read, invalidate };
+    function revalidate() {
+        // Repeated focus events share the already-running check for this token.
+        if (entry?.settledAt === null && entry.token === session()) return;
+        invalidate();
+    }
+    return { read, invalidate, revalidate };
 }

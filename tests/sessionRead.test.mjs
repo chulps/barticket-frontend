@@ -44,3 +44,17 @@ test("invalidation retires pending results and does not discard a newer success"
   pending[0].resolve({role:"manager"});await rejected;
   assert.equal(reader.read(),current);
 });
+test("focus revalidation refreshes settled data but coalesces a pending same-session check",async()=>{
+  const pending=[];
+  const reader=createSessionRead(()=>"A",()=>{const d=deferred();pending.push(d);return d.promise;});
+  const first=reader.read();
+  reader.revalidate();
+  assert.equal(reader.read(),first);
+  pending[0].resolve({id:1});await first;
+  reader.revalidate();
+  const second=reader.read();
+  assert.notEqual(second,first);
+  reader.revalidate();
+  assert.equal(reader.read(),second);
+  pending[1].resolve({id:1});await second;
+});
