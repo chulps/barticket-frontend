@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { accountApi, type Account } from "../api/account";
 import { ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
@@ -165,36 +165,46 @@ export default function Receivables() {
     </main>;
 }
 
+type WriteOffAttempt = { amount: string; reason: string; key: string };
+
 function WriteOffForm({ ticket, locale, onSaved }: { ticket: ApiTicket; locale: string; onSaved: () => void }) {
     const ja = locale === "ja";
     const { openModal } = useModal();
-    const [idempotencyKey] = useState(() => crypto.randomUUID());
+    const [attempt, setAttempt] = useState<WriteOffAttempt | null>(null);
     return <button type="button" className="hollow danger" onClick={() => openModal({
         title: ja ? "未回収残高を免除" : "Write off unpaid balance",
         maxWidth: "520px",
-        content: <WriteOffDialog ticket={ticket} locale={locale} onSaved={onSaved} idempotencyKey={idempotencyKey} />,
+        content: <WriteOffDialog ticket={ticket} locale={locale} onSaved={() => { setAttempt(null); onSaved(); }} attempt={attempt} onAttempt={setAttempt} />,
     })}>{ja ? "免除（管理者）" : "Write off (manager)"}</button>;
 }
 
-function WriteOffDialog({ ticket, locale, onSaved, idempotencyKey }: { ticket: ApiTicket; locale: string; onSaved: () => void; idempotencyKey: string }) {
+function WriteOffDialog({ ticket, locale, onSaved, attempt, onAttempt }: { ticket: ApiTicket; locale: string; onSaved: () => void; attempt: WriteOffAttempt | null; onAttempt: (attempt: WriteOffAttempt) => void }) {
     const ja = locale === "ja";
-    const { closeModal } = useModal();
-    const [amount, setAmount] = useState(String(ticket.balance_due ?? 0));
-    const [reason, setReason] = useState("");
+    const { forceCloseModal, registerCloseGuard } = useModal();
+    const inFlight = useRef(false);
+    const [idempotencyKey] = useState(() => attempt?.key ?? crypto.randomUUID());
+    const [amount, setAmount] = useState(attempt?.amount ?? String(ticket.balance_due ?? 0));
+    const [reason, setReason] = useState(attempt?.reason ?? "");
     const [working, setWorking] = useState(false);
     const [error, setError] = useState("");
-    const [attempted, setAttempted] = useState(false);
+    const [attempted, setAttempted] = useState(attempt !== null);
+    useEffect(() => {
+        registerCloseGuard(() => !inFlight.current);
+        return () => registerCloseGuard(null);
+    }, [registerCloseGuard]);
     const due = ticket.balance_due ?? 0;
     return <form onSubmit={async event => {
                 event.preventDefault();
                 const parsed = Number(amount);
-                if (working || !Number.isSafeInteger(parsed) || parsed < 1 || parsed > due || !reason.trim()) return;
+                if (inFlight.current || !Number.isSafeInteger(parsed) || parsed < 1 || (!attempted && parsed > due) || !reason.trim()) return;
+                inFlight.current = true;
+                onAttempt({ amount, reason: reason.trim(), key: idempotencyKey });
                 setAttempted(true); setWorking(true); setError("");
                 try {
                     await ticketsApi.writeOff(ticket.id, { amount: parsed, reason: reason.trim() }, idempotencyKey);
-                    closeModal(); onSaved();
+                    onSaved(); forceCloseModal();
                 } catch (err) { setError(err instanceof ApiError ? err.message : (ja ? "結果が不明です。再送信せず伝票を確認してください。" : "Outcome unknown. Verify the ticket before any retry.")); }
-                finally { setWorking(false); }
+                finally { inFlight.current = false; setWorking(false); }
             }} style={{ display: "grid", gap: "var(--space-2)", padding: "var(--space-2)" }}>
                 <p>{ja ? "これはPOSの監査記録で、カード返金は行いません。" : "This is an audited POS write-off; it does not refund a card payment."}</p>
                 <label>{ja ? "免除額" : "Amount"}<input type="number" min={1} max={due} value={amount} onChange={event => setAmount(event.target.value)} disabled={working || attempted} /></label>
