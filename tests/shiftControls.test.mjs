@@ -131,7 +131,7 @@ test("shift review and policy files parse as TSX/TS", () => {
 test("tickets provides an explicit read-only time clock status and profile entry point", () => {
     const dashboard = src("pages/Dashboard.tsx");
     assert.match(dashboard, /<ShiftStatusBar role="status" aria-live="polite">/);
-    assert.match(dashboard, /<Link to="\/profile">/);
+    assert.match(dashboard, /<Link to="\/profile\?section=shift">/);
     assert.match(dashboard, /Shift status unverified/);
 });
 
