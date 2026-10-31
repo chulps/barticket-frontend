@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
+import NoriMonthlySummary from "./NoriMonthlySummary";
 import { accountApi, type ChuckMonthlyPayPreview, type PersonalEarningsPreview } from "../api/account";
 import { ApiError } from "../api/client";
 import { localeTag, type Locale } from "../i18n";
@@ -76,7 +77,16 @@ function payBlockerLabel(code: string, ja: boolean) {
     return (ja ? japanese : english)[code] ?? code;
 }
 
-export default function StaffIncome({ userId, locale, role }: { userId: number; locale: Locale; role: "staff" | "manager" }) {
+type IncomeProps = { userId: number; locale: Locale; role: "staff" | "manager" };
+export default function StaffIncome(props: IncomeProps) {
+    const viewers = readRevenueShareViewers();
+    const isNoriProfile = props.role === "manager" && viewers.noriUserId !== null &&
+        props.userId === viewers.noriUserId && viewers.chuckUserId !== viewers.noriUserId;
+    return isNoriProfile ? <NoriMonthlySummary userId={props.userId} locale={props.locale} />
+        : <PersonalIncome {...props} />;
+}
+
+function PersonalIncome({ userId, locale, role }: IncomeProps) {
     const ja = locale === "ja";
     const [showStats, setShowStats] = useState(false);
     const [month, setMonth] = useState(thisMonth);
@@ -94,7 +104,6 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
     const [refreshKey, setRefreshKey] = useState(0);
     const viewers = readRevenueShareViewers();
     const isChuckProfile = canViewChuckPersonalPay({ id: userId, role }, userId, viewers);
-    const isNoriProfile = role === "manager" && viewers.noriUserId !== null && userId === viewers.noriUserId;
 
     useEffect(() => {
         let cancelled = false;
@@ -102,11 +111,6 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
             setLoading(true);
             setError("");
             try {
-                if (isNoriProfile && !isChuckProfile) {
-                    setReport(null);
-                    setChuckReport(null);
-                    return;
-                }
                 if (isChuckProfile) {
                     const response = await accountApi.chuckMonthlyPay(month);
                     if (response.user_id !== userId) throw new Error("Profile identity mismatch");
@@ -132,7 +136,7 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
         }
         void load();
         return () => { cancelled = true; };
-    }, [role, userId, month, refreshKey, ja, isChuckProfile, isNoriProfile]);
+    }, [role, userId, month, refreshKey, ja, isChuckProfile]);
 
     useEffect(() => {
         if (!isChuckProfile || !showStats) return;
@@ -277,29 +281,23 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
     return (
         <Wrapper aria-label={isChuckProfile
             ? (ja ? "Chuckの月次給与" : "Chuck's monthly pay")
-            : isNoriProfile
-                ? (ja ? "Noriの月次サマリー" : "Nori's monthly summary")
-                : (ja ? "自分の収入内訳" : "My income breakdown")}>
+            : (ja ? "自分の収入内訳" : "My income breakdown")}>
             <Heading>
                 <div>
                     <h2>{isChuckProfile
                         ? (ja ? "月次給与" : "Monthly pay")
-                        : isNoriProfile
-                            ? (ja ? "月次オーナーサマリー" : "Monthly owner summary")
-                            : (ja ? "収入内訳" : "Income breakdown")}</h2>
+                        : (ja ? "収入内訳" : "Income breakdown")}</h2>
                     <p>{isChuckProfile
                         ? (ja ? "Chuck担当のシフトに基づく金額です。" : "Amounts are based on Chuck-managed shifts.")
-                        : isNoriProfile
-                            ? (ja ? "確認済みの月次収入とスタッフ給与のデータを表示します。" : "Verified monthly income and team-pay data will appear here.")
-                            : (ja ? "自分に紐づく賃金とスタッフドリンク手当を表示します。" : "View wages and staff-drink bonuses linked to your account.")}</p>
+                        : (ja ? "自分に紐づく賃金とスタッフドリンク手当を表示します。" : "View wages and staff-drink bonuses linked to your account.")}</p>
                 </div>
-                {!isNoriProfile ? <button type="button" className="small hollow secondary" disabled={loading}
+                <button type="button" className="small hollow secondary" disabled={loading}
                     onClick={() => setRefreshKey(value => value + 1)}>
                     {ja ? "更新" : "Refresh"}
-                </button> : null}
+                </button>
             </Heading>
 
-            {!isNoriProfile ? <Toolbar>
+            <Toolbar>
                 <MonthNav aria-label={ja ? "月を選択" : "Choose month"}>
                     <PeriodButton type="button" className="hollow secondary" aria-label={ja ? "前月" : "Previous month"}
                         onClick={() => setMonth(value => shiftMonth(value, -1))}>
@@ -331,7 +329,7 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                         </label>
                     </Filters>
                 </> : null}
-            </Toolbar> : null}
+            </Toolbar>
 
             {loading ? <RequestState kind="loading" detail={ja ? "読み込み中…" : "Loading…"} />
                 : error ? <ErrorArea role="alert">
@@ -339,11 +337,7 @@ export default function StaffIncome({ userId, locale, role }: { userId: number; 
                     <button type="button" className="small secondary" onClick={() => setRefreshKey(value => value + 1)}>
                         {ja ? "再試行" : "Retry"}
                     </button>
-                </ErrorArea> : isNoriProfile && !isChuckProfile ? (
-                    <RequestState kind="empty" detail={ja
-                        ? "Noriの月次サマリーは、確認済みデータに基づく表示が利用可能になるまで表示されません。"
-                        : "Nori’s monthly summary will appear when the verified manager data is available."} />
-                ) : isChuckProfile && chuckReport ? (
+                </ErrorArea> : isChuckProfile && chuckReport ? (
                     <>
                         <Summary>
                             <Metric>

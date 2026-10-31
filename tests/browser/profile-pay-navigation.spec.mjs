@@ -22,6 +22,7 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
     else if(url.pathname === "/shifts/current") body = null;
     else if(url.pathname === "/notices") body = {notices:[]};
     else if(url.pathname === "/profile/work-history") body = {user_id:id,shifts:[]};
+    else if(url.pathname === "/profile/nori-monthly-pay") {status=404;body={detail:"Not deployed in this fixture"};}
     else if(url.pathname === "/profile/earnings") body = {user_id:id,month,preview_only:true,note:"Estimate only, not paid wages.",categories:[
       {category:"hourly_wages",amount_yen_unrounded:incomplete ? null : "13000",complete:!incomplete,entries:[]},
       {category:"staff_drink_bonus",amount_yen:0,complete:true,entries:[]},
@@ -90,7 +91,7 @@ test("Chuck pay leads with unavailable amount and blockers, statistics load only
 test("Nori's unavailable owner summary does not substitute staff or Chuck pay",async({page})=>{
   const calls=await fixture(page,{id:902});
   await expect(page.getByRole("heading",{name:"Monthly owner summary"})).toBeVisible();
-  await expect(page.getByText("Nori’s monthly summary will appear when the verified manager data is available.")).toBeVisible();
+  await expect(page.getByText("The owner pay summary is not available yet.")).toBeVisible();
   expect(calls).not.toContain("GET /profile/earnings");
   expect(calls).not.toContain("GET /profile/chuck-monthly-pay");
 });
