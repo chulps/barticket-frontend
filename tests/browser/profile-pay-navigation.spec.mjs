@@ -33,6 +33,13 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false, live = 
       gross_salary_yen:40000,staff_cost_total_yen:incomplete ? null : 13000,deduction_total_yen:0,
       net_amount_owed_yen:incomplete ? null : 27000,staff_owed:[],deductions:[],
       blockers:incomplete ? ["staff_hourly_rate_missing"] : [],note:"This is a pay estimate, not a payment record."};
+    else if(url.pathname === "/profile/managed-shift-stats") body = {
+      user_id:id,month,period:url.searchParams.get("period"),basis:"original_service_business_date",
+      date_from:null,date_to:null,nights:[],weekdays:Array.from({length:7},(_,weekday)=>({
+        weekday,shift_count:0,sales_total_yen:0,average_sales_yen:null,
+      })),summary_shift_count:0,summary_sales_yen:0,summary_guests:0,
+      excluded_open_shift_count:0,excluded_incomplete_shift_count:0,excluded_ambiguous_day_count:0,
+    };
     else if(url.pathname === "/analytics/shifts") body=[];
     else if(url.pathname === "/analytics/service-sales") body={basis:"original_service_business_date",days:[]};
     else if(url.pathname === "/realtime/events") body={events:[],cursor:0};
@@ -85,8 +92,9 @@ test("Chuck pay leads with unavailable amount and blockers, statistics load only
   expect(calls).not.toContain("GET /analytics/service-sales");
   await expect(pay.getByRole("button",{name:"Refresh",exact:true})).toHaveCount(1);
   await pay.getByText("Managed-shift sales and guests",{exact:true}).click();
-  await expect.poll(()=>calls.includes("GET /analytics/shifts")).toBe(true);
-  await expect.poll(()=>calls.includes("GET /analytics/service-sales")).toBe(true);
+  await expect.poll(()=>calls.includes("GET /profile/managed-shift-stats")).toBe(true);
+  expect(calls).not.toContain("GET /analytics/shifts");
+  expect(calls).not.toContain("GET /analytics/service-sales");
   expect(calls).not.toContain("GET /profile/earnings");
   expect(calls.filter(c=>!c.startsWith("GET "))).toEqual([]);
 });
@@ -108,10 +116,13 @@ test('live pay invalidations preserve expanded Chuck statistics and account draf
   const details=page.locator('details').filter({hasText:'Managed-shift sales and guests'});
   await details.locator('summary').click();
   await expect(details).toHaveAttribute('open','');
+  await expect.poll(()=>calls.includes('GET /profile/managed-shift-stats')).toBe(true);
+  const statsBefore=calls.filter(c=>c==='GET /profile/managed-shift-stats').length;
   const before=calls.filter(c=>c==='GET /profile/chuck-monthly-pay').length;
   socket.send(JSON.stringify({type:'invalidate',version:1,cursor:1,scopes:['analytics','tickets']}));
   await expect.poll(()=>calls.filter(c=>c==='GET /profile/chuck-monthly-pay').length).toBeGreaterThan(before);
   await expect(details).toHaveAttribute('open','');
+  expect(calls.filter(c=>c==='GET /profile/managed-shift-stats')).toHaveLength(statsBefore);
   await page.getByRole('group',{name:'Profile sections'}).getByRole('button',{name:'Account settings',exact:true}).click();
   const name=page.getByRole('textbox').first();await name.fill('Unsaved fixture name');
   socket.send(JSON.stringify({type:'invalidate',version:1,cursor:2,scopes:['users']}));

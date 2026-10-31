@@ -5,9 +5,12 @@ for (const locale of ["en", "ja"]) for (const width of [320, 1280]) {
         const requests = [];
         await page.route("**/*", route => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
         await page.route("**/profile/managed-shift-stats?*", async route => {
+            if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: {
+                "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "GET,OPTIONS",
+            } });
             const url = new URL(route.request().url()), period = url.searchParams.get("period");
             requests.push(period);
-            await route.fulfill({ json: {
+            await route.fulfill({ headers: { "Access-Control-Allow-Origin": "*" }, json: {
                 user_id: 901, month: "2026-10", period, basis: "original_service_business_date",
                 date_from: null, date_to: null,
                 weekdays: Array.from({ length: 7 }, (_, weekday) => ({
