@@ -43,10 +43,12 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
   useEffect(() => {
     let cancelled = false;
     let generation = 0;
+    let activeToken: string | null = null;
     async function loadRole() {
       const request = ++generation;
       const token = getToken();
-      if (!token) {
+      if (!token || token !== activeToken) {
+        activeToken = token;
         if (!cancelled) {
           setIsManager(false);
           setUserName(null);
@@ -57,11 +59,10 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           setIsOpen(false);
           setMoreOpen(false);
         }
-        return;
+        if (!token) return;
       }
       try {
-        const me = await accountApi.me();
-        const shift = await accountApi.currentShift();
+        const [me, shift] = await Promise.all([accountApi.me(), accountApi.currentShift()]);
         if (cancelled || request !== generation || getToken() !== token) return;
         setIsManager(me.role === "manager");
         setUserName(me.name.trim() || null);
@@ -81,16 +82,17 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         }
       }
     }
+    const resetRole = () => { activeToken = null; void loadRole(); };
     void loadRole();
     const timer = window.setInterval(loadRole, 20000);
-    window.addEventListener("barticket-auth", loadRole);
+    window.addEventListener("barticket-auth", resetRole);
     window.addEventListener("barticket-shift-updated", loadRole);
     window.addEventListener("focus", loadRole);
     return () => {
       cancelled = true;
       generation++;
       window.clearInterval(timer);
-      window.removeEventListener("barticket-auth", loadRole);
+      window.removeEventListener("barticket-auth", resetRole);
       window.removeEventListener("barticket-shift-updated", loadRole);
       window.removeEventListener("focus", loadRole);
     };

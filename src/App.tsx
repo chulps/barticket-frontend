@@ -67,20 +67,23 @@ export default function App() {
 
   useEffect(() => {
     let version = 0;
-    async function checkAuth() {
+    let verifiedToken: string | null = null;
+    async function checkAuth(reset = true) {
       const current = ++version;
       const token = getToken();
       // Unmount private ticket/admin/profile state immediately on any auth
       // change, including a session switch in another browser tab.
-      setAuthenticated(null);
+      if (reset || token !== verifiedToken) setAuthenticated(null);
+      if (token !== verifiedToken) verifiedToken = null;
       if (!token) { setAuthenticated(false); return; }
       try {
         await accountApi.me();
-        if (current === version && getToken() === token) setAuthenticated(true);
+        if (current === version && getToken() === token) { verifiedToken = token; setAuthenticated(true); }
       } catch (error) {
         if (current !== version || getToken() !== token) return;
         if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
           // A stale 401 from the previous account must not sign out a new one.
+          verifiedToken = null;
           setToken(null);
           setAuthenticated(false);
         } else {
@@ -97,14 +100,16 @@ export default function App() {
         window.dispatchEvent(new Event("barticket-auth"));
       }
     };
+    const onAuth = () => { void checkAuth(); };
+    const onRestored = () => { void checkAuth(false); };
     void checkAuth();
-    window.addEventListener("barticket-auth", checkAuth);
-    window.addEventListener("barticket-api-restored", checkAuth);
+    window.addEventListener("barticket-auth", onAuth);
+    window.addEventListener("barticket-api-restored", onRestored);
     window.addEventListener("storage", onStorage);
     return () => {
       version++;
-      window.removeEventListener("barticket-auth", checkAuth);
-      window.removeEventListener("barticket-api-restored", checkAuth);
+      window.removeEventListener("barticket-auth", onAuth);
+      window.removeEventListener("barticket-api-restored", onRestored);
       window.removeEventListener("storage", onStorage);
     };
   }, []);
@@ -260,7 +265,7 @@ export default function App() {
 
       <ModalProvider>
 
-        <Header authenticated={authenticated === true} />
+        <Header authenticated={authenticated === true || (authenticated === null && Boolean(getToken()))} />
         {!apiAvailable ? (
           <ConnectionBanner role="status" aria-live="polite">
             {locale === "ja"
