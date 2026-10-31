@@ -27,14 +27,14 @@ export default function MenuPrice({
     <PriceContainer>
       {p15 !== undefined && (
         <PriceRow>
-          <label>15ml</label>
+          <span>15ml</span>
           <data>¥{p15.toLocaleString()}</data>
         </PriceRow>
       )}
 
       {p30 !== undefined && (
         <PriceRow>
-          <label>30ml</label>
+          <span>30ml</span>
           <data>¥{p30.toLocaleString()}</data>
         </PriceRow>
       )}
@@ -46,18 +46,24 @@ const PriceContainer = styled.div`
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  min-width: 90px;
+  min-width: 108px;
+  gap: var(--space-1);
+  flex-shrink: 0;
 `;
 
 const PriceText = styled.data`
   white-space: nowrap;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 `;
 
 const PriceRow = styled.div`
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: var(--space-1);
   width: 100%;
   white-space: nowrap;
+  span { color: var(--neutral-200); font-size: var(--font-size-small); text-transform: none; }
+  data { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
 `;

@@ -57,7 +57,7 @@ export default function MenuItemRow({
     }
 
     return (
-        <MenuRow>
+        <MenuRow aria-label={menuLabel(locale, item.name)}>
             <ItemInfo>
                 <div>
                     <NameLine>
@@ -72,15 +72,15 @@ export default function MenuItemRow({
                                 .join(" · ")}
                         </Meta>
                     ) : null}
+                </div>
+                <MenuPrice item={item} />
                     {item.description && (
                         <Description>{menuLabel(locale, item.description)}</Description>
                     )}
                     {item.notes && (
                         <Note>*{menuLabel(locale, item.notes)}</Note>
                     )}
-                </div>
-                <Spacer />
-                <MenuPrice item={item} />
+
             </ItemInfo>
             {onToggle && !pending ? (
                 <DropdownMenu
@@ -120,17 +120,21 @@ export default function MenuItemRow({
 
 const MenuRow = styled.div`
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-1);
-  margin-bottom: var(--space-1);
+  padding: var(--space-1) 0 var(--space-2);
+  border-bottom: 1px solid var(--neutral-800);
+  min-width: 0;
 `;
 
 const ItemInfo = styled.div`
   flex: 1;
   min-width: 0;
-  display: flex;
-  align-items: end;
-  gap: var(--space-1);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-1) var(--space-2);
+  overflow-wrap: anywhere;
 `;
 
 const NameLine = styled.div`
@@ -141,7 +145,9 @@ const NameLine = styled.div`
 `;
 
 const ItemName = styled.p`
-  font-weight: 300;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 `;
 
 const Pending = styled.span`
@@ -161,19 +167,18 @@ const Meta = styled.small`
   color: var(--neutral-300);
 `;
 
-const Description = styled.small`
-  margin-top: 0.15rem;
-  line-height: 1.3;
-  color: var(--neutral-400);
+const Description = styled.p`
+  grid-column: 1 / -1;
+  margin-top: 0;
+  font-size: var(--font-size-p);
+  line-height: 1.5;
+  color: var(--neutral-300);
 `;
 
 const Note = styled.small`
-  margin-left: 0.4rem;
+  grid-column: 1 / -1;
+  display: block;
+  margin-top: var(--space-1);
+  line-height: 1.5;
   color: var(--accent);
-`;
-
-const Spacer = styled.div`
-  flex: 1;
-  align-self: flex-end;
-  border-bottom: 1px dashed var(--neutral-700);
 `;
