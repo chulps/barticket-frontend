@@ -4,7 +4,7 @@ import { accountApi, type ShiftReport } from "../api/account";
 import { ApiError } from "../api/client";
 import { ticketsApi, type ApiTicket } from "../api/tickets";
 import { useModal } from "../hooks/useModal";
-import { closeBlockers, isReadinessForShift, previewPaidTotals } from "./shiftControlPolicy";
+import { closeBlockers, isReadinessForShift } from "./shiftControlPolicy";
 import "./ShiftControls.css";
 
 type Preview = { shift: ShiftReport; tickets: ApiTicket[] };
@@ -82,7 +82,14 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
     const verifiedReadiness = readinessMatches ? readiness : null;
     const carryForwards = verifiedReadiness?.approved_carry_forwards ?? [];
     const active = preview?.shift.punches.filter(punch => punch.clock_out === null) ?? [];
-    const live = preview ? previewPaidTotals(preview.tickets, preview.shift.id) : null;
+    // Server readiness sums the collection ledger, including later collections
+    // on old tickets; ticket totals are not a substitute for collected cash.
+    const live = verifiedReadiness ? {
+        paidTotal: verifiedReadiness.finalized_totals.collected_total,
+        cash: verifiedReadiness.finalized_totals.cash_total,
+        card: verifiedReadiness.finalized_totals.card_total,
+        other: verifiedReadiness.finalized_totals.other_total,
+    } : null;
     const stale = Boolean(preview && preview.shift.business_date !== businessDate);
     const yen = (n: number) => "¥" + n.toLocaleString("ja-JP");
 
@@ -115,7 +122,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
                 setError(ja ? "未解決の伝票があります。先に処理してください。" : "Unresolved tickets remain. Resolve them before closing.");
                 return;
             }
-            const closed = await accountApi.closeShift();
+            const closed = await accountApi.closeShift(shiftId);
             onClosed(closed);
             forceCloseModal();
         } catch (err) {
@@ -183,8 +190,8 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
         {error ? <p className="shift-alert" role="alert">{error}</p> : null}
         {preview ? <>
             {stale ? <p className="shift-alert" role="alert">{ja
-                ? "このシフトは以前の営業日から継続しています。日付と勤務時間を慎重に確認してください。"
-                : "This shift belongs to an earlier business date. Review the business date and working hours carefully."}</p> : null}
+                ? "このシフトは以前の営業日です。各伝票の実際の入金日を確認し、未払い残高は明示的に繰り越してください。その後、この営業日を締めて現在の営業日を開始します。自動で支払済みやキャンセルにはなりません。"
+                : "This shift belongs to an earlier business date. Review each ticket: record when payment was actually collected, or explicitly defer a genuinely unpaid balance. Then close this reviewed night and start the current night. Nothing is automatically paid or cancelled."}</p> : null}
             <div className="shift-review-grid">
                 <div><small>{ja ? "営業日" : "Business date"}</small><strong>{preview.shift.business_date}</strong></div>
                 <div><small>{ja ? "シフト" : "Shift"}</small><strong>#{preview.shift.id}</strong></div>
@@ -252,3 +259,4 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
         </button> : null}
     </div>;
 }
+

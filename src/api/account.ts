@@ -551,7 +551,7 @@ export const accountApi = {
             { method: "POST", body: { reason } },
         ),
 
-    closeShift: () => apiRequest<ShiftReport>("/shifts/close", { method: "POST" }),
+    closeShift: (shiftId: number) => apiRequest<ShiftReport>(`/shifts/${shiftId}/close`, { method: "POST" }),
 
     keepShiftOpen: (shiftId: number, reason: string) => apiRequest<ShiftReport>(`/shifts/${shiftId}/keep-open`, {
         method: "POST", body: { reason },

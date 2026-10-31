@@ -1,3 +1,8 @@
+export type CollectionDateConfirmation = {
+  collection_business_date: string;
+  collection_date_reason: string;
+};
+
 export type PaymentType = "cash" | "card" | "other";
 
 export type Payment = {

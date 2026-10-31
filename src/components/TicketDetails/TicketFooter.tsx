@@ -7,7 +7,7 @@ import TicketActions from "./TicketActions";
 import { useI18n } from "../../i18n";
 
 // Types
-import type { PaymentType, Ticket } from "../../types/Ticket";
+import type { CollectionDateConfirmation, PaymentType, Ticket } from "../../types/Ticket";
 
 type TicketFooterProps = {
     ticket: Ticket;
@@ -24,6 +24,7 @@ type TicketFooterProps = {
         paymentType: PaymentType,
         amount: number,
         idempotencyKey?: string,
+        collection?: CollectionDateConfirmation,
     ) => Promise<boolean>;
     onDeferTicket: (ticketId: number, body: { reason: string; confirmed_balance: number; note?: string; follow_up_date?: string }) => Promise<boolean>;
 
@@ -84,6 +85,7 @@ export default function TicketFooter({
                             <li key={index} style={{ paddingBlock: "var(--space-1)" }}>
                                 {t(payment.type)} · ¥{payment.amount.toLocaleString()}
                                 {" · "}
+                                {locale === "ja" ? "記録日時: " : "Recorded: "}
                                 {new Date(payment.paid_at * 1000).toLocaleString(locale === "ja" ? "ja-JP" : "en-US", { timeZone: "Asia/Tokyo" })}
                                 {payment.collection_business_date ? ` · ${payment.collection_business_date}` : ""}
                                 {payment.collected_by ? ` · ${payment.collected_by}` : ""}
@@ -181,3 +183,4 @@ const Actions = styled.div`
         flex-direction: row;
     }
 `;
+

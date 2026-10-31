@@ -10,9 +10,9 @@ test("payment dialog waits for API confirmation before reporting success", () =>
   const finish = modal.indexOf("if (step ===", start);
   const handler = modal.slice(start, finish);
   assert.match(handler, /if \(pending\.current\) return/);
-  assert.match(handler, /await onConfirm\(paymentType, numericAmount, idempotencyKey\.current\)/);
+  assert.match(handler, /await onConfirm\(paymentType, numericAmount, idempotencyKey\.current, requiresDate \?/);
   assert.match(handler, /if \(confirmed\) setStep\("success"\)/);
-  assert.match(modal, /disabled=\{saving \|\| !Number\.isSafeInteger\(numericAmount\)/);
+  assert.match(modal, /disabled=\{saving \|\| !dateConfirmed \|\| !Number\.isSafeInteger\(numericAmount\)/);
   assert.match(modal, /role="alert"/);
 });
 
@@ -30,8 +30,9 @@ test("payment result propagates from API through ticket footer", () => {
   const dashboard = source("pages/Dashboard.tsx");
   const ticket = source("components/TicketDetails/Ticket.tsx");
   const actions = source("components/TicketDetails/TicketActions.tsx");
-  assert.match(dashboard, /if \(!\(await payTicket\(ticketId, paymentType, amount, idempotencyKey\)\)\) return false/);
+  assert.match(dashboard, /if \(!\(await payTicket\(ticketId, paymentType, amount, idempotencyKey, collection\)\)\) return false/);
   assert.match(dashboard, /const partialReceivable = current\?\.serviceStatus === "completed"/);
-  assert.match(ticket, /return onPayTicket\(id, method, amount, key\)/);
-  assert.match(actions, /onConfirm=\{\(paymentType, amount, key\)\s*=>\s*onPayTicket\(ticket\.id, paymentType, amount, key\)/);
+  assert.match(ticket, /return onPayTicket\(id, method, amount, key, collection\)/);
+  assert.match(actions, /onConfirm=\{\(paymentType, amount, key, collection\)\s*=>\s*onPayTicket\(ticket\.id, paymentType, amount, key, collection\)/);
 });
+

@@ -152,7 +152,7 @@ test("Live dashboard displays only when selected Daily shift is open; archived l
         assert.equal(syntax.parseDiagnostics.length, 0, `${name} JSX parses`);
     }
     assert.match(analytics, /useState<Range>\("day"\)/);
-    assert.match(analytics, /const initial = current \?\? ordered\[0\]/);
+    assert.match(analytics, /const initial = current\.shift \?\? ordered\[0\]/);
     assert.match(analytics, /range === "day" && selected\?\.status === "open"/);
     assert.match(analytics, /<OpenShiftOverview[\s\S]*?shift=\{selected as ShiftReport\}[\s\S]*?notices=\{notices\}/);
     assert.match(analytics, /\) : \(\s*<>[\s\S]*?<Summary totals=\{totals\}/);
@@ -165,3 +165,23 @@ test("Live dashboard displays only when selected Daily shift is open; archived l
     assert.match(dashboard, /Shift IN PROGRESS|SHIFT IN PROGRESS/);
 });
 
+
+test("collections follow payment collection shift, never original service ownership", () => {
+    const current = shift(515, "2026-10-31", "open");
+    const old = {...ticket(1,514,"paid",null), payments:[
+        {type:"cash",amount:1000,collection_shift_id:515},
+        {type:"card",amount:2000,collection_shift_id:514},
+        {type:"cash",amount:3000,collection_shift_id:515,voided_at:100},
+    ]};
+    const today = {...ticket(2,515,"paid",null), payments:[
+        {type:"card",amount:4000,collection_shift_id:515},
+        {type:"other",amount:5000,collection_shift_id:null},
+        {type:"cash",amount:6000,collection_shift_id:514},
+    ]};
+    const actual = liveAnalyticsShift(current,[old,today]);
+    assert.equal(actual.paid_total,5000);
+    assert.equal(actual.cash_total,1000);
+    assert.equal(actual.card_total,4000);
+    assert.equal(actual.other_total,0);
+    assert.equal(actual.paid_count,1);
+});

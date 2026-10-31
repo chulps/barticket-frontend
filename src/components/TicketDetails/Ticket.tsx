@@ -15,7 +15,7 @@ import TicketFooter from "./TicketFooter"
 
 // import types
 import type { MenuData, MenuItem, Prices } from "../../types/Menu";
-import type { Ticket, PaymentType } from "../../types/Ticket";
+import type { CollectionDateConfirmation, Ticket, PaymentType } from "../../types/Ticket";
 
 // types/props
 type TicketDetailsProps = {
@@ -60,6 +60,7 @@ type TicketDetailsProps = {
         paymentType: PaymentType,
         amount: number,
         idempotencyKey?: string,
+        collection?: CollectionDateConfirmation,
     ) => Promise<boolean>;
 
     onDeferTicket: (ticketId: number, body: { reason: string; confirmed_balance: number; note?: string; follow_up_date?: string }) => Promise<boolean>;
@@ -170,7 +171,7 @@ export default function TicketDetails({
                 activeTab={activeTab}
                 total={total}
                 onCancelTicket={(id) => { setClosingTicketId(null); onCancelTicket(id); }}
-                onPayTicket={(id, method, amount, key) => { setClosingTicketId(null); return onPayTicket(id, method, amount, key); }}
+                onPayTicket={(id, method, amount, key, collection) => { setClosingTicketId(null); return onPayTicket(id, method, amount, key, collection); }}
                 onDeferTicket={(id, body) => { setClosingTicketId(null); return onDeferTicket(id, body); }}
                 onReopenTicket={(id, reason) => { setClosingTicketId(null); return onReopenTicket(id, reason); }}
                 canCorrectPayment={canCorrectPayment}
@@ -197,3 +198,4 @@ const TicketDetailsContainer = styled.div`
   min-width: 0;
   overflow: visible;
 `;
+
