@@ -128,7 +128,10 @@ export default function Menu({
     }
   }
 
-  const groupedMenu = useFilteredMenu(menu, searchTerm);
+  const displayMenu = !authenticated && menu
+    ? { ...menu, items: menu.items.filter(item => !item.cocktailIngredient) }
+    : menu;
+  const groupedMenu = useFilteredMenu(displayMenu, searchTerm);
   const archiveSearch = searchTerm.trim().toLowerCase();
   const filteredArchived = archivedItems.filter(item =>
     !archiveSearch || [

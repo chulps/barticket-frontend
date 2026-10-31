@@ -16,7 +16,7 @@ const en = {
     loadingMenu: "Loading menu...",
     loading: "Loading...",
     noMenu: "No menu found.",
-    searchPlaceholder: "Type something",
+    searchPlaceholder: "Search drinks",
 
     back: "Back",
     prev: "Prev",
@@ -183,7 +183,7 @@ const ja: { [K in keyof typeof en]: string } = {
     loadingMenu: "メニューを読み込み中...",
     loading: "読み込み中...",
     noMenu: "メニューがありません",
-    searchPlaceholder: "検索",
+    searchPlaceholder: "ドリンクを検索",
 
     back: "戻る",
     prev: "前へ",
