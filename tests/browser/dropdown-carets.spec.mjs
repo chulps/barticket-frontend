@@ -65,6 +65,15 @@ for(const locale of ["en","ja"])for(const width of [320,390,1280])test(`consiste
  await role.press("Escape");
  await page.getByRole("heading",{name:locale==="ja"?"管理":"Admin",exact:true}).click();
  await page.screenshot({path:testInfo.outputPath("carets.png"),fullPage:true});
+ await page.evaluate(()=>document.documentElement.classList.add("light"));
+ await inspect();
+ const lightImage=await role.evaluate(el=>getComputedStyle(el).backgroundImage);
+ expect(decodeURIComponent(lightImage)).toContain("fill='#4c4f55'");
+ await expect(role).toHaveCSS("color","rgb(76, 79, 85)");
+ await page.screenshot({path:testInfo.outputPath("carets-light.png"),fullPage:true});
+ await page.evaluate(()=>document.documentElement.classList.remove("light"));
+ const darkImage=await role.evaluate(el=>getComputedStyle(el).backgroundImage);
+ expect(decodeURIComponent(darkImage)).toContain("fill='#f5f5f5'");
  await page.emulateMedia({forcedColors:"active"});
  await expect(selects.first()).toHaveCSS("appearance","auto");
  await expect(selects.first()).toHaveCSS("background-image","none");

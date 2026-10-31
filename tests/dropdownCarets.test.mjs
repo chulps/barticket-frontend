@@ -19,3 +19,8 @@ test('overflow actions and unrelated quantity arrows stay intact',()=>{
  const item=readFileSync('src/components/TicketDetails/TicketItem.tsx','utf8');
  assert.match(item,/DotsThreeOutlineVertical/);assert.match(item,/name="CaretUp"/);assert.match(item,/name="CaretDown"/);
 });
+
+test('dark and light native indicators share geometry and match theme foreground',()=>{
+ const paths=[...css.matchAll(/%3Cpath d='([^']+)'/g)].map(match=>match[1]);assert.equal(paths.length,2);assert.equal(new Set(paths).size,1);
+ assert.match(css,/fill='%23f5f5f5'/);assert.match(css,/:root\.light \{[\s\S]*?fill='%234c4f55'/);
+});

@@ -728,6 +728,9 @@ button[disabled],
 /* light theme */
 
 :root.light {
+  /* Same canonical caret, matching the light theme select foreground. */
+  --dropdown-caret-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%234c4f55'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
+
   --neutral-800: var(--neutral-100);
   --white: var(--neutral-600);
   --neutral-700: var(--neutral-200);
