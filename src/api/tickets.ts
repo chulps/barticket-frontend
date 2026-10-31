@@ -1,3 +1,4 @@
+import type { PaymentDateCorrection } from "../components/paymentDateCorrectionPolicy";
 import { ticketListPath, type TicketReadScope } from "../hooks/ticketReadScope";
 // api/tickets.ts
 
@@ -202,6 +203,11 @@ export const ticketsApi = {
             method: "POST",
             body: { method, ...(amount === undefined ? {} : { amount }), ...collection },
             ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
+        }),
+
+    correctCollectionDate: (ticketId: number, paymentId: number, body: PaymentDateCorrection, idempotencyKey: string) =>
+        apiRequest<ApiTicket>(`/tickets/${ticketId}/payments/${paymentId}/collection-date`, {
+            method: "POST", body, headers: { "Idempotency-Key": idempotencyKey },
         }),
 
     receivables: (query = "") => apiRequest<{ items: ApiTicket[]; offset: number; limit: number; total: number }>(`/tickets/receivables${query}`),
