@@ -3,9 +3,12 @@ import { test, expect } from "@playwright/test";
 const MOCK_ORIGIN = "http://127.0.0.1:8765";
 const account = { id: 7, name: "Test Bartender", email: "test@example.invalid",
   role: "manager", has_password: true, google_connected: false };
-const now = () => Math.floor(Date.now() / 1000);
+// Operational fixtures run at 21:00 JST, outside the separate 11:30 shift-review flow.
+// Keep browser Date and mock API timestamps aligned; browser timers remain real.
+const FIXTURE_NOW_MS = Date.parse("2026-10-31T12:00:00Z");
+const now = () => Math.floor(FIXTURE_NOW_MS / 1000);
 function dayJst() {
-  const shifted = new Date(Date.now() + 9 * 3600_000 - 12 * 3600_000);
+  const shifted = new Date(FIXTURE_NOW_MS + 9 * 3600_000 - 12 * 3600_000);
   return shifted.toISOString().slice(0, 10);
 }
 const item = (id, name, price, quantity = 1) => ({
@@ -41,9 +44,10 @@ function schedule(id, date, state, actual = false) {
   return { id, business_date: date, schedule_state: state, actual_shift_exists: actual,
     manager: {name:"Test Bartender",user_id:7}, staff:[{name:"Haruka",user_id:null}],
     event_value:"Maintenance", hours:null, provenance:[{source_file:"November 2026 Daily Reports.csv",
-      source_row:5, imported_by:"Test Bartender", imported_at:new Date().toISOString(), uncertainty:"Hours are blank in source"}] };
+      source_row:5, imported_by:"Test Bartender", imported_at:new Date(FIXTURE_NOW_MS).toISOString(), uncertainty:"Hours are blank in source"}] };
 }
 async function mockedPOS(page, { authenticated = true, locale = "en", role = "manager", noticeCount = 0, onShift = true } = {}) {
+  await page.clock.setFixedTime(new Date(FIXTURE_NOW_MS));
   const state = { tickets:[ticket()], requests:[], paymentPosts:0,
     newTicketPosts:0, delayTicketCreate:false, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
     analyticsReads:0, delayAnalyticsReads:false, analyticsShifts:[], failShiftLookup:false,
@@ -90,7 +94,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en", role = "ma
     else if(key==="GET /venue-status") response=state.venueStatus;
     else if(key==="GET /schedules") response=state.schedules;
     else if(key==="PUT /venue-status") {
-      state.venueStatus={...state.venueStatus,...json(),updated_by:account.name,updated_at:new Date().toISOString()};
+      state.venueStatus={...state.venueStatus,...json(),updated_by:account.name,updated_at:new Date(FIXTURE_NOW_MS).toISOString()};
       response=state.venueStatus;
     }
     else if(key==="GET /menu") response=state.activeMenu;

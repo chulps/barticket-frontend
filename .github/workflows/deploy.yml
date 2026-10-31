@@ -49,8 +49,8 @@ jobs:
       - name: Reject unsafe build artifacts
         run: node scripts/audit-frontend-security.mjs --dist
 
-      # GitHub Pages has no SPA rewrites; serve the app for deep links like /menu.
-      - run: cp dist/index.html dist/404.html
+      # Emit real entries for known routes, retaining the shell fallback for dynamic paths.
+      - run: node scripts/prepare-pages.mjs
 
       - uses: actions/configure-pages@v6
 

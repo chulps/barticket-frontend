@@ -19,6 +19,8 @@ async function mockTeam(page, locale="en") {
     requests.push({method:req.method(),path,search:url.search});
     let data=[],status=200;
     if(req.method()!=="GET"){status=405;data={detail:"No writes in this fixture"};}
+    else if(path==="/admin/payment-setup/access")data={can_configure:true};
+    else if(path==="/admin/payment-setup")data={provider:"unknown",channel:"online",methods:[],revision:0,processing_status:"not_connected"};
     else if(path==="/auth/me")data=people[0];
     else if(path==="/users")data=people;
     else if(path==="/auth/status")data={has_accounts:true,google_enabled:false};
