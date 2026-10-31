@@ -47,7 +47,11 @@ for(const locale of ["en","ja"])for(const width of [320,390,1280])test(`consiste
  const requests=await mockTeam(page,locale);
  await page.setViewportSize({width,height:900});await page.goto("/admin");
  await expect(page.getByRole("heading",{name:locale==="ja"?"管理":"Admin",exact:true})).toBeVisible();
- const selects=page.locator("select:visible");await expect(selects.first()).toBeVisible();
+ const picker=page.getByRole("combobox",{name:locale==="ja"?"管理メニュー":"Admin section",exact:true});
+ if(width<700)await picker.selectOption("accounts");
+ else await page.getByRole("navigation",{name:locale==="ja"?"管理セクション":"Admin sections"}).getByRole("button",{name:locale==="ja"?"アカウント":"Accounts",exact:true}).click();
+ const role=page.locator("form select");await expect(role).toBeVisible();
+ const selects=page.locator("select:visible");
  async function inspect(){
   const styles=await selects.evaluateAll(nodes=>nodes.map(el=>{const s=getComputedStyle(el);return {image:s.backgroundImage,size:s.backgroundSize,pad:s.paddingRight,position:s.backgroundPosition,appearance:s.appearance};}));
   expect(styles.length).toBeGreaterThan(0);
@@ -55,8 +59,8 @@ for(const locale of ["en","ja"])for(const width of [320,390,1280])test(`consiste
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
  await inspect();
- const role=selects.last();await role.focus();await expect(role).toBeFocused();await role.press("ArrowDown");await role.press("Enter");await expect(role).toHaveValue("manager");
- if(width<700){const picker=selects.first();await picker.selectOption("payments");await inspect();await page.goBack();await expect(picker).toHaveValue("accounts");}
+ await role.focus();await expect(role).toBeFocused();await role.press("End");await role.press("Enter");await expect(role).toHaveValue("manager");
+ if(width<700){await picker.selectOption("payments");await inspect();await picker.selectOption("accounts");await expect(role).toHaveValue("manager");}
  await page.screenshot({path:testInfo.outputPath("carets.png"),fullPage:true});
  await page.emulateMedia({forcedColors:"active"});
  await expect(selects.first()).toHaveCSS("appearance","auto");
