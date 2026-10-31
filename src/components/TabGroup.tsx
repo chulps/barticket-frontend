@@ -177,6 +177,11 @@ const TabButton = styled.button<{ $active: boolean }>`
 
   transition: color 0.2s ease;
 
+  /* Global buttons grow on hover; tab targets must retain their measured bounds. */
+  &:hover, &:active {
+    transform: none;
+  }
+
   &:hover {
     background: unset;
     color: white;
