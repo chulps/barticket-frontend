@@ -50,27 +50,35 @@ export default function Profile() {
 
     useEffect(() => {
         let cancelled = false;
+        let generation = 0;
         async function load() {
+            const request = ++generation;
+            const token = getToken();
+            const active = () => !cancelled && request === generation && token === getToken();
             try {
                 if (!getToken()) {
                     const status = await accountApi.status();
-                    if (!cancelled) setHasAccounts(status.has_accounts);
+                    if (active()) setHasAccounts(status.has_accounts);
                     return;
                 }
                 const me = await accountApi.me();
-                if (!cancelled) {
+                if (active()) {
                     setAccount(me);
+                    setError("");
                 }
             } catch (err) {
-                if (!cancelled) {
+                if (active()) {
+                    if (err instanceof ApiError && [401,403].includes(err.status)) setAccount(null);
                     setError(err instanceof ApiError ? err.message : translate(readLocale(), "couldNotLoadAccount"));
                 }
             } finally {
-                if (!cancelled) setLoading(false);
+                if (active()) setLoading(false);
             }
         }
         load();
+        window.addEventListener("barticket-users-updated", load);
         return () => {
+            window.removeEventListener("barticket-users-updated", load);
             cancelled = true;
         };
     }, []);

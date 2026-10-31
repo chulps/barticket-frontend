@@ -1,3 +1,4 @@
+import { subscribeRealtime } from "../api/realtime";
 import { useEffect, useState } from "react";
 import styled from "styled-components";
 import { ApiError, getToken } from "../api/client";
@@ -47,10 +48,11 @@ export default function NoriMonthlySummary({ userId, locale }: { userId: number;
     const ja = locale === "ja";
     const [month, setMonth] = useState(thisMonth);
     const [refresh, setRefresh] = useState(0);
+    useEffect(() => subscribeRealtime(["analytics", "shift", "tickets"], () => setRefresh(value => value + 1)), []);
     const [result, setResult] = useState<{
         key: string; report: NoriMonthlyPay | null; failure: "forbidden" | "unavailable" | "error" | null;
     } | null>(null);
-    const requestKey = `${userId}:${month}:${refresh}`;
+    const requestKey = `${userId}:${month}`;
     const current = result?.key === requestKey ? result : null;
     const report = current?.report ?? null;
     const loading = current === null;
@@ -71,7 +73,7 @@ export default function NoriMonthlySummary({ userId, locale }: { userId: number;
                 : error instanceof ApiError && [404, 503].includes(error.status) ? "unavailable" : "error"});
         });
         return () => { cancelled = true; };
-    }, [userId, month, requestKey]);
+    }, [userId, month, requestKey, refresh]);
 
     const rows = report?.staff_owed ?? [];
     const comparable = rows.length === 3 && new Set(rows.map(row => row.payee)).size === 3 &&

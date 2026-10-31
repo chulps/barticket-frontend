@@ -4,7 +4,7 @@
 import styled from "styled-components";
 import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { isApiAvailable } from "./api/client";
-import { startRealtime } from "./api/realtime";
+import { shouldPoll, startRealtime } from "./api/realtime";
 import { useI18n } from "./i18n";
 import { notifyMutation } from "./utils/mutationFeedback";
 import {
@@ -171,6 +171,7 @@ export default function App() {
       menuRevision.current++;
       pendingMenuItems.current.delete(id);
       setPendingMenuIds([...pendingMenuItems.current]);
+      window.dispatchEvent(new Event("barticket-menu-updated"));
     }
   };
 
@@ -214,6 +215,7 @@ export default function App() {
     } finally {
       pendingMenuItems.current.delete(item.id);
       setPendingMenuIds([...pendingMenuItems.current]);
+      window.dispatchEvent(new Event("barticket-menu-updated"));
     }
   };
 
@@ -237,7 +239,7 @@ export default function App() {
     });
     const load = () => reader.request();
     load();
-    const timer = window.setInterval(load, 20000);
+    const timer = window.setInterval(() => { if (shouldPoll()) load(); }, 20000);
     window.addEventListener("barticket-notices", load);
     window.addEventListener("barticket-menu-updated", load);
     window.addEventListener("barticket-retry-menu", load);

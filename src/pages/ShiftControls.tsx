@@ -148,13 +148,15 @@ export default function ShiftControls({ account, locale }: { account: Account; l
         version.current++;
         mounted.current = true;
         const initialRefresh = window.setTimeout(() => void refresh(), 0);
-        const poll = window.setInterval(() => void refresh(), 20000);
+        const poll = window.setInterval(() => { void refresh(); }, 20000);
         const tick = window.setInterval(() => setNow(Date.now()), 15000);
         const onRefresh = () => void refresh();
         window.addEventListener("focus", onRefresh);
         window.addEventListener("barticket-auth", onRefresh);
         window.addEventListener("barticket-api-restored", onRefresh);
         window.addEventListener("barticket-shift-updated", onRefresh);
+        window.addEventListener("barticket-menu-updated", onRefresh);
+        window.addEventListener("barticket-notices", onRefresh);
         return () => {
             mounted.current = false;
             window.clearTimeout(initialRefresh);
@@ -164,6 +166,8 @@ export default function ShiftControls({ account, locale }: { account: Account; l
             window.removeEventListener("barticket-auth", onRefresh);
             window.removeEventListener("barticket-api-restored", onRefresh);
             window.removeEventListener("barticket-shift-updated", onRefresh);
+            window.removeEventListener("barticket-menu-updated", onRefresh);
+            window.removeEventListener("barticket-notices", onRefresh);
         };
     }, [refresh]);
 

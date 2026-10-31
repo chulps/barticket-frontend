@@ -1,3 +1,4 @@
+import { shouldPoll } from "../api/realtime";
 // useTickets.ts
 import { useEffect, useRef, useState } from "react";
 
@@ -141,9 +142,15 @@ export function useTickets() {
     let initialErrorReported = false;
     let lastActivityAt = Date.now();
     let lastRefreshAt = 0;
+    let deferredRefresh: number | undefined;
+    const retryRead = () => {
+      if (cancelled || deferredRefresh !== undefined) return;
+      deferredRefresh = window.setTimeout(() => { deferredRefresh = undefined; void refresh(); }, 250);
+    };
 
     const refresh = async () => {
-      if (cancelled || fetching || document.visibilityState === "hidden" || pendingWrites.current > 0) return;
+      if (cancelled || document.visibilityState === "hidden") return;
+      if (fetching || pendingWrites.current > 0) { retryRead(); return; }
       fetching = true;
       lastRefreshAt = Date.now();
       const revision = localRevision.current;
@@ -155,7 +162,7 @@ export function useTickets() {
           pendingWrite: pendingWrites.current > 0,
           cancelled,
         });
-        if (loaded === null) return;
+        if (loaded === null) { retryRead(); return; }
         setTicketsError(false);
         // Never overwrite a name being edited or awaiting its debounced save.
         const next = loaded.map((ticket) => {
@@ -184,7 +191,7 @@ export function useTickets() {
     // make a network request on every tick.
     const timer = window.setInterval(() => {
       const now = Date.now();
-      if (isTicketRefreshDue(now, lastActivityAt, lastRefreshAt, document.visibilityState === "visible")) {
+      if (shouldPoll() && isTicketRefreshDue(now, lastActivityAt, lastRefreshAt, document.visibilityState === "visible")) {
         void refresh();
       }
     }, ACTIVE_REFRESH_MS);
@@ -209,6 +216,7 @@ export function useTickets() {
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      if (deferredRefresh !== undefined) window.clearTimeout(deferredRefresh);
       window.removeEventListener("pointerdown", markActivity);
       window.removeEventListener("keydown", markActivity);
       window.removeEventListener("focus", onFocus);

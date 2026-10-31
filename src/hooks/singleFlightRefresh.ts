@@ -27,6 +27,7 @@ export function createSingleFlightRefresh<T>(callbacks: {
       .then(
         data => {
           if (!disposed && revision === callbacks.currentRevision()) callbacks.onSnapshot(data);
+          else if (!disposed) queued = true; // Catch up after a local write overtook this read.
         },
         error => {
           if (!disposed && revision === callbacks.currentRevision()) callbacks.onError(error);

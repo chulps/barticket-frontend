@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { subscribeRealtime } from "../api/realtime";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
 import NoriMonthlySummary from "./NoriMonthlySummary";
@@ -102,19 +103,24 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
+    useEffect(() => subscribeRealtime(["shift", "tickets", "analytics"], () => setRefreshKey(value => value + 1)), []);
     const viewers = readRevenueShareViewers();
     const isChuckProfile = canViewChuckPersonalPay({ id: userId, role }, userId, viewers);
 
+    const loadedIdentity = useRef("");
     useEffect(() => {
         let cancelled = false;
+        const identity = `${userId}:${role}:${month}:${ja}`;
         async function load() {
-            setLoading(true);
-            setError("");
+            setLoading(loadedIdentity.current !== identity);
+            if (loadedIdentity.current !== identity) setError("");
             try {
                 if (isChuckProfile) {
                     const response = await accountApi.chuckMonthlyPay(month);
                     if (response.user_id !== userId) throw new Error("Profile identity mismatch");
                     if (!cancelled) {
+                        loadedIdentity.current = identity;
+                        setError("");
                         setChuckReport(response);
                         setReport(null);
                     }
@@ -122,6 +128,8 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                     const response = await accountApi.personalEarnings(month);
                     if (response.user_id !== userId) throw new Error("Profile identity mismatch");
                     if (!cancelled) {
+                        loadedIdentity.current = identity;
+                        setError("");
                         setReport(response);
                         setChuckReport(null);
                     }

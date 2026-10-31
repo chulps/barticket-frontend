@@ -389,6 +389,7 @@ type Session = { token: string; user: Account };
 const sessionAccount = createSessionRead(getToken, () => apiRequest<Account>("/auth/me"));
 window.addEventListener("barticket-auth", sessionAccount.invalidate);
 window.addEventListener("focus", sessionAccount.revalidate);
+window.addEventListener("barticket-users-updated", sessionAccount.invalidate);
 
 export const accountApi = {
     status: () =>

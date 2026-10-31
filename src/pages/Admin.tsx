@@ -195,11 +195,13 @@ export default function Admin() {
         void load();
         window.addEventListener("barticket-auth", reload);
         window.addEventListener("focus", revalidate);
+        window.addEventListener("barticket-users-updated", revalidate);
         return () => {
             cancelled = true;
             generation++;
             window.removeEventListener("barticket-auth", reload);
             window.removeEventListener("focus", revalidate);
+        window.removeEventListener("barticket-users-updated", revalidate);
         };
     }, []);
 

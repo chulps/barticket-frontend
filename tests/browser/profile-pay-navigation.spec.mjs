@@ -1,7 +1,7 @@
 import {test, expect} from "@playwright/test";
 const API = "http://127.0.0.1:8765";
 
-async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
+async function fixture(page, {locale = "en", id = 7, incomplete = false, live = {}} = {}) {
   // Keep monthly fixtures and screenshots independent of the machine date.
   await page.clock.install({time:new Date("2026-10-31T00:00:00Z")});
   const calls = [];
@@ -26,7 +26,7 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
     else if(url.pathname === "/profile/work-history") body = {user_id:id,shifts:[]};
     else if(url.pathname === "/profile/nori-monthly-pay") {status=404;body={detail:"Not deployed in this fixture"};}
     else if(url.pathname === "/profile/earnings") body = {user_id:id,month,preview_only:true,note:"Estimate only, not paid wages.",categories:[
-      {category:"hourly_wages",amount_yen_unrounded:incomplete ? null : "13000",complete:!incomplete,entries:[]},
+      {category:"hourly_wages",amount_yen_unrounded:incomplete ? null : String(live.wages ?? 13000),complete:!incomplete,entries:[]},
       {category:"staff_drink_bonus",amount_yen:0,complete:true,entries:[]},
     ]};
     else if(url.pathname === "/profile/chuck-monthly-pay") body = {user_id:id,month,preview_only:true,complete:!incomplete,
@@ -37,6 +37,7 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
     else if(url.pathname === "/analytics/service-sales") body={basis:"original_service_business_date",days:[]};
     else if(url.pathname === "/realtime/events") body={events:[],cursor:0};
     else {status=404;body={detail:"Unmocked read"};}
+    if (url.pathname === "/profile/earnings" && live.fail) {status=503;body={detail:"Fixture pay temporarily unavailable"};}
     await route.fulfill({status,json:body,headers:{"Access-Control-Allow-Origin":"*"}});
   });
   await page.goto("/profile");
@@ -96,4 +97,48 @@ test("Nori's unavailable owner summary does not substitute staff or Chuck pay",a
   await expect(page.getByText("The owner pay summary is not available yet.")).toBeVisible();
   expect(calls).not.toContain("GET /profile/earnings");
   expect(calls).not.toContain("GET /profile/chuck-monthly-pay");
+});
+
+test('live pay invalidations preserve expanded Chuck statistics and account drafts',async({page})=>{
+  let socket;
+  await page.routeWebSocket('**/realtime/ws',peer=>{
+    socket=peer;peer.onMessage(raw=>{if(JSON.parse(raw).type==='authenticate')peer.send(JSON.stringify({type:'ready',version:1,cursor:0}));});
+  });
+  const calls=await fixture(page,{id:901,incomplete:true});
+  const details=page.locator('details').filter({hasText:'Managed-shift sales and guests'});
+  await details.locator('summary').click();
+  await expect(details).toHaveAttribute('open','');
+  const before=calls.filter(c=>c==='GET /profile/chuck-monthly-pay').length;
+  socket.send(JSON.stringify({type:'invalidate',version:1,cursor:1,scopes:['analytics','tickets']}));
+  await expect.poll(()=>calls.filter(c=>c==='GET /profile/chuck-monthly-pay').length).toBeGreaterThan(before);
+  await expect(details).toHaveAttribute('open','');
+  await page.getByRole('group',{name:'Profile sections'}).getByRole('button',{name:'Account settings',exact:true}).click();
+  const name=page.getByRole('textbox').first();await name.fill('Unsaved fixture name');
+  socket.send(JSON.stringify({type:'invalidate',version:1,cursor:2,scopes:['users']}));
+  await expect(name).toHaveValue('Unsaved fixture name');
+  expect(calls.filter(c=>!c.startsWith('GET '))).toEqual([]);
+});
+
+
+test('historical pay keeps selected month and expanded breakdown during invalidation; errors and signout fail closed',async({page})=>{
+  let socket; const live={wages:13000};
+  await page.routeWebSocket('**/realtime/ws',peer=>{
+    socket=peer;peer.onMessage(raw=>{if(JSON.parse(raw).type==='authenticate')peer.send(JSON.stringify({type:'ready',version:1,cursor:0}));});
+  });
+  await fixture(page,{live});
+  await page.getByRole('button',{name:'Previous month',exact:true}).click();
+  await expect(page.getByText('September 2026',{exact:true})).toBeVisible();
+  const details=page.locator('details').filter({hasText:'Income charts'});
+  await details.locator('summary').click();
+  await expect(details).toHaveAttribute('open','');
+  live.wages=17000;
+  socket.send(JSON.stringify({type:'invalidate',version:1,cursor:1,scopes:['analytics','tickets']}));
+  const total=page.getByText('Monthly pay estimate',{exact:true}).locator('..').locator('strong');
+  await expect(total).toHaveText(/[¥￥]17,000/);
+  await expect(details).toHaveAttribute('open','');
+  await expect(page.getByText('September 2026',{exact:true})).toBeVisible();
+  live.fail=true;socket.send(JSON.stringify({type:'invalidate',version:1,cursor:2,scopes:['analytics']}));
+  await expect(page.getByText('Fixture pay temporarily unavailable')).toBeVisible();
+  await page.evaluate(()=>{localStorage.removeItem('barticket_token');window.dispatchEvent(new Event('barticket-auth'));});
+  await expect(page.getByText('Monthly pay estimate',{exact:true})).toHaveCount(0);
 });

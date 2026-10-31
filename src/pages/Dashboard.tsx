@@ -107,9 +107,10 @@ export default function Dashboard({
       }
     }
     void load();
-    const timer = window.setInterval(load, 20000);
+    const timer = window.setInterval(() => { void load(); }, 20000);
     window.addEventListener("focus", load);
     window.addEventListener("barticket-auth", load);
+    window.addEventListener("barticket-users-updated", load);
     window.addEventListener("barticket-api-restored", load);
     window.addEventListener("barticket-shift-updated", load);
     window.addEventListener("barticket-venue-status-updated", load);
@@ -120,6 +121,7 @@ export default function Dashboard({
       window.clearInterval(timer);
       window.removeEventListener("focus", load);
       window.removeEventListener("barticket-auth", load);
+      window.removeEventListener("barticket-users-updated", load);
       window.removeEventListener("barticket-api-restored", load);
       window.removeEventListener("barticket-shift-updated", load);
       window.removeEventListener("barticket-venue-status-updated", load);

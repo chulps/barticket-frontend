@@ -1,3 +1,4 @@
+import { shouldPoll } from "../api/realtime";
 // src/components/Header.tsx
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -84,10 +85,11 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
     }
     const resetRole = () => { activeToken = null; void loadRole(); };
     void loadRole();
-    const timer = window.setInterval(loadRole, 20000);
+    const timer = window.setInterval(() => { if (shouldPoll()) void loadRole(); }, 20000);
     window.addEventListener("barticket-auth", resetRole);
     window.addEventListener("barticket-shift-updated", loadRole);
     window.addEventListener("focus", loadRole);
+    window.addEventListener("barticket-users-updated", loadRole);
     return () => {
       cancelled = true;
       generation++;
@@ -95,6 +97,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       window.removeEventListener("barticket-auth", resetRole);
       window.removeEventListener("barticket-shift-updated", loadRole);
       window.removeEventListener("focus", loadRole);
+      window.removeEventListener("barticket-users-updated", loadRole);
     };
   }, []);
 
@@ -187,16 +190,19 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
   useEffect(() => {
     if (!canSeeNotices) return;
     let cancelled = false;
+    let generation = 0;
     async function load() {
+      const request = ++generation;
+      const token = getToken();
       try {
         const data = await listNotices();
-        if (!cancelled) setAlertCount(data.notices.length);
+        if (!cancelled && request === generation && getToken() === token) setAlertCount(data.notices.length);
       } catch {
-        if (!cancelled) setAlertCount(0);
+        if (!cancelled && request === generation && getToken() === token) setAlertCount(0);
       }
     }
     load();
-    const timer = window.setInterval(load, 20000);
+    const timer = window.setInterval(() => { if (shouldPoll()) void load(); }, 20000);
     window.addEventListener("barticket-notices", load);
     return () => {
       cancelled = true;
