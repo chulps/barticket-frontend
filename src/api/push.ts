@@ -1,3 +1,4 @@
+import { serializePushOperation } from "./pushLifecycle";
 import { API_URL, getDeviceId, getToken } from "./client";
 
 type PushKeys = { p256dh: string; auth: string };
@@ -32,8 +33,12 @@ export async function registerBarTicketWorker(): Promise<ServiceWorkerRegistrati
   });
 }
 
-async function pushRequest<T>(path: string, method = "GET", body?: unknown): Promise<T> {
-  const token = getToken();
+function requireSession(token: string | null): asserts token is string {
+  if (!token || getToken() !== token) throw new Error("Notification session changed");
+}
+
+async function pushRequest<T>(path: string, method = "GET", body?: unknown, token = getToken()): Promise<T> {
+  requireSession(token);
   if (!token) throw new Error("Sign in to enable notifications");
   const response = await fetch(`${API_URL}/push${path}`, {
     method,
@@ -44,6 +49,7 @@ async function pushRequest<T>(path: string, method = "GET", body?: unknown): Pro
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  requireSession(token);
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}));
     throw new PushRequestError(
@@ -56,8 +62,16 @@ async function pushRequest<T>(path: string, method = "GET", body?: unknown): Pro
 
 export async function getPushEnabled(): Promise<boolean> {
   if (!supportsPush()) return false;
-  const registration = await registerBarTicketWorker();
-  return Boolean(await registration?.pushManager.getSubscription());
+  const token = getToken();
+  return serializePushOperation(async () => {
+    requireSession(token);
+    const registration = await registerBarTicketWorker();
+    const subscription = await registration?.pushManager.getSubscription();
+    requireSession(token);
+    if (!subscription || Notification.permission !== "granted") return false;
+    const status = await pushRequest<{ enabled: boolean }>("/subscriptions/status", "POST", { endpoint: subscription.endpoint }, token);
+    return status.enabled === true;
+  });
 }
 
 export async function getPushPublicKey(): Promise<string | null> {
@@ -73,28 +87,44 @@ export async function getPushPublicKey(): Promise<string | null> {
 export async function enablePush(): Promise<void> {
   if (!supportsPush()) throw new Error("This browser does not support web push notifications");
   if (Notification.permission === "denied") throw new Error("Notifications are blocked in your device settings");
+  const token = getToken();
+  requireSession(token);
   const publicKey = await getPushPublicKey();
+  requireSession(token);
   if (!publicKey) throw new PushRequestError("Push notifications are not configured on the server", 503);
-  const registration = await registerBarTicketWorker();
-  if (!registration) throw new Error("Unable to register service worker");
   const permission = await Notification.requestPermission();
+  requireSession(token);
   if (permission !== "granted") throw new Error("Notification permission was not granted");
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: decodeBase64Url(publicKey),
+  return serializePushOperation(async () => {
+    requireSession(token);
+    const registration = await registerBarTicketWorker();
+    if (!registration) throw new Error("Unable to register service worker");
+    requireSession(token);
+    const existing = await registration.pushManager.getSubscription();
+    requireSession(token);
+    const subscription = existing ?? await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: decodeBase64Url(publicKey),
+    });
+    try {
+      requireSession(token);
+      await pushRequest("/subscriptions", "POST", subscription.toJSON() as PushSubscriptionPayload, token);
+    } catch (error) {
+      if (!existing || getToken() !== token) await subscription.unsubscribe();
+      throw error;
+    }
   });
-  try {
-    await pushRequest("/subscriptions", "POST", subscription.toJSON() as PushSubscriptionPayload);
-  } catch (error) {
-    await subscription.unsubscribe();
-    throw error;
-  }
 }
 
 export async function disablePush(): Promise<void> {
-  const registration = await registerBarTicketWorker();
-  const subscription = await registration?.pushManager.getSubscription();
-  if (!subscription) return;
-  await pushRequest("/subscriptions", "DELETE", { endpoint: subscription.endpoint });
-  await subscription.unsubscribe();
+  const token = getToken();
+  return serializePushOperation(async () => {
+    requireSession(token);
+    const registration = await registerBarTicketWorker();
+    const subscription = await registration?.pushManager.getSubscription();
+    requireSession(token);
+    if (!subscription) return;
+    await subscription.unsubscribe();
+    await pushRequest("/subscriptions", "DELETE", { endpoint: subscription.endpoint }, token);
+  });
 }
