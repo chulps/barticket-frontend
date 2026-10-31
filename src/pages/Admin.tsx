@@ -18,13 +18,13 @@ import AdminPayments from "./AdminPayments";
 type AdminSection = "overview" | "accounts" | "team" | "historicalHours" | "schedules" | "adjustments" | "payments";
 
 const adminSectionTabs: { id: AdminSection; label: { en: string; ja: string } }[] = [
-    { id: "payments", label: { en: "Payment setup", ja: "決済設定" } },
     { id: "overview", label: { en: "Overview", ja: "概要" } },
     { id: "accounts", label: { en: "Accounts", ja: "アカウント" } },
     { id: "team", label: { en: "Team", ja: "チーム" } },
     { id: "historicalHours", label: { en: "Historical hours", ja: "履歴勤務時間" } },
     { id: "schedules", label: { en: "Schedules", ja: "シフト予定" } },
     { id: "adjustments", label: { en: "Pay deductions", ja: "報酬控除" } },
+    { id: "payments", label: { en: "Payment setup", ja: "決済設定" } },
 ];
 
 /**
