@@ -67,3 +67,14 @@ test('Analytics period A response arriving after B cannot replace B snapshot',as
  useAnalyticsTickets('day','2026-10-02',true);const stops=r.start();await r.flush();b.resolve([row(2,'B')]);await settle();a.resolve([row(1,'A')]);await settle();
  assert.equal(r.states[0].key,'day:2026-10-02');assert.equal(r.states[0].rows[0].name,'B');stops.forEach(f=>f?.());
 });
+
+test('scoped report hook rejects old range response and never requests full history for daily view',async()=>{
+ const r=runtime(),a=deferred(),b=deferred(),calls=[];
+ const {useAnalyticsReports}=await moduleFor('useAnalyticsReports',{...r.hooks,...background,...scopes,getToken:()=> 'A',shouldPoll:()=>false,
+ accountApi:{analyticsShifts:scope=>{calls.push(scope);return scope.date_from==='2026-10-01'?a.promise:b.promise;}}});
+ useAnalyticsReports('day','2026-10-01',true);const [stopA]=r.start();await r.flush();stopA();r.states.length=0;
+ useAnalyticsReports('month','2026-11',true);const stops=r.start();await r.flush();
+ b.resolve([{id:2,business_date:'2026-11-01'}]);await settle();a.resolve([{id:1,business_date:'2026-10-01'}]);await settle();
+ assert.deepEqual(calls,[{date_from:'2026-10-01',date_to:'2026-10-01'},{date_from:'2026-11-01',date_to:'2026-11-30'}]);
+ assert.equal(r.states[0].key,'month:2026-11');assert.equal(r.states[0].rows[0].id,2);stops.forEach(f=>f?.());
+});

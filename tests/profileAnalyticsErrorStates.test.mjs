@@ -17,7 +17,7 @@ test("Profile never flashes sign-in while account status is loading", () => {
 test("Analytics has distinct loading and retry states on failed fetches", () => {
   const a=src("Analytics.tsx");
   assert.match(a, /setLoading\(false\)/);
-  assert.match(a, /signedIn && loading && !shifts/);
+  assert.match(a, /signedIn && loading && !shiftIndex/);
   assert.match(a, /<RequestState kind="loading"/);
   assert.match(a, /window\.location\.reload\(\)/);
 });
@@ -34,3 +34,4 @@ test("changed screens have valid TSX syntax", () => {
     assert.deepEqual(diagnostics.map(d=>d.messageText), [],name);
   }
 });
+

@@ -152,7 +152,7 @@ test("Live dashboard displays only when selected Daily shift is open; archived l
         assert.equal(syntax.parseDiagnostics.length, 0, `${name} JSX parses`);
     }
     assert.match(analytics, /useState<Range>\("day"\)/);
-    assert.match(analytics, /initialAnalyticsShift\(current, ordered\)/);
+    assert.match(analytics, /const initial = current \?\? ordered\[0\]/);
     assert.match(analytics, /range === "day" && selected\?\.status === "open"/);
     assert.match(analytics, /<OpenShiftOverview[\s\S]*?shift=\{selected as ShiftReport\}[\s\S]*?notices=\{notices\}/);
     assert.match(analytics, /\) : \(\s*<>[\s\S]*?<Summary totals=\{totals\}/);
