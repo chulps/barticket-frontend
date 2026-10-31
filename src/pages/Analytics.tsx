@@ -1,3 +1,4 @@
+import { useAnalyticsReports } from "../hooks/useAnalyticsReports";
 import { businessDateJst } from "./shiftControlPolicy";
 import { useAnalyticsTickets } from "../hooks/useAnalyticsTickets";
 import { withLiveShiftHours } from "./analyticsLiveClock";
@@ -7,7 +8,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
 
-import { accountApi, type Account, type AnalyticsShiftReport, type ShiftReport } from "../api/account";
+import { accountApi, type Account, type AnalyticsShiftReport, type AnalyticsShiftIndex, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
 import { listNotices, type NoticeList } from "../api/notices";
 import { BarChart, DonutChart, HorizontalBarChart, CopyPanelButton, type TimeBar } from "../components/AnalyticsCharts";
@@ -20,7 +21,7 @@ import { topSellingItems } from "../components/topSellingItems";
 import GuestOccupancyChart from "../components/GuestOccupancyChart";
 import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 import { analyticsDrillDownTarget, shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
-import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
+import { liveAnalyticsShift } from "./analyticsCurrentShift";
 import { groupAnalyticsTickets } from "./analyticsTicketGroups";
 import { createRefreshCoordinator } from "./analyticsRefresh";
 import { ticketDataForClipboard, ticketListDataForClipboard } from "./ticketDataExport";
@@ -492,7 +493,7 @@ function staffDrinkShifts(
 
 export default function Analytics() {
     const { t, locale } = useI18n();
-    const [shifts, setShifts] = useState<AnalyticsShiftReport[] | null>(null);
+    const [shiftIndex, setShiftIndex] = useState<AnalyticsShiftIndex[] | null>(null);
     const [openShift, setOpenShift] = useState<ShiftReport | null>(null);
     const [account, setAccount] = useState<Account | null>(null);
     const [team, setTeam] = useState<Account[] | null>(null);
@@ -507,9 +508,9 @@ export default function Analytics() {
     const [dayId, setDayId] = useState<number | null>(null);
     const [pickedDate, setPickedDate] = useState("");
     const signedIn = getToken() !== null;
-    const { tickets, ready: ticketsReady, error: ticketsError } = useAnalyticsTickets(
-        range, range === "day" ? pickedDate : range === "month" ? month : range === "year" ? year : "all", signedIn,
-    );
+    const periodKey = range === "day" ? pickedDate : range === "month" ? month : range === "year" ? year : "all";
+    const { tickets, ready: ticketsReady, error: ticketsError } = useAnalyticsTickets(range, periodKey, signedIn);
+    const { shifts, ready: reportsReady, error: reportsError } = useAnalyticsReports(range, periodKey, signedIn);
 
     useEffect(() => {
         const updateClock = () => setClockNow(Math.floor(Date.now() / 1000));
@@ -524,17 +525,25 @@ export default function Analytics() {
         let initiallySelected = false;
         let stopRefresh = () => {};
         let stopNotices = () => {};
+        let indexSupported = true;
 
         async function loadLatest() {
             if (cancelled) return;
+            const token = getToken();
             try {
                 const [rows, current] = await Promise.all([
-                    accountApi.analyticsShifts(),
+                    indexSupported ? accountApi.analyticsShiftIndex().catch(async err => {
+                        if (!(err instanceof ApiError) || err.status !== 404) throw err;
+                        // Safe compatibility during API-first rollout; never treat a
+                        // denied or failed index read as an empty calendar.
+                        indexSupported = false;
+                        return accountApi.analyticsShifts();
+                    }) : accountApi.analyticsShifts(),
                     accountApi.currentShift(),
                 ]);
-                if (cancelled) return;
+                if (cancelled || token !== getToken()) return;
                 const ordered = [...rows].sort((a, b) => b.business_date.localeCompare(a.business_date));
-                setShifts(ordered);
+                setShiftIndex(ordered);
                 setOpenShift(current);
                 setLastUpdated(Math.floor(Date.now() / 1000));
                 setError("");
@@ -544,7 +553,7 @@ export default function Analytics() {
                 // Background refreshes must not interrupt the date the user is viewing.
                 if (!initiallySelected) {
                     initiallySelected = true;
-                    const initial = initialAnalyticsShift(current, ordered);
+                    const initial = current ?? ordered[0];
                     if (initial) {
                         setMonth(monthKey(initial.business_date));
                         setYear(yearKey(initial.business_date));
@@ -699,7 +708,7 @@ export default function Analytics() {
     function showMonth(next: string) {
         setMonth(next);
         setYear(next.slice(0, 4));
-        const inMonth = (shifts ?? []).filter((shift) => monthKey(shift.business_date) === next);
+        const inMonth = (shiftIndex ?? []).filter((shift) => monthKey(shift.business_date) === next);
         const first = openShift && monthKey(openShift.business_date) === next ? openShift : inMonth[0];
         setDayId(first?.id ?? null);
         setPickedDate(first?.business_date ?? `${next}-01`);
@@ -709,7 +718,7 @@ export default function Analytics() {
         setPickedDate(iso);
         setMonth(monthKey(iso));
         setYear(yearKey(iso));
-        const match = analyticsShiftOnDate(iso, openShift, shifts ?? []);
+        const match = openShift?.business_date === iso ? openShift : shiftIndex?.find(shift => shift.business_date === iso);
         setDayId(match?.id ?? null);
     }
 
@@ -734,9 +743,9 @@ export default function Analytics() {
         <Page>
             <h1>{t("analytics")}</h1>
             {!signedIn ? <p>{t("signInForShifts")}</p> : null}
-            {signedIn && loading && !shifts ? <RequestState kind="loading" detail={locale === "ja" ? "分析データを読み込み中…" : "Loading analytics…"} /> : null}
+            {signedIn && loading && !shiftIndex ? <RequestState kind="loading" detail={locale === "ja" ? "分析データを読み込み中…" : "Loading analytics…"} /> : null}
             {error ? <RequestState kind="error" detail={error} onRetry={() => window.location.reload()} /> : null}
-            {account && shifts ? (
+            {account && shiftIndex ? (
                 <>
                     <TabGroup
                         tabs={[
@@ -808,7 +817,7 @@ export default function Analytics() {
                             <AnalyticsDatePicker
                                 label={pickedDate ? formatNight(pickedDate, locale) : t("noNightsYet")}
                                 value={pickedDate}
-                                shiftDates={[...(shifts ?? []).map((shift) => shift.business_date), ...(openShift ? [openShift.business_date] : [])]}
+                                shiftDates={[...(shiftIndex ?? []).map((shift) => shift.business_date), ...(openShift ? [openShift.business_date] : [])]}
                                 onChange={pickDate}
                             />
                             <StepButton
@@ -823,9 +832,9 @@ export default function Analytics() {
                         </DayNavigator>
                     ) : null}
                     {range === "all" && account.role === "manager" ? <DataDownload locale={locale} /> : null}
-                    {!ticketsReady ? <RequestState kind="loading" detail={locale === "ja" ? "伝票を読み込み中…" : "Loading tickets for this period…"} /> : null}
-                    {ticketsError ? <RequestState kind="error" detail={locale === "ja" ? "伝票を更新できませんでした。表示内容が古い可能性があります。" : "Could not refresh period tickets. Displayed data may be outdated."} /> : null}
-                    {ticketsReady && !ticketsError ? <>
+                    {!ticketsReady || !reportsReady ? <RequestState kind="loading" detail={locale === "ja" ? "レポートを読み込み中…" : "Loading reports for this period…"} /> : null}
+                    {ticketsError || reportsError ? <RequestState kind="error" detail={locale === "ja" ? "伝票を更新できませんでした。表示内容が古い可能性があります。" : "Could not refresh this period. Displayed data may be outdated."} /> : null}
+                    {ticketsReady && reportsReady && !ticketsError && !reportsError ? <>
                     <AnalyticsReportActions
                         key={[range, month, year, range === "day" ? dayId : null].join(":")}
                         textEn={reportText("en")}

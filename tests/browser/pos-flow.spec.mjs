@@ -137,6 +137,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en", role = "ma
     else if(key==="GET /users") response=[account];
     else if(key==="GET /users/recipients") response=[{id:7,name:account.name}];
     else if(key==="GET /profile/work-history") response={user_id:7,coverage:{hours_source:"clock_punches_only",historical_hours:"not_imported",staff_drink_attribution:"verified_staff_id_only",unattributed_staff_drinks:"excluded_pending_review",compensation:"not_available"},shifts:[]};
+    else if(key==="GET /analytics/shift-index") response=state.analyticsShifts.map(({id,business_date,status})=>({id,business_date,status}));
     else if(key==="GET /analytics/shifts") {
       state.analyticsReads++;
       if(state.delayAnalyticsReads) await new Promise(resolve=>setTimeout(resolve,500));
@@ -520,7 +521,7 @@ test("public menu never exposes archive, restore or full edit controls",async ({
   expect(state.requests.some(key=>key.includes("PATCH /menu/items/"))).toBe(false);
 });
 
-test("Analytics coalesces focus and push bursts and does not refetch on range changes",async ({page})=>{
+test("Analytics coalesces focus and push bursts and fetches the newly selected report range",async ({page})=>{
   const state=await mockedPOS(page);
   state.delayAnalyticsReads=true;
   await page.goto("/analytics");
@@ -537,8 +538,8 @@ test("Analytics coalesces focus and push bursts and does not refetch on range ch
   expect(state.analyticsReads).toBe(2);
 
   await page.getByRole("button",{name:"Monthly"}).click();
-  await page.waitForTimeout(100);
-  expect(state.analyticsReads).toBe(2);
+  await expect.poll(()=>state.analyticsReads).toBe(3);
+  expect(state.requestUrls.some(url=>url.includes("/analytics/shifts?date_from=2026-10-01"))).toBe(true);
 });
 
 test("Analytics renders a repeatable 100-shift, 1000-ticket fixture responsively",async ({page})=>{
@@ -911,8 +912,14 @@ test("Analytics fetches selected period tickets, expanding to all only on explic
   await page.goto("/analytics");
   await expect.poll(()=>state.requestUrls.some(url=>url.includes("/tickets?date_from="+dayJst())&&url.includes("date_to="+dayJst()))).toBe(true);
   expect(state.requestUrls.some(url=>url.endsWith("/tickets"))).toBe(false);
+  expect(state.requestUrls.some(url=>url.endsWith("/analytics/shifts"))).toBe(false);
+  expect(state.requestUrls.some(url=>url.endsWith("/analytics/shift-index"))).toBe(true);
   await page.getByRole("button",{name:"Monthly",exact:true}).click();
   await expect.poll(()=>state.requestUrls.some(url=>url.includes("/tickets?date_from=2026-10-01")&&url.includes("date_to=2026-10-31"))).toBe(true);
+  await expect.poll(()=>state.requestUrls.some(url=>url.includes("/analytics/shifts?date_from=2026-10-01"))).toBe(true);
+  await page.getByRole("button",{name:"Year",exact:true}).click();
+  await expect.poll(()=>state.requestUrls.some(url=>url.includes("/analytics/shifts?date_from=2026-01-01")&&url.includes("date_to=2026-12-31"))).toBe(true);
   await page.getByRole("button",{name:"All time",exact:true}).click();
   await expect.poll(()=>state.requestUrls.some(url=>url.endsWith("/tickets"))).toBe(true);
+  await expect.poll(()=>state.requestUrls.some(url=>url.endsWith("/analytics/shifts"))).toBe(true);
 });
