@@ -43,7 +43,7 @@ function schedule(id, date, state, actual = false) {
     event_value:"Maintenance", hours:null, provenance:[{source_file:"November 2026 Daily Reports.csv",
       source_row:5, imported_by:"Test Bartender", imported_at:new Date().toISOString(), uncertainty:"Hours are blank in source"}] };
 }
-async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
+async function mockedPOS(page, { authenticated = true, locale = "en", role = "manager", noticeCount = 0, onShift = true } = {}) {
   const state = { tickets:[ticket()], requests:[], paymentPosts:0,
     newTicketPosts:0, delayTicketCreate:false, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
     analyticsReads:0, delayAnalyticsReads:false, analyticsShifts:[], failShiftLookup:false,
@@ -80,12 +80,12 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
     if(key==="GET /auth/status") response={has_accounts:true,google_enabled:false};
     else if(key==="GET /auth/me") {
       status=authenticated ? 200 : 401;
-      response=authenticated ? account : {detail:"Unauthorized"};
+      response=authenticated ? {...account, role} : {detail:"Unauthorized"};
     } else if(key==="POST /auth/login") {
       status=401; response={detail:"Invalid test login"};
     } else if(key==="GET /shifts/current") {
       if(state.failShiftLookup){status=503;response={detail:"Simulated unavailable shift status"};}
-      else response=state.currentShift;
+      else response=onShift ? state.currentShift : null;
     }
     else if(key==="GET /venue-status") response=state.venueStatus;
     else if(key==="GET /schedules") response=state.schedules;
@@ -137,7 +137,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en" } = {}) {
       if(state.delayAnalyticsReads) await new Promise(resolve=>setTimeout(resolve,500));
       response=state.analyticsShifts;
     }
-    else if(key==="GET /notices") response={notices:[]};
+    else if(key==="GET /notices") response={notices:Array.from({length:noticeCount}, (_, i) => ({id:i+1,menu_item_id:1,item:"Highball",at:now(),by:"Test"}))};
     else if(key==="POST /tickets"){
       state.newTicketPosts++;
       if(state.delayTicketCreate) await new Promise(resolve=>setTimeout(resolve,700));
@@ -801,4 +801,62 @@ test("mobile picker traps focus and contains scroll; keyboard dismissal restores
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   expect(await page.evaluate(()=>document.body.style.overflow)).toBe("");
+});
+
+
+for (const locale of ["en", "ja"]) {
+  test("mobile notification shortcut and desktop unpaid navigation: " + locale, async ({page}) => {
+    await page.setViewportSize({width:320,height:740});
+    const state = await mockedPOS(page, {locale, noticeCount:120});
+    await page.goto("/menu");
+    const label = locale === "ja" ? "通知" : "Notifications";
+    const bell = page.locator('header a[href="/notifications"]:visible');
+    await expect(bell).toHaveCount(1);
+    await expect(bell).toHaveAttribute("aria-label",label);
+    await expect(bell).toContainText("99+");
+    await expect(page.locator("header button:visible")).not.toContainText("120");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await bell.click();
+    await expect(page).toHaveURL(/\/notifications$/);
+    await expect(bell).toHaveAttribute("aria-current","page");
+    await page.setViewportSize({width:1280,height:800});
+    await page.getByRole("button",{name:locale === "ja" ? "その他のナビゲーション" : "More navigation options"}).click();
+    const unpaid = page.locator('#desktop-more-menu a[href="/receivables"]');
+    await expect(unpaid).toHaveText(locale === "ja" ? "未払い伝票" : "Unpaid tickets");
+    const iconBox = await unpaid.locator("svg").boundingBox();
+    expect(iconBox.width).toBeLessThan(40);
+    expect(iconBox.height).toBeLessThan(40);
+    await unpaid.click();
+    await expect(page).toHaveURL(/\/receivables$/);
+    expect(state.requests.filter(r => /^(POST|PUT|PATCH|DELETE) /.test(r))).toEqual([]);
+  });
+}
+
+test("notification shortcut preserves staff visibility and zero-count behavior",async ({page}) => {
+  await page.setViewportSize({width:375,height:740});
+  await mockedPOS(page, {role:"staff",onShift:false});
+  await page.goto("/menu");
+  await expect(page.getByRole("textbox",{name:"Search menu"})).toBeVisible();
+  await expect(page.locator('header a[href="/notifications"]:visible')).toHaveCount(0);
+});
+
+test("clocked-in staff get a bell without a zero badge",async ({page}) => {
+  await page.setViewportSize({width:375,height:740});
+  await mockedPOS(page, {role:"staff"});
+  await page.goto("/menu");
+  const bell=page.locator('header a[href="/notifications"]:visible');
+  await expect(bell).toBeVisible();
+  await expect(bell).toHaveText("");
+});
+
+test("Admin overview leads to team pay, records and account access", async ({page}) => {
+  const state=await mockedPOS(page);
+  await page.goto("/admin");
+  await expect(page.getByRole("heading",{name:"Team and pay"})).toBeVisible();
+  await page.getByRole("button",{name:"Review team and pay",exact:true}).click();
+  await expect(page.getByRole("navigation",{name:"Team directory"})).toBeVisible();
+  await page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Overview",exact:true}).click();
+  await page.getByRole("button",{name:"Manage accounts",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Refresh accounts",exact:true})).toBeVisible();
+  expect(state.requests.filter(r=>/^(POST|PUT|PATCH|DELETE) /.test(r))).toEqual([]);
 });
