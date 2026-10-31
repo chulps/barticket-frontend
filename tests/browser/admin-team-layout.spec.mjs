@@ -102,3 +102,17 @@ test("team and audit navigation preserve the selected month and member view",asy
   await expect(page).toHaveURL(/admin\?.*month=2026-09/);
   expect(requests.some(r=>r.method!=="GET")).toBe(false);
 });
+
+
+test("browser Back restores the team-pay destination after another admin section",async({page})=>{
+  await mockTeam(page);
+  await page.goto("/admin?teamView=pay&month=2026-09");
+  await expect(page.getByRole("region",{name:"Monthly team pay",exact:true})).toBeVisible();
+  await page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Accounts",exact:true}).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goBack();
+  await expect(page.getByRole("region",{name:"Monthly team pay",exact:true})).toBeVisible();
+  await expect(page).toHaveURL(/teamView=pay&month=2026-09/);
+  await page.goForward();
+  await expect(page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Accounts",exact:true})).toHaveAttribute("aria-pressed","true");
+});

@@ -51,7 +51,8 @@ export default function Admin() {
     const [section, setSection] = useState<AdminSection>(
         () => staffId !== undefined || new URLSearchParams(location.search).has("teamView") ? "team" : "overview",
     );
-    const activeSection = staffId === undefined ? section : "team";
+    const activeSection = staffId !== undefined || new URLSearchParams(location.search).has("teamView")
+        ? "team" : section;
     const sectionNavRef = useRef<HTMLElement>(null);
     const sectionButtons = useRef<(HTMLButtonElement | null)[]>([]);
     const [tabIndicator, setTabIndicator] = useState({ left: 0, top: 0, width: 0, height: 0 });
