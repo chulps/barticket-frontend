@@ -1,7 +1,10 @@
 import {test,expect} from "@playwright/test";
-async function fixture(page,{readStatus=200}={}) {
-  const state={reads:0,writes:[],readStatus,writeStatus:200,revision:0,
+async function fixture(page,{readStatus=200,canConfigure=true,accessStatus=200,direct=false,accountId=902,holdAccess=false,holdSetup=false}={}) {
+  const state={accountId,reads:0,accessReads:0,canConfigure,accessStatus,writes:[],readStatus,writeStatus:200,revision:0,
     saved:{provider:"unknown",channel:"online",methods:[],processing_status:"not_connected"}};
+  let accessGate=null,setupGate=null;
+  if(holdAccess)accessGate=new Promise(resolve=>{state.releaseAccess=resolve;});
+  if(holdSetup)setupGate=new Promise(resolve=>{state.releaseSetup=resolve;});
   await page.addInitScript(()=>{
     localStorage.setItem("barticket_token","PAYMENT_SETUP_TEST_OWNER");
     localStorage.setItem("barticket_locale","en");
@@ -11,9 +14,10 @@ async function fixture(page,{readStatus=200}={}) {
     const req=route.request(),path=new URL(req.url()).pathname;
     if(req.method()==="OPTIONS")return route.fulfill({status:204,headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"*","Access-Control-Allow-Methods":"GET,PUT,OPTIONS"}});
     let data=[],status=200;
-    const account={id:902,name:"Nori",email:"nori@example.invalid",role:"manager"};
-    if(path==="/admin/payment-setup"){
-      if(req.method()==="GET"){state.reads++;status=state.readStatus;data={...state.saved,revision:state.revision};}
+    const account={id:state.accountId,name:state.accountId===902?"Nori":"Chuck",email:"nori@example.invalid",role:"manager"};
+    if(path==="/admin/payment-setup/access"){state.accessReads++;status=state.accessStatus;data={can_configure:state.canConfigure};if(accessGate){const gate=accessGate;accessGate=null;await gate;}}
+    else if(path==="/admin/payment-setup"){
+      if(req.method()==="GET"){state.reads++;status=state.readStatus;data={...state.saved,revision:state.revision};if(setupGate){const gate=setupGate;setupGate=null;await gate;}}
       else {state.writes.push(req.postDataJSON());status=state.writeStatus;
         if(status===200){state.saved={...state.saved,...req.postDataJSON()};state.revision++;}
         data={...state.saved,revision:state.revision};
@@ -29,7 +33,8 @@ async function fixture(page,{readStatus=200}={}) {
     else {status=404;data={detail:"Fixture endpoint unavailable"};}
     await route.fulfill({status,json:data,headers:{"Access-Control-Allow-Origin":"*"}});
   });
-  await page.goto("/admin");
+  await page.goto(direct?"/admin?section=payments":"/admin");
+  if(direct)return state;
   if(page.viewportSize().width<570)await page.getByRole("combobox",{name:"Admin section",exact:true}).selectOption("payments");
   else await page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true}).click();
   return state;
@@ -39,6 +44,8 @@ test("only an owner-authorized response exposes payment settings",async({page})=
   await expect.poll(()=>state.reads).toBeGreaterThan(0);
   await expect(page.getByRole("combobox")).toHaveCount(0);
   await expect(page.getByRole("button",{name:"Save setup preferences",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"Reload saved setup",exact:true})).toHaveCount(0);
+  expect(state.reads).toBe(1);
   expect(state.writes).toEqual([]);
 });
 test("language changes preserve unsaved payment setup selections",async({page})=>{
@@ -90,4 +97,56 @@ test("owner setup fits a narrow phone in both languages",async({page})=>{
       await page.getByRole("switch").click();
     }
   }
+});
+
+for(const width of [390,1280])test(`nonowner payment capability hides navigation and avoids private reads at ${width}`,async({page})=>{
+ await page.setViewportSize({width,height:844});const state=await fixture(page,{canConfigure:false,accountId:901,direct:true});
+ await expect(page.getByRole("alert")).toContainText("Only the payment account owner");
+ await expect(page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true})).toHaveCount(0);
+ await expect(page.locator('option[value="payments"]:not([disabled])')).toHaveCount(0);
+ await expect(page.getByRole("button",{name:"Reload saved setup",exact:true})).toHaveCount(0);
+ expect(state.reads).toBe(0);expect(state.writes).toEqual([]);
+});
+test("unavailable payment capability fails closed without a private request",async({page})=>{
+ const state=await fixture(page,{accessStatus:503,direct:true});await expect(page.getByRole("alert")).toContainText("Saved setup is unavailable");
+ expect(state.reads).toBe(0);await expect(page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true})).toHaveCount(0);
+ state.accessStatus=200;await page.getByRole("button",{name:"Reload saved setup",exact:true}).click();
+ await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toBeVisible();expect(state.reads).toBe(1);expect(state.writes).toEqual([]);
+});
+
+async function switchToNonowner(page,state){
+ state.accountId=901;state.canConfigure=false;
+ await page.evaluate(()=>{localStorage.setItem("barticket_token","PAYMENT_SETUP_NONOWNER");dispatchEvent(new Event("barticket-auth"));});
+}
+test("late owner capability cannot restore payment navigation or read settings after account change",async({page})=>{
+ const state=await fixture(page,{direct:true,holdAccess:true});await expect.poll(()=>state.accessReads).toBe(1);
+ await switchToNonowner(page,state);await expect(page.getByRole("alert")).toContainText("Only the payment account owner");
+ state.releaseAccess();await page.waitForLoadState("networkidle");
+ await expect(page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true})).toHaveCount(0);
+ await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveCount(0);
+ expect(state.reads).toBe(0);expect(state.writes).toEqual([]);
+});
+test("late private setup response cannot expose owner settings to another account",async({page})=>{
+ const state=await fixture(page,{direct:true,holdSetup:true});await expect.poll(()=>state.reads).toBe(1);
+ await switchToNonowner(page,state);await expect(page.getByRole("alert")).toContainText("Only the payment account owner");
+ state.releaseSetup();await page.waitForLoadState("networkidle");await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveCount(0);
+ expect(state.reads).toBe(1);expect(state.writes).toEqual([]);
+});
+
+test("revoked payment capability clears an open owner form on revalidation",async({page})=>{
+ const state=await fixture(page);await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toBeVisible();
+ const before=state.reads;state.canConfigure=false;
+ await page.evaluate(()=>dispatchEvent(new Event("focus")));
+ await expect(page.getByRole("alert")).toContainText("Only the payment account owner");
+ await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveCount(0);
+ await expect(page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true})).toHaveCount(0);
+ expect(state.reads).toBe(before);expect(state.writes).toEqual([]);
+});
+
+test("failed capability revalidation hides owner settings until explicit access recovery",async({page})=>{
+ const state=await fixture(page);await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toBeVisible();
+ const before=state.reads;state.accessStatus=503;await page.evaluate(()=>dispatchEvent(new Event("focus")));
+ await expect(page.getByRole("alert")).toContainText("Saved setup is unavailable");await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveCount(0);expect(state.reads).toBe(before);
+ state.accessStatus=200;await page.getByRole("button",{name:"Reload saved setup",exact:true}).click();await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toBeVisible();
+ await expect(page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true})).toBeVisible();expect(state.reads).toBe(before+1);expect(state.writes).toEqual([]);
 });

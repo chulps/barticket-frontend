@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Navigate, useLocation, useMatch, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
@@ -14,6 +14,7 @@ import Reconciliation from "./Reconciliation";
 import ScheduleImport from "./ScheduleImport";
 import AdminPayDeductions from "./AdminPayDeductions";
 import AdminPayments from "./AdminPayments";
+import { paymentSetupAccess } from "../api/paymentSetupAccess";
 
 type AdminSection = "overview" | "accounts" | "team" | "historicalHours" | "schedules" | "adjustments" | "payments";
 
@@ -41,6 +42,7 @@ export default function Admin() {
     const auditRoute = useMatch("/admin/staff/:staffId/audit");
     const [me, setMe] = useState<Account | null>(null);
     const [team, setTeam] = useState<Account[]>([]);
+    const [paymentAccess, setPaymentAccess] = useState<{token: string; allowed: boolean | null} | null>(null);
     const [historicalShifts, setHistoricalShifts] = useState<ShiftReport[]>([]);
     const [historicalLoading, setHistoricalLoading] = useState(false);
     const [historicalError, setHistoricalError] = useState("");
@@ -54,14 +56,20 @@ export default function Admin() {
         () => staffId !== undefined || new URLSearchParams(location.search).has("teamView") ? "team" : "overview",
     );
     const activeSection = staffId !== undefined || new URLSearchParams(location.search).has("teamView")
-        ? "team" : section;
+        ? "team" : new URLSearchParams(location.search).get("section") === "payments" ? "payments" : section;
+    const canConfigurePayments = me?.role === "manager" && paymentAccess?.token === getToken() && paymentAccess?.allowed === true;
+    const updatePaymentAccess = useCallback((allowed: boolean | null) => {
+        const token = getToken();
+        if (token) setPaymentAccess({token, allowed});
+    }, []);
+    const visibleSectionTabs = useMemo(() => adminSectionTabs.filter(tab => tab.id !== "payments" || canConfigurePayments), [canConfigurePayments]);
     const sectionNavRef = useRef<HTMLElement>(null);
     const sectionButtons = useRef<(HTMLButtonElement | null)[]>([]);
     const [tabIndicator, setTabIndicator] = useState({ left: 0, top: 0, width: 0, height: 0 });
 
     useLayoutEffect(() => {
         const nav = sectionNavRef.current;
-        const activeIndex = adminSectionTabs.findIndex(tab => tab.id === activeSection);
+        const activeIndex = visibleSectionTabs.findIndex(tab => tab.id === activeSection);
         const activeButton = sectionButtons.current[activeIndex];
         if (!nav || !activeButton) return;
 
@@ -86,7 +94,7 @@ export default function Admin() {
         observer.observe(nav);
         sectionButtons.current.forEach(button => { if (button) observer.observe(button); });
         return () => observer.disconnect();
-    }, [activeSection]);
+    }, [activeSection, visibleSectionTabs]);
     const selectedId = staffId === undefined ? null
         : /^[1-9][0-9]*$/.test(staffId) && Number.isSafeInteger(Number(staffId))
             ? Number(staffId) : -1;
@@ -139,6 +147,7 @@ export default function Admin() {
                 setLoading(true);
                 setMe(null);
                 setTeam([]);
+                setPaymentAccess(null);
             }
             setRefreshing(preserve);
             setAccountsError("");
@@ -153,6 +162,12 @@ export default function Admin() {
                     setMe(account);
                     return;
                 }
+                // Resolve optional navigation without blocking the main Admin data.
+                void paymentSetupAccess.read().then(allowed => {
+                    if (!cancelled && request === generation && getToken() === token) setPaymentAccess({token, allowed});
+                }).catch(() => {
+                    if (!cancelled && request === generation && getToken() === token) setPaymentAccess({token, allowed:null});
+                });
                 const members = await accountApi.listUsers();
                 if (cancelled || request !== generation || getToken() !== token) return;
                 verifiedToken = token;
@@ -271,7 +286,8 @@ export default function Admin() {
             <MobileSectionPicker>
                 <span>{locale === "ja" ? "管理メニュー" : "Admin section"}</span>
                 <select value={activeSection} onChange={event => chooseSection(event.target.value as AdminSection)}>
-                    {adminSectionTabs.map(tab => <option key={tab.id} value={tab.id}>
+                    {activeSection === "payments" && !canConfigurePayments ? <option value="payments" disabled>{locale === "ja" ? "決済設定（利用不可）" : "Payment setup (unavailable)"}</option> : null}
+                    {visibleSectionTabs.map(tab => <option key={tab.id} value={tab.id}>
                         {locale === "ja" ? tab.label.ja : tab.label.en}
                     </option>)}
                 </select>
@@ -281,10 +297,10 @@ export default function Admin() {
                     aria-hidden="true"
                     $left={tabIndicator.left}
                     $top={tabIndicator.top}
-                    $width={tabIndicator.width}
+                    $width={visibleSectionTabs.some(tab => tab.id === activeSection) ? tabIndicator.width : 0}
                     $height={tabIndicator.height}
                 />
-                {adminSectionTabs.map((tab, index) => <SectionButton
+                {visibleSectionTabs.map((tab, index) => <SectionButton
                     key={tab.id}
                     ref={node => { sectionButtons.current[index] = node; }}
                     type="button"
@@ -406,7 +422,10 @@ export default function Admin() {
                     <ScheduleImport users={team} locale={locale} />
                 </>
             ) : activeSection === "payments" ? (
-                <AdminPayments locale={locale} />
+                <AdminPayments locale={locale}
+                    accessDenied={paymentAccess?.token === getToken() && paymentAccess?.allowed === false}
+                    accessUnavailable={paymentAccess?.token === getToken() && paymentAccess?.allowed === null}
+                    onAccessChecked={updatePaymentAccess} />
             ) : activeSection === "adjustments" ? (
                 <AdminPayDeductions managers={team.filter(person => person.role === "manager")} locale={locale} />
             ) : (

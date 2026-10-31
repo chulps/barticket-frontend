@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { ApiError, apiRequest, getToken } from "../api/client";
+import { paymentSetupAccess } from "../api/paymentSetupAccess";
 type Setup = { provider: string; channel: string; methods: string[]; revision: number };
 
 const providers = [
@@ -12,7 +13,7 @@ const providers = [
   { id: "rakuten", name: "楽天ペイ", url: "https://checkout.rakuten.co.jp/biz/service/price.html", en: "Online payments require the applicable merchant agreement; confirm rates and supported integration.", ja: "オンライン決済の加盟店契約が必要です。手数料と連携方法を確認してください。" },
 ];
 
-export default function AdminPayments({ locale }: { locale: string }) {
+export default function AdminPayments({ locale, accessDenied = false, accessUnavailable = false, onAccessChecked }: { locale: string; accessDenied?: boolean; accessUnavailable?: boolean; onAccessChecked?: (allowed: boolean | null) => void }) {
   const ja = locale === "ja";
   const [providerId, setProviderId] = useState("unknown");
   const [setup, setSetup] = useState<Setup | null>(null);
@@ -33,17 +34,26 @@ export default function AdminPayments({ locale }: { locale: string }) {
       const token = getToken();
       setSetup(null); setLoading(true); setLoadError(""); setMessage("");
       setNeedsReload(false); setBusy(false); writePending.current = false;
-      if (!token) {
+      if (!token || accessDenied) {
         setLoadError("denied"); setLoading(false);
         return;
       }
+      let checkedAccess = false;
       try {
+        const allowed = await paymentSetupAccess.read();
+        if (cancelled || request !== generation.current || getToken() !== token) return;
+        checkedAccess = true;
+        onAccessChecked?.(allowed);
+        if (!allowed) { setLoadError("denied"); return; }
         const data = await apiRequest<Setup>("/admin/payment-setup");
         if (cancelled || request !== generation.current || getToken() !== token) return;
         setSetup(data); setProviderId(data.provider); setChannel(data.channel); setMethods(data.methods);
       } catch (error) {
         if (cancelled || request !== generation.current || getToken() !== token) return;
-        setLoadError(error instanceof ApiError && (error.status === 401 || error.status === 403) ? "denied" : "unavailable");
+        const denied = error instanceof ApiError && (error.status === 401 || error.status === 403);
+        if (denied) onAccessChecked?.(false);
+        else if (!checkedAccess) onAccessChecked?.(null);
+        setLoadError(denied ? "denied" : "unavailable");
       } finally {
         if (!cancelled && request === generation.current && getToken() === token) setLoading(false);
       }
@@ -58,10 +68,10 @@ export default function AdminPayments({ locale }: { locale: string }) {
       generation.current++;
       window.removeEventListener("barticket-auth", reload);
     };
-  }, [reloadKey]);
+  }, [reloadKey, accessDenied, onAccessChecked]);
   async function save() {
     const token = getToken();
-    if (!setup || loading || busy || writePending.current || needsReload || !token) return;
+    if (accessDenied || accessUnavailable || !setup || loading || busy || writePending.current || needsReload || !token) return;
     const request = generation.current;
     writePending.current = true;
     setBusy(true); setMessage("");
@@ -72,7 +82,7 @@ export default function AdminPayments({ locale }: { locale: string }) {
     } catch (error) {
       if (request !== generation.current || getToken() !== token) return;
       if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-        setSetup(null); setLoadError("denied");
+        setSetup(null); setLoadError("denied"); onAccessChecked?.(false);
       } else {
         setMessage("uncertain"); setNeedsReload(true);
       }
@@ -91,13 +101,13 @@ export default function AdminPayments({ locale }: { locale: string }) {
   const valid = inputs.every(v => v.trim() !== "" && Number.isFinite(Number(v)) && Number(v) >= 0) && Number(rate) <= 100;
   const cost = valid ? Number(sales) * Number(rate) / 100 + Number(fixed) : null;
   const t = (en: string, jp: string) => ja ? jp : en;
-  if (loading || !setup) return <Panel>
+  if (accessDenied || accessUnavailable || loading || !setup) return <Panel>
     <h2>{t("Payment setup", "決済設定")}</h2>
-    {loading ? <p role="status">{t("Checking payment setup access…", "決済設定の権限を確認中…")}</p> : <>
-      <p role="alert">{loadError === "denied"
+    {loading && !accessDenied && !accessUnavailable ? <p role="status">{t("Checking payment setup access…", "決済設定の権限を確認中…")}</p> : <>
+      <p role="alert">{accessDenied || loadError === "denied"
         ? t("Only the payment account owner can view or change saved payment settings.", "保存した決済設定は決済アカウントの所有者のみが確認・変更できます。")
         : t("Saved setup is unavailable. Check the connection and try again.", "保存した設定を読み込めません。接続を確認して再試行してください。")}</p>
-      <button type="button" onClick={() => setReloadKey(key => key + 1)}>{t("Reload saved setup", "保存した設定を再読み込み")}</button>
+      {!accessDenied && loadError !== "denied" ? <button type="button" onClick={() => { paymentSetupAccess.revalidate(); setReloadKey(key => key + 1); }}>{t("Reload saved setup", "保存した設定を再読み込み")}</button> : null}
     </>}
   </Panel>;
   const disabled = busy || needsReload;
