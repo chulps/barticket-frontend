@@ -48,7 +48,7 @@ export default function NoriMonthlySummary({ userId, locale }: { userId: number;
     const ja = locale === "ja";
     const [month, setMonth] = useState(thisMonth);
     const [refresh, setRefresh] = useState(0);
-    useEffect(() => subscribeRealtime(["analytics", "shift", "tickets"], () => setRefresh(value => value + 1)), []);
+    useEffect(() => subscribeRealtime(["analytics", "shift", "tickets", "users"], () => setRefresh(value => value + 1)), []);
     const [result, setResult] = useState<{
         key: string; report: NoriMonthlyPay | null; failure: "forbidden" | "unavailable" | "error" | null;
     } | null>(null);
