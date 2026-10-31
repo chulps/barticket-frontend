@@ -3,7 +3,7 @@
 ## Changes
 
 - Share pending `/auth/me` requests and reuse a successful response for at most one second during App → route mounting. The cache is memory-only and keyed to the exact session token.
-- Auth events, focus revalidation, and profile updates invalidate it. Invalidation retires pending responses; old completions cannot refill the cache or supersede a newer account.
+- Auth events and profile updates invalidate it; focus expires settled data but shares a pending same-session check. Auth invalidation retires pending responses; old completions cannot refill the cache or supersede a newer account.
 - Header starts account and current-shift reads together.
 - A stored session gets the normal navigation shell during verification. Private route data remains gated. Header clears the previous role/name as soon as the session changes.
 - Admin keeps the selected screen and verified same-session records while focus revalidation runs, with an updating indicator. Transient failures show an error without discarding the screen. A changed account, revoked role, or 401/403 clears private records.

@@ -127,7 +127,7 @@ test("focus during slow initial Profile authentication keeps the pending same-se
     window.dispatchEvent(new Event("focus"));
     window.dispatchEvent(new Event("focus"));
   });
-  await expect(page.getByRole("tablist",{name:"Profile sections"})).toBeVisible();
+  await expect(page.getByRole("group",{name:"Profile sections"})).toBeVisible();
   await expect(page.getByText("Session changed during account verification",{exact:true})).toHaveCount(0);
   expect(state.calls.filter(x=>x.path==="/auth/me")).toHaveLength(1);
 });
