@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
+import { useSearchParams } from "react-router-dom";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError } from "../api/client";
@@ -66,10 +67,23 @@ function dayInMonth(month: string, preferredDay: number) {
  */
 export default function AdminTeam({ viewer, people, accountsError, locale, selectedId, onSelect, onAudit }: Props) {
     const ja = locale === "ja";
-    const [timeScale, setTimeScale] = useState<TimeScale>("month");
-    const [month, setMonth] = useState(currentMonth);
-    const [year, setYear] = useState(() => String(new Date().getFullYear()));
-    const [day, setDay] = useState(currentDate);
+    const [search, setSearch] = useSearchParams();
+    const teamView = search.get("teamView") === "pay" ? "pay" : "people";
+    const memberView = search.get("memberView") === "pay" ? "pay" : "activity";
+    const rawScale = search.get("period");
+    const activityScale: TimeScale = rawScale === "all" || rawScale === "year" || rawScale === "day" ? rawScale : "month";
+    const payView = selectedId === null ? teamView === "pay" : memberView === "pay";
+    const timeScale = payView ? "month" : activityScale;
+    const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(search.get("month") ?? "") ? search.get("month")! : currentMonth();
+    const year = /^\d{4}$/.test(search.get("year") ?? "") ? search.get("year")! : month.slice(0, 4);
+    const day = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(search.get("day") ?? "") ? search.get("day")! : currentDate();
+    function setPeriod(values: Record<string, string>) {
+        setSearch(previous => {
+            const next = new URLSearchParams(previous);
+            for (const [key, value] of Object.entries(values)) next.set(key, value);
+            return next;
+        });
+    }
     const [closed, setClosed] = useState<ShiftReport[]>([]);
     const [current, setCurrent] = useState<ShiftReport | null>(null);
     const [loading, setLoading] = useState(true);
@@ -106,6 +120,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
     }, [refreshKey, ja]);
 
     const person = selectedId === null ? null : people.find(member => member.id === selectedId) ?? null;
+    const profilePeople = useMemo(() => person ? [person] : [], [person]);
     // Generic hourly-pay, time-correction and drinkback drafts apply to staff, not managers.
     // Keep manager profiles (including Chuck and Nori) focused on history and their own policies.
     const isStaffProfile = person?.role === "staff";
@@ -150,10 +165,20 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
         <Root>
             <Toolbar>
                 <div>
-                    <h2>{ja ? "チームメンバー" : "Team members"}</h2>
-                    <Muted>{ja ? "期間を選び、勤務と給与を確認します。" : "Choose a time scale to review work and pay."}</Muted>
+                    <h2>{selectedId === null ? (ja ? "チーム" : "Team") : person?.name ?? (ja ? "メンバープロフィール" : "Team member")}</h2>
+                    <Muted>{selectedId === null
+                        ? (ja ? "メンバーの記録、またはチーム全体の給与見積もりを確認します。" : "Open a member’s records or review the team’s monthly pay.")
+                        : (ja ? "このメンバーの勤務記録と給与を確認します。" : "Review this member’s activity and pay.")}</Muted>
                 </div>
             </Toolbar>
+            {selectedId === null ? <TabGroup
+                label={ja ? "チーム表示" : "Team views"}
+                tabs={[{id:"people",label:ja ? "メンバー" : "People"},{id:"pay",label:ja ? "チーム給与" : "Team pay"}]}
+                activeTab={teamView} onChange={teamView => setPeriod({teamView})} />
+                : <TabGroup label={ja ? "メンバー表示" : "Member views"}
+                    tabs={[{id:"activity",label:ja ? "勤務記録" : "Activity"},{id:"pay",label:ja ? "給与" : "Pay"}]}
+                    activeTab={memberView} onChange={memberView => setPeriod({memberView})} />}
+            {selectedId !== null && !payView ? <>
             <TabGroup<TimeScale>
                 label={ja ? "表示期間" : "Time scale"}
                 tabs={[
@@ -163,65 +188,62 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                     { id: "day", label: ja ? "日次" : "Daily" },
                 ]}
                 activeTab={timeScale}
-                onChange={scale => {
-                    setTimeScale(scale);
-                    if (scale === "year") setYear(month.slice(0, 4));
-                    if (scale === "month") setMonth(value => `${year}-${value.slice(5, 7)}`);
-                    if (scale === "day") setDay(value => dayInMonth(month, Number(value.slice(8, 10))));
+                onChange={period => {
+                    if (period === "year") setPeriod({period, year:month.slice(0,4)});
+                    else if (period === "month") setPeriod({period, month:`${year}-${month.slice(5,7)}`});
+                    else if (period === "day") setPeriod({period, day:dayInMonth(month, Number(day.slice(8,10)))});
+                    else setPeriod({period});
                 }}
             />
-            {timeScale === "year" ? <PeriodNav>
+            </> : null}
+            {selectedId !== null && timeScale === "year" ? <PeriodNav>
                 <StepButton type="button" className="hollow secondary" aria-label={ja ? "前年" : "Previous year"}
                     onClick={() => {
                         const next = shiftYear(year, -1);
-                        setYear(next);
-                        setMonth(value => `${next}-${value.slice(5, 7)}`);
-                        setDay(value => `${next}-${value.slice(5, 7)}-01`);
+                        setPeriod({year:next,month:`${next}-${month.slice(5, 7)}`,day:`${next}-${day.slice(5, 7)}-01`});
                     }}><Icon name="CaretLeft" size="var(--font-size-h4)" /></StepButton>
                 <strong>{year}</strong>
                 <StepButton type="button" className="hollow secondary" aria-label={ja ? "翌年" : "Next year"}
                     onClick={() => {
                         const next = shiftYear(year, 1);
-                        setYear(next);
-                        setMonth(value => `${next}-${value.slice(5, 7)}`);
-                        setDay(value => `${next}-${value.slice(5, 7)}-01`);
+                        setPeriod({year:next,month:`${next}-${month.slice(5, 7)}`,day:`${next}-${day.slice(5, 7)}-01`});
                     }}><Icon name="CaretRight" size="var(--font-size-h4)" /></StepButton>
             </PeriodNav> : null}
-            {timeScale === "month" ? <PeriodNav>
+            {(selectedId !== null || payView) && timeScale === "month" ? <PeriodNav>
                 <StepButton type="button" className="hollow secondary" aria-label={ja ? "前月" : "Previous month"}
                     onClick={() => {
                         const next = shiftMonth(month, -1);
-                        setMonth(next); setYear(next.slice(0, 4)); setDay(`${next}-01`);
+                        setPeriod({month:next,year:next.slice(0,4),day:dayInMonth(next, Number(day.slice(8,10)))});
                     }}><Icon name="CaretLeft" size="var(--font-size-h4)" /></StepButton>
                 <strong>{monthLabel(month, locale)}</strong>
                 <StepButton type="button" className="hollow secondary" aria-label={ja ? "翌月" : "Next month"}
                     onClick={() => {
                         const next = shiftMonth(month, 1);
-                        setMonth(next); setYear(next.slice(0, 4)); setDay(`${next}-01`);
+                        setPeriod({month:next,year:next.slice(0,4),day:dayInMonth(next, Number(day.slice(8,10)))});
                     }}><Icon name="CaretRight" size="var(--font-size-h4)" /></StepButton>
             </PeriodNav> : null}
-            {timeScale === "day" ? <DayPeriodNav>
+            {selectedId !== null && timeScale === "day" ? <DayPeriodNav>
                 <StepButton type="button" className="hollow secondary" aria-label={ja ? "前日" : "Previous day"}
                     onClick={() => {
                         const next = shiftDay(day, -1);
-                        setDay(next); setMonth(next.slice(0, 7)); setYear(next.slice(0, 4));
+                        setPeriod({day:next,month:next.slice(0,7),year:next.slice(0,4)});
                     }}><Icon name="CaretLeft" size="var(--font-size-h4)" /></StepButton>
                 <AnalyticsDatePicker label={dayLabel(day, locale)} value={day}
                     shiftDates={activity.map(row => row.businessDate)} onChange={value => {
-                        setDay(value); setMonth(value.slice(0, 7)); setYear(value.slice(0, 4));
+                        setPeriod({day:value,month:value.slice(0,7),year:value.slice(0,4)});
                     }} />
                 <StepButton type="button" className="hollow secondary" aria-label={ja ? "翌日" : "Next day"}
                     onClick={() => {
                         const next = shiftDay(day, 1);
-                        setDay(next); setMonth(next.slice(0, 7)); setYear(next.slice(0, 4));
+                        setPeriod({day:next,month:next.slice(0,7),year:next.slice(0,4)});
                     }}><Icon name="CaretRight" size="var(--font-size-h4)" /></StepButton>
             </DayPeriodNav> : null}
-            <RefreshRow>
+            {selectedId !== null || payView ? <RefreshRow>
                 <button type="button" className="small hollow secondary" disabled={loading}
                     onClick={() => setRefreshKey(key => key + 1)}>{ja ? "更新" : "Refresh"}</button>
-            </RefreshRow>
-            <Layout $hasSelection={selectedId !== null}>
-                <Directory aria-label={ja ? "チーム一覧" : "Team directory"}>
+            </RefreshRow> : null}
+            {selectedId !== null || !payView ? <Layout>
+                {selectedId === null ? <Directory aria-label={ja ? "チーム一覧" : "Team directory"}>
                     <DirectoryHeading>{ja ? "メンバー" : "People"}</DirectoryHeading>
                     {accountsError ? <Error role="alert">{accountsError}</Error> : null}
                     {people.length ? people.map(member => (
@@ -238,14 +260,9 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                             <Chevron aria-hidden="true">›</Chevron>
                         </Member>
                     )) : !accountsError ? <Muted>{ja ? "メンバーはいません。" : "No team members."}</Muted> : null}
-                </Directory>
-                <Detail>
-                    {selectedId === null ? (
-                        <Placeholder>
-                            <h3>{ja ? "メンバーを選択" : "Select a team member"}</h3>
-                            <Muted>{ja ? "左の一覧からスタッフを選んでください。" : "Choose someone from the directory to view their management profile."}</Muted>
-                        </Placeholder>
-                    ) : !person ? (
+                </Directory> : null}
+                {selectedId !== null ? <Detail>
+                    {!person ? (
                         <Placeholder>
                             <h3>{ja ? "メンバーが見つかりません" : "Team member not found"}</h3>
                             <Muted>{ja ? "利用可能なメンバーから選択してください。" : "Select an active account from the list."}</Muted>
@@ -263,13 +280,13 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                 <PersonTitle>
                                     <Badge $large aria-hidden="true">{person.name.trim().slice(0, 1).toUpperCase() || "•"}</Badge>
                                     <div>
-                                        <h3>{person.name}</h3>
                                         <Muted>{person.email}</Muted>
                                         <Muted>{person.role === "manager" ? (ja ? "マネージャー" : "Manager") : (ja ? "スタッフ" : "Staff")}</Muted>
                                     </div>
                                 </PersonTitle>
                             </PersonHeading>
 
+                            {memberView === "activity" ? <>
                             <Summary>
                                 <Metric>
                                     <span>{ja ? "シフト" : "Shifts"}</span>
@@ -305,7 +322,10 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                                     ? "勤務時間は打刻と確認済みの過去データを表示します。記録のない情報は推測しません。"
                                     : "Hours include clock records and verified spreadsheet history. Missing amounts are never treated as zero."}
                             </Coverage>
-                            {!loading && !loadError && timeScale === "month" && canSeeChuckRevenueShare(viewer, person.id, revenueShareViewers) ? (
+                            </> : null}
+                            {memberView === "pay" ? <AdminMonthlyPayOverview key={person.id} viewer={viewer} people={profilePeople} locale={locale}
+                                month={month} refreshVersion={refreshKey} scope="person" /> : null}
+                            {!loading && !loadError && memberView === "pay" && timeScale === "month" && canSeeChuckRevenueShare(viewer, person.id, revenueShareViewers) ? (
                                 <AdminManagerShare
                                     key={person.id}
                                     person={person}
@@ -332,9 +352,9 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                             ) : null}
                         </>
                     )}
-                </Detail>
-            </Layout>
-            {timeScale === "month" ? <AdminMonthlyPayOverview viewer={viewer} people={people} locale={locale}
+                </Detail> : null}
+            </Layout> : null}
+            {selectedId === null && teamView === "pay" && timeScale === "month" ? <AdminMonthlyPayOverview viewer={viewer} people={people} locale={locale}
                 month={month} refreshVersion={refreshKey} /> : null}
         </Root>
     );
@@ -346,7 +366,7 @@ const Root = styled.section`
 `;
 const Toolbar = styled.div`
     display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-1);flex-wrap:wrap;
-    h2{font-size:var(--font-size-h4);font-weight:500;}
+    h2{font-size:var(--font-size-h4);font-weight:500;overflow-wrap:anywhere;}
     button{width:auto;}
 `;
 const PeriodNav = styled.div`
@@ -366,11 +386,8 @@ const EditorDisclosure = styled.details`
     padding:var(--space-1);border:1px solid var(--neutral-700);border-radius:10px;
     summary{cursor:pointer;font-weight:500;}
 `;
-const Layout = styled.div<{ $hasSelection: boolean }>`
+const Layout = styled.div`
     display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2);
-    & > nav{order:${({ $hasSelection }) => $hasSelection ? 2 : 1};}
-    & > div{order:${({ $hasSelection }) => $hasSelection ? 1 : 2};}
-    @media(min-width:1050px){grid-template-columns:minmax(230px,290px) minmax(0,1fr);align-items:start;& > nav,& > div{order:initial;}}
 `;
 const Directory = styled.nav`
     display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-2);
@@ -393,7 +410,7 @@ const MemberText = styled.span`
 const Chevron = styled.span`margin-left:auto;font-size:1.4em;`;
 const Detail = styled.div`
     display:flex;flex-direction:column;gap:var(--space-2);min-width:0;
-    background:var(--neutral-800);padding:var(--space-2);border-radius:12px;
+    padding:var(--space-1) 0;
 `;
 const Placeholder = styled.div`
     display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-2);
@@ -405,6 +422,7 @@ const PersonHeading = styled.div`
 `;
 const PersonTitle = styled.div`
     display:flex;align-items:center;gap:var(--space-1);min-width:0;
+    & > div{min-width:0;}
     h3{font-size:var(--font-size-h3);font-weight:500;overflow-wrap:anywhere;}
 `;
 const Summary = styled.div`

@@ -59,15 +59,17 @@ function chuckRow(person: Account, data: ChuckMonthlyPayPreview): PayRow {
 
 /** Manager-only comparison for confirmed monthly pay inputs; unknown manager rules remain unavailable. */
 export default function AdminMonthlyPayOverview({
-    viewer, people, locale, month, refreshVersion,
+    viewer, people, locale, month, refreshVersion, scope = "team",
 }: {
     viewer: Account;
     people: Account[];
     locale: Locale;
     month: string;
     refreshVersion: number;
+    scope?: "team" | "person";
 }) {
     const ja = locale === "ja";
+    const teamScope = scope === "team";
     const viewers = readRevenueShareViewers();
     const designated = viewers.chuckUserId !== null && viewers.noriUserId !== null &&
         viewers.chuckUserId !== viewers.noriUserId &&
@@ -149,7 +151,9 @@ export default function AdminMonthlyPayOverview({
         }];
     });
 
-    if (!designated || viewer.role !== "manager") return null;
+    if (!designated || viewer.role !== "manager") return <p role="note">{ja
+        ? "このアカウントでは給与見積もりを表示できません。"
+        : "Pay estimates are not available to this account."}</p>;
 
     const label = (code: string | undefined) => {
         if (!code) return "";
@@ -159,10 +163,10 @@ export default function AdminMonthlyPayOverview({
     };
 
     return (
-        <Panel aria-label={ja ? "月次給与一覧" : "Monthly team pay"}>
+        <Panel aria-label={teamScope ? (ja ? "月次給与一覧" : "Monthly team pay") : (ja ? "月次給与" : "Monthly pay")}>
             <Header>
                 <div>
-                    <h2>{ja ? "月次給与一覧" : "Monthly team pay"}</h2>
+                    <h2>{teamScope ? (ja ? "月次給与一覧" : "Monthly team pay") : (ja ? "月次給与" : "Monthly pay")}</h2>
                     <p>{ja
                         ? "選択した月の勤務と給与見積もりです。支払い記録ではありません。"
                         : "Work and estimated pay for the selected month. This is not a payment record."}</p>
@@ -170,23 +174,23 @@ export default function AdminMonthlyPayOverview({
             </Header>
             {loading ? <p role="status">{ja ? "給与情報を読み込み中…" : "Loading monthly pay…"}</p> : (
                 <>
-                    <PayTotal>
+                    {teamScope ? <PayTotal>
                         <span>{ja ? "スタッフ給与合計" : "Total staff pay"}</span>
                         <strong>{totalStaffPay === null ? (ja ? "未確認" : "Incomplete") : yen(totalStaffPay, locale)}</strong>
                         {totalStaffPay === null ? <small>{ja ? "時給または勤務時間が未確認のメンバーがいます。下の各メンバー欄をご確認ください。" : "Some hours or rates are missing. See the individual records below."}</small> : null}
-                    </PayTotal>
-                    {staffChartRows.length ? <PayBreakdownChart
+                    </PayTotal> : null}
+                    {teamScope && staffChartRows.length ? <PayBreakdownChart
                         title={ja ? "スタッフ別の月間給与" : "Monthly staff pay by person"}
                         rows={staffChartRows} locale={locale}
                         note={ja ? `記録が揃っている${staffChartRows.length}名のみ表示。給与見積もりであり支払記録ではありません。`
                             : `Showing ${staffChartRows.length} member(s) with complete records. These are pay estimates, not payment records.`} /> : null}
-                    {incompleteStaffCount ? <p role="note">{ja
+                    {teamScope && incompleteStaffCount ? <p role="note">{ja
                         ? `${incompleteStaffCount}名分は勤務時間または時給が未確認のためグラフに含めていません。表の「—」は0円ではなく未確認です。`
                         : `${incompleteStaffCount} member(s) are omitted from the chart because hours or rates are incomplete. “—” means unavailable, not ¥0.`}</p> : null}
-                    {staffRows.length && !staffChartRows.length && !incompleteStaffCount ? <p role="note">{ja
+                    {teamScope && staffRows.length && !staffChartRows.length && !incompleteStaffCount ? <p role="note">{ja
                         ? "確認済みのスタッフ給与がまだありません。"
                         : "No confirmed staff pay amounts are available to chart yet."}</p> : null}
-                    {chuckCompositionRows.length ? <PayBreakdownChart
+                    {teamScope && chuckCompositionRows.length ? <PayBreakdownChart
                         title={ja ? "Chuckの月間給与配分" : "Chuck’s monthly pay allocation"}
                         rows={chuckCompositionRows} locale={locale}
                         note={ja ? "確認済み金額の内訳です。金額は支払済みを意味しません。"
