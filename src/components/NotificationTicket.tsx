@@ -55,5 +55,8 @@ export default function NotificationTicket({ ticketId }: { ticketId: number }) {
 }
 const Panel = styled.section`
   padding: var(--space-2); margin-bottom: var(--space-3); border: 1px solid var(--neutral-600); border-radius: var(--space-2);
+  min-width:0;
+  li span { min-width:0; overflow-wrap:anywhere; }
+  li strong { flex-shrink:0; white-space:nowrap; }
   h3 { overflow-wrap:anywhere; } ul { padding:0; list-style:none; } li { display:flex; justify-content:space-between; gap:var(--space-2); padding:var(--space-1) 0; }
 `;
