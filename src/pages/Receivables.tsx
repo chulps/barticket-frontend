@@ -79,7 +79,7 @@ export default function Receivables() {
         ["other", ja ? "その他" : "Other"],
     ];
 
-    return <main style={{ maxWidth: 1000, margin: "0 auto", padding: "var(--space-3)" }}>
+    return <Page>
         <h1>{ja ? "未払い・繰越伝票" : "Outstanding / unpaid tickets"}</h1>
         <p>{ja
             ? "サービス営業日、実際の回収額、残高を分けて表示します。後日の支払いは元のシフトや来店人数を変更しません。"
@@ -126,7 +126,7 @@ export default function Receivables() {
                         <dt>{ja ? "請求額" : "Billed"}</dt><dd>{yen(ticket.total)}</dd>
                         <dt>{ja ? "回収済み" : "Collected"}</dt><dd>{yen(ticket.amount_paid ?? 0)}</dd>
                         <dt><strong>{ja ? "残高" : "Balance due"}</strong></dt><dd><strong>{yen(ticket.balance_due ?? 0)}</strong></dd>
-                        <dt>{ja ? "理由" : "Reason"}</dt><dd>{ticket.unpaid_reason ?? "—"}</dd>
+                        <dt>{ja ? "理由" : "Reason"}</dt><dd>{reasonOptions.find(([value]) => value === ticket.unpaid_reason)?.[1] ?? ticket.unpaid_reason ?? "—"}</dd>
                         {ticket.unpaid_note ? <><dt>{ja ? "スタッフメモ" : "Staff note"}</dt><dd>{ticket.unpaid_note}</dd></> : null}
                         {ticket.deferred_by ? <><dt>{ja ? "記録者" : "Recorded by"}</dt><dd>{ticket.deferred_by}</dd></> : null}
                     </dl>
@@ -161,7 +161,7 @@ export default function Receivables() {
             <span>{offset + 1}–{Math.min(offset + PAGE_SIZE, total)} / {total}</span>
             <button type="button" disabled={offset + PAGE_SIZE >= total || loading} onClick={() => setOffset(value => value + PAGE_SIZE)}>{ja ? "次へ" : "Next"}</button>
         </ActionRow> : null}
-    </main>;
+    </Page>;
 }
 
 function WriteOffForm({ ticket, locale, onSaved }: { ticket: ApiTicket; locale: string; onSaved: () => void }) {
@@ -221,10 +221,15 @@ function VoidPaymentForm({ ticketId, paymentId, locale, onSaved }: { ticketId: n
     </span>;
 }
 
+const Page = styled.main`
+    width:100%; max-width:1000px; min-width:0; box-sizing:border-box; margin:0 auto; padding:var(--space-2);
+    h1{font-size:var(--font-size-h3);overflow-wrap:anywhere;}
+    @media(min-width:600px){padding:var(--space-3);}
+`;
 const FilterRow = styled.div`display:grid; grid-template-columns:minmax(0,1fr); align-items:end; gap:var(--space-1); margin-block:var(--space-2); label{display:grid; gap:var(--space-1); min-width:0;} select{width:100%;} button{width:100%;} @media(min-width:600px){grid-template-columns:repeat(3,minmax(0,1fr)); button{width:auto;}}`;
 const ResultsCount = styled.p`color:var(--neutral-300); font-family:var(--font-family-data); margin:0 0 var(--space-1);`;
 const EmptyState = styled.section`display:flex;flex-direction:column;align-items:flex-start;gap:var(--space-1);padding:var(--space-2);background:var(--neutral-900);border-radius:12px;color:var(--neutral-300);strong{color:var(--neutral-100);}button{width:auto;}`;
 const StatusBadge = styled.strong`display:inline-flex;padding:.25rem .7rem;border-radius:999px;background:var(--neutral-800);color:var(--neutral-100);font-size:var(--font-size-small);`;
 const List = styled.section`display:grid; gap:var(--space-2);`;
-const ReceivableCard = styled.article`border:1px solid var(--neutral-700); border-radius:var(--space-2); padding:var(--space-2); display:grid; gap:var(--space-2); overflow-wrap:anywhere; header{display:flex; justify-content:space-between; gap:var(--space-2); flex-wrap:wrap;} h2{font-size:var(--font-size-h4); margin:0;} p{margin:var(--space-1) 0;} dl{display:grid; grid-template-columns:minmax(8rem, 1fr) auto; gap:var(--space-1); margin:0;} dt,dd{margin:0;} dd{text-align:right;} details{min-width:0;} summary{cursor:pointer;} ul{padding-left:1.25rem;}`;
+const ReceivableCard = styled.article`border:1px solid var(--neutral-700); border-radius:var(--space-2); padding:var(--space-2); display:grid; gap:var(--space-2); overflow-wrap:anywhere; header{display:flex; justify-content:space-between; gap:var(--space-2); flex-wrap:wrap;} h2{font-size:var(--font-size-h4); margin:0;} p{margin:var(--space-1) 0;} dl{display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.4fr); gap:var(--space-1); margin:0;} dt,dd{margin:0;} dd{text-align:right;} details{min-width:0;} summary{cursor:pointer;} ul{padding-left:1.25rem;}`;
 const ActionRow = styled.div`display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--space-1);`;
