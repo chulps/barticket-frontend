@@ -1,3 +1,5 @@
+import { startBackgroundRefresh } from "../hooks/backgroundRefresh";
+import { shouldPoll } from "../api/realtime";
 // src/pages/Dashboard.tsx
 
 // import react stuff
@@ -106,26 +108,17 @@ export default function Dashboard({
         if (!cancelled && request === requestVersion) setMe(null);
       }
     }
-    void load();
-    const timer = window.setInterval(() => { void load(); }, 20000);
-    window.addEventListener("focus", load);
-    window.addEventListener("barticket-auth", load);
-    window.addEventListener("barticket-users-updated", load);
-    window.addEventListener("barticket-api-restored", load);
-    window.addEventListener("barticket-shift-updated", load);
-    window.addEventListener("barticket-venue-status-updated", load);
-    window.addEventListener("barticket-retry-shift", load);
+    const stopRefresh = startBackgroundRefresh({
+      refresh: load,
+      shouldPoll,
+      refreshKey: () => businessDateJst(Date.now()),
+      events: ["barticket-auth", "barticket-users-updated", "barticket-shift-updated",
+        "barticket-venue-status-updated", "barticket-retry-shift"],
+    });
     return () => {
       cancelled = true;
       requestVersion++;
-      window.clearInterval(timer);
-      window.removeEventListener("focus", load);
-      window.removeEventListener("barticket-auth", load);
-      window.removeEventListener("barticket-users-updated", load);
-      window.removeEventListener("barticket-api-restored", load);
-      window.removeEventListener("barticket-shift-updated", load);
-      window.removeEventListener("barticket-venue-status-updated", load);
-      window.removeEventListener("barticket-retry-shift", load);
+      stopRefresh();
     };
   }, []);
 
@@ -465,3 +458,4 @@ const ShiftStatusBar = styled.div`
   .on-duty { color: var(--success-300); }
   a { color: var(--neutral-100); text-decoration: underline; text-underline-offset: 3px; }
 `;
+

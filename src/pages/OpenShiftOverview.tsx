@@ -70,7 +70,7 @@ export default function OpenShiftOverview({
                 </div>
                 {updatedAt !== null ? (
                     <LastUpdated>{locale === "ja" ? "最終更新" : "Last updated"} {shiftTime(updatedAt, locale)}
-                        <small>{locale === "ja" ? "約20秒ごとに更新" : "Refreshes about every 20 seconds"}</small>
+                        <small>{locale === "ja" ? "変更時に更新（接続不良時は定期確認）" : "Updates on changes; periodic checks if disconnected"}</small>
                     </LastUpdated>
                 ) : null}
             </LiveHeader>
@@ -357,3 +357,4 @@ const Footnote = styled.p`
     color: var(--neutral-400);
     font-size: var(--font-size-small);
 `;
+

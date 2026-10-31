@@ -156,11 +156,12 @@ test("Live dashboard displays only when selected Daily shift is open; archived l
     assert.match(analytics, /range === "day" && selected\?\.status === "open"/);
     assert.match(analytics, /<OpenShiftOverview[\s\S]*?shift=\{selected as ShiftReport\}[\s\S]*?notices=\{notices\}/);
     assert.match(analytics, /\) : \(\s*<>[\s\S]*?<Summary totals=\{totals\}/);
-    assert.match(analytics, /window\.setInterval\(refresh, 20000\)/);
-    assert.match(analytics, /window\.addEventListener\("focus", refresh\)/);
-    assert.match(analytics, /window\.addEventListener\("barticket-push", refresh\)/);
+    assert.match(analytics, /startBackgroundRefresh\(\{/);
+    assert.match(analytics, /shouldPoll,/);
+    assert.match(analytics, /events: \["barticket-analytics-updated", "barticket-push"/);
     assert.match(analytics, /const selected = useMemo\(\(\) => currentReport\?\.id === dayId && currentReport\.business_date === pickedDate/);
     assert.match(dashboard, /const activeStockouts = notices\?\.status === "open"/);
     assert.match(dashboard, /clockedInTeam\(shift, members\)/);
     assert.match(dashboard, /Shift IN PROGRESS|SHIFT IN PROGRESS/);
 });
+

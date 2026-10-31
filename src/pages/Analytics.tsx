@@ -1,3 +1,6 @@
+import { withLiveShiftHours } from "./analyticsLiveClock";
+import { startBackgroundRefresh } from "../hooks/backgroundRefresh";
+import { shouldPoll } from "../api/realtime";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
@@ -516,23 +519,22 @@ export default function Analytics() {
         if (!signedIn) return;
         let cancelled = false;
         let initiallySelected = false;
-        let timer: number | null = null;
+        let stopRefresh = () => {};
+        let stopNotices = () => {};
 
         async function loadLatest() {
             if (cancelled) return;
             try {
-                const [rows, current, ticketRows, stock] = await Promise.all([
+                const [rows, current, ticketRows] = await Promise.all([
                     accountApi.analyticsShifts(),
                     accountApi.currentShift(),
                     ticketsApi.list(),
-                    listNotices().catch(() => null),
                 ]);
                 if (cancelled) return;
                 const ordered = [...rows].sort((a, b) => b.business_date.localeCompare(a.business_date));
                 setShifts(ordered);
                 setOpenShift(current);
                 setTickets(ticketRows.map(toTicket));
-                setNotices(stock);
                 setLastUpdated(Math.floor(Date.now() / 1000));
                 setError("");
                 setLoading(false);
@@ -584,7 +586,7 @@ export default function Analytics() {
                 }
             }
         }
-        const onUsers = () => { void refreshIdentity(); void refresh(); };
+        const onUsers = () => { void refreshIdentity(); };
         window.addEventListener("barticket-users-updated", onUsers);
         window.addEventListener("barticket-auth", onUsers);
         async function start() {
@@ -593,13 +595,21 @@ export default function Analytics() {
                 if (cancelled) return;
                 // Refresh live totals, roster/punches and shift-close status
                 // without requiring the manager to leave the Analytics page.
-                window.addEventListener("focus", refresh);
-                window.addEventListener("barticket-analytics-updated", refresh);
-                window.addEventListener("barticket-push", refresh);
-                window.addEventListener("barticket-notices", refresh);
-                window.addEventListener("barticket-api-restored", refresh);
-                timer = window.setInterval(refresh, 20000);
-                await refresh();
+                stopRefresh = startBackgroundRefresh({
+                    refresh,
+                    shouldPoll,
+                    events: ["barticket-analytics-updated", "barticket-push", "barticket-shift-updated", "barticket-auth", "barticket-users-updated"],
+                });
+                // Notices do not invalidate the complete ticket/history dataset.
+                stopNotices = startBackgroundRefresh({
+                    refresh: async () => {
+                        const stock = await listNotices().catch(() => null);
+                        if (!cancelled) setNotices(stock);
+                    },
+                    shouldPoll,
+                    events: ["barticket-notices", "barticket-auth"],
+                    intervalMs: 60_000,
+                });
             } catch (err: unknown) {
                 if (cancelled) return;
                 setLoading(false);
@@ -619,12 +629,8 @@ export default function Analytics() {
             identityGeneration++;
             window.removeEventListener("barticket-users-updated", onUsers);
             window.removeEventListener("barticket-auth", onUsers);
-            if (timer !== null) window.clearInterval(timer);
-            window.removeEventListener("focus", refresh);
-            window.removeEventListener("barticket-analytics-updated", refresh);
-            window.removeEventListener("barticket-push", refresh);
-            window.removeEventListener("barticket-notices", refresh);
-            window.removeEventListener("barticket-api-restored", refresh);
+            stopRefresh();
+            stopNotices();
         };
     }, [signedIn]);
 
@@ -637,11 +643,11 @@ export default function Analytics() {
         [shifts, year],
     );
     const currentReport = useMemo<AnalyticsShiftReport | null>(() => {
-        const live = liveAnalyticsShift(openShift, tickets);
+        const live = liveAnalyticsShift(withLiveShiftHours(openShift, clockNow), tickets);
         if (!live) return null;
         const venue = (shifts ?? []).find((row) => row.id === live.id && row.business_date === live.business_date);
         return { ...(venue ?? {}), ...live };
-    }, [openShift, shifts, tickets]);
+    }, [openShift, shifts, tickets, clockNow]);
     const selected = useMemo(() => currentReport?.id === dayId && currentReport.business_date === pickedDate
         ? currentReport
         : (shifts ?? []).find((shift) => shift.id === dayId && shift.business_date === pickedDate) ?? null,
@@ -830,7 +836,7 @@ export default function Analytics() {
                             <GuestOccupancyChart
                                 shift={selected as ShiftReport}
                                 tickets={tickets}
-                                now={lastUpdated ?? clockNow ?? selected.opened_at ?? 0}
+                                now={clockNow ?? lastUpdated ?? selected.opened_at ?? 0}
                                 dateLabel={formatNight(selected.business_date, locale)}
                             />
                         </>
@@ -845,7 +851,7 @@ export default function Analytics() {
                                         <GuestOccupancyChart
                                             shift={selected as ShiftReport}
                                             tickets={tickets}
-                                            now={lastUpdated ?? clockNow ?? selected.opened_at ?? 0}
+                                            now={clockNow ?? lastUpdated ?? selected.opened_at ?? 0}
                                             dateLabel={formatNight(selected.business_date, locale)}
                                         />
                                     ) : null}
@@ -1446,4 +1452,5 @@ const Card = styled.section`
         font-weight: 500;
     }
 `;
+
 
