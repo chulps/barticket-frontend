@@ -103,6 +103,9 @@ export default function Icon({
       color={color}
       weight={weight}
       style={{
+        width: size,
+        height: size,
+        flexShrink: 0,
         transition: "0.2s ease",
         ...style,
       }}

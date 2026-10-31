@@ -823,6 +823,9 @@ for (const locale of ["en", "ja"]) {
     await page.getByRole("button",{name:locale === "ja" ? "その他のナビゲーション" : "More navigation options"}).click();
     const unpaid = page.locator('#desktop-more-menu a[href="/receivables"]');
     await expect(unpaid).toHaveText(locale === "ja" ? "未払い伝票" : "Unpaid tickets");
+    const iconBox = await unpaid.locator("svg").boundingBox();
+    expect(iconBox.width).toBeLessThan(40);
+    expect(iconBox.height).toBeLessThan(40);
     await unpaid.click();
     await expect(page).toHaveURL(/\/receivables$/);
     expect(state.requests.filter(r => /^(POST|PUT|PATCH|DELETE) /.test(r))).toEqual([]);
