@@ -15,7 +15,7 @@ async function correctionFixture(page, { role = 'manager', locale = 'en' } = {})
   const ticket = { id: 11, name: 'Historical cash ticket', status: 'paid',
     service_status: 'completed', settlement_status: 'settled', service_business_date: '2026-10-30',
     items: [{ id: 1, name: 'Highball', price_key: 'standard', quantity: 1, unit_price: 700, subtotal: 700 }],
-    total: 700, amount_paid: 700, balance_due: 0, guest_count: 1, cover_charge_per_person: 0,
+    total: 700, amount_paid: 700, balance_due: 0, guest_count: 1, cover_charge_per_person: 0, cover_charge_total: 0,
     created_at: NOW / 1000 - 86400, paid_at: NOW / 1000, service_completed_at: NOW / 1000 - 80000,
     cancelled_at: null, shift_id: 3, payments: [payment], payment, receivable_history: [] };
   const shift = { id: 3, business_date: '2026-10-30', status: 'closed',
