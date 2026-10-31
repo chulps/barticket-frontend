@@ -80,3 +80,15 @@ test('automatic sounds report unsupported cross-tab coordination instead of sile
   await assert.rejects(f.context.enableSounds());
   assert.equal(f.context.soundsEnabled(),false);
 });
+
+test('a tab hidden during async unlock cannot become armed', async () => {
+  const f=fixture(); const operation=f.context.enableSounds();
+  f.document.visibilityState='hidden';
+  await assert.rejects(operation);assert.equal(f.context.soundsReady(),false);
+});
+test('hiding cancels scheduled notes instead of replaying them after resuming', async () => {
+  const f=fixture();await f.context.enableSounds();f.advance(1000);f.emit(event());
+  assert.equal(runInNewContext('activeNotes.size',f.context),3);
+  f.document.visibilityState='hidden';f.events.get('document:visibilitychange')();
+  assert.equal(runInNewContext('activeNotes.size',f.context),0);
+});

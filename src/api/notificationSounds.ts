@@ -4,6 +4,11 @@ import { freshSoundEvent, retainRecentSoundIds, type SoundCue } from './notifica
 const SETTING = 'barticket_foreground_sounds';
 const SEEN = 'barticket_foreground_sound_events';
 let context: AudioContext | null = null;
+const activeNotes = new Set<OscillatorNode>();
+function stopNotes() {
+  for (const note of activeNotes) { try { note.stop(); } catch { /* Already ended. */ } note.disconnect(); }
+  activeNotes.clear();
+}
 let armedToken: string | null = null;
 let armedAt = Infinity;
 let lastPlayed = 0;
@@ -20,7 +25,8 @@ export function soundsReady() {
 export function disableSounds() {
   try { localStorage.removeItem(SETTING); } catch { /* fail closed in this tab */ }
   armedToken = null; armedAt = Infinity;
-  if (context) void context.suspend();
+  stopNotes();
+  if (context) void context.suspend().catch(() => {});
   changed();
 }
 /** Call directly from a click, never from an effect or a received notification. */
@@ -30,7 +36,7 @@ export async function enableSounds() {
   if (!token) throw new Error('Sign in first');
   context ??= new AudioContext();
   await context.resume();
-  if (getToken() !== token || context.state !== 'running') throw new Error('Audio unavailable');
+  if (getToken() !== token || context.state !== 'running' || document.visibilityState !== 'visible') throw new Error('Audio unavailable');
   localStorage.setItem(SETTING, 'on');
   armedToken = token; armedAt = Date.now();
   changed();
@@ -48,8 +54,9 @@ function play(cue: SoundCue) {
     gain.gain.linearRampToValueAtTime(0.10, at + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.001, at + 0.16);
     oscillator.connect(gain); gain.connect(context!.destination);
+    activeNotes.add(oscillator);
     oscillator.start(at); oscillator.stop(at + 0.18);
-    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+    oscillator.onended = () => { activeNotes.delete(oscillator); oscillator.disconnect(); gain.disconnect(); };
   });
 }
 export async function previewSound(cue: SoundCue) {
@@ -57,7 +64,7 @@ export async function previewSound(cue: SoundCue) {
   const token = getToken();
   if (!token) throw new Error('Sign in first');
   context ??= new AudioContext(); await context.resume();
-  if (getToken() !== token || context.state !== 'running') throw new Error('Audio unavailable');
+  if (getToken() !== token || context.state !== 'running' || document.visibilityState !== 'visible') throw new Error('Audio unavailable');
   play(cue);
 }
 export function installNotificationSounds() {
@@ -85,13 +92,14 @@ export function installNotificationSounds() {
   const storage = (event: StorageEvent) => {
     if (event.key === 'barticket_token') reset();
     if (event.key === SETTING) {
-      if (!soundsEnabled()) { armedToken = null; armedAt = Infinity; if (context) void context.suspend(); }
+      if (!soundsEnabled()) { armedToken = null; armedAt = Infinity; stopNotes(); if (context) void context.suspend().catch(() => {}); }
       changed();
     }
   };
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') {
       armedAt = Infinity; armedToken = null;
+      stopNotes();
       if (context) void context.suspend().catch(() => {});
       changed();
     }
