@@ -112,7 +112,7 @@ test('blocked permission is off with guidance and never requests permission',asy
   const f=await fixture(page,{permission:'denied',subscribed:false,owned:false});
   await expect(f.control).toBeDisabled();
   await expect(f.control).toHaveAttribute('aria-checked','false');
-  await expect(page.getByRole('status')).toContainText(/blocked|settings/i);
+  await expect(page.getByRole('region',{name:'Push notification settings',exact:true}).getByRole('status')).toContainText(/blocked|settings/i);
   expect((await f.state()).permissionRequests).toBe(0);
   expect(f.writes).toEqual([]);
 });
@@ -161,7 +161,7 @@ test('Check again recovers after the user allows notifications in device setting
   await page.getByRole('button',{name:'Check again',exact:true}).click();
   await expect(f.control).toBeEnabled();
   await expect(f.control).toHaveAttribute('aria-checked','false');
-  await expect(page.getByRole('status')).toContainText('Push is ready');
+  await expect(page.getByRole('region',{name:'Push notification settings',exact:true}).getByRole('status')).toContainText('Push is ready');
   expect((await f.state()).permissionRequests).toBe(0);
   expect(f.writes).toEqual([]);
 });
