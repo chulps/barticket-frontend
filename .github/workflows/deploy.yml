@@ -62,7 +62,7 @@ jobs:
             const previous = runs.data.workflow_runs[0];
             if (!previous) throw new Error('No successful Pages deployment available for safe asset continuity');
             const archives = [];
-            async function download(run, required) {
+            async function download(run, required, retired) {
               const artifacts = await github.rest.actions.listWorkflowRunArtifacts({ ...context.repo, run_id: run.id });
               const artifact = artifacts.data.artifacts.find(item => item.name === 'github-pages' && !item.expired);
               if (!artifact) {
@@ -73,9 +73,9 @@ jobs:
               const response = await github.rest.actions.downloadArtifact({ ...context.repo, artifact_id: artifact.id, archive_format: 'zip' });
               const file = `${run.id}.zip`;
               fs.writeFileSync(`previous-pages/${file}`, Buffer.from(response.data));
-              archives.push({ file, created: Date.parse(run.created_at) / 1000 });
+              archives.push({ file, retired });
             }
-            await download(previous, true);
+            await download(previous, true, Date.now() / 1000);
             const hasLedger = execFileSync('python3', ['-c',
               'import io,sys,tarfile,zipfile; z=zipfile.ZipFile(sys.argv[1]); t=tarfile.open(fileobj=io.BytesIO(z.read("artifact.tar"))); print(any(m.name.removeprefix("./")=="asset-retention.json" for m in t.getmembers()))',
               `previous-pages/${archives[0].file}`], { encoding: 'utf8' }).trim() === 'True';
@@ -84,10 +84,12 @@ jobs:
               // Only successful main deployments, never PR/private artifacts.
               const cutoff = Date.now() - 30 * 86400_000;
               let page = 1, batch = runs.data.workflow_runs;
+              let successorCreated = Date.parse(previous.updated_at) / 1000;
               while (batch.length) {
                 for (const run of batch) {
-                  if (Date.parse(run.created_at) < cutoff) { batch = []; break; }
-                  if (run.id !== previous.id) await download(run, false);
+                  if (successorCreated * 1000 < cutoff) { batch = []; break; }
+                  if (run.id !== previous.id) await download(run, false, successorCreated);
+                  successorCreated = Date.parse(run.updated_at) / 1000;
                 }
                 if (!batch.length || batch.length < 100) break;
                 batch = (await github.rest.actions.listWorkflowRuns({ ...context.repo,

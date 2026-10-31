@@ -5,8 +5,11 @@ import { useI18n } from "../i18n";
 // Keep the shell, authentication, menu data and modal host mounted on a route
 // failure. Never reload the document: a payment may still be in flight and a
 // dialog may contain unsaved work. Navigation resets only the failed route.
-class RouteFailure extends Component<{ children: ReactNode; ja: boolean }, { failed: boolean }> {
-  state = { failed: false };
+class RouteFailure extends Component<{ children: ReactNode; ja: boolean; path: string }, { failed: boolean; path: string }> {
+  state = { failed: false, path: this.props.path };
+  static getDerivedStateFromProps(props: { path: string }, state: { path: string }) {
+    return props.path !== state.path ? { failed: false, path: props.path } : null;
+  }
   static getDerivedStateFromError() { return { failed: true }; }
   render() {
     if (!this.state.failed) return this.props.children;
@@ -24,5 +27,5 @@ class RouteFailure extends Component<{ children: ReactNode; ja: boolean }, { fai
 export default function RouteErrorBoundary({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const { locale } = useI18n();
-  return <RouteFailure key={pathname} ja={locale === "ja"}>{children}</RouteFailure>;
+  return <RouteFailure path={pathname} ja={locale === "ja"}>{children}</RouteFailure>;
 }

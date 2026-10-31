@@ -20,10 +20,14 @@ be restored. Already-loaded old clients cannot retroactively gain the boundary.
 
 ## Public asset continuity and limits
 
-Every deployment retains hashed public assets for 30 days after their last
-current build. Only JS/CSS/font/image assets survive; never old HTML, workers,
-manifest, sourcemaps, API data or symlinks. A timestamp ledger prevents repeatedly
-copying assets from extending their retention. Current assets always win.
+Every deployment retains hashed public assets for 30 days after they stop being
+current (not after build time). Only JS/CSS/font/image assets survive; never old HTML, workers,
+manifest, sourcemaps, API data or symlinks. A ledger separates current assets from retired timestamps: replacing a months-old
+release starts its retirement window now, while repeatedly copying already-retired
+assets never extends their retention. Healthy route changes do not remount the
+error boundary or reset route state. Current assets always win. Noncanonical archive paths (dot/empty components)
+are rejected. A 200 MiB combined immutable-asset budget fails the deployment
+closed rather than silently evicting assets still inside the retention window.
 
 The next deployment downloads the last successful `main` Pages artifact. When
 that artifact predates the ledger, it bootstraps all still-available successful
@@ -55,5 +59,7 @@ version-safe asset delivery and interruption tests.
 structure. The browser workflow builds separate old/new production fixtures and
 runs `playwright.deployment.config.mjs`: original blackout reproduction, retained
 legacy assets, contained missing-chunk recovery, and an unsaved edit dialog that
-survives deployment followed by offline navigation and explicit manual reload.
+survives deployment followed by offline navigation and explicit manual reload,
+a delayed mocked mutation, and route failure while a dialog remains open.
+The retention browser case serves output produced by the real ZIP/tar merger.
 All API calls are mocked at 127.0.0.1; no live POS data or payments are touched.

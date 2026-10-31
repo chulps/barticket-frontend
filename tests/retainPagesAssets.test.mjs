@@ -11,7 +11,7 @@ spec=importlib.util.spec_from_file_location('retain','scripts/retain-pages-asset
 with tempfile.TemporaryDirectory() as root:
  root=Path(root); dest=root/'dist'; (dest/'assets').mkdir(parents=True)
  (dest/'assets/new-abcdefgh.js').write_text('current')
- files={'assets/new-abcdefgh.js':'wrong','assets/old-abcdefgh.js':'old','assets/expired-abcdefgh.js':'expired','assets/source-abcdefgh.map':'private source','../assets/escape-abcdefgh.js':'escape','index.html':'old shell','sw.js':'old worker','api/tickets.json':'private','assets/unhashed.js':'wrong','asset-retention.json':json.dumps({'assets/old-abcdefgh.js':100,'assets/expired-abcdefgh.js':0})}
+ files={'assets/new-abcdefgh.js':'wrong','assets/./new-abcdefgh.js':'overwrite','assets//new-abcdefgh.js':'overwrite','assets/current-abcdefgh.js':'current for months','assets/old-abcdefgh.js':'old','assets/expired-abcdefgh.js':'expired','assets/source-abcdefgh.map':'private source','../assets/escape-abcdefgh.js':'escape','index.html':'old shell','sw.js':'old worker','api/tickets.json':'private','assets/unhashed.js':'wrong','asset-retention.json':json.dumps({'current':['assets/current-abcdefgh.js'],'retired':{'assets/old-abcdefgh.js':100,'assets/expired-abcdefgh.js':0}})}
  tarbytes=io.BytesIO()
  with tarfile.open(fileobj=tarbytes,mode='w') as tar:
   for name,body in files.items():
@@ -22,12 +22,17 @@ with tempfile.TemporaryDirectory() as root:
  ledger=mod.retain(archive,dest,now=mod.WINDOW+1)
  assert (dest/'assets/new-abcdefgh.js').read_text()=='current'
  assert (dest/'assets/old-abcdefgh.js').read_text()=='old'
- assert ledger['assets/old-abcdefgh.js']==100
- assert sorted(p.name for p in (dest/'assets').iterdir())==['new-abcdefgh.js','old-abcdefgh.js']
+ assert ledger['retired']['assets/old-abcdefgh.js']==100
+ assert ledger['retired']['assets/current-abcdefgh.js']==mod.WINDOW+1
+ assert sorted(p.name for p in (dest/'assets').iterdir())==['current-abcdefgh.js','new-abcdefgh.js','old-abcdefgh.js']
  assert not (dest/'index.html').exists() and not (dest/'sw.js').exists()
  # Repeating retention does not extend the original timestamp.
  ledger=mod.retain(archive,dest,now=mod.WINDOW+2,ledger=ledger)
- assert ledger['assets/old-abcdefgh.js']==100
+ assert ledger['retired']['assets/old-abcdefgh.js']==100
+ mod.MAX_BYTES=1
+ try: mod.retain(archive,dest,now=mod.WINDOW+2)
+ except RuntimeError as error: assert '200 MiB' in str(error)
+ else: raise AssertionError('Byte budget must fail closed')
 `], { stdio:'pipe' });
 });
 
@@ -36,6 +41,7 @@ test('all routes are eager and containment never reloads or clears user state', 
  assert.doesNotMatch(app,/lazy\(|import\("\.\/pages/);
  const boundary=readFileSync('src/components/RouteErrorBoundary.tsx','utf8');
  assert.doesNotMatch(boundary,/location\.reload|storage\.clear|localStorage|sessionStorage|setInterval|setTimeout/);
- assert.match(boundary,/key=\{pathname\}/);
+ assert.match(boundary,/path=\{pathname\}/);
+ assert.doesNotMatch(boundary,/key=\{pathname\}/);
  assert.ok(app.indexOf('</RouteErrorBoundary>')<app.indexOf('<ModalHost />'));
 });
