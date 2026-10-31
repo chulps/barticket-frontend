@@ -337,7 +337,7 @@ const Heading = styled.div`
 const Tabs = styled.div`
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-1);
-    button { min-width: 0; width: 100%; min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+    button { min-width: 0; width: 100%; min-height: 44px; padding: var(--space-1); white-space: normal; overflow-wrap: anywhere; }
     button:focus-visible { outline: 2px solid var(--royal-400); outline-offset: 2px; }
 `;
 const PanelBody = styled.div`
