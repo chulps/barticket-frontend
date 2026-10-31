@@ -75,7 +75,7 @@ async function openHistoricalPayment(page) {
 
 async function fillCorrection(page, date = '2026-10-31') {
   await page.getByLabel('Correct collection business date', { exact: true }).fill(date);
-  await page.getByLabel('Correction reason', { exact: true }).fill('Receipt confirms the collection business date');
+  await page.getByRole('textbox', { name: 'Correction reason', exact: true }).fill('Receipt confirms the collection business date');
   await page.getByRole('checkbox', { name: 'I verified the actual collection business date and confirm this date correction.' }).check();
 }
 
@@ -144,7 +144,7 @@ test('uncertain result freezes payload and retries with the same idempotency key
   await page.getByRole('button', { name: 'Save date correction', exact: true }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'Outcome unknown.' })).toBeVisible();
   await expect(page.getByLabel('Correct collection business date', { exact: true })).toBeDisabled();
-  await expect(page.getByLabel('Correction reason', { exact: true })).toBeDisabled();
+  await expect(page.getByRole('textbox', { name: 'Correction reason', exact: true })).toBeDisabled();
   expect(state.posts).toHaveLength(1);
   await page.getByRole('button', { name: 'Retry same correction', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Collection date correction saved.' })).toBeVisible();
@@ -166,11 +166,11 @@ test('permission loss rejects the write and offers no automatic retry', async ({
 test('dirty dismissal requires confirmation and never sends a correction', async ({ page }) => {
   const state = await correctionFixture(page);
   await openHistoricalPayment(page);
-  await page.getByLabel('Correction reason', { exact: true }).fill('Unfinished review');
+  await page.getByRole('textbox', { name: 'Correction reason', exact: true }).fill('Unfinished review');
   page.once('dialog', dialog => dialog.dismiss());
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByLabel('Correction reason', { exact: true })).toHaveValue('Unfinished review');
+  await expect(page.getByRole('textbox', { name: 'Correction reason', exact: true })).toHaveValue('Unfinished review');
   page.once('dialog', dialog => dialog.accept());
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
