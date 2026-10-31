@@ -110,9 +110,9 @@ test("close POST is called only from reviewed explicit confirmation", () => {
 
 test("shift control reloads after focus/remote events without automatically retrying POST", () => {
     const control = src("pages/ShiftControls.tsx");
-    assert.match(control, /window\.addEventListener\("focus", onRefresh\)/);
-    assert.match(control, /window\.addEventListener\("barticket-auth", onRefresh\)/);
-    assert.match(control, /window\.addEventListener\("barticket-shift-updated", onRefresh\)/);
+    assert.match(control, /startBackgroundRefresh/);
+    assert.match(src("hooks/backgroundRefresh.ts"), /"focus"/);
+    assert.match(control, /events: \["barticket-auth", "barticket-shift-updated"/);
     assert.match(control, /version\.current/);
     assert.match(control, /mutation\.current/);
     assert.match(control, /void refresh\(\)/);
@@ -164,3 +164,4 @@ test("uncertain writes reconcile server state without replay; permission failure
     assert.match(control, /setPending\(action\)/);
     assert.match(control, /setPending\(""\)/);
 });
+

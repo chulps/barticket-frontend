@@ -46,7 +46,9 @@ test("offline message and recovery refresh are connected to ticket and analytics
   assert.match(app, /role="status" aria-live="polite"/);
   assert.match(app, /barticket-api-restored/);
   assert.match(src("hooks/useTickets.ts"), /addEventListener\("barticket-api-restored", onFocus\)/);
-  assert.match(src("pages/Dashboard.tsx"), /addEventListener\("barticket-api-restored", load\)/);
-  assert.match(src("pages/Analytics.tsx"), /addEventListener\("barticket-api-restored", refresh\)/);
+  assert.match(src("pages/Dashboard.tsx"), /startBackgroundRefresh/);
+  assert.match(src("pages/Analytics.tsx"), /startBackgroundRefresh/);
+  assert.match(src("hooks/backgroundRefresh.ts"), /"barticket-api-restored"/);
   assert.match(app, /addEventListener\("online", load\)/);
 });
+
