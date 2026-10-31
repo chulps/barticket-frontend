@@ -1,4 +1,4 @@
-import { serializePushOperation } from "./pushLifecycle";
+import { pushFetch, serializePushOperation } from "./pushLifecycle";
 import { API_URL, getDeviceId, getToken } from "./client";
 
 type PushKeys = { p256dh: string; auth: string };
@@ -40,7 +40,7 @@ function requireSession(token: string | null): asserts token is string {
 async function pushRequest<T>(path: string, method = "GET", body?: unknown, token = getToken()): Promise<T> {
   requireSession(token);
   if (!token) throw new Error("Sign in to enable notifications");
-  const response = await fetch(`${API_URL}/push${path}`, {
+  return pushFetch(`${API_URL}/push${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -48,7 +48,7 @@ async function pushRequest<T>(path: string, method = "GET", body?: unknown, toke
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  }, async response => {
   requireSession(token);
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}));
@@ -57,7 +57,10 @@ async function pushRequest<T>(path: string, method = "GET", body?: unknown, toke
       response.status,
     );
   }
-  return response.json() as Promise<T>;
+  const result = await response.json() as T;
+  requireSession(token);
+  return result;
+  });
 }
 
 export async function getPushEnabled(): Promise<boolean> {

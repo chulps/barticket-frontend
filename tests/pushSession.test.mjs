@@ -9,11 +9,11 @@ function fixture() {
   let subscribed=true;
   const subscription={endpoint:'https://push.example.test/endpoint',toJSON:()=>({endpoint:'https://push.example.test/endpoint',keys:{auth:'test',p256dh:'test'}}),unsubscribe:async()=>{calls.push('unsubscribe');subscribed=false;return true;}};
   const registration={pushManager:{getSubscription:async()=>subscribed?subscription:null,subscribe:async()=>{calls.push('subscribe');subscribed=true;return subscription;}}};
-  const context={console:{warn(){}},URL,Event,Promise,Uint8Array,ArrayBuffer,atob,crypto:{randomUUID:()=> 'test-device'},
+  const context={console:{warn(){}},URL,Event,AbortController,Promise,Uint8Array,ArrayBuffer,atob,crypto:{randomUUID:()=> 'test-device'},
     localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},
     navigator:{serviceWorker:{getRegistration:async()=>registration,register:async()=>registration}},
     Notification:{permission:'granted',requestPermission:async()=> 'granted'},
-    window:{PushManager:{},Notification:{},dispatchEvent:e=>events.push(e.type)},
+    window:{setTimeout,clearTimeout,PushManager:{},Notification:{},dispatchEvent:e=>events.push(e.type)},
     fetch:async(url,options)=>{calls.push({url,options});return {ok:true,status:200,json:async()=>url.endsWith('/vapid-public-key')?{public_key:'dGVzdA'}:{enabled:true}}}};
   for(const file of ['pushLifecycle','client','push']) {
     let source=readFileSync(new URL(`../src/api/${file}.ts`,import.meta.url),'utf8')
@@ -83,5 +83,40 @@ test('account change while permission is pending cannot register a new subscript
   await assert.rejects(enabling,/session changed/);
   await f.context.serializePushOperation(async()=>{});
   assert.equal(f.calls.some(c=>c.options?.method==='POST'),false);
+  assert.equal(f.subscribed,false);
+});
+
+test('account change while status JSON is decoding rejects stale enabled result',async()=>{
+  const f=fixture();let decode,started;const ready=new Promise(r=>started=r);
+  f.context.fetch=async()=>({ok:true,json:async()=>{started();return new Promise(r=>decode=r);}});
+  const checking=f.context.getPushEnabled();await ready;f.context.setToken('new');
+  decode({enabled:true});await assert.rejects(checking,/session changed/);
+  f.context.fetch=async()=>({ok:true,json:async()=>({})});
+  await f.context.serializePushOperation(async()=>{});
+});
+
+test('stalled status times out so queued account cleanup can unsubscribe',async()=>{
+  const f=fixture();let timeout,started;const ready=new Promise(r=>started=r);
+  f.context.window.setTimeout=fn=>{timeout=fn;return 1;};f.context.window.clearTimeout=()=>{};
+  f.context.fetch=async(url,{signal})=>{
+    if(url.endsWith('/status')){started();return new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(Error('timeout'))));}
+    return {ok:true,json:async()=>({})};
+  };
+  const checking=f.context.getPushEnabled();await ready;f.context.setToken('new');
+  timeout();await assert.rejects(checking,/timeout/);
+  await f.context.serializePushOperation(async()=>{});
+  assert.equal(f.subscribed,false);
+});
+
+test('stalled old-server cleanup times out without blocking subsequent new-account status',async()=>{
+  const f=fixture();let timeout,started;const ready=new Promise(r=>started=r);
+  f.context.window.setTimeout=fn=>{timeout=fn;return 1;};f.context.window.clearTimeout=()=>{};
+  f.context.fetch=async(url,{signal,method})=>{
+    if(method==='DELETE'){started();return new Promise((_,reject)=>signal.addEventListener('abort',()=>reject(Error('timeout'))));}
+    return {ok:true,json:async()=>({enabled:false})};
+  };
+  f.context.setToken('new');await ready;
+  const checking=f.context.getPushEnabled();timeout();
+  assert.equal(await checking,false);
   assert.equal(f.subscribed,false);
 });

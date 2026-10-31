@@ -6,3 +6,15 @@ export function serializePushOperation<T>(operation: () => Promise<T>): Promise<
   pending = result.catch(() => undefined);
   return result;
 }
+
+// Never let an unreachable ownership/status endpoint hold session cleanup forever.
+export async function pushFetch<T = Response>(input: RequestInfo | URL, init?: RequestInit, read?: (response: Response) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(input, { ...init, signal: controller.signal });
+    return read ? await read(response) : response as T;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}

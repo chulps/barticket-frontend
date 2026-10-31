@@ -1,4 +1,4 @@
-import { serializePushOperation } from "./pushLifecycle";
+import { pushFetch, serializePushOperation } from "./pushLifecycle";
 
 // Shared in-memory connectivity state. A 401/403 is an application response,
 // not proof that the backend is down. Never automatically replay a write.
@@ -48,7 +48,7 @@ async function revokePushForSession(previousToken: string): Promise<void> {
     // Stop delivery to this browser even if the old session has expired or
     // the server is unreachable. Server ownership cleanup is best effort.
     await subscription.unsubscribe();
-    await fetch(`${API_URL}/push/subscriptions`, {
+    await pushFetch(`${API_URL}/push/subscriptions`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${previousToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ endpoint: subscription.endpoint }),

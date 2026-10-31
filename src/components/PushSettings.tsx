@@ -122,6 +122,7 @@ export default function PushSettings() {
               setAvailability("ready");
             } catch (err) {
               if (getToken() !== token) return;
+              setCheckVersion(version => version + 1);
               if (err instanceof PushRequestError && err.status === 503) {
                 setAvailability("unavailable");
               } else {
