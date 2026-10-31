@@ -28,7 +28,13 @@ export default function TabGroup<T extends string>({
 
     const measureActiveTab = useCallback(() => {
         const button = buttons.current[activeIndex];
-        if (button) setIndicator({ left: button.offsetLeft, width: button.offsetWidth });
+        const container = track.current;
+        if (!button || !container) return;
+        // Preserve fractional CSS pixels, and use the track origin exactly once.
+        const rect = button.getBoundingClientRect();
+        const left = rect.left - container.getBoundingClientRect().left;
+        setIndicator(previous => previous.left === left && previous.width === rect.width
+            ? previous : { left, width: rect.width });
     }, [activeIndex]);
 
     useLayoutEffect(() => {
@@ -40,9 +46,10 @@ export default function TabGroup<T extends string>({
         // Keep keyboard and programmatic selection visible in the horizontal tab strip.
         const left = button.offsetLeft;
         const right = left + button.offsetWidth;
-        if (left < scroller.scrollLeft) scroller.scrollTo({ left, behavior: "smooth" });
+        const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+        if (left < scroller.scrollLeft) scroller.scrollTo({ left, behavior });
         else if (right > scroller.scrollLeft + scroller.clientWidth) {
-            scroller.scrollTo({ left: right - scroller.clientWidth, behavior: "smooth" });
+            scroller.scrollTo({ left: right - scroller.clientWidth, behavior });
         }
     }, [activeIndex, measureActiveTab]);
 
@@ -51,10 +58,10 @@ export default function TabGroup<T extends string>({
         if (!resizeTarget || typeof ResizeObserver === "undefined") return;
         const observer = new ResizeObserver(measureActiveTab);
         observer.observe(resizeTarget);
-        const activeButton = buttons.current[activeIndex];
-        if (activeButton) observer.observe(activeButton);
+        // Any label/font change can alter every equal-width column.
+        buttons.current.forEach(button => { if (button) observer.observe(button); });
         return () => observer.disconnect();
-    }, [activeIndex, measureActiveTab]);
+    }, [tabs, measureActiveTab]);
 
     function handleArrow(event: KeyboardEvent<HTMLButtonElement>, index: number) {
         const next = nextSelectorIndex(index, tabs.length, event.key);
@@ -67,7 +74,7 @@ export default function TabGroup<T extends string>({
     return (
         <Viewport ref={viewport} role="group" aria-label={label ?? tabs.map(tab => tab.label).join(" / ")}>
             <Track ref={track}>
-                <Indicator $left={indicator.left} $width={indicator.width} />
+                {indicator.width > 0 && <Indicator aria-hidden="true" $left={indicator.left} $width={indicator.width} />}
                 {tabs.map((tab, index) => (
                     <TabButton
                         key={tab.id}
@@ -99,7 +106,9 @@ const Viewport = styled.div`
 
 const Track = styled.div`
   position: relative;
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(max-content, 1fr);
   width: max-content;
   min-width: 100%;
   gap: var(--space-0);
@@ -114,7 +123,7 @@ const Indicator = styled.div<{
   position: absolute;
   top: var(--space-0);
   bottom: var(--space-0);
-  left: var(--space-0);
+  left: 0;
   width: ${({ $width }) => `${$width}px`};
   pointer-events: none;
 
@@ -122,7 +131,8 @@ const Indicator = styled.div<{
   border-radius: calc(var(--space-1) - 2px);
 
   transform: translateX(${({ $left }) => `${$left}px`});
-  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  // A non-overshooting curve keeps the pill inside the padded track.
+  transition: transform 300ms ease;
   z-index: 0;
   will-change: transform;
 
@@ -135,7 +145,6 @@ const TabButton = styled.button<{ $active: boolean }>`
   position: relative;
   z-index: 1;
 
-  flex: 1 0 max-content;
   min-height: 44px;
   padding: var(--space-1);
   white-space: nowrap;
@@ -155,3 +164,4 @@ const TabButton = styled.button<{ $active: boolean }>`
     color: white;
   }
 `;
+
