@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { accountApi, type Account } from "../api/account";
 import { ApiError, getToken } from "../api/client";
@@ -24,7 +24,17 @@ export default function Profile() {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [view, setView] = useState<ProfileView>("pay");
+    const [searchParams, setSearchParams] = useSearchParams();
+    const requestedView = searchParams.get("section");
+    const view: ProfileView = requestedView === "history" || requestedView === "shift" || requestedView === "account" ? requestedView : "pay";
+    function setView(next: ProfileView) {
+        setSearchParams(previous => {
+            const params = new URLSearchParams(previous);
+            if (next === "pay") params.delete("section");
+            else params.set("section", next);
+            return params;
+        });
+    }
 
     async function refresh(next?: Account | null) {
         const current = next === undefined ? account : next;

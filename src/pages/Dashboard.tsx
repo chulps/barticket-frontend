@@ -281,7 +281,7 @@ export default function Dashboard({
             : canCreate ? (locale === "ja" ? "勤務中" : "Clocked in")
             : (locale === "ja" ? "未出勤" : "Not clocked in")}
         </span>
-        <Link to="/profile">{locale === "ja" ? "タイムカードを見る" : "View time clock"}</Link>
+        <Link to="/profile?section=shift">{locale === "ja" ? "タイムカードを見る" : "View time clock"}</Link>
       </ShiftStatusBar>
       {!venueStatusKnown || !venueOpen ? <TicketLoadWarning role={!venueStatusKnown ? "alert" : "status"}>
         {!venueStatusKnown
