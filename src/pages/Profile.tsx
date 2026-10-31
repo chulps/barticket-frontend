@@ -151,6 +151,7 @@ export default function Profile() {
             ) : (
                 <>
                     <TabGroup<ProfileView>
+                        mobileColumns={2}
                         label={locale === "ja" ? "プロフィール表示" : "Profile sections"}
                         activeTab={view}
                         onChange={setView}
@@ -239,26 +240,6 @@ const Page = styled.main<{ $signedIn: boolean }>`
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-
-    @media (max-width: 600px) {
-        > [role="group"] {
-            overflow: visible;
-        }
-        > [role="group"] > div {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            width: 100%;
-            min-width: 0;
-        }
-        > [role="group"] > div > div { display: none; }
-        > [role="group"] button {
-            min-width: 0;
-            white-space: normal;
-        }
-        > [role="group"] button[aria-pressed="true"] {
-            background: var(--neutral-800);
-        }
-    }
 
     h1 {
         font-size: var(--font-size-h3);
@@ -349,3 +330,4 @@ const Row = styled.div`
 const ErrorText = styled.p`
     color: var(--danger, #e06c75);
 `;
+
