@@ -49,6 +49,7 @@ export type Ticket = {
   coverAdjustedBy?: string | null;
   coverAdjustmentReason?: string | null;
   serverTotal?: number;
+  serviceCompletedAt?: number | null;
   serviceStatus?: "active" | "completed" | "cancelled";
   settlementStatus?: "not_due" | "outstanding" | "partially_paid" | "settled" | "written_off" | "cancelled";
   serviceBusinessDate?: string | null;
@@ -74,3 +75,4 @@ export type Ticket = {
     revenue_share_business_date?: string | null;
   }[];
 };
+

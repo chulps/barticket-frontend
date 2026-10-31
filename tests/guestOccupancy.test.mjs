@@ -116,3 +116,68 @@ test("does not show a zero timeline when a legacy shift only has revenue totals"
     const historical = shift("closed", { paid_total: 25000 });
     assert.equal(guestOccupancyTimeline(historical, [], 500), null);
 });
+
+
+test("service completion removes unpaid guests and later collections never move departure", () => {
+    const departed = ticket(1, "open", 120, {
+        guestCount: 3, serviceStatus: "completed", serviceCompletedAt: 200,
+        deferredAt: 200, updated_at: 280, settlementStatus: "outstanding",
+    });
+    const beforeCollection = guestOccupancyTimeline(shift(), [departed], 300);
+    const afterCollection = guestOccupancyTimeline(shift(), [{ ...departed,
+        status: "paid", settlementStatus: "settled", payments: [{ paid_at: 280 }],
+    }], 300);
+    assert.equal(beforeCollection.current, 0);
+    assert.deepEqual(afterCollection, beforeCollection);
+    assert.equal(beforeCollection.points.find(point => point.at === 200).total, 0);
+});
+
+test("deferred timestamp supports older payloads and reopened service overrides stale settlement", () => {
+    const row = ticket(1, "open", 120, { guestCount: 2, serviceStatus: "completed", deferredAt: 200 });
+    assert.equal(guestOccupancyTimeline(shift(), [row], 300).current, 0);
+    assert.equal(guestOccupancyTimeline(shift(), [{ ...row, serviceStatus: "active", payment: { paid_at: 180 } }], 300).current, 2);
+});
+
+test("cancelled service is excluded and guest corrections replace counts", () => {
+    const row = ticket(1, "open", 120, { guestCount: 2, serviceStatus: "active" });
+    assert.equal(guestOccupancyTimeline(shift(), [{ ...row, guestCount: 4, returningGuestCount: 1 }], 300).current, 4);
+    assert.equal(guestOccupancyTimeline(shift(), [{ ...row, serviceStatus: "cancelled" }], 300).peak, 0);
+});
+
+test("local clock advances a stable overnight timeline without changing counts or prior points", () => {
+    const opened = Date.parse("2026-10-31T23:00:00+09:00") / 1000;
+    const night = shift("open", { opened_at: opened });
+    const rows = [ticket(1, "open", opened + 30, { guestCount: 2, serviceStatus: "active" })];
+    const before = guestOccupancyTimeline(night, rows, opened + 3600);
+    const after = guestOccupancyTimeline(night, rows, opened + 7200);
+    assert.equal(after.current, 2);
+    assert.deepEqual(after.points.slice(0, -1), before.points.slice(0, -1));
+    assert.equal(after.end - before.end, 3600);
+    const chart = readFileSync(new URL("../src/components/GuestOccupancyChart.tsx", import.meta.url), "utf8");
+    assert.match(chart, /timeZone: "Asia\/Tokyo"/);
+});
+
+test("ticket adapter preserves server service completion time", () => {
+    const adapter = readFileSync(new URL("../src/api/tickets.ts", import.meta.url), "utf8");
+    assert.match(adapter, /serviceCompletedAt: api\.service_completed_at/);
+});
+
+test("voiding or refunding a later collection cannot reopen completed service", () => {
+    const row = ticket(1, "paid", 120, {
+        guestCount: 2, serviceStatus: "completed", serviceCompletedAt: 200,
+        payments: [{ paid_at: 280 }],
+    });
+    const before = guestOccupancyTimeline(shift(), [row], 300);
+    const after = guestOccupancyTimeline(shift(), [{ ...row, status: "open",
+        payments: [{ paid_at: 280, voided_at: 290 }], payment: { paid_at: 280, refunded_at: 290 },
+    }], 300);
+    assert.deepEqual(after, before);
+});
+
+test("unknown modern service completion does not invent departure from collection or update", () => {
+    const row = ticket(1, "paid", 120, {
+        guestCount: 2, serviceStatus: "completed", updated_at: 280,
+        payments: [{ paid_at: 280 }],
+    });
+    assert.equal(guestOccupancyTimeline(shift(), [row], 300), null);
+});
