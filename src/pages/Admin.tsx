@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import { Navigate, useMatch, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useLocation, useMatch, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
 
@@ -34,6 +34,7 @@ const adminSectionTabs: { id: AdminSection; label: { en: string; ja: string } }[
 export default function Admin() {
     const { t, locale } = useI18n();
     const navigate = useNavigate();
+    const location = useLocation();
     const { staffId } = useParams<{ staffId: string }>();
     const auditRoute = useMatch("/admin/staff/:staffId/audit");
     const [me, setMe] = useState<Account | null>(null);
@@ -42,12 +43,13 @@ export default function Admin() {
     const [historicalLoading, setHistoricalLoading] = useState(false);
     const [historicalError, setHistoricalError] = useState("");
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState("");
     const [accountsError, setAccountsError] = useState("");
     const [accountsLoading, setAccountsLoading] = useState(false);
     const [busy, setBusy] = useState(false);
     const [section, setSection] = useState<AdminSection>(
-        () => staffId === undefined ? "overview" : "team",
+        () => staffId !== undefined || new URLSearchParams(location.search).has("teamView") ? "team" : "overview",
     );
     const activeSection = staffId === undefined ? section : "team";
     const sectionNavRef = useRef<HTMLElement>(null);
@@ -88,7 +90,7 @@ export default function Admin() {
 
     function chooseSection(next: AdminSection) {
         setSection(next);
-        if (staffId !== undefined) navigate("/admin");
+        if (staffId !== undefined || location.search) navigate("/admin");
         if (next === "historicalHours") void loadHistoricalShifts();
     }
 
@@ -112,7 +114,7 @@ export default function Admin() {
 
     function chooseMember(id: number | null) {
         setSection("team");
-        navigate(id === null ? "/admin" : `/admin/staff/${id}`);
+        navigate((id === null ? "/admin" : `/admin/staff/${id}`) + location.search);
     }
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
@@ -122,43 +124,64 @@ export default function Admin() {
     useEffect(() => {
         let cancelled = false;
         let generation = 0;
-        async function load() {
-            const request = ++generation;
+        let verifiedToken: string | null = null;
+        let inFlight = false;
+        async function load(reset = false) {
             const token = getToken();
-            // Fail closed while checking the current session; never show
-            // another account's cached manager, team, or payroll draft data.
-            setLoading(true);
-            setMe(null);
-            setTeam([]);
+            if (inFlight && !reset && verifiedToken === token) return;
+            const request = ++generation;
+            inFlight = true;
+            const preserve = !reset && token !== null && verifiedToken === token;
+            if (!preserve) {
+                setLoading(true);
+                setMe(null);
+                setTeam([]);
+            }
+            setRefreshing(preserve);
             setAccountsError("");
             setError("");
-            if (!token) { setLoading(false); return; }
+            if (!token) { setLoading(false); setRefreshing(false); inFlight = false; return; }
             try {
                 const account = await accountApi.me();
                 if (cancelled || request !== generation || getToken() !== token) return;
-                if (account.role !== "manager") { setMe(account); return; }
+                if (account.role !== "manager") {
+                    verifiedToken = null;
+                    setTeam([]);
+                    setMe(account);
+                    return;
+                }
                 const members = await accountApi.listUsers();
                 if (cancelled || request !== generation || getToken() !== token) return;
+                verifiedToken = token;
                 setTeam(members);
                 setMe(account);
             } catch (err) {
                 if (cancelled || request !== generation || getToken() !== token) return;
-                setTeam([]);
-                setMe(null);
+                const denied = err instanceof ApiError && (err.status === 401 || err.status === 403);
+                if (!preserve || denied) {
+                    verifiedToken = null;
+                    setTeam([]);
+                    setMe(null);
+                }
                 setError(err instanceof ApiError ? err.message : String(err));
             } finally {
-                if (!cancelled && request === generation && getToken() === token) setLoading(false);
+                if (!cancelled && request === generation && getToken() === token) {
+                    inFlight = false;
+                    setLoading(false);
+                    setRefreshing(false);
+                }
             }
         }
-        const reload = () => { void load(); };
+        const reload = () => { void load(true); };
+        const revalidate = () => { void load(); };
         void load();
         window.addEventListener("barticket-auth", reload);
-        window.addEventListener("focus", reload);
+        window.addEventListener("focus", revalidate);
         return () => {
             cancelled = true;
             generation++;
             window.removeEventListener("barticket-auth", reload);
-            window.removeEventListener("focus", reload);
+            window.removeEventListener("focus", revalidate);
         };
     }, []);
 
@@ -231,7 +254,7 @@ export default function Admin() {
             </Page>
         );
         return <AdminAuditHistory person={person} locale={locale}
-            onBack={() => navigate("/admin/staff/" + person.id)} />;
+            onBack={() => navigate("/admin/staff/" + person.id + location.search)} />;
     }
 
     return (
@@ -240,6 +263,7 @@ export default function Admin() {
                 <h1>{locale === "ja" ? "管理" : "Admin"}</h1>
                 <p>{locale === "ja" ? "管理者向けのアカウント管理画面です。" : "Manager-only account management."}</p>
             </header>
+            {refreshing ? <p role="status">{locale === "ja" ? "最新情報を確認中…" : "Checking for updates…"}</p> : null}
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             <SectionNav ref={sectionNavRef} aria-label={locale === "ja" ? "管理セクション" : "Admin sections"}>
                 <SectionIndicator
@@ -380,7 +404,7 @@ export default function Admin() {
                     locale={locale}
                     selectedId={selectedId}
                     onSelect={chooseMember}
-                    onAudit={(id) => navigate("/admin/staff/" + id + "/audit")}
+                    onAudit={(id) => navigate("/admin/staff/" + id + "/audit" + location.search)}
                 />
             )}
         </Page>
