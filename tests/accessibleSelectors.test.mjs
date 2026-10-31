@@ -32,7 +32,7 @@ test("ticket/admin tab groups and payment methods expose a single pressed button
   assert.match(tab, /role="group"/);
   assert.match(tab, /aria-pressed=\{tab\.id === activeTab\}/);
   assert.match(tab, /onKeyDown=\{event => handleArrow\(event, index\)\}/);
-  assert.match(tab, /button\.offsetWidth/);
+  assert.match(tab, /button\.getBoundingClientRect/);
   assert.match(tab, /button\.offsetLeft/);
   assert.match(tab, /overflow-x: auto/);
   assert.match(tab, /scroller\.scrollTo/);
@@ -47,3 +47,4 @@ test("all updated typescript parses", () => {
     assert.deepEqual(parsed.parseDiagnostics.map(d=>d.messageText),[]);
   }
 });
+

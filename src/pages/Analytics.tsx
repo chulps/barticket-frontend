@@ -1,3 +1,4 @@
+import PaymentDateHistory from "../components/PaymentDateHistory";
 import { useAnalyticsReports } from "../hooks/useAnalyticsReports";
 import { businessDateJst } from "./shiftControlPolicy";
 import { useAnalyticsTickets } from "../hooks/useAnalyticsTickets";
@@ -897,7 +898,7 @@ export default function Analytics() {
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
                     {visible.length > 0 ? <TopSellingPanel items={soldItems} context={copyPeriod(range, month, year, selected, locale)} /> : null}
-                    {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} /> : null}
+                    {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} canCorrect={account.role === "manager"} /> : null}
                         </>
                     )}
                     </> : null}
@@ -990,7 +991,7 @@ function Stockouts({ shifts }: { shifts: AnalyticsShiftReport[] }) {
     );
 }
 
-function ShiftTickets({ shifts, tickets }: { shifts: AnalyticsShiftReport[]; tickets: Ticket[] }) {
+function ShiftTickets({ shifts, tickets, canCorrect }: { shifts: AnalyticsShiftReport[]; tickets: Ticket[]; canCorrect: boolean }) {
     const { t, locale } = useI18n();
     const [openId, setOpenId] = useState<number | null>(null);
     const dates = useMemo(
@@ -1064,7 +1065,7 @@ function ShiftTickets({ shifts, tickets }: { shifts: AnalyticsShiftReport[]; tic
                                     />
                                 </TicketCardHeader>
                                 {open ? (
-                                    <ItemList>
+                                    <><ItemList>
                                         {ticket.items.map((item) => (
                                             <li key={item.id}>
                                                 <span>{item.type === "cover" ? t("coverCharge") : menuLabel(locale, item.name)}</span>
@@ -1072,7 +1073,7 @@ function ShiftTickets({ shifts, tickets }: { shifts: AnalyticsShiftReport[]; tic
                                                 <strong>{yen(item.subtotal)}</strong>
                                             </li>
                                         ))}
-                                    </ItemList>
+                                    </ItemList><PaymentDateHistory ticket={ticket} canCorrect={canCorrect} /></>
                                 ) : null}
                             </TicketCard>
                         );
