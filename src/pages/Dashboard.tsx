@@ -1,3 +1,5 @@
+import TicketActionFeedback from "../components/TicketActionFeedback";
+import { confirmedTicketCue, type TicketAction, type TicketActionFeedback as TicketFeedback } from "./ticketActionFeedback";
 import { startBackgroundRefresh } from "../hooks/backgroundRefresh";
 import { shouldPoll } from "../api/realtime";
 // src/pages/Dashboard.tsx
@@ -40,6 +42,13 @@ export default function Dashboard({
   menuError,
 }: DashboardProps) {
   const { t, locale } = useI18n();
+
+  const [actionFeedback, setActionFeedback] = useState<TicketFeedback | null>(null);
+  const actionSequence = useRef(0);
+  const confirmAction = (action: TicketAction, saved: Ticket | null) => {
+    const cue = confirmedTicketCue(action, saved);
+    if (cue && saved) setActionFeedback({ sequence: ++actionSequence.current, ticketId: saved.id, cue });
+  };
 
   // States
   const [activeTab, setActiveTab] = useState<"open" | "paid" | "cancelled">("open");
@@ -190,6 +199,7 @@ export default function Dashboard({
 
     const confirmed = await started.completion;
     if (confirmed) {
+      confirmAction("created", confirmed);
       setSelectedTicketId(current =>
         current === started.temporaryId ? confirmed.id : current);
       return;
@@ -203,7 +213,9 @@ export default function Dashboard({
   };
 
   const handleCancelTicket = async (ticketId: number) => {
-    if (!(await cancelTicket(ticketId))) return; // Update the ticket
+    const saved = await cancelTicket(ticketId);
+    if (!saved) return;
+    confirmAction("cancelled", saved);
     setActiveTab("cancelled");       // Switch tabs
     setSelectedTicketId(ticketId);   // Keep this ticket selected
     setShowTicketDetails(true);      // Keep details open
@@ -216,11 +228,12 @@ export default function Dashboard({
     idempotencyKey?: string,
     collection?: CollectionDateConfirmation,
   ) => {
-    const current = tickets.find(ticket => ticket.id === ticketId);
-    if (!(await payTicket(ticketId, paymentType, amount, idempotencyKey, collection))) return false;
+    const saved = await payTicket(ticketId, paymentType, amount, idempotencyKey, collection);
+    if (!saved) return false;
+    confirmAction("paid", saved);
 
-    const partialReceivable = current?.serviceStatus === "completed" && amount < (current.balanceDue ?? 0);
-    setActiveTab(partialReceivable ? "open" : "paid");
+    // Follow the confirmed response, not an amount calculated before the request.
+    setActiveTab(saved.status);
     setSelectedTicketId(ticketId);
     setShowTicketDetails(true);
     return true;
@@ -237,7 +250,9 @@ export default function Dashboard({
   };
 
   const handleReopenTicket = async (ticketId: number, reason: "customer_returned" | "closed_by_mistake"): Promise<boolean> => {
-    if (!(await reopenTicket(ticketId, reason))) return false;
+    const saved = await reopenTicket(ticketId, reason);
+    if (!saved) return false;
+    confirmAction("reopened", saved);
 
     setActiveTab("open");
     setSelectedTicketId(ticketId);
@@ -269,6 +284,7 @@ export default function Dashboard({
   return (
 
     <DashboardContainer>
+      <TicketActionFeedback feedback={actionFeedback} />
       <ShiftStatusBar role="status" aria-live="polite">
         <span className={canCreate ? "on-duty" : ""}>
           {shiftLookup.status !== "ready" ? (locale === "ja" ? "シフトの確認が必要です" : "Shift status unverified")

@@ -30,8 +30,8 @@ test("payment result propagates from API through ticket footer", () => {
   const dashboard = source("pages/Dashboard.tsx");
   const ticket = source("components/TicketDetails/Ticket.tsx");
   const actions = source("components/TicketDetails/TicketActions.tsx");
-  assert.match(dashboard, /if \(!\(await payTicket\(ticketId, paymentType, amount, idempotencyKey, collection\)\)\) return false/);
-  assert.match(dashboard, /const partialReceivable = current\?\.serviceStatus === "completed"/);
+  assert.match(dashboard, /const saved = await payTicket\(ticketId, paymentType, amount, idempotencyKey, collection\);\s*if \(!saved\) return false/);
+  assert.match(dashboard, /setActiveTab\(saved.status\)/);
   assert.match(ticket, /return onPayTicket\(id, method, amount, key, collection\)/);
   assert.match(actions, /onConfirm=\{\(paymentType, amount, key, collection\)\s*=>\s*onPayTicket\(ticket\.id, paymentType, amount, key, collection\)/);
 });

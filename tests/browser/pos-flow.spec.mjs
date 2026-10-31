@@ -997,3 +997,83 @@ test("previous-night payment requires explicit collection date and reason; Cance
   expect(payments[0].body.collection_business_date).toBe(dateOffset(-1));
   expect(payments[0].body.collection_date_reason).toBe("Receipt confirms cash last night");
 });
+
+// #327: lifecycle feedback only follows confirmed local actions, never snapshots.
+test('ticket action cues: create confirmation, no replay after refresh, cancellation and repeated creation', async ({page})=>{
+  const state=await mockedPOS(page);
+  await openTicket(page);
+  const cue=page.locator('[data-ticket-action]');
+  await expect(cue).toHaveCount(0);
+  state.delayTicketCreate=true;
+  await page.getByRole('button',{name:/New Ticket/i}).dblclick();
+  await expect(cue).toHaveCount(0);
+  await expect(cue).toHaveAttribute('data-ticket-action','created');
+  expect(state.newTicketPosts).toBe(1);
+  await expect(cue).toContainText('#13');
+  expect(await cue.evaluate(el=>getComputedStyle(el).animationName)).toBe('ticket-action-create');
+  expect(await cue.evaluate(el=>getComputedStyle(el).pointerEvents)).toBe('none');
+  await expect(cue).toHaveCount(0,{timeout:4000});
+  await page.evaluate(()=>window.dispatchEvent(new Event('barticket-push')));
+  await page.waitForTimeout(400);
+  await expect(cue).toHaveCount(0);
+  await closeStep(page);
+  await page.getByRole('button',{name:/Cancel Ticket/i}).click();
+  await page.getByRole('button',{name:'No',exact:true}).click();
+  await expect(cue).toHaveCount(0);
+  await page.getByRole('button',{name:/Cancel Ticket/i}).click();
+  await page.getByRole('button',{name:/Yes, cancel ticket/i}).click();
+  await expect(cue).toHaveAttribute('data-ticket-action','cancelled');
+  expect(await cue.evaluate(el=>getComputedStyle(el).animationName)).toBe('ticket-action-cancel');
+  await page.getByRole('button',{name:'Open',exact:true}).click();
+  await page.getByRole('button',{name:/New Ticket/i}).click();
+  await expect(cue).toHaveAttribute('data-ticket-action','created');
+  await expect(cue).toContainText('#14');
+});
+
+test('ticket action cues: failed double payment is quiet, confirmed payment and reopen are distinct',async({page})=>{
+  const state=await mockedPOS(page);
+  await openTicket(page);await closeStep(page);
+  const cue=page.locator('[data-ticket-action]');
+  await page.getByRole('button',{name:/Take Payment/i}).click();
+  state.failNextPayment=true;
+  const dialog=page.getByRole('dialog');
+  await dialog.getByRole('button',{name:/Confirm Payment/i}).dblclick();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  expect(state.paymentPosts).toBe(1);
+  await expect(cue).toHaveCount(0);
+  await dialog.getByRole('button',{name:/Safely retry same collection/i}).click();
+  await expect(cue).toHaveAttribute('data-ticket-action','paid');
+  await expect(cue).toContainText('Ticket paid');
+  expect(await cue.locator('.ticket-action-symbol').evaluate(el=>getComputedStyle(el).animationName)).toBe('ticket-action-check');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:/Reopen Ticket/i}).click();
+  await page.getByRole('dialog').getByRole('button',{name:/Customer returned/i}).click();
+  await expect(cue).toHaveAttribute('data-ticket-action','reopened');
+  expect(await cue.evaluate(el=>getComputedStyle(el).animationName)).toBe('ticket-action-return');
+  await expect(page.getByRole('button',{name:/Close ticket/i})).toBeVisible();
+});
+
+test('ticket action cues: mobile reduced motion keeps Japanese text and partial payment does not claim paid',async({page})=>{
+  await page.setViewportSize({width:375,height:740});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  const state=await mockedPOS(page,{locale:'ja'});
+  await page.goto('/tickets');
+  await page.getByRole('button',{name:/Test Walk-in/}).click();
+  await page.getByRole('button',{name:/チケットを閉じる/}).click();
+  await page.getByRole('button',{name:'会計',exact:true}).click();
+  // Mock an authoritative partial response, independent of the amount submitted.
+  await page.route(MOCK_ORIGIN+'/tickets/11/pay',async route=>{
+    if(route.request().method()==='OPTIONS') return route.fallback();
+    Object.assign(state.tickets[0],{status:'open',balance_due:200,amount_paid:500,settlement_status:'partially_paid'});
+    await route.fulfill({json:state.tickets[0],headers:{'Access-Control-Allow-Origin':'*'}});
+  });
+  await page.getByRole('dialog').getByRole('button',{name:/支払い確定|会計を確定|支払いを確定/}).click();
+  const cue=page.locator('[data-ticket-action]');
+  await expect(cue).toHaveAttribute('data-ticket-action','payment-recorded');
+  await expect(cue).toContainText('入金を記録しました');
+  expect(await cue.evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+  expect(await cue.locator('.ticket-action-symbol').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button',{name:/会計/,exact:true})).toBeVisible();
+});
