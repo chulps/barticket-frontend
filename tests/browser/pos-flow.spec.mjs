@@ -693,6 +693,7 @@ test("mobile navigation closes on Escape and returns focus to its toggle", async
 test("Profile work tabs follow arrow-key selection and keep their panels connected", async ({ page }) => {
   await mockedPOS(page);
   await page.goto("/profile");
+  await page.getByRole("button", { name: "Work history", exact: true }).click();
   const hours = page.getByRole("tab", { name: "Hours" });
   await expect(hours).toBeVisible();
   await hours.focus();
@@ -708,21 +709,22 @@ test("Profile work tabs follow arrow-key selection and keep their panels connect
   await expect(hours).toHaveAttribute("aria-selected", "true");
 });
 
-test("Profile opens on personal stats and keeps shift controls and account settings in separate views", async ({ page }) => {
+test("Profile offers direct pay and history destinations alongside shift and account settings", async ({ page }) => {
   await mockedPOS(page);
   await page.goto("/profile");
+  await page.getByRole("button", { name: "Work history", exact: true }).click();
   await expect(page.getByRole("region", { name: "My work records" })).toBeVisible();
   const scales = page.getByRole("group", { name: "Time scale" });
   await expect(scales.getByRole("button", { name: "All Time" })).toHaveAttribute("aria-pressed", "true");
   await scales.getByRole("button", { name: "Monthly" }).click();
   await expect(page.getByRole("button", { name: "Previous month" })).toBeVisible();
-  await page.getByRole("tab", { name: "Income" }).click();
+  await page.getByRole("button", { name: "My pay", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Income breakdown" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Previous month" })).toBeVisible();
   await expect(page.getByRole("region", { name: "My time clock" })).toHaveCount(0);
   await page.getByRole("button", { name: "Shift", exact: true }).click();
   await expect(page.getByRole("region", { name: "My time clock" })).toBeVisible();
-  await page.getByRole("button", { name: "Account", exact: true }).click();
+  await page.getByRole("button", { name: "Account settings", exact: true }).click();
   await expect(page.getByRole("region", { name: "Account settings" })).toBeVisible();
   await expect(page.getByRole("region", { name: "My time clock" })).toHaveCount(0);
 });
@@ -730,6 +732,7 @@ test("Profile opens on personal stats and keeps shift controls and account setti
 test("Profile and Admin show a verified zero shift count as zero", async ({ page }) => {
   await mockedPOS(page);
   await page.goto("/profile");
+  await page.getByRole("button", { name: "Work history", exact: true }).click();
   const personal = page.getByRole("region", { name: "My work records" });
   const personalShifts = personal.getByText("Recorded shifts").locator("..").locator("strong");
   await expect(personalShifts).toHaveText("0");

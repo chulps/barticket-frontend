@@ -23,6 +23,9 @@ export default defineConfig({
       ...process.env,
       VITE_API_URL: "http://127.0.0.1:8765",
       BASE_PATH: "/",
+      // Isolated fixture identities only; the mock API never contacts production.
+      VITE_REVENUE_SHARE_CHUCK_USER_ID: "901",
+      VITE_REVENUE_SHARE_NORI_USER_ID: "902",
     },
   },
 });

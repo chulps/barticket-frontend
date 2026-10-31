@@ -101,7 +101,7 @@ test("Summaries count drinks/shift records without inventing unrecorded history"
 });
 
 test("Frontend keeps personal compensation separate and labels verified historical totals", () => {
-    assert.match(history, /StaffIncome userId=\{userId\} locale=\{locale\} role=\{role\}/);
+    assert.doesNotMatch(history, /StaffIncome/);
     assert.doesNotMatch(history, /Not available yet|Bonuses & adjustments|benefits/);
     assert.match(history, /means unavailable, not zero/);
     assert.doesNotMatch(history, /\/payroll/);
