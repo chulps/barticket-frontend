@@ -6,6 +6,12 @@ import ts from "typescript";
 // Import the actual production functions without adding a browser testing dependency.
 async function loadTypeScript(path, substitutions = []) {
   let source = readFileSync(new URL(path, import.meta.url), "utf8");
+  if (source.includes('from "./pushLifecycle"')) {
+    const lifecycle = ts.transpileModule(readFileSync(new URL("../src/api/pushLifecycle.ts", import.meta.url), "utf8"), {
+      compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+    }).outputText;
+    source = source.replace('"./pushLifecycle"', JSON.stringify("data:text/javascript," + encodeURIComponent(lifecycle)));
+  }
   for (const [from, to] of substitutions) source = source.replaceAll(from, to);
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
@@ -27,7 +33,7 @@ const deferred = () => {
   const promise = new Promise(done => { resolve = done; });
   return { promise, resolve };
 };
-const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
+const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
 
 test("push-triggered ticket GET never overwrites an optimistic edit, even if it finishes after the edit", async () => {
   // These are the actual event names used by src/main.tsx and useTickets.ts.
@@ -153,7 +159,7 @@ test("push-triggered notices cannot reintroduce a notice while an optimistic res
   assert.deepEqual(visible.notices.map(notice => notice.id), [9, 10]);
 });
 
-test("signing out revokes the previous token's push subscription before unsubscribing the browser", async () => {
+test("signing out unsubscribes the browser before best-effort previous-token revocation", async () => {
   const names = ["localStorage", "navigator", "window", "fetch", "__BARTICKET_TEST_ENV__"];
   const original = new Map(names.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const install = (name, value) => Object.defineProperty(globalThis, name, {
@@ -166,7 +172,7 @@ test("signing out revokes the previous token's push subscription before unsubscr
   let unsubscribes = 0;
   let authEvents = 0;
   let scope = "";
-  const bus = new EventTarget();
+  const bus = Object.assign(new EventTarget(), {setTimeout, clearTimeout});
   bus.addEventListener("barticket-auth", () => authEvents++);
   try {
     install("localStorage", {
@@ -208,7 +214,7 @@ test("signing out revokes the previous token's push subscription before unsubscr
     assert.equal(calls[0].options.method, "DELETE");
     assert.equal(calls[0].options.headers.Authorization, "Bearer old-user-token");
     assert.deepEqual(JSON.parse(calls[0].options.body), { endpoint: "https://push.example.test/device/1" });
-    assert.equal(unsubscribes, 0, "do not unsubscribe until the backend confirms revocation");
+    assert.equal(unsubscribes, 1, "stop browser delivery without waiting for server revocation");
 
     request.resolve({ ok: true });
     await flush();
@@ -240,7 +246,7 @@ test("push setup checks server configuration before asking for device permission
   try {
     install("localStorage", { getItem: key => key === "barticket_token" ? "signed-in-token" : null });
     install("navigator", { serviceWorker: { register: async () => ({}) } });
-    install("window", { PushManager: function PushManager() {}, Notification: true });
+    install("window", { setTimeout, clearTimeout, PushManager: function PushManager() {}, Notification: true });
     install("Notification", {
       permission: "default",
       requestPermission: async () => { permissionPrompts++; return "granted"; },

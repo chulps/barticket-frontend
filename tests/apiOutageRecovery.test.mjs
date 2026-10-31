@@ -7,7 +7,8 @@ import ts from "typescript";
 function src(path) { return readFileSync(new URL("../src/" + path, import.meta.url), "utf8"); }
 
 test("API connectivity state changes only once per transition and announces restoration", () => {
-  const input = src("api/client.ts").replaceAll("import.meta.env.", "globalThis.__BARTICKET_TEST_ENV__.");
+  // This fixture exercises connectivity state only; push lifecycle has dedicated tests.
+  const input = src("api/client.ts").replace(/^import .*from "\.\/pushLifecycle";\n/m, "").replaceAll("import.meta.env.", "globalThis.__BARTICKET_TEST_ENV__.");
   const { outputText } = ts.transpileModule(input, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   });

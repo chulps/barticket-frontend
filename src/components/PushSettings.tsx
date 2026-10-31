@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import styled from "styled-components";
 import { disablePush, enablePush, getPushEnabled, getPushPublicKey, PushRequestError, supportsPush } from "../api/push";
+import { getToken } from "../api/client";
 import { useI18n } from "../i18n";
 
 type Availability = "checking" | "ready" | "unavailable" | "unsupported" | "error";
@@ -20,21 +21,34 @@ export default function PushSettings() {
   const [checkVersion, setCheckVersion] = useState(0);
 
   useEffect(() => {
+    const changed = () => {
+      setEnabled(false);
+      setBusy(false);
+      setError("");
+      setAvailability(supportsPush() ? "checking" : "unsupported");
+      setCheckVersion(version => version + 1);
+    };
+    window.addEventListener("barticket-auth", changed);
+    return () => window.removeEventListener("barticket-auth", changed);
+  }, []);
+
+  useEffect(() => {
     let active = true;
+    const token = getToken();
     async function check() {
       if (!supportsPush()) return;
       try {
         const subscriptionExists = await getPushEnabled();
-        if (!active) return;
+        if (!active || getToken() !== token) return;
         setEnabled(subscriptionExists);
         if (subscriptionExists) {
           setAvailability("ready");
           return;
         }
         const publicKey = await getPushPublicKey();
-        if (active) setAvailability(publicKey ? "ready" : "unavailable");
+        if (active && getToken() === token) setAvailability(publicKey ? "ready" : "unavailable");
       } catch {
-        if (active) setAvailability("error");
+        if (active && getToken() === token) setAvailability("error");
       }
     }
     void check();
@@ -92,25 +106,30 @@ export default function PushSettings() {
           type="button"
           disabled={!supported || availability === "checking" || !canEnable || busy}
           onClick={async () => {
+            const token = getToken();
             setBusy(true);
             setError("");
             try {
               if (enabled) {
                 await disablePush();
+                if (getToken() !== token) return;
                 setEnabled(false);
               } else {
                 await enablePush();
+                if (getToken() !== token) return;
                 setEnabled(true);
               }
               setAvailability("ready");
             } catch (err) {
+              if (getToken() !== token) return;
+              setCheckVersion(version => version + 1);
               if (err instanceof PushRequestError && err.status === 503) {
                 setAvailability("unavailable");
               } else {
                 setError(ja ? "通知設定を更新できませんでした。接続と端末の通知設定を確認してください。" : "Couldn’t update notification settings. Check your connection and device notification settings.");
               }
             } finally {
-              setBusy(false);
+              if (getToken() === token) setBusy(false);
             }
           }}
         >

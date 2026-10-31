@@ -1,3 +1,5 @@
+import { pushFetch, serializePushOperation } from "./pushLifecycle";
+
 // Shared in-memory connectivity state. A 401/403 is an application response,
 // not proof that the backend is down. Never automatically replay a write.
 let apiAvailable = true;
@@ -43,18 +45,20 @@ async function revokePushForSession(previousToken: string): Promise<void> {
     const registration = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL);
     const subscription = await registration?.pushManager.getSubscription();
     if (!subscription) return;
-    const response = await fetch(`${API_URL}/push/subscriptions`, {
+    // Stop delivery to this browser even if the old session has expired or
+    // the server is unreachable. Server ownership cleanup is best effort.
+    await subscription.unsubscribe();
+    await pushFetch(`${API_URL}/push/subscriptions`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${previousToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ endpoint: subscription.endpoint }),
     });
-    if (response.ok) await subscription.unsubscribe();
 }
 
 export function setToken(token: string | null) {
     const previousToken = localStorage.getItem(TOKEN_KEY);
     if (previousToken && previousToken !== token) {
-        void revokePushForSession(previousToken).catch(() =>
+        void serializePushOperation(() => revokePushForSession(previousToken)).catch(() =>
             console.warn("Unable to revoke push subscription on sign out"),
         );
     }
