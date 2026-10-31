@@ -29,7 +29,9 @@ error boundary or reset route state. Current assets always win. Noncanonical arc
 are rejected. A 200 MiB combined immutable-asset budget fails the deployment
 closed rather than silently evicting assets still inside the retention window.
 
-The next deployment downloads the last successful `main` Pages artifact. When
+The workflow allows deployment only from `main`. It selects the last successful
+`main` Pages run by completion time, not creation time, so a successful rerun
+of an older release (rollback) is the continuity source for the next release. When
 that artifact predates the ledger, it bootstraps all still-available successful
 main deployments from the preceding 30 days, including sessions older than the
 immediately preceding release. Expired historical artifacts are reported; they

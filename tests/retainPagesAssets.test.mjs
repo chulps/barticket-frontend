@@ -37,6 +37,8 @@ with tempfile.TemporaryDirectory() as root:
 });
 
 test('all routes are eager and containment never reloads or clears user state', () => {
+ const workflow=readFileSync('.github/workflows/deploy.yml','utf8');
+ assert.match(workflow,/download\(previous, true, Math\.floor\(Date\.now\(\) \/ 1000\)\)/);
  const app=readFileSync('src/App.tsx','utf8');
  assert.doesNotMatch(app,/lazy\(|import\("\.\/pages/);
  const boundary=readFileSync('src/components/RouteErrorBoundary.tsx','utf8');

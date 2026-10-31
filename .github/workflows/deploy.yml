@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v6
@@ -56,15 +57,20 @@ jobs:
             const fs = require('node:fs');
             const { execFileSync } = require('node:child_process');
             fs.mkdirSync('previous-pages');
-            const runs = await github.rest.actions.listWorkflowRuns({
-              ...context.repo, workflow_id: 'deploy.yml', branch: 'main', status: 'success', per_page: 100
+            // Sort by completion, not creation: an older run can be rerun as a rollback.
+            // No server-side filters, avoiding the filtered-search 1000-result cap.
+            const history = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              ...context.repo, workflow_id: 'deploy.yml', per_page: 100
             });
-            const previous = runs.data.workflow_runs[0];
+            const runs = history.filter(run => run.head_branch === 'main' && run.conclusion === 'success')
+              .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+            const previous = runs[0];
             if (!previous) throw new Error('No successful Pages deployment available for safe asset continuity');
             const archives = [];
             async function download(run, required, retired) {
               const artifacts = await github.rest.actions.listWorkflowRunArtifacts({ ...context.repo, run_id: run.id });
-              const artifact = artifacts.data.artifacts.find(item => item.name === 'github-pages' && !item.expired);
+              const artifact = artifacts.data.artifacts.filter(item => item.name === 'github-pages' && !item.expired)
+                .sort((a, b) => b.id - a.id)[0];
               if (!artifact) {
                 if (required) throw new Error('Previous Pages artifact unavailable; restore immutable assets before deployment');
                 core.warning(`Historical deployment ${run.id} artifact expired; its pre-fix clients cannot be restored automatically`);
@@ -75,7 +81,7 @@ jobs:
               fs.writeFileSync(`previous-pages/${file}`, Buffer.from(response.data));
               archives.push({ file, retired });
             }
-            await download(previous, true, Date.now() / 1000);
+            await download(previous, true, Math.floor(Date.now() / 1000));
             const hasLedger = execFileSync('python3', ['-c',
               'import io,sys,tarfile,zipfile; z=zipfile.ZipFile(sys.argv[1]); t=tarfile.open(fileobj=io.BytesIO(z.read("artifact.tar"))); print(any(m.name.removeprefix("./")=="asset-retention.json" for m in t.getmembers()))',
               `previous-pages/${archives[0].file}`], { encoding: 'utf8' }).trim() === 'True';
@@ -83,18 +89,11 @@ jobs:
               // One-time bootstrap for tabs predating the immediately previous release.
               // Only successful main deployments, never PR/private artifacts.
               const cutoff = Date.now() - 30 * 86400_000;
-              let page = 1, batch = runs.data.workflow_runs;
-              let successorCreated = Date.parse(previous.updated_at) / 1000;
-              while (batch.length) {
-                for (const run of batch) {
-                  if (successorCreated * 1000 < cutoff) { batch = []; break; }
-                  if (run.id !== previous.id) await download(run, false, successorCreated);
-                  successorCreated = Date.parse(run.updated_at) / 1000;
-                }
-                if (!batch.length || batch.length < 100) break;
-                batch = (await github.rest.actions.listWorkflowRuns({ ...context.repo,
-                  workflow_id: 'deploy.yml', branch: 'main', status: 'success', per_page: 100, page: ++page
-                })).data.workflow_runs;
+              let successorCompleted = Date.parse(previous.updated_at) / 1000;
+              for (const run of runs) {
+                if (successorCompleted * 1000 < cutoff) break;
+                if (run.id !== previous.id) await download(run, false, successorCompleted);
+                successorCompleted = Date.parse(run.updated_at) / 1000;
               }
             }
             fs.writeFileSync('previous-pages/archives.json', JSON.stringify(archives));
