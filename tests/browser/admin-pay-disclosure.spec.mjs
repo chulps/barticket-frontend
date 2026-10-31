@@ -14,7 +14,9 @@ async function previewFixture(page, locale = "en") {
       "Access-Control-Allow-Methods":"GET,PUT,OPTIONS",
     }});
     let status = 200;
-    let body = {month:"2026-10",beneficiary_user_id:1,working_manager_shift_ids:[1,2],
+    let body = {month:"2026-10",beneficiary_user_id:1,
+      policy:{revision:0,effective_month:null,source:"legacy_confirmed_schedule",application_method:"flat_monthly_confirmed",rounding:"nearest_yen_half_up",
+        tiers:Array.from({length:21},(_,index)=>({threshold_yen:index===0?0:500000+(index-1)*50000,rate_percent:40+index}))},working_manager_shift_ids:[1,2],
       open_working_manager_shift_ids:[],unassigned_shift_ids:[],eligible_revenue_yen:100000,
       working_manager_revenue_known_yen:100000,tier_rate_percent:40,next_tier:null,
       gross_share_yen:40000,payable_yen:null,blockers:["staff_payroll_costs_unavailable"]};

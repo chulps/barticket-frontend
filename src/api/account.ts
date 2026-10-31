@@ -1,3 +1,4 @@
+import type { RevenueSharePolicy } from "./revenueSharePolicy";
 import { apiRequest, getToken, setToken } from "./client";
 import { createSessionRead } from "./sessionRead";
 
@@ -58,6 +59,7 @@ export type AdminAuditEvent = {
 };
 
 export type RevenueSharePreview = {
+    policy?: RevenueSharePolicy;
     month: string;
     beneficiary_user_id: number;
     preview_only: true;

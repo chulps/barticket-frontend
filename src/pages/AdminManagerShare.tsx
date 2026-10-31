@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
+import AdminRevenueSharePolicy from "./AdminRevenueSharePolicy";
 import { accountApi, type Account, type RevenueSharePreview, type ShiftReport } from "../api/account";
 import { localeTag, type Locale } from "../i18n";
-import {
-    DEFAULT_SHARE_POLICY, distinctShareShifts, shareBrackets,
-} from "./managerRevenueShare";
+import { distinctShareShifts } from "./managerRevenueShare";
 
 type Props = {
     person: Account;
@@ -53,6 +52,7 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
     const selectedMonth = month;
     const [editingShiftId, setEditingShiftId] = useState<number | null>(null);
     const [showTiers, setShowTiers] = useState(false);
+    const [showPolicy, setShowPolicy] = useState(false);
     const [managerDrafts, setManagerDrafts] = useState<Record<number, { managerId: string; reason: string }>>({});
     const [savingManagerId, setSavingManagerId] = useState<number | null>(null);
     const [expandedHistoryIds, setExpandedHistoryIds] = useState<Set<number>>(() => new Set());
@@ -110,7 +110,10 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
         } : null,
     };
     const grossShare = previewForMonth?.gross_share_yen ?? null;
-    const brackets = shareBrackets(DEFAULT_SHARE_POLICY);
+    const brackets = previewForMonth?.policy
+        ? previewForMonth.policy.tiers.map((tier, index, tiers) => ({from:tier.threshold_yen,to:tiers[index+1] ? tiers[index+1].threshold_yen-1 : null,rate:tier.rate_percent}))
+        : [];
+    const capRate = brackets.at(-1)?.rate ?? null;
     const capThreshold = brackets[brackets.length - 1]?.from ?? 0;
     const progressTarget = scenario.next?.atYen ?? capThreshold;
     const progress = Math.max(0, Math.min(100,
@@ -310,12 +313,12 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                     <Metric><span>{ja ? "次のレート" : "Next tier"}</span>
                         <strong>{scenario.next
                             ? scenario.next.rate + "% · " + yen(scenario.next.remainingYen, locale)
-                            : scenario.tierRate === DEFAULT_SHARE_POLICY.capRate
-                                ? (ja ? `上限 ${DEFAULT_SHARE_POLICY.capRate}%（確認済み）` : `Confirmed cap: ${DEFAULT_SHARE_POLICY.capRate}%`)
+                            : capRate !== null && scenario.tierRate === capRate
+                                ? (ja ? `上限 ${capRate}%（確認済み）` : `Confirmed cap: ${capRate}%`)
                                 : "—"}</strong>
                     </Metric>
                 </Metrics>
-                {scenario.tierRate !== null && scenario.knownRevenue !== null ? (
+                {brackets.length > 0 && scenario.tierRate !== null && scenario.knownRevenue !== null ? (
                     <div>
                         <Bar role="progressbar" aria-label={ja ? "次の歩合率まで" : "Progress to next tier"}
                             aria-valuenow={Math.round(progress)} aria-valuemin={0} aria-valuemax={100}>
@@ -323,7 +326,7 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                         </Bar>
                         <Tiny>{scenario.next
                             ? (ja ? "次の条件 " : "Next threshold: ") + yen(scenario.next.atYen, locale)
-                            : (ja ? `確認済み上限：${DEFAULT_SHARE_POLICY.capRate}%` : `Confirmed rate ceiling: ${DEFAULT_SHARE_POLICY.capRate}%`)}</Tiny>
+                            : (ja ? `確認済み上限：${capRate}%` : `Confirmed rate ceiling: ${capRate}%`)}</Tiny>
                     </div>
                 ) : <Muted>{sharePreviewLoading
                     ? (ja ? "試算を読み込み中…" : "Loading preview…")
@@ -337,11 +340,11 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                     ? `担当マネージャー未確認のシフトが${scenario.unverifiedRevenue}件あります。担当シフトの記録売上は確認用です：${yen(scenario.knownRevenue ?? 0, locale)}`
                     : `${scenario.unverifiedRevenue} shift(s) lack a confirmed working manager. Recorded revenue for Chuck-managed shifts is review-only: ${yen(scenario.knownRevenue ?? 0, locale)}.`}</Notice> : null}
                 <button type="button" className="small hollow secondary"
-                    aria-expanded={showTiers} onClick={() => setShowTiers(value => !value)}>
+                    disabled={!brackets.length} aria-expanded={showTiers && brackets.length > 0} onClick={() => setShowTiers(value => !value)}>
                     {showTiers ? (ja ? "レート表を閉じる" : "Hide tier schedule")
                         : (ja ? "レート表を見る" : "View tier schedule")}
                 </button>
-                {showTiers ? (
+                {showTiers && brackets.length > 0 ? (
                     <TierScroll>
                         <TierTable>
                             <thead><tr>
@@ -353,7 +356,7 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                                     <td>{yen(tier.from, locale)}{tier.to === null
                                         ? " +"
                                         : " – " + yen(tier.to, locale)}</td>
-                                    <td>{tier.rate}%{tier.rate === DEFAULT_SHARE_POLICY.capRate ? (ja ? "（確認済み上限）" : " (confirmed cap)") : ""}</td>
+                                    <td>{tier.rate}%{tier.rate === capRate ? (ja ? "（確認済み上限）" : " (confirmed cap)") : ""}</td>
                                 </tr>
                             ))}</tbody>
                         </TierTable>
@@ -361,6 +364,14 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                 ) : null}
             </Card>
 
+            </details>
+
+            <details onToggle={event=>setShowPolicy(event.currentTarget.open)}>
+                <summary>{ja ? "歩合給の方針と履歴" : "Revenue-share policy and history"}</summary>
+                <p>{!previewForMonth?.policy ? (ja ? "この月の方針を確認できません。" : "The policy for this month is unavailable.") : previewForMonth.policy?.effective_month
+                    ? (ja ? "この月に適用される方針：" : "Policy used for this month: ") + previewForMonth.policy.effective_month + " · #" + previewForMonth.policy.revision
+                    : (ja ? "この月は従来の確認済み方針を使用します。" : "This month uses the existing confirmed schedule.")}</p>
+                {showPolicy ? <AdminRevenueSharePolicy beneficiaryId={person.id} policy={previewForMonth?.policy} locale={locale} onSaved={onRefresh}/> : null}
             </details>
 
             <details><summary>{ja ? "費用・調整額の内訳" : "Costs and adjustments"}</summary>
