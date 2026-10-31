@@ -355,6 +355,7 @@ export function DonutChart({
 export function HorizontalBarChart({ title, bars, copyContext, locale = "en" }: { title: string; bars: NamedBar[]; copyContext?: string; locale?: "en" | "ja" }) {
     const { ref, width: container } = useWidth();
     const max = niceMax(Math.max(...bars.map((bar) => bar.value), 0));
+    const compact = container > 0 && container < 400;
     const width = Math.max(container, 320);
     const row = 28;
     const height = 28 + bars.length * row;
@@ -365,6 +366,14 @@ export function HorizontalBarChart({ title, bars, copyContext, locale = "en" }: 
         <Card aria-label={title}>
             <ChartHeading><h2>{title}</h2>{copyContext ? <CopyPanelButton locale={locale} text={`${copyContext} → ${title}: ${bars.map(bar => `${bar.label}: ${bar.display}`).join("; ")}`} /> : null}</ChartHeading>
             <Scroll ref={ref}>
+                {compact ? <CompactBars>{bars.map(bar => <li key={bar.id}>
+                    <CompactBarLabel><span>{bar.label}</span><strong>{bar.display}</strong></CompactBarLabel>
+                    <CompactBarTrack aria-hidden="true"><div style={{
+                        width: `${max === 0 ? 0 : (bar.value / max) * 100}%`,
+                        minWidth: bar.value > 0 ? 2 : 0,
+                        background: bar.color ?? "var(--royal-300)",
+                    }} /></CompactBarTrack>
+                </li>)}</CompactBars> : (
                 <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img" aria-label={title}>
                     <line x1={labelWidth} x2={labelWidth} y1={8} y2={height - 8} stroke="var(--neutral-600)" />
                     {bars.map((bar, index) => {
@@ -382,11 +391,26 @@ export function HorizontalBarChart({ title, bars, copyContext, locale = "en" }: 
                             </g>
                         );
                     })}
-                </svg>
+                </svg>)}
             </Scroll>
         </Card>
     );
 }
+
+const CompactBars = styled.ul`
+    display: grid; gap: var(--space-2); list-style: none; margin: 0; padding: 0;
+    li { min-width: 0; }
+`;
+const CompactBarLabel = styled.div`
+    display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-0) var(--space-1);
+    margin-bottom: var(--space-0); min-width: 0;
+    span { flex: 1 1 8rem; min-width: 0; overflow-wrap: anywhere; color: var(--neutral-200); }
+    strong { max-width: 100%; overflow-wrap: anywhere; color: var(--neutral-300); font: 14px var(--font-family-data); }
+`;
+const CompactBarTrack = styled.div`
+    width: 100%; height: 16px;
+    div { height: 100%; border-radius: 2px; }
+`;
 
 const AXIS = 64;
 const PAD_TOP = 25;
