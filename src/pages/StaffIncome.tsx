@@ -14,6 +14,7 @@ import { buildChuckProfileStats, type ChuckProfileStats } from "./chuckProfileSt
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
 import { shiftMonth } from "./analyticsNavigation";
 import { chuckPayDisplay } from "./chuckPayDisplay";
+import ChuckPayBreakdown from "./ChuckPayBreakdown";
 
 type Category = "all" | "hourly_wages" | "staff_drink_bonus";
 type SortOrder = "date" | "category";
@@ -189,28 +190,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
         ],
         total: (wage?.amount_yen_unrounded == null ? 0 : Number(wage.amount_yen_unrounded)) + (bonus?.amount_yen ?? 0),
     }] : [];
-    const chuckChartRows: PayChartRow[] = chuckReport?.complete && chuckReport.gross_salary_yen !== null &&
-        chuckReport.staff_cost_total_yen !== null && chuckReport.net_amount_owed_yen !== null &&
-        chuckReport.deduction_total_yen >= 0 && chuckReport.staff_cost_total_yen >= 0 && chuckReport.net_amount_owed_yen >= 0 &&
-        Math.abs(chuckReport.gross_salary_yen - chuckReport.staff_cost_total_yen - chuckReport.deduction_total_yen - chuckReport.net_amount_owed_yen) < 1
-        ? [{
-            key: "chuck-monthly-pay",
-            label: ja ? "月間内訳" : "Monthly breakdown",
-            segments: [
-                { key: "owed", label: ja ? "Chuckへの支払予定額" : "Owed to Chuck", value: chuckReport.net_amount_owed_yen, color: "var(--royal-400)" },
-                { key: "staff-pay", label: ja ? "スタッフ給与" : "Staff pay", value: chuckReport.staff_cost_total_yen, color: "var(--success-400)" },
-                { key: "deductions", label: ja ? "その他の控除" : "Other deductions", value: chuckReport.deduction_total_yen, color: "var(--warning-400)" },
-            ],
-            total: chuckReport.gross_salary_yen,
-        }] : [];
     const staffDonutSlices: DonutSlice[] = staffChartRows[0]?.segments.map(segment => ({
-        id: segment.key,
-        label: segment.label,
-        value: segment.value,
-        display: money(segment.value, locale),
-        color: segment.color,
-    })) ?? [];
-    const chuckDonutSlices: DonutSlice[] = chuckChartRows[0]?.segments.map(segment => ({
         id: segment.key,
         label: segment.label,
         value: segment.value,
@@ -262,17 +242,6 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                 value: amount,
                 display: money(amount, locale),
             }))
-        : [];
-    const completeStaffOwed = chuckReport?.complete
-        ? chuckReport.staff_owed.filter((person): person is typeof person & { total_owed_yen: number } => person.total_owed_yen !== null)
-        : [];
-    const chuckStaffBars: NamedBar[] = chuckReport?.complete && completeStaffOwed.length > 1 && completeStaffOwed.length === chuckReport.staff_owed.length
-        ? completeStaffOwed.map(person => ({
-            id: String(person.user_id),
-            label: person.name,
-            value: person.total_owed_yen,
-            display: money(person.total_owed_yen, locale),
-        }))
         : [];
     const knownChuckSales = (chuckStats?.nights ?? []).filter(
         (night): night is typeof night & { billedSalesYen: number } => night.billedSalesYen !== null);
@@ -367,55 +336,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                             </PayWarning>
                         ) : null}
                         <Details><summary>{ja ? "給与の内訳・明細" : "Pay breakdown and details"}</summary>
-                        <Summary>
-                            <Metric>
-                                <span>{ja ? "Chuckの総給与" : "Gross salary"}</span>
-                                <strong>{money(chuckReport.gross_salary_yen, locale)}</strong>
-                            </Metric>
-                            <Metric>
-                                <span>{payDisplay?.staffSubtotalPartial
-                                    ? (ja ? "記録済みスタッフ給与の小計（一部）" : "Recorded staff pay subtotal (partial)")
-                                    : (ja ? "スタッフに支払う金額" : "Staff pay owed")}</span>
-                                <strong>{money(chuckReport.staff_cost_total_yen, locale)}</strong>
-                                {payDisplay?.staffSubtotalPartial ? <small>{ja
-                                    ? "未確認の勤務時間などは含まれません。最終的な支払額ではありません。"
-                                    : "Missing or unverified inputs are not included. This is not the final amount owed."}</small> : null}
-                            </Metric>
-                            <Metric>
-                                <span>{ja ? "その他の控除" : "Other deductions"}</span>
-                                <strong>{money(chuckReport.deduction_total_yen, locale)}</strong>
-                            </Metric>
-                        </Summary>
-                        {chuckDonutSlices.length && (chuckChartRows[0]?.total ?? 0) > 0 ? <DonutChart title={ja ? "総給与の内訳" : "Gross salary breakdown"}
-                            slices={chuckDonutSlices} center={money(chuckReport.gross_salary_yen, locale)} locale={locale}
-                            note={ja ? "総給与は支払予定額、スタッフ給与、その他の控除に分かれます。" : "Gross salary is divided into amount owed to Chuck, staff pay, and other deductions."} /> : null}
-                        <h3>{ja ? "Chuck担当シフトのスタッフ給与" : "Staff pay on Chuck-managed shifts"}</h3>
-                        {chuckStaffBars.length > 1 ? <HorizontalBarChart
-                            title={ja ? "スタッフ別の支払予定額" : "Staff pay owed by person"}
-                            bars={chuckStaffBars} locale={locale} /> : null}
-                        {chuckReport.staff_owed.length ? <HistoryList>
-                            {chuckReport.staff_owed.map(item => (
-                                <HistoryEntry key={item.user_id}>
-                                    <div>
-                                        <strong>{item.name}</strong>
-                                        <Meta>{ja ? "賃金" : "Wages"} {money(item.wages_yen, locale)} · {ja ? "スタッフドリンク" : "Staff drinks"} {money(item.staff_drink_bonus_yen, locale)}</Meta>
-                                    </div>
-                                    <Value>{money(item.total_owed_yen, locale)}</Value>
-                                </HistoryEntry>
-                            ))}
-                        </HistoryList> : <Muted>{ja ? "この月のChuck担当シフトにスタッフ給与はありません。" : "No staff pay is recorded for Chuck-managed shifts this month."}</Muted>}
-                        <h3>{ja ? "その他の控除" : "Other deductions"}</h3>
-                        {chuckReport.deductions.length ? <HistoryList>
-                            {chuckReport.deductions.map(item => (
-                                <HistoryEntry key={item.id}>
-                                    <div>
-                                        <strong>{item.business_date} · {item.payee_name}</strong>
-                                        <Meta>{item.reason}{item.reversal_of_id ? (ja ? " · 取消" : " · reversal") : ""}</Meta>
-                                    </div>
-                                    <Value>{money(item.amount_yen, locale)}</Value>
-                                </HistoryEntry>
-                            ))}
-                        </HistoryList> : <Muted>{ja ? "その他の控除は記録されていません。" : "No other deductions are recorded."}</Muted>}
+                            <ChuckPayBreakdown report={chuckReport} locale={locale} />
                         </Details>
                     </>
                 ) : report ? (

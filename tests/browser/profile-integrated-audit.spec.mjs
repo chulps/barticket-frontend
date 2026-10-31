@@ -1,7 +1,7 @@
 import {test, expect} from "@playwright/test";
 const API = "http://127.0.0.1:8765";
 
-async function fixture(page, {locale = "en", id = 7, incomplete = false, legacyPartial = false} = {}) {
+async function fixture(page, {locale = "en", id = 7, incomplete = false, legacyPartial = false, breakdownReport = null} = {}) {
   const calls = [];
   const role = id === 901 || id === 902 ? "manager" : "staff";
   await page.addInitScript(({locale}) => {
@@ -36,6 +36,7 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false, legacyP
     else if(url.pathname === "/analytics/service-sales") body={basis:"original_service_business_date",days:[]};
     else if(url.pathname === "/realtime/events") body={events:[],cursor:0};
     else {status=404;body={detail:"Unmocked read"};}
+    if(url.pathname === "/profile/chuck-monthly-pay" && breakdownReport) Object.assign(body, breakdownReport);
     await route.fulfill({status,json:body,headers:{"Access-Control-Allow-Origin":"*"}});
   });
   await page.goto("/profile");
@@ -94,7 +95,33 @@ for (const locale of ["en", "ja"]) for (const width of [320, 1280]) test(`incomp
   await expect(warning.locator("svg")).toBeVisible();
   const subtotal = page.getByText(ja ? "記録済みスタッフ給与の小計（一部）" : "Recorded staff pay subtotal (partial)", {exact:true}).locator("..");
   await expect(subtotal).toContainText(/[¥￥]13,000/);
-  await expect(subtotal).toContainText(ja ? "最終的な支払額ではありません" : "not the final amount owed");
+  await expect(page.getByRole("region", {name:ja ? "売上から給与までの内訳" : "Revenue to pay breakdown"})).toContainText(ja ? "最終的な支払額ではありません" : "not the final amount owed");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(calls.filter(x => !x.startsWith("GET "))).toEqual([]);
+});
+
+for (const locale of ["en", "ja"]) for (const width of [320, 1280]) test(`revenue to pay breakdown preserves recorded allocations ${locale} ${width}`, async ({page}, testInfo) => {
+  await page.setViewportSize({width, height:900});
+  const ja = locale === "ja";
+  const calls = await fixture(page, {locale, id:901, breakdownReport:{
+    eligible_revenue_yen:25000,tier_rate_percent:40,gross_salary_yen:10000,
+    staff_cost_total_yen:3000,deduction_total_yen:500,net_amount_owed_yen:6500,complete:true,
+    staff_owed:[{user_id:11,name:"Staff A",wages_yen:800,staff_drink_bonus_yen:200,total_owed_yen:1000},
+      {user_id:12,name:"Staff B",wages_yen:1800,staff_drink_bonus_yen:200,total_owed_yen:2000}],
+    deductions:[{id:1,category:"manager_pay_deduction",business_date:"2026-10-01",amount_yen:1000,payee_name:"Recorded recipient",reason:"Recorded withdrawal",reversal_of_id:null},
+      {id:2,category:"manager_pay_deduction",business_date:"2026-10-02",amount_yen:-500,payee_name:"Recorded recipient",reason:"Recorded correction",reversal_of_id:1}]
+  }});
+  await page.getByText(ja ? "給与の内訳・明細" : "Pay breakdown and details", {exact:true}).click();
+  const breakdown=page.getByRole("region", {name:ja ? "売上から給与までの内訳" : "Revenue to pay breakdown"});
+  await expect(breakdown).toContainText(/[¥￥]25,000/);
+  await expect(breakdown).toContainText("40%");
+  await expect(breakdown.getByText(ja ? "差引後の自分の取り分（見積もり）" : "Your remaining share (estimate)", {exact:true}).locator("..")).toContainText(/[¥￥]6,500/);
+  await expect(breakdown.getByText("Staff A", {exact:true}).locator("../..")).toContainText(/[¥￥]1,000/);
+  await expect(breakdown.getByText("Staff B", {exact:true}).locator("../..")).toContainText(/[¥￥]2,000/);
+  await expect(breakdown).toContainText(/-[¥￥]500/);
+  await expect(breakdown).toContainText(ja ? "取消元の記録" : "Reversal of entry");
+  await expect(breakdown).toContainText(ja ? "支払・現金受領の証明ではありません" : "not a payment or cash-receipt record");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({path:testInfo.outputPath("pay-breakdown.png"),fullPage:true});
+  expect(calls.filter(x=>!x.startsWith("GET "))).toEqual([]);
 });
