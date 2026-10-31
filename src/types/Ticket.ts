@@ -1,3 +1,8 @@
+export type CollectionDateConfirmation = {
+  collection_business_date: string;
+  collection_date_reason: string;
+};
+
 export type PaymentType = "cash" | "card" | "other";
 
 export type Payment = {
@@ -49,6 +54,7 @@ export type Ticket = {
   coverAdjustedBy?: string | null;
   coverAdjustmentReason?: string | null;
   serverTotal?: number;
+  serviceCompletedAt?: number | null;
   serviceStatus?: "active" | "completed" | "cancelled";
   settlementStatus?: "not_due" | "outstanding" | "partially_paid" | "settled" | "written_off" | "cancelled";
   serviceBusinessDate?: string | null;
@@ -59,12 +65,13 @@ export type Ticket = {
   deferredBy?: string | null;
   writtenOffAmount?: number;
   writeOffs?: { amount: number; reason: string; written_off_at: number; written_off_by: string }[];
-  receivableHistory?: { type: string; amount: number | null; balance_after: number; reason: string | null; actor: string; created_at: number }[];
+  receivableHistory?: { type: string; amount: number | null; balance_after: number; reason: string | null; actor: string; actor_user_id?: number | null; note?: string | null; created_at: number }[];
   payments?: {
     id?: number;
     type: PaymentType;
     amount: number;
     paid_at: number;
+    recorded_at?: number;
     collection_business_date?: string | null;
     collection_shift_id?: number | null;
     collected_by?: string | null;
@@ -74,3 +81,4 @@ export type Ticket = {
     revenue_share_business_date?: string | null;
   }[];
 };
+

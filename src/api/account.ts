@@ -1,3 +1,5 @@
+export type AnalyticsShiftIndex = { id: number | null; business_date: string; status: "open" | "closed" | null };
+export type AnalyticsDateScope = { date_from?: string; date_to?: string };
 import type { RevenueSharePolicy } from "./revenueSharePolicy";
 import { apiRequest, getToken, setToken } from "./client";
 import { createSessionRead } from "./sessionRead";
@@ -549,7 +551,7 @@ export const accountApi = {
             { method: "POST", body: { reason } },
         ),
 
-    closeShift: () => apiRequest<ShiftReport>("/shifts/close", { method: "POST" }),
+    closeShift: (shiftId: number) => apiRequest<ShiftReport>(`/shifts/${shiftId}/close`, { method: "POST" }),
 
     keepShiftOpen: (shiftId: number, reason: string) => apiRequest<ShiftReport>(`/shifts/${shiftId}/keep-open`, {
         method: "POST", body: { reason },
@@ -579,7 +581,13 @@ export const accountApi = {
 
     closedShifts: () => apiRequest<ShiftReport[]>("/analytics/shifts"),
 
-    analyticsShifts: () => apiRequest<AnalyticsShiftReport[]>("/analytics/shifts"),
+    analyticsShiftIndex: () => apiRequest<AnalyticsShiftIndex[]>("/analytics/shift-index"),
+
+    analyticsShifts: (scope?: AnalyticsDateScope) => apiRequest<AnalyticsShiftReport[]>(
+        scope?.date_from && scope?.date_to
+            ? `/analytics/shifts?date_from=${encodeURIComponent(scope.date_from)}&date_to=${encodeURIComponent(scope.date_to)}`
+            : "/analytics/shifts",
+    ),
 
     serviceSales: (dateFrom: string, dateTo: string) => apiRequest<ServiceSalesReport>(
         `/analytics/service-sales?service_date_from=${encodeURIComponent(dateFrom)}&service_date_to=${encodeURIComponent(dateTo)}`,
@@ -587,3 +595,4 @@ export const accountApi = {
 
     shiftHistory: () => apiRequest<ShiftReport[]>("/shifts"),
 };
+

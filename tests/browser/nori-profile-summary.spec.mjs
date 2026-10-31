@@ -162,6 +162,7 @@ for(const amount of [0,-25000]) test(`owner remainder preserves signed amount ${
 for(const override of [
   {status:"incomplete",complete:false,blockers:["staff_payroll_costs_incomplete"]},
   {basis:undefined}, {source:null}, {amount_yen:0,complete:false},
+  {blockers:["staff_hours_unverified"]}, {amount_yen:9007199254740992},
 ]) test(`unverified owner remainder is never shown ${JSON.stringify(override)}`,async({page})=>{
   await fixture(page,{report:{own_income:{...completeIncome,...override}}});
   await expect(page.getByText("Remaining after staff earnings",{exact:true}).locator("..").locator("strong")).toHaveText("—");
@@ -186,4 +187,27 @@ test("owner remainder updates from server while preserving month and sources dis
   await expect(value).toHaveText(/[¥￥]325,000/);
   await expect(details).toHaveAttribute("open","");
   await expect(region.getByText("September 2026",{exact:true})).toBeVisible();
+});
+
+test("historical correction can withdraw an estimate without inventing zero or changing the month",async({page})=>{
+  const report={own_income:{...completeIncome}};
+  const {calls}=await fixture(page,{report});
+  const region=page.getByRole("region",{name:"Nori's monthly summary"});
+  await region.getByRole("button",{name:"Previous month",exact:true}).click();
+  const value=region.getByText("Remaining after staff earnings",{exact:true}).locator("..").locator("strong");
+  await expect(value).toHaveText(/[¥￥]350,000/);
+  const details=region.locator("details").filter({hasText:"Estimate sources"});
+  await details.locator("summary").click();
+  report.own_income={...completeIncome,amount_yen:null,status:"incomplete",complete:false,
+    staff_earnings_yen:null,blockers:["staff_hours_unverified"]};
+  await region.getByRole("button",{name:"Refresh",exact:true}).click();
+  await expect(value).toHaveText("—");
+  await expect(region).toContainText("Work hours need verification.");
+  await expect(details).toHaveAttribute("open","");
+  await expect(region.getByText("September 2026",{exact:true})).toBeVisible();
+  // A verified correction/reversal may legitimately produce a signed remainder.
+  report.own_income={...completeIncome,amount_yen:-25000,staff_earnings_yen:525000};
+  await region.getByRole("button",{name:"Refresh",exact:true}).click();
+  await expect(value).toHaveText(/-[¥￥]25,000/);
+  expect(calls.filter(x=>!x.startsWith("GET "))).toEqual([]);
 });

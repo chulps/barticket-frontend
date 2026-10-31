@@ -18,7 +18,7 @@ test("staff can find Analytics in mobile and desktop navigation", () => {
 test("staff can render the same Analytics page without manager privileges", () => {
     const parsed = ts.createSourceFile("Analytics.tsx", analytics, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     assert.equal(parsed.parseDiagnostics.length, 0);
-    assert.match(analytics, /\{account && shifts \? \(/);
+    assert.match(analytics, /\{account && shiftIndex \? \(/);
     assert.doesNotMatch(analytics, /if \(me\.role !== "manager"\) return/);
     assert.doesNotMatch(analytics, /account\?\.role === "manager" && shifts/);
     assert.match(analytics, /if \(me\.role === "manager"\) \{\s*const members = await accountApi\.listUsers\(\)/);
@@ -26,3 +26,4 @@ test("staff can render the same Analytics page without manager privileges", () =
     assert.match(analytics, /<AnalyticsReportActions/);
     assert.match(analytics, /err\.status === 403/);
 });
+

@@ -2,7 +2,7 @@
 
 // import react stuff
 import styled from "styled-components";
-import { lazy, Suspense, useState, useEffect, useRef } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import { isApiAvailable } from "./api/client";
 import { shouldPoll, startRealtime } from "./api/realtime";
 import { useI18n } from "./i18n";
@@ -16,6 +16,7 @@ import {
 
 // import components
 import Header from "./layout/Header";
+import RouteErrorBoundary from "./components/RouteErrorBoundary";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Menu from "./pages/Menu";
@@ -33,11 +34,11 @@ import {
 import { replaceMenuItem, optimisticStock, optimisticPrices, reconcileMenuSnapshot } from "./hooks/optimisticOperations";
 import { createSingleFlightRefresh } from "./hooks/singleFlightRefresh";
 
-const Admin = lazy(() => import("./pages/Admin"));
-const Analytics = lazy(() => import("./pages/Analytics"));
-const Notifications = lazy(() => import("./pages/Notifications"));
-const Receivables = lazy(() => import("./pages/Receivables"));
-const Schedules = lazy(() => import("./pages/Schedules"));
+import Admin from "./pages/Admin";
+import Analytics from "./pages/Analytics";
+import Notifications from "./pages/Notifications";
+import Receivables from "./pages/Receivables";
+import Schedules from "./pages/Schedules";
 
 
 export default function App() {
@@ -276,6 +277,7 @@ export default function App() {
           </ConnectionBanner>
         ) : null}
 
+        <RouteErrorBoundary>
         <Suspense fallback={<RouteLoading role="status" aria-live="polite">
           {locale === "ja" ? "読み込み中…" : "Loading…"}
         </RouteLoading>}>
@@ -309,6 +311,7 @@ export default function App() {
             <Route path="/schedules" element={authenticated === null ? null : authenticated ? <Schedules /> : <Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        </RouteErrorBoundary>
 
         <ModalHost />
         <MutationToastHost />
@@ -335,3 +338,4 @@ const RouteLoading = styled.div`
   color: var(--text-secondary);
   text-align: center;
 `;
+

@@ -1,6 +1,8 @@
+import type { PaymentDateCorrection } from "../components/paymentDateCorrectionPolicy";
+import { ticketListPath, type TicketReadScope } from "../hooks/ticketReadScope";
 // api/tickets.ts
 
-import type { PaymentType, Ticket } from "../types/Ticket";
+import type { CollectionDateConfirmation, PaymentType, Ticket } from "../types/Ticket";
 import { apiRequest } from "./client";
 
 // The cover charge is stored as guest_count on the backend; the UI shows it as a line.
@@ -35,6 +37,7 @@ export type ApiTicket = {
     amount_paid?: number;
     balance_due?: number;
     payments?: NonNullable<Ticket["payments"]>;
+    service_completed_at?: number | null;
     service_status?: Ticket["serviceStatus"];
     settlement_status?: Ticket["settlementStatus"];
     service_business_date?: string | null;
@@ -113,6 +116,7 @@ export function toTicket(api: ApiTicket): Ticket {
         balanceDue: api.balance_due,
         payments: api.payments,
         serviceStatus: api.service_status,
+        serviceCompletedAt: api.service_completed_at,
         settlementStatus: api.settlement_status,
         serviceBusinessDate: api.service_business_date,
         unpaidReason: api.unpaid_reason,
@@ -127,7 +131,7 @@ export function toTicket(api: ApiTicket): Ticket {
 }
 
 export const ticketsApi = {
-    list: () => apiRequest<ApiTicket[]>("/tickets"),
+    list: (scope?: TicketReadScope) => apiRequest<ApiTicket[]>(ticketListPath(scope)),
 
     get: (ticketId: number) => apiRequest<ApiTicket>(`/tickets/${ticketId}`),
 
@@ -194,11 +198,16 @@ export const ticketsApi = {
             method: "DELETE",
         }),
 
-    pay: (ticketId: number, method: PaymentType, amount?: number, idempotencyKey?: string) =>
+    pay: (ticketId: number, method: PaymentType, amount?: number, idempotencyKey?: string, collection?: CollectionDateConfirmation) =>
         apiRequest<ApiTicket>(`/tickets/${ticketId}/pay`, {
             method: "POST",
-            body: { method, ...(amount === undefined ? {} : { amount }) },
+            body: { method, ...(amount === undefined ? {} : { amount }), ...collection },
             ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {}),
+        }),
+
+    correctCollectionDate: (ticketId: number, paymentId: number, body: PaymentDateCorrection, idempotencyKey: string) =>
+        apiRequest<ApiTicket>(`/tickets/${ticketId}/payments/${paymentId}/collection-date`, {
+            method: "POST", body, headers: { "Idempotency-Key": idempotencyKey },
         }),
 
     receivables: (query = "") => apiRequest<{ items: ApiTicket[]; offset: number; limit: number; total: number }>(`/tickets/receivables${query}`),
@@ -222,3 +231,4 @@ export const ticketsApi = {
             method: "POST", body: { reason },
         }),
 };
+

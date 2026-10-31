@@ -8,7 +8,7 @@ import ReopenTicketModal from "./ReopenTicketModal";
 import DeferPaymentModal from "./DeferPaymentModal";
 
 // Types
-import type { PaymentType, Ticket } from "../../types/Ticket";
+import type { CollectionDateConfirmation, PaymentType, Ticket } from "../../types/Ticket";
 
 // Hooks
 import { useModal } from "../../hooks/useModal";
@@ -28,6 +28,7 @@ type TicketActionsProps = {
         paymentType: PaymentType,
         amount: number,
         idempotencyKey?: string,
+        collection?: CollectionDateConfirmation,
     ) => Promise<boolean>;
     onDeferTicket: (ticketId: number, body: { reason: string; confirmed_balance: number; note?: string; follow_up_date?: string }) => Promise<boolean>;
 
@@ -100,8 +101,9 @@ export default function TicketActions({
                             content: (
                                 <PaymentModal
                                     ticket={ticket}
-                            onConfirm={(paymentType, amount, key) =>
-                                        onPayTicket(ticket.id, paymentType, amount, key)
+                                    canConfirmCollectionDate={canCorrectPayment}
+                                    onConfirm={(paymentType, amount, key, collection) =>
+                                        onPayTicket(ticket.id, paymentType, amount, key, collection)
                                     }
                                 />
                             ),
@@ -224,3 +226,4 @@ const ConfirmActions = styled.div`
         flex-direction: column;
     }
 `;
+

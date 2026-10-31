@@ -1,3 +1,5 @@
+import { startBackgroundRefresh } from "../hooks/backgroundRefresh";
+import { shouldPoll } from "../api/realtime";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { accountApi, type Account, type ShiftReport, type VenueStatus } from "../api/account";
@@ -147,27 +149,17 @@ export default function ShiftControls({ account, locale }: { account: Account; l
         // Invalidate any request from the previous effect before enabling refreshes.
         version.current++;
         mounted.current = true;
-        const initialRefresh = window.setTimeout(() => void refresh(), 0);
-        const poll = window.setInterval(() => { void refresh(); }, 20000);
+        const stopRefresh = startBackgroundRefresh({
+            refresh,
+            shouldPoll,
+            refreshKey: () => businessDateJst(Date.now()),
+            events: ["barticket-auth", "barticket-shift-updated", "barticket-menu-updated", "barticket-notices"],
+        });
         const tick = window.setInterval(() => setNow(Date.now()), 15000);
-        const onRefresh = () => void refresh();
-        window.addEventListener("focus", onRefresh);
-        window.addEventListener("barticket-auth", onRefresh);
-        window.addEventListener("barticket-api-restored", onRefresh);
-        window.addEventListener("barticket-shift-updated", onRefresh);
-        window.addEventListener("barticket-menu-updated", onRefresh);
-        window.addEventListener("barticket-notices", onRefresh);
         return () => {
             mounted.current = false;
-            window.clearTimeout(initialRefresh);
-            window.clearInterval(poll);
+            stopRefresh();
             window.clearInterval(tick);
-            window.removeEventListener("focus", onRefresh);
-            window.removeEventListener("barticket-auth", onRefresh);
-            window.removeEventListener("barticket-api-restored", onRefresh);
-            window.removeEventListener("barticket-shift-updated", onRefresh);
-            window.removeEventListener("barticket-menu-updated", onRefresh);
-            window.removeEventListener("barticket-notices", onRefresh);
         };
     }, [refresh]);
 
@@ -394,3 +386,4 @@ export default function ShiftControls({ account, locale }: { account: Account; l
         </section> : null}
     </>;
 }
+
