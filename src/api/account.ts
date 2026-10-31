@@ -74,12 +74,13 @@ export type RevenueSharePreview = {
     unassigned_shift_ids: number[];
     open_working_manager_shift_ids: number[];
     recorded_shift_count: number;
-    payable_yen: null;
+    complete: boolean;
+    payable_yen: number | null;
     costs: {
-        staff_base_wages_yen: null;
-        staff_drinkback_yen: null;
-        deductions_yen: null;
-        approved_additions_yen: null;
+        staff_base_wages_yen: number | null;
+        staff_drinkback_yen: number | null;
+        deductions_yen: number | null;
+        approved_additions_yen: number | null;
     };
     blockers: string[];
 };
