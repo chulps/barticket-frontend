@@ -25,6 +25,11 @@ async function fixture(page) {
     else if(path==="/shifts/current")body=null;
     else if(path==="/auth/status")body={has_accounts:true,google_enabled:false};
     else if(path==="/profile/work-history")body={user_id:person.id,shifts:[]};
+    else if(path==="/profile/earnings")body={user_id:person.id,month:new URL(req.url()).searchParams.get("month"),
+      preview_only:true,note:"Fixture estimate",categories:[
+        {category:"hourly_wages",amount_yen_unrounded:"13000",complete:true,entries:[]},
+        {category:"staff_drink_bonus",amount_yen:0,complete:true,entries:[]},
+      ]};
     else if(path==="/notices")body={notices:[]};
     else if(path==="/analytics/shifts")body=[];
     else if(path==="/push/status")body={enabled:false};
@@ -105,7 +110,10 @@ test("warm Profile and Admin transitions do not fan out authentication reads",as
   await page.getByRole("button",{name:"More navigation options"}).click();
   await page.locator('#desktop-more-menu a[href="/profile"]').click();
   await expect(page).toHaveURL(/\/profile$/);
-  await expect.poll(()=>state.calls.filter(x=>x.path==="/profile/work-history").length).toBeGreaterThan(0);
+  await expect(page.getByRole("group",{name:"Profile sections"}).getByRole("button",{name:"My pay",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(page.getByText("Monthly pay estimate",{exact:true})).toBeVisible();
+  // Profile deliberately defers work history until that destination is chosen.
+  expect(state.calls.filter(x=>x.path==="/profile/work-history")).toHaveLength(0);
   const profileMs=Date.now()-started;
   expect(state.calls.filter(x=>x.path==="/auth/me").length-before).toBeLessThanOrEqual(1);
   await page.getByRole("button",{name:"More navigation options"}).click();
