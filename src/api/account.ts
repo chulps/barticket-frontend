@@ -1,4 +1,5 @@
-import { apiRequest, setToken } from "./client";
+import { apiRequest, getToken, setToken } from "./client";
+import { createSessionRead } from "./sessionRead";
 
 export type Account = {
     id: number;
@@ -380,11 +381,17 @@ export type ManagerPayDeductionList = {
 
 type Session = { token: string; user: Account };
 
+// A one-second handoff avoids serial duplicate auth reads as routes mount.
+// Fresh focus/auth checks retire this snapshot before component listeners run.
+const sessionAccount = createSessionRead(getToken, () => apiRequest<Account>("/auth/me"));
+window.addEventListener("barticket-auth", sessionAccount.invalidate);
+window.addEventListener("focus", sessionAccount.revalidate);
+
 export const accountApi = {
     status: () =>
         apiRequest<{ has_accounts: boolean; google_enabled: boolean }>("/auth/status"),
 
-    me: () => apiRequest<Account>("/auth/me"),
+    me: sessionAccount.read,
 
     async register(name: string, email: string, password: string) {
         const session = await apiRequest<Session>("/auth/register", {
@@ -412,8 +419,11 @@ export const accountApi = {
         }
     },
 
-    updateMe: (body: { name?: string; password?: string }) =>
-        apiRequest<Account>("/auth/me", { method: "PATCH", body }),
+    async updateMe(body: { name?: string; password?: string }) {
+        sessionAccount.invalidate();
+        try { return await apiRequest<Account>("/auth/me", { method: "PATCH", body }); }
+        finally { sessionAccount.invalidate(); }
+    },
 
     listUsers: () => apiRequest<Account[]>("/users"),
 

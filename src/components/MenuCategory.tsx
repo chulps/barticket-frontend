@@ -31,8 +31,8 @@ export default function MenuCategory({
 }: MenuCategoryProps) {
   const { locale } = useI18n();
   return (
-    <Category>
-      <CategoryHeading>{menuLabel(locale, category)}</CategoryHeading>
+    <Category id={"menu-category-" + category} aria-labelledby={"menu-heading-" + category}>
+      <CategoryHeading id={"menu-heading-" + category}>{menuLabel(locale, category)}</CategoryHeading>
 
       {Object.entries(subcategories).map(
         ([subcategory, items]) => (
@@ -64,24 +64,30 @@ export default function MenuCategory({
 }
 
 const MenuItemsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  @media (min-width: 1000px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 `;
 
 const Category = styled.section`
-  break-inside: avoid;
-  margin-bottom: var(--space-4);
+  min-width: 0;
+  scroll-margin-top: 190px;
 `;
 
 const CategoryHeading = styled.h3`
+  font-size: var(--font-size-h4);
+  font-weight: 600;
   margin-bottom: var(--space-2);
-  padding-bottom: 0.35rem;
-  border-bottom: 2px solid var(--accent);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--neutral-600);
+  overflow-wrap: anywhere;
 `;
 
-const SubHeading = styled.label`
+const SubHeading = styled.h4`
+  font-size: var(--font-size-p);
+  font-weight: 500;
   margin: var(--space-2) 0 var(--space-1);
-  color: var(--neutral-300);
-  align-self: center;
+  color: var(--neutral-200);
+  overflow-wrap: anywhere;
 `;

@@ -9,8 +9,9 @@ import { readLocale, translate, useI18n } from "../i18n";
 import TabGroup from "../components/TabGroup";
 import ShiftControls from "./ShiftControls";
 import StaffWorkHistory from "./StaffWorkHistory";
+import StaffIncome from "./StaffIncome";
 
-type ProfileView = "stats" | "shift" | "account";
+type ProfileView = "pay" | "history" | "shift" | "account";
 
 export default function Profile() {
     const { t, locale } = useI18n();
@@ -23,7 +24,7 @@ export default function Profile() {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [view, setView] = useState<ProfileView>("stats");
+    const [view, setView] = useState<ProfileView>("pay");
 
     async function refresh(next?: Account | null) {
         const current = next === undefined ? account : next;
@@ -87,7 +88,7 @@ export default function Profile() {
 
     return (
         <Page $signedIn={Boolean(account)}>
-            <h1>{t("account")}</h1>
+            <h1>{account ? (locale === "ja" ? "プロフィール" : "Profile") : t("account")}</h1>
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             {error && !account ? <button type="button" className="small hollow secondary" onClick={() => window.location.reload()}>{locale === "ja" ? "再試行" : "Retry"}</button> : null}
 
@@ -136,13 +137,15 @@ export default function Profile() {
                         activeTab={view}
                         onChange={setView}
                         tabs={[
-                            { id: "stats", label: locale === "ja" ? "統計" : "Stats" },
+                            { id: "pay", label: locale === "ja" ? "給与" : "My pay" },
+                            { id: "history", label: locale === "ja" ? "勤務履歴" : "Work history" },
                             { id: "shift", label: locale === "ja" ? "勤務" : "Shift" },
-                            { id: "account", label: locale === "ja" ? "アカウント" : "Account" },
+                            { id: "account", label: locale === "ja" ? "アカウント設定" : "Account settings" },
                         ]}
                     />
 
-                    {view === "stats" ? <StaffWorkHistory key={account.id} userId={account.id} locale={locale} role={account.role} /> : null}
+                    {view === "pay" ? <StaffIncome key={account.id} userId={account.id} locale={locale} role={account.role} /> : null}
+                    {view === "history" ? <StaffWorkHistory key={account.id} userId={account.id} locale={locale} /> : null}
                     {view === "shift" ? <ShiftControls account={account} locale={locale} /> : null}
 
                     {view === "account" ? <Section aria-label={locale === "ja" ? "アカウント設定" : "Account settings"}>
@@ -218,6 +221,26 @@ const Page = styled.main<{ $signedIn: boolean }>`
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
+
+    @media (max-width: 600px) {
+        > [role="group"] {
+            overflow: visible;
+        }
+        > [role="group"] > div {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            width: 100%;
+            min-width: 0;
+        }
+        > [role="group"] > div > div { display: none; }
+        > [role="group"] button {
+            min-width: 0;
+            white-space: normal;
+        }
+        > [role="group"] button[aria-pressed="true"] {
+            background: var(--neutral-800);
+        }
+    }
 
     h1 {
         font-size: var(--font-size-h3);
