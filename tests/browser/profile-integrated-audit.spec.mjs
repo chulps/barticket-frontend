@@ -61,7 +61,7 @@ for(const id of [7,901,902])for(const locale of ["en","ja"])for(const width of [
  }else if(id===901){
   await expect(page.getByText(ja?"Chuckへの支払予定額":"Amount owed to Chuck",{exact:true}).locator("..").locator("strong")).toHaveText("—");
  }else{
-  await expect(page.getByText(ja?"Noriの収入":"Nori's income",{exact:true}).locator("..").locator("strong")).toHaveText("—");
+  await expect(page.getByText(ja?"スタッフ給与差引後の残額":"Remaining after staff earnings",{exact:true}).locator("..").locator("strong")).toHaveText("—");
   await expect(page.getByText("Haruka",{exact:true}).locator("../..")).toContainText(/[¥￥]0/);
   await expect(page.getByText("Kanata",{exact:true}).locator("../..")).toContainText("—");
  }
