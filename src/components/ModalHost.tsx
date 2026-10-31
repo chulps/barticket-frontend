@@ -139,8 +139,8 @@ const Dialog = styled.div<{ $maxWidth: string; $fit: boolean }>`
     padding-bottom: env(safe-area-inset-bottom, 0px);
     @media (max-width: 767px) {
         max-height: calc(100dvh - env(safe-area-inset-top, 0px));
-        /* The on-screen keyboard reduces dvh; keep the action footer in
-           the scrollable modal instead of under Safari's browser chrome. */
+        /* Dynamic units follow browser chrome. Keyboards may resize only the
+           visual viewport, so retain scrolling rather than assuming dvh changes. */
     }
     display: flex;
     flex-direction: column;

@@ -265,6 +265,23 @@ body {
   width: 100%;
 }
 
+/* Only the POS board owns a viewport-sized shell. Other routes (long forms,
+   reports, settings) retain normal document scrolling. The header and banners
+   take their actual height; the board gets the remainder, not guessed offsets. */
+body:has([data-ticket-dashboard]) {
+  height: 100vh;
+  height: 100dvh;
+  padding-bottom: max(var(--space-2), env(safe-area-inset-bottom, 0px));
+}
+#root:has([data-ticket-dashboard]) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#root:has([data-ticket-dashboard]) > :not([data-ticket-dashboard]) {
+  flex-shrink: 0;
+}
+
 /* scrollbar width */
 
 ::-webkit-scrollbar {
