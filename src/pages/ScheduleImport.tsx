@@ -136,6 +136,9 @@ export default function ScheduleImport({ users, locale }: Props) {
                 <tbody>{preview.rows.map(row => {
                     const canSave = eligible.some(item => item.source_row === row.source_row);
                     const unmatched = [row.manager, ...row.staff].filter((person): person is NonNullable<typeof person> => Boolean(person && person.user_id === null)).map(person => person.name);
+                    const scheduleStateText = row.schedule_state === "upcoming" ? (ja ? "予定" : "Upcoming")
+                        : row.schedule_state === "today" ? (ja ? "本日の予定" : "Today")
+                            : (ja ? "過去の予定" : "Past");
                     const statusText = row.status === "new" ? (ja ? "新規" : "New")
                         : row.status === "match" ? (ja ? "既存予定と一致" : "Matches existing schedule")
                             : row.status === "already_imported" ? (ja ? "この出典は取込済み" : "Source already imported")
@@ -145,7 +148,7 @@ export default function ScheduleImport({ users, locale }: Props) {
                         <td><input type="checkbox" aria-label={`${row.business_date} source row ${row.source_row}`} disabled={!canSave || busy}
                             checked={selected.includes(row.source_row)} onChange={event => setSelected(current => event.target.checked
                                 ? [...current, row.source_row] : current.filter(value => value !== row.source_row))} /></td>
-                        <td>{row.business_date}</td><td>{row.schedule_state}{row.actual_shift_exists ? (ja ? " · 実際のシフトあり" : " · actual shift exists") : ""}</td>
+                        <td>{row.business_date}</td><td>{scheduleStateText}{row.actual_shift_exists ? (ja ? " · 実際のシフトあり" : " · actual shift exists") : ""}</td>
                         <td>{row.manager?.name ?? "—"}</td><td>{row.staff.map(person => person.name).join(", ") || "—"}</td>
                         <td>{row.event_value ?? "—"}</td><td>{fileName} · {row.source_row}</td>
                         <td>{ja ? "不明・未取込" : "Unknown · not imported"}</td>

@@ -8,7 +8,7 @@ const schedule = (state, id) => ({ id, business_date: `2026-11-0${id}`, schedule
   manager: { name: manager.name, user_id: manager.id }, staff: [{ name: staff.name, user_id: staff.id }], event_value: null, hours: null,
   provenance: [{ source_file: "synthetic-november.csv", source_row: id + 1, imported_by: "Fixture Manager", imported_at: "2026-11-01T00:00:00Z", uncertainty: "Synthetic review note" }] });
 async function fixture(page, locale, role = "manager") {
-  const state = { mode: "rows", reads: 0, writes: [], previews: 0 };
+  const state = { mode: "rows", reads: 0, writes: [], previews: 0, longSource: false };
   await page.addInitScript(({ locale }) => { localStorage.clear(); localStorage.setItem("barticket_locale", locale); localStorage.setItem("barticket_token", "ISOLATED_SCHEDULE_AUDIT"); }, { locale });
   await page.route("**/*", route => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
   await page.route("http://127.0.0.1:8765/**", async route => {
@@ -30,7 +30,10 @@ async function fixture(page, locale, role = "manager") {
     else if (path === "/schedules") {
       state.reads++;
       if (state.mode === "error") { status = 503; data = { detail: "Synthetic schedule unavailable" }; }
-      else data = state.mode === "empty" ? [] : [schedule("upcoming", 1), schedule("today", 2), schedule("past", 3)];
+      else {
+        data = state.mode === "empty" ? [] : [schedule("upcoming", 1), schedule("today", 2), schedule("past", 3)];
+        if (state.longSource) for (const row of data) row.provenance[0].source_file = "SyntheticMonthlySchedule_".repeat(8) + ".csv";
+      }
     }
     await route.fulfill({ status, json: data, headers: cors });
   });
@@ -39,6 +42,14 @@ async function fixture(page, locale, role = "manager") {
 async function fits(page) { expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => innerWidth)); }
 async function capture(page, testInfo, name) { await page.screenshot({ path: testInfo.outputPath(`audit-schedule-${name}.png`), fullPage: true }); await fits(page); }
 for (const locale of ["en", "ja"]) for (const width of [320, 768, 1280]) {
+  test(`long schedule provenance reflows ${locale} ${width}`, async ({ page }, testInfo) => {
+    const state = await fixture(page, locale, "staff"); state.longSource = true;
+    await page.setViewportSize({ width, height: 900 }); await page.goto("/schedules");
+    await expect(page.locator("main article")).toHaveCount(3);
+    await expect(page.locator("main article").first()).toContainText("SyntheticMonthlySchedule_".repeat(8) + ".csv");
+    await capture(page, testInfo, "long-source");
+    expect(state.writes).toEqual([]);
+  });
   test(`schedule states and keyboard recovery ${locale} ${width}`, async ({ page }, testInfo) => {
     const state = await fixture(page, locale, "staff");
     await page.setViewportSize({ width, height: 900 });
@@ -74,6 +85,7 @@ for (const locale of ["en", "ja"]) for (const width of [320, 768, 1280]) {
     const review = page.getByRole("button", { name: locale === "ja" ? "予定を照合してレビュー" : "Review schedule rows", exact: true });
     await expect(review).toBeEnabled(); await review.focus(); await review.press("Enter");
     await expect(page.locator("tbody tr")).toHaveCount(1);
+    await expect(page.locator("tbody tr td").nth(2)).toHaveText(locale === "ja" ? "予定" : "Upcoming");
     await capture(page, testInfo, "admin-preview");
     const save = page.getByRole("button", { name: locale === "ja" ? /選択した予定を保存/ : /Save selected schedules/ });
     await expect(save).toBeDisabled();
