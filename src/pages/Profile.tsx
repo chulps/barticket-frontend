@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -21,6 +21,7 @@ export default function Profile() {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
+    const busyRef = useRef(false);
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -84,7 +85,8 @@ export default function Profile() {
     }, []);
 
     async function run(action: () => Promise<void>) {
-        if (busy) return;
+        if (busyRef.current) return;
+        busyRef.current = true;
         setBusy(true);
         setError("");
         try {
@@ -92,6 +94,7 @@ export default function Profile() {
         } catch (err) {
             setError(err instanceof ApiError ? err.message : translate(readLocale(), "somethingWrong"));
         } finally {
+            busyRef.current = false;
             setBusy(false);
         }
     }
@@ -111,40 +114,40 @@ export default function Profile() {
             {error && !account ? <button type="button" className="small hollow secondary" onClick={() => window.location.reload()}>{locale === "ja" ? "再試行" : "Retry"}</button> : null}
 
             {!account ? (
-                <Section>
+                <Section as="form" aria-busy={busy} onSubmit={(event) => {
+                    event.preventDefault();
+                    void run(async () => {
+                        const user = hasAccounts
+                            ? await accountApi.login(email, password)
+                            : await accountApi.register(name, email, password);
+                        setPassword("");
+                        await refresh(user);
+                        navigate("/tickets", { replace: true });
+                    });
+                }}>
                     <h2>{hasAccounts ? t("signIn") : t("createManager")}</h2>
                     {!hasAccounts ? (
                         <label>
                             {t("name")}
-                            <input value={name} onChange={(event) => setName(event.target.value)} />
+                            <input name="name" autoComplete="name" required value={name} onChange={(event) => setName(event.target.value)} />
                         </label>
                     ) : null}
                     <label>
                         {t("email")}
-                        <input value={email} onChange={(event) => setEmail(event.target.value)} />
+                        <input type="email" name="email" autoComplete={hasAccounts ? "username" : "email"} required value={email} onChange={(event) => setEmail(event.target.value)} />
                     </label>
                     <label>
                         {t("password")}
                         <input
                             type="password"
+                            name="password"
+                            autoComplete={hasAccounts ? "current-password" : "new-password"}
+                            required
                             value={password}
                             onChange={(event) => setPassword(event.target.value)}
                         />
                     </label>
-                    <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                            run(async () => {
-                                const user = hasAccounts
-                                    ? await accountApi.login(email, password)
-                                    : await accountApi.register(name, email, password);
-                                setPassword("");
-                                await refresh(user);
-                                navigate("/tickets", { replace: true });
-                            })
-                        }
-                    >
+                    <button type="submit" disabled={busy}>
                         {hasAccounts ? t("signIn") : t("createAccount")}
                     </button>
                 </Section>
@@ -259,7 +262,9 @@ const Section = styled.section`
     flex-direction: column;
     gap: var(--space-1);
     padding: var(--space-2);
-    background: var(--neutral-900);
+    background: var(--surface-card);
+    color: var(--on-surface-card);
+    --label-color: var(--on-surface-card-muted);
     border-radius: 12px;
 
     label {
@@ -273,6 +278,7 @@ const Section = styled.section`
     select {
         width: 100%;
         box-sizing: border-box;
+        color: var(--font-color);
     }
 
     input:focus,

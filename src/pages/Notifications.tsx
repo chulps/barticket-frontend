@@ -3,12 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useSearchParams } from "react-router-dom";
 import NotificationActivity from "../components/NotificationActivity";
-import NotificationPreferences from "../components/NotificationPreferences";
+import NotificationSettings from "../components/NotificationSettings";
 import NotificationTicket from "../components/NotificationTicket";
 import { clearNotificationReturn } from "../api/notificationNavigation";
 
 import { accountApi } from "../api/account";
-import PushSettings from "../components/PushSettings";
 import { ApiError, getToken } from "../api/client";
 import { listNotices, restockNotice, type NoticeList } from "../api/notices";
 import { menuLabel, useI18n, type Locale } from "../i18n";
@@ -143,11 +142,9 @@ export default function Notifications() {
 
     return (
         <main>
-            <Heading>{t("notifications")}</Heading>
+            <HeadingRow><Heading>{t("notifications")}</Heading><NotificationSettings /></HeadingRow>
             {ticketId !== null ? <NotificationTicket key={ticketId} ticketId={ticketId} /> : null}
             {rawTicket && ticketId === null ? <p role="alert">{locale === "ja" ? "通知のリンクが無効です。通知一覧を表示しています。" : "The notification link is invalid. Your notifications are shown below."}</p> : null}
-            <PushSettings />
-            <NotificationPreferences />
             {loading ? <p role="status">{locale === "ja" ? "通知を読み込み中…" : "Loading notifications…"}</p> : null}
             {denied ? <p>{locale === "ja" ? "通知を表示する権限を確認できませんでした。再度ログインしてください。" : "Notification access could not be verified. Please sign in again."}</p> : null}
             {loadFailed ? <p role="alert">{locale === "ja" ? "通知を更新できませんでした。" : "Could not refresh notifications."} <button className="small hollow secondary" type="button" onClick={() => window.dispatchEvent(new Event("barticket-notices"))}>{locale === "ja" ? "再試行" : "Retry"}</button></p> : null}
@@ -178,10 +175,11 @@ export default function Notifications() {
     );
 }
 
-const Heading = styled.h2`
-  padding-top: var(--space-2);
-  margin-bottom: var(--space-3);
+const HeadingRow = styled.div`
+  position: relative; display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-1); padding-top: var(--space-2); margin-bottom: var(--space-2);
 `;
+const Heading = styled.h2`margin: 0; min-width: 0; overflow-wrap: anywhere;`;
 
 const Alert = styled.div`
   display: flex;

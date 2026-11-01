@@ -51,6 +51,7 @@ async function fixture(page,{locale='en',permission='granted',subscribed=true,ow
     await route.fulfill({status,json:body,headers});
   });
   await page.goto('/notifications');
+  await page.getByRole('button',{name:locale==='ja'?'通知設定':'Notification settings',exact:true}).click();
   const control=page.getByRole('switch',{name:locale==='ja'?'端末のプッシュ通知':'Device push notifications',exact:true});
   await expect(control).toBeVisible();
   return {control,writes,state:()=>page.evaluate(()=>window.__pushFixture)};
@@ -179,6 +180,10 @@ test('late ownership check cannot turn on the switch after an account change',as
     window.dispatchEvent(new Event('barticket-auth'));
   });
   release();
+  // Auth changes intentionally remount private UI, closing the settings disclosure.
+  const settings=page.getByRole('button',{name:'Notification settings',exact:true});
+  await expect(settings).toHaveAttribute('aria-expanded','false');
+  await settings.click();
   await expect(f.control).toBeEnabled();
   await expect(f.control).toHaveAttribute('aria-checked','false');
   expect(await page.evaluate(()=>window.__checkedHistory)).not.toContain('true');

@@ -23,7 +23,7 @@ async function fixture(page) {
   return writes;
 }
 for(const width of [320,1280])test(`notification preferences accessible at ${width}`,async({page},testInfo)=>{
-  await page.setViewportSize({width,height:900});const writes=await fixture(page);await page.goto('/notifications');await page.getByRole('button',{name:'Notification type settings'}).click();
+  await page.setViewportSize({width,height:900});const writes=await fixture(page);await page.goto('/notifications');await page.getByRole('button',{name:'Notification settings',exact:true}).click();
   const toggle=page.getByRole('switch',{name:'New tickets',exact:true});await expect(toggle).toHaveAttribute('aria-checked','true');
   const onThumb=await toggle.locator('span').boundingBox(), onTrack=await toggle.boundingBox();
   expect(onThumb.x+onThumb.width).toBeLessThanOrEqual(onTrack.x+onTrack.width);
@@ -39,26 +39,36 @@ for(const width of [320,1280])test(`notification preferences accessible at ${wid
   await page.screenshot({path:testInfo.outputPath('preferences.png'),fullPage:true});
 });
 test('failed preference save does not claim changed state and reload reconciles',async({page})=>{
-  await fixture(page);await page.goto('/notifications');await page.getByRole('button',{name:'Notification type settings'}).click();const toggle=page.getByRole('switch',{name:'New tickets',exact:true});await expect(toggle).toBeVisible();
+  await fixture(page);await page.goto('/notifications');await page.getByRole('button',{name:'Notification settings',exact:true}).click();const toggle=page.getByRole('switch',{name:'New tickets',exact:true});await expect(toggle).toBeVisible();
   await page.route('http://127.0.0.1:8765/push/preferences',route=>route.request().method()==='PATCH'?route.fulfill({status:503,json:{detail:'offline'},headers:{'Access-Control-Allow-Origin':'*'}}):route.fallback());
   await toggle.click();await expect(page.getByRole('alert')).toContainText('Couldn’t confirm the save');await expect(toggle).toHaveCount(0);
   await page.getByRole('button',{name:'Reload settings'}).click();await expect(toggle).toHaveAttribute('aria-checked','true');
 });
 
-test('type controls are disclosed with keyboard, dismissible, and switches never gain blue hover fill',async({page})=>{
+test('all settings share one keyboard disclosure while the notification feed stays visible',async({page},testInfo)=>{
   await page.setViewportSize({width:320,height:900}); await fixture(page); await page.goto('/notifications');
-  const options=page.getByRole('button',{name:'Notification type settings'}), toggle=page.getByRole('switch',{name:'New tickets',exact:true});
+  await expect(page.getByRole('heading',{name:'Device push notifications',exact:true})).toBeHidden();
+  await expect(page.getByRole('heading',{name:'Push notification types',exact:true})).toBeHidden();
+  await expect(page.getByRole('heading',{name:'Sounds while BarTicket is open',exact:true})).toBeHidden();
+  await expect(page.getByRole('heading',{name:'Current shift activity',exact:true})).toBeVisible();
+  const options=page.getByRole('button',{name:'Notification settings',exact:true}), toggle=page.getByRole('switch',{name:'New tickets',exact:true});
   await expect(options).toHaveAttribute('aria-expanded','false'); await expect(toggle).toBeHidden();
   const buttonBox=await options.boundingBox(),iconBox=await options.locator('svg').boundingBox();
   expect(buttonBox.width).toBe(44);expect(iconBox.width).toBe(24);expect(iconBox.x).toBeGreaterThanOrEqual(buttonBox.x);expect(iconBox.x+iconBox.width).toBeLessThanOrEqual(320);
   await expect(options.locator('svg')).toBeVisible();
+  await expect(page.locator('[aria-labelledby="push-type-ticket_created"]')).toHaveAttribute('aria-checked','true');
+  const reads=[];page.on('request',req=>{if(req.method()==='GET' && /\/push\//.test(req.url()))reads.push(req.url());});
   await options.focus(); await page.keyboard.press('Enter'); await expect(toggle).toBeVisible();
+  await expect(page.getByRole('button',{name:'Notification type settings',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('heading',{name:'Sounds while BarTicket is open',exact:true})).toBeVisible();
   await toggle.hover();
   expect(await toggle.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
   expect(await toggle.evaluate(el=>getComputedStyle(el,'::before').backgroundColor)).toBe('rgb(30, 202, 107)');
   await toggle.focus(); await page.keyboard.press('Escape'); await expect(toggle).toBeHidden(); await expect(options).toBeFocused();
-  await options.click(); await page.getByRole('heading',{name:'Sounds while BarTicket is open'}).click();
-  await expect(toggle).toBeHidden(); expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await options.click(); await page.getByRole('heading',{name:'Notifications',exact:true}).click();
+  await expect(toggle).toBeHidden(); expect(reads).toEqual([]); expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await expect(page.getByRole('heading',{name:'Current shift activity',exact:true})).toBeVisible();
+  await page.screenshot({path:testInfo.outputPath('preferences.png'),fullPage:true});
 });
 test('each preview schedules audio without push; interruption exposes resume and keeps preference',async({page})=>{
   await fixture(page);
@@ -74,6 +84,7 @@ test('each preview schedules audio without push; interruption exposes resume and
     };
   });
   await page.goto('/notifications');
+  await page.getByRole('button',{name:'Notification settings',exact:true}).click();
   for(const name of ['Preview new ticket','Preview stockout','Preview cha-ching'])await page.getByRole('button',{name,exact:true}).click();
   expect(await page.evaluate(()=>window.audioStarts)).toBe(7);
   const toggle=page.getByRole('switch',{name:'Use sounds on this device'}); await expect(toggle).toHaveAttribute('aria-checked','false');

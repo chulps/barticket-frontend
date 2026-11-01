@@ -150,3 +150,65 @@ test("failed capability revalidation hides owner settings until explicit access 
  state.accessStatus=200;await page.getByRole("button",{name:"Reload saved setup",exact:true}).click();await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toBeVisible();
  await expect(page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true})).toBeVisible();expect(state.reads).toBe(before+1);expect(state.writes).toEqual([]);
 });
+
+test("Stripe setup is an explicit preference choice with provider-hosted registration",async({page})=>{
+  const state=await fixture(page);
+  await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveValue("unknown");
+  await page.getByRole("button",{name:"Choose Stripe online setup",exact:true}).click();
+  await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveValue("stripe");
+  await expect(page.getByRole("combobox",{name:"Payment channel",exact:true})).toHaveValue("online");
+  const guide=page.getByRole("region",{name:"Stripe online setup",exact:true});
+  await guide.getByText("Prepare your Stripe account",{exact:true}).click();
+  await expect(guide).toContainText("Account registration alone does not enable ticket payments");
+  await expect(guide.getByRole("link",{name:"Create a Stripe account"})).toHaveAttribute("href","https://dashboard.stripe.com/register");
+  await expect(guide.getByRole("link",{name:"Open Stripe Dashboard"})).toHaveAttribute("href","https://dashboard.stripe.com/");
+  expect(state.writes).toEqual([]);
+  await page.getByRole("button",{name:"Save setup preferences",exact:true}).click();
+  await expect.poll(()=>state.writes.length).toBe(1);
+  expect(state.writes[0]).toMatchObject({provider:"stripe",channel:"online",methods:[]});
+  await expect(page.getByText("Payment processing: not connected",{exact:true})).toBeVisible();
+  await page.getByRole("combobox",{name:"Payment channel",exact:true}).selectOption("terminal");
+  await expect(guide).toHaveCount(0);
+});
+
+for (const theme of ['dark', 'light']) for (const locale of ['en', 'ja']) test(`Stripe guidance stays conditional and disconnected on a 320px phone (${locale}, ${theme})`,async({page},testInfo)=>{
+  await page.setViewportSize({width:320,height:800});
+  const state=await fixture(page);
+  await page.getByRole('button',{name:'Choose Stripe online setup',exact:true}).click();
+  if(locale==='ja') {
+    await page.getByRole('button',{name:'Navigation menu',exact:true}).click();
+    await page.getByRole('switch').click();
+    await page.keyboard.press('Escape');
+  }
+  await page.evaluate(theme=>document.documentElement.classList.toggle('light',theme==='light'),theme);
+  const guide=page.getByRole('region',{name:locale==='ja'?'Stripeのオンライン設定':'Stripe online setup',exact:true});
+  await guide.getByText(locale==='ja'?'Stripeアカウントの準備':'Prepare your Stripe account',{exact:true}).click();
+  await expect(guide).toContainText(locale==='ja'?'既存のStripeアカウントと所有者を確認':'confirm whether the bar already has a Stripe account');
+  await expect(page.getByText(locale==='ja'?'決済処理：未接続':'Payment processing: not connected',{exact:true})).toBeVisible();
+  await expect(page.getByText(locale==='ja'?'ここで選択しても未保存の希望が変わるだけ':'Choosing it here only edits this draft',{exact:false})).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  const labelContrast=await guide.locator('..').locator('label').evaluateAll(labels=>{
+    const luminance=color=>{const values=color.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;});return values[0]*0.2126+values[1]*0.7152+values[2]*0.0722;};
+    return labels.map(label=>{let panel=label;while(getComputedStyle(panel).backgroundColor==='rgba(0, 0, 0, 0)')panel=panel.parentElement;const a=luminance(getComputedStyle(label).color),b=luminance(getComputedStyle(panel).backgroundColor);return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);});
+  });
+  expect(labelContrast.length).toBeGreaterThan(0);
+  for(const contrast of labelContrast)expect(contrast).toBeGreaterThanOrEqual(4.5);
+  await page.screenshot({path:testInfo.outputPath(`payment-guide-${locale}-${theme}.png`),fullPage:true});
+  expect(state.writes).toEqual([]);
+});
+
+test('saved terminal provider remains unchanged until an explicit save and draft choice can be abandoned',async({page})=>{
+  const state=await fixture(page);
+  state.saved={provider:'square',channel:'terminal',methods:['card'],processing_status:'not_connected'};
+  await page.reload();
+  const provider=page.getByRole('combobox',{name:'Current or proposed provider',exact:true});
+  const channel=page.getByRole('combobox',{name:'Payment channel',exact:true});
+  await expect(provider).toHaveValue('square'); await expect(channel).toHaveValue('terminal');
+  await page.getByRole('button',{name:'Choose Stripe online setup',exact:true}).click();
+  await expect(provider).toHaveValue('stripe'); await expect(channel).toHaveValue('online');
+  expect(state.saved.provider).toBe('square'); expect(state.writes).toEqual([]);
+  await page.reload();
+  await expect(provider).toHaveValue('square'); await expect(channel).toHaveValue('terminal');
+  await expect(page.getByRole('region',{name:'Stripe online setup',exact:true})).toHaveCount(0);
+  expect(state.writes).toEqual([]);
+});
