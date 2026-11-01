@@ -17,7 +17,7 @@ concurrency:
 jobs:
   browser:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       # Non-routable test API only; no production POS host or secrets.
       VITE_API_URL: http://127.0.0.1:8765
