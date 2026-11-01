@@ -175,6 +175,7 @@
   --on-surface-card: #ffffff;
   --on-surface-card-muted: var(--neutral-200);
   --label-color: var(--neutral-200);
+  --muted-text: var(--neutral-300);
   --primary-hover: var(--royal-600);
 
 }
@@ -519,6 +520,12 @@ button.hollow.danger {
   outline: 1px solid var(--danger-700);
 }
 
+/* These semantic hollow controls retain dark surfaces in the light theme. */
+button.hollow.success,
+button.hollow.danger {
+  color: var(--on-surface-card);
+}
+
 button.info {
   background: var(--info);
 }
@@ -759,6 +766,7 @@ button[disabled],
   --neutral-700: var(--neutral-200);
   --primary: var(--royal-600);
   --label-color: var(--neutral-600);
+  --muted-text: var(--neutral-600);
   --secondary: var(--neutral-700);
   --light: var(--neutral-100);
   --dark: var(--neutral-050);

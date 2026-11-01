@@ -146,7 +146,8 @@ for (const locale of ["en", "ja"]) for (const width of [320, 390, 1280]) {
     for (const light of [false, true]) {
       await setTheme(page, light);
       await page.mouse.move(0, 0);
-      await expectReadable(cards.locator("h2, p, strong, label, span"));
+      await expectReadable(cards.locator("h2, p, strong, label, span, small, button"));
+      await expectReadable(page.locator("main > header p"));
       await expectReadable(form.locator("button[type=submit]"));
       await form.locator("button[type=submit]").hover();
       await expectReadable(form.locator("button[type=submit]"));

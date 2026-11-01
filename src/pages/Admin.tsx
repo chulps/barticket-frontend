@@ -431,7 +431,7 @@ const Page = styled.main`
     gap: var(--space-2);
     h1 { font-size: var(--font-size-h3); }
     h2 { font-size: var(--font-size-h4); font-weight: 500; }
-    header p { color: var(--neutral-300); }
+    header p { color: var(--muted-text); }
 `;
 const MobileSectionPicker = styled.label`
     display: grid;
