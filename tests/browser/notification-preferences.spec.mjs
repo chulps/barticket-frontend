@@ -104,7 +104,7 @@ for(const locale of ['en','ja'])for(const size of [{width:320,height:640},{width
   const dialog=page.getByRole('dialog',{name,exact:true});await expect(dialog).toBeVisible();
   expect(await dialog.evaluate(el=>el.matches(':modal'))).toBe(true);
   const box=await dialog.boundingBox();expect(box.x).toBe(0);expect(box.y).toBe(0);expect(box.width).toBe(size.width);expect(box.height).toBe(size.height);
-  await expect(dialog.getByRole('switch')).toHaveCount(17);
+  await expect(dialog.getByRole('switch')).toHaveCount(keys.length + 2);
   const scroller=dialog.locator('> div').last();
   await scroller.evaluate(el=>{el.scrollTop=el.scrollHeight;});
   const close=dialog.getByRole('button',{name:closeName,exact:true});
@@ -136,8 +136,8 @@ test('direct settings URL closes in place and desktop outside navigation is not 
   await page.setViewportSize({width:1280,height:900});
   await page.getByRole('button',{name:'Notification settings',exact:true}).click();
   const panel=page.locator('#notification-settings-panel');await expect(panel).toBeVisible();expect(await panel.evaluate(el=>el.matches(':modal'))).toBe(false);
-  await page.getByRole('link',{name:'Analytics',exact:true}).click();
-  await expect(page).toHaveURL(/analytics/);await expect(panel).toHaveCount(0);
+  await page.getByRole('link',{name:'Tickets',exact:true}).click();
+  await expect(page).toHaveURL(/tickets/);await expect(panel).toHaveCount(0);
 });
 
 test('phone focus, feed scroll and desktop resize preserve the same settings subtree',async({page})=>{
@@ -151,6 +151,7 @@ test('phone focus, feed scroll and desktop resize preserve the same settings sub
   const panel=page.locator('#notification-settings-panel');
   await expect(panel).toBeVisible();expect(await page.evaluate(()=>document.body.style.position)).toBe('fixed');
   await page.keyboard.press('Shift+Tab');expect(await panel.evaluate(el=>el.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press('Tab');await expect(page.getByRole('button',{name:'Close notification settings',exact:true})).toBeFocused();
   await prefs.focus();
   await page.setViewportSize({width:768,height:900});await expect(prefs).toBeFocused();
   expect(await panel.evaluate(el=>el.matches(':modal'))).toBe(false);expect((await panel.boundingBox()).width).toBeLessThan(768);

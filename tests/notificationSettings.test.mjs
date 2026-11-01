@@ -52,3 +52,14 @@ test('breakpoint changes preserve the focused control and repeated closes cannot
  assert.match(settings,/close\(true\)/);
  assert.match(settings,/replace: !phone/);
 });
+
+test('phone Tab loops visible enabled controls and auth changes replace the disclosure URL',()=>{
+ assert.match(settings,/!phone \|\| event.key !== 'Tab'/);
+ assert.match(settings,/element.tabIndex >= 0 && !element.matches\(':disabled'\)/);
+ assert.match(settings,/element.getClientRects\(\).length > 0/);
+ assert.match(settings,/event.shiftKey \? document.activeElement === first : document.activeElement === last/);
+ assert.match(settings,/\(event.shiftKey \? last : first\).focus\(\)/);
+ assert.match(settings,/const authChanged = \(\) => close\(true\)/);
+ assert.match(settings,/addEventListener\('barticket-auth', authChanged, true\)/);
+ assert.match(settings,/removeEventListener\('barticket-auth', authChanged, true\)/);
+});

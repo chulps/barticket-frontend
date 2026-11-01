@@ -87,11 +87,33 @@ export default function NotificationSettings() {
       if (!phone && event.target instanceof Node && !container.current?.contains(event.target)) close(true);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); close(); }
+      if (event.key === 'Escape') { event.preventDefault(); close(); return; }
+      // Native modal inertness does not stop Tab entering browser chrome at
+      // either end. Keep the phone dialog's explicit keyboard loop inside it.
+      if (!phone || event.key !== 'Tab' || !panel.current) return;
+      const controls = Array.from(panel.current.querySelectorAll<HTMLElement>(
+        'button, a[href], input, select, textarea, [tabindex]'
+      )).filter(element => element.tabIndex >= 0 && !element.matches(':disabled') &&
+        element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden');
+      const first = controls[0], last = controls[controls.length - 1];
+      if (!first || !last) { event.preventDefault(); closeButton.current?.focus(); return; }
+      if (!panel.current.contains(document.activeElement) ||
+          (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
     };
+    // Auth changes remount the private UI. Do not carry an old account's open
+    // disclosure across that boundary, while ordinary direct links still work.
+    const authChanged = () => close(true);
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
+    window.addEventListener('barticket-auth', authChanged, true);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+      window.removeEventListener('barticket-auth', authChanged, true);
+    };
   }, [close, open, phone]);
 
   return <Container ref={container}>
