@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import styled from "styled-components";
 import Icon from "./Icon";
 
 export function CopyPanelButton({ text, locale, label }: { text: string; locale: "en" | "ja"; label?: string }) {
     const [copied, setCopied] = useState(false);
+    const [failedCopy, setFailedCopy] = useState<string | null>(null);
+    const copyRequest = useRef(0);
     const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => () => { copyRequest.current++; }, [text]);
     const buttonLabel = label ?? (locale === "ja" ? "パネルをコピー" : "Copy panel");
     useEffect(() => () => { if (timeout.current) clearTimeout(timeout.current); }, []);
     return (
@@ -14,12 +18,16 @@ export function CopyPanelButton({ text, locale, label }: { text: string; locale:
                 title={buttonLabel}
                 aria-label={buttonLabel}
                 onClick={async () => {
+                    const request = ++copyRequest.current;
+                    setCopied(false);
+                    setFailedCopy(null);
                     try {
                         await navigator.clipboard.writeText(text);
+                        if (request !== copyRequest.current) return;
                         setCopied(true);
                         if (timeout.current) clearTimeout(timeout.current);
                         timeout.current = setTimeout(() => setCopied(false), 1800);
-                    } catch { setCopied(false); }
+                    } catch { if (request === copyRequest.current) { setCopied(false); setFailedCopy(text); } }
                 }}
             >
                 <Icon name={copied ? "Check" : "Copy"} />
@@ -27,9 +35,62 @@ export function CopyPanelButton({ text, locale, label }: { text: string; locale:
             {copied ? (
                 <CopyTooltip role="status">{locale === "ja" ? "コピーしました！" : "Copied!"}</CopyTooltip>
             ) : null}
+            {failedCopy !== null ? <ManualCopyDialog text={failedCopy} locale={locale} onClose={() => setFailedCopy(null)} /> : null}
         </CopyWrapper>
     );
 }
+
+// A native modal keeps the selectable fallback out of narrow chart headers,
+// uses the browser’s modal focus restoration plus an explicit Tab loop.
+function ManualCopyDialog({ text, locale, onClose }: { text: string; locale: "en" | "ja"; onClose: () => void }) {
+    const dialog = useRef<HTMLDialogElement>(null);
+    const textarea = useRef<HTMLTextAreaElement>(null);
+    const titleId = useId();
+    const ja = locale === "ja";
+    useEffect(() => {
+        const element = dialog.current;
+        const overflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        element?.showModal();
+        textarea.current?.focus();
+        textarea.current?.select();
+        return () => { document.body.style.overflow = overflow; element?.close(); };
+    }, []);
+    return createPortal(<ManualCopySurface ref={dialog} aria-labelledby={titleId} onCancel={onClose} onClose={event => {
+        // StrictMode closes/reopens during effect replay. Ignore its queued close
+        // event once this same dialog is open again; real dismissals remain closed.
+        if (!event.currentTarget.open) onClose();
+    }} onKeyDown={event => {
+        if (event.key !== "Tab") return;
+        const first = textarea.current;
+        const last = dialog.current?.querySelector("button");
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }}>
+        <h2 id={titleId}>{ja ? "自動コピーできませんでした" : "Couldn’t copy automatically"}</h2>
+        <p role="alert">{ja ? "下のテキストを選択して、端末のコピー操作を使ってください。" : "Select the text below and use your device’s Copy command."}</p>
+        <textarea ref={textarea} readOnly value={text} aria-label={ja ? "コピーするテキスト" : "Text to copy"} onFocus={event => event.currentTarget.select()} />
+        <button type="button" className="secondary" onClick={() => dialog.current?.close()}>{ja ? "閉じる" : "Close"}</button>
+    </ManualCopySurface>, document.body);
+}
+
+const ManualCopySurface = styled.dialog`
+    box-sizing: border-box;
+    width: min(32rem, calc(100vw - 2rem));
+    max-height: calc(100dvh - 2rem);
+    margin: auto;
+    padding: var(--space-2);
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--neutral-600);
+    border-radius: var(--space-1);
+    background: var(--neutral-900);
+    color: var(--neutral-100);
+    &::backdrop { background: rgb(0 0 0 / 0.65); }
+    h2 { font-size: var(--font-size-h5); }
+    p { margin-block: var(--space-1); }
+    textarea { box-sizing: border-box; width: 100%; min-height: 9rem; max-height: 40dvh; margin-bottom: var(--space-1); resize: vertical; }
+`;
 
 const CopyWrapper = styled.span`
     display: inline-flex;
@@ -123,17 +184,21 @@ export function BarChart({
     const { ref, width: container } = useWidth();
     const [selected, setSelected] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [failedCopy, setFailedCopy] = useState<string | null>(null);
+    const copyRequest = useRef(0);
     const chartRef = useRef<HTMLElement>(null);
+    useEffect(() => () => { copyRequest.current++; }, [selected]);
     useEffect(() => {
         if (selected === null) return;
         const dismissOutside = (event: PointerEvent) => {
+            if (event.target instanceof Element && event.target.closest("dialog")) return;
             if (event.target instanceof Node && !chartRef.current?.contains(event.target)) {
                 setSelected(null);
                 setCopied(false);
             }
         };
         const dismissEscape = (event: KeyboardEvent) => {
-            if (event.key === "Escape") {
+            if (event.key === "Escape" && !(event.target instanceof Element && event.target.closest("dialog"))) {
                 setSelected(null);
                 setCopied(false);
             }
@@ -157,8 +222,11 @@ export function BarChart({
     const activeLabel = active?.detailLabel ?? active?.label ?? "";
     const show = (id: string) => { setSelected(id); setCopied(false); };
     const copy = async (text: string) => {
-        try { await navigator.clipboard.writeText(text); setCopied(true); }
-        catch { setCopied(false); }
+        const request = ++copyRequest.current;
+        setCopied(false);
+        setFailedCopy(null);
+        try { await navigator.clipboard.writeText(text); if (request === copyRequest.current) setCopied(true); }
+        catch { if (request === copyRequest.current) { setCopied(false); setFailedCopy(text); } }
     };
 
     return (
@@ -264,6 +332,7 @@ export function BarChart({
                     </div>
                 </BarDetails>
             ) : null}
+            {failedCopy !== null ? <ManualCopyDialog text={failedCopy} locale={locale} onClose={() => setFailedCopy(null)} /> : null}
             {legend ? (
                 <InlineLegend>
                     {legend.map((item) => (

@@ -144,7 +144,7 @@ for(const locale of ['en','ja'])for(const width of [320,1280])test(`partial drin
  await expect(region.getByText(ja?'差引後の自分の取り分（見積もり）':'Your remaining share (estimate)',{exact:true}).locator('..')).toContainText('—');
  await expect(region.locator('[data-pay-gross-center]')).toHaveText(/[¥￥]10,000/);
  const details=region.getByRole('region',{name:ja?'給与と控除の明細':'Pay and deduction details'}), chart=region.getByRole('complementary',{name:ja?'取り分の配分グラフ':'Share allocation chart'});
- await expect(details.getByRole('list',{name:ja?'控除の明細':'Deduction entries'})).toContainText('Recorded ledger');
+ await expect(region.getByRole('list',{name:ja?'控除の明細':'Deduction entries'})).toContainText('Recorded ledger');
  const a=await details.boundingBox(),b=await chart.boundingBox();
  if(width===1280)expect(b.x).toBeGreaterThan(a.x+a.width-1);else expect(b.y).toBeGreaterThan(a.y+a.height-1);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -163,4 +163,38 @@ for(const locale of ['en','ja'])test(`staff and owner keep incomplete drink pay 
  await expect(page.getByText(ja?'スタッフ給与差引後の残額':'Remaining after staff earnings',{exact:true}).locator('..').locator('strong')).toHaveText('—');
  await expect(page.getByText(ja?'スタッフドリンク記録が不足しています。':'Staff-drink records are incomplete.').first()).toBeVisible();
  expect(ownerCalls.filter(x=>!x.startsWith('GET '))).toEqual([]);
+});
+
+// #375: mobile-first, always-open pay hierarchy. These mocks never submit/pay anything.
+for (const locale of ['en', 'ja']) for (const width of [320, 390, 768, 1280]) for (const state of ['partial', 'unknown', 'zero', 'inconsistent', 'large']) test(`pay hierarchy ${locale} ${width} ${state}`, async ({page}, testInfo) => {
+ const ja = locale === 'ja';
+ await page.setViewportSize({width, height:900});
+ await page.clock.install({time:new Date('2026-10-31T00:00:00Z')});
+ const report = {complete:false, staff_drink_data_status:'incomplete', blockers:['staff_drink_data_incomplete'], eligible_revenue_yen:25000, tier_rate_percent:40, gross_salary_yen:10000, staff_cost_total_yen:null, recorded_staff_cost_total_yen:3000, deduction_total_yen:500, net_amount_owed_yen:null,
+ staff_owed:[{user_id:11,name:'Staff A / スタッフ',wages_yen:2800,staff_drink_bonus_yen:200,total_owed_yen:null,recorded_total_yen:3000}], deductions:[{id:1,category:'manager_pay_deduction',business_date:'2026-10-01',amount_yen:500,payee_name:'Recipient',reason:'Recorded ledger',reversal_of_id:null}]};
+ if (state === 'unknown') Object.assign(report, {gross_salary_yen:null});
+ if (state === 'inconsistent') Object.assign(report, {deduction_total_yen:501});
+ if (state === 'zero') Object.assign(report, {complete:true,staff_drink_data_status:'complete',blockers:[],eligible_revenue_yen:0,gross_salary_yen:0,staff_cost_total_yen:0,recorded_staff_cost_total_yen:0,deduction_total_yen:0,net_amount_owed_yen:0,staff_owed:[],deductions:[]});
+ if (state === 'large') Object.assign(report, {gross_salary_yen:1234567890,eligible_revenue_yen:3086419725});
+ const calls = await fixture(page,{locale,id:901,breakdownReport:report});
+ const hero = page.getByText(ja?'Chuckの差引後見積もり（記録済みデータ）':'Chuck’s remaining estimate (recorded data)',{exact:true}).locator('..');
+ await expect(hero.locator('strong')).toHaveText(state === 'unknown' || state === 'inconsistent' ? '—' : state === 'zero' ? /[¥￥]0/ : state === 'large' ? /[¥￥]1,234,564,390/ : /[¥￥]6,500/);
+ expect(parseFloat(await hero.locator('strong').evaluate(el=>getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(32);
+ await expect(hero).toContainText(ja?'暫定':'Provisional');
+ const region=page.getByRole('region',{name:ja?'売上から給与までの内訳':'Revenue to pay breakdown'});
+ const chart=region.getByRole('complementary',{name:ja?'取り分の配分グラフ':'Share allocation chart'});
+ const ledger=region.getByRole('heading',{name:ja?'給与からの記録済み控除':'Recorded deductions from your share',exact:true});
+ await expect(ledger).toBeVisible();
+ await expect(region.getByRole('heading',{name:ja?'スタッフ別の配分':'What goes to each staff member',exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:ja?'見積もりについて':'About this estimate',exact:true})).toBeVisible();
+ expect(await region.locator('details').count()).toBe(0);
+ expect((await ledger.boundingBox()).y).toBeGreaterThanOrEqual((await chart.boundingBox()).y+(await chart.boundingBox()).height);
+ if (['partial','large'].includes(state)) {
+  await expect(region.locator('[data-pay-gross-center]')).toHaveText(state==='large'?/[¥￥]1,234,567,890/:/[¥￥]10,000/);
+  await expect(region.getByRole('list',{name:ja?'控除の明細':'Deduction entries'})).toContainText('Recorded ledger');
+ } else await expect(region.locator('[data-pay-gross-center]')).toHaveCount(0);
+ if(state!=='zero') await expect(page.getByRole('status',{name:ja?'ドリンク記録の確認状況':'Drink-data coverage'})).toContainText(ja?'ドリンク記録が不足しています':'Drink records are incomplete');
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ expect(calls.filter(x=>!x.startsWith('GET '))).toEqual([]);
+ await page.screenshot({path:testInfo.outputPath('pay-hierarchy.png'),fullPage:true});
 });

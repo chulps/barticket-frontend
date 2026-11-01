@@ -131,7 +131,7 @@ test('live pay invalidations preserve expanded Chuck statistics and account draf
 });
 
 
-test('historical pay keeps selected month and expanded breakdown during invalidation; errors and signout fail closed',async({page})=>{
+test('historical pay keeps selected month and open breakdown during invalidation; errors and signout fail closed',async({page})=>{
   let socket; const live={wages:13000};
   await page.routeWebSocket('**/realtime/ws',peer=>{
     socket=peer;peer.onMessage(raw=>{if(JSON.parse(raw).type==='authenticate')peer.send(JSON.stringify({type:'ready',version:1,cursor:0}));});
@@ -139,14 +139,14 @@ test('historical pay keeps selected month and expanded breakdown during invalida
   await fixture(page,{live});
   await page.getByRole('button',{name:'Previous month',exact:true}).click();
   await expect(page.getByText('September 2026',{exact:true})).toBeVisible();
-  const details=page.locator('details').filter({hasText:'Income charts'});
-  await details.locator('summary').click();
-  await expect(details).toHaveAttribute('open','');
+  const details=page.getByRole('heading',{name:'Income charts',exact:true}).locator('..');
+  await expect(details).toBeVisible();
+  await expect(details.locator('summary')).toHaveCount(0);
   live.wages=17000;
   socket.send(JSON.stringify({type:'invalidate',version:1,cursor:1,scopes:['analytics','tickets']}));
   const total=page.getByText('Monthly pay estimate',{exact:true}).locator('..').locator('strong');
   await expect(total).toHaveText(/[¥￥]17,000/);
-  await expect(details).toHaveAttribute('open','');
+  await expect(details).toBeVisible();
   await expect(page.getByText('September 2026',{exact:true})).toBeVisible();
   live.fail=true;socket.send(JSON.stringify({type:'invalidate',version:1,cursor:2,scopes:['analytics']}));
   await expect(page.getByText('Fixture pay temporarily unavailable')).toBeVisible();

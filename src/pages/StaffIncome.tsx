@@ -279,37 +279,39 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                 </ErrorArea> : isChuckProfile && chuckReport ? (
                     <>
                         <Summary>
-                            <Metric>
+                            <Metric $primary>
                                 <span>{ja ? "Chuckの差引後見積もり（記録済みデータ）" : "Chuck’s remaining estimate (recorded data)"}</span>
                                 <strong>{money(recordedRemaining, locale)}</strong>
-                                <small>{ja ? "記録済み費用差引後の暫定額です。未記録分は含まず、最終支払額ではありません。" : "Provisional after recorded costs. Missing records are not included; this is not final pay."}</small>
+                                <StatusLabel>{ja ? "暫定" : "Provisional"}</StatusLabel>
+                                <small>{ja ? "記録済み費用差引後の暫定額です。未記録分は含まず、最終支払額・支払記録ではありません。" : "Provisional after recorded costs. Missing records are not included; this is not final pay or a payment record."}</small>
                                 {recordedRemaining == null ? <small>{ja ? "記録済み金額の整合性を確認できるまで表示できません" : "Unavailable until recorded amounts can be reconciled"}</small> : null}
                             </Metric>
                         </Summary>
-                        <p>{ja ? "これは給与見積もりであり、支払記録ではありません。" : "This is a pay estimate, not a payment record."}</p>
+                        <ReviewNotes>
                         {chuckReport.staff_drink_data_status !== "complete" || chuckReport.blockers.includes("staff_drink_data_incomplete") ? <PayWarning role="status" aria-label={ja ? "ドリンク記録の確認状況" : "Drink-data coverage"}>
                             <strong><span aria-hidden="true"><Icon name="Warning" /></span>{chuckReport.staff_drink_data_status === "incomplete" || chuckReport.blockers.includes("staff_drink_data_incomplete")
                                 ? (ja ? "ドリンク記録が不足しています" : "Drink records are incomplete")
                                 : (ja ? "ドリンク記録の網羅性は未確認です" : "Drink-record coverage is unreviewed")}</strong>
                             <p>{ja ? "表示される手当は記録済み分のみです。未記録分は0円とは扱わず、この見積もりは最終支払額ではありません。" : "Bonuses shown include recorded drinks only. Missing drinks are not assumed to be zero; this is not a final amount owed."}</p>
                         </PayWarning> : null}
-                        <OpenSection><h3>{ja ? "見積もりについて" : "About this estimate"}</h3><Notice role="note">{ja
-                            ? "これはChuck担当シフトの記録済みデータに基づく月次見積もりです。ドリンク記録の網羅性が未確認の場合、最終支払額ではありません。記録不足がある場合、整合する記録済み金額だけの暫定残額を表示しますが、最終額は未確定です。支払記録ではなく、不明な項目を0円とは扱いません。"
-                            : chuckReport.note}</Notice></OpenSection>
-                        {!chuckReport.complete && chuckReport.blockers.length ? (
+                        {!chuckReport.complete && chuckReport.blockers.some(code => code !== "staff_drink_data_incomplete") ? (
                             <PayWarning role="status" aria-label={ja ? "給与見積もりの確認事項" : "Pay estimate warnings"}>
                                 <strong><span aria-hidden="true"><Icon name="Warning" /></span>{ja ? "確認が必要です" : "Needs review"}</strong>
-                                <ul>{chuckReport.blockers.map(code => <li key={code}>{payBlockerLabel(code, ja)}</li>)}</ul>
+                                <ul>{chuckReport.blockers.filter(code => code !== "staff_drink_data_incomplete").map(code => <li key={code}>{payBlockerLabel(code, ja)}</li>)}</ul>
                             </PayWarning>
                         ) : null}
+                        </ReviewNotes>
                         <OpenSection><h3>{ja ? "給与の内訳・明細" : "Pay breakdown and details"}</h3>
                             <ChuckPayBreakdown report={chuckReport} locale={locale} />
                         </OpenSection>
+                        <OpenSection><h3>{ja ? "見積もりについて" : "About this estimate"}</h3><Notice role="note">{ja
+                            ? "これはChuck担当シフトの記録済みデータに基づく月次見積もりです。ドリンク記録の網羅性が未確認の場合、最終支払額ではありません。記録不足がある場合、整合する記録済み金額だけの暫定残額を表示しますが、最終額は未確定です。支払記録ではなく、不明な項目を0円とは扱いません。"
+                            : chuckReport.note}</Notice></OpenSection>
                     </>
                 ) : report ? (
                     <>
                         <Summary>
-                            <Metric>
+                            <Metric $primary>
                                 <span>{ja ? "月間給与の見積もり" : "Monthly pay estimate"}</span>
                                 <strong>{money(staffChartComplete ? staffChartRows[0]?.total ?? null : null, locale)}</strong>
                                 {!staffChartComplete ? <small>{ja ? "勤務時間・時給・手当の確認が必要です" : "Hours, rates or bonuses need verification"}</small> : null}
@@ -326,10 +328,10 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                             </Metric>
                         </Summary>
                         <p>{ja ? "これは給与見積もりであり、支払記録ではありません。" : "This is a pay estimate, not a payment record."}</p>
-                        <Details><summary>{ja ? "見積もりについて" : "About this estimate"}</summary><Notice role="note">{ja
+                        <OpenSection><h3>{ja ? "見積もりについて" : "About this estimate"}</h3><Notice role="note">{ja
                             ? "これは記録された時間と対象ドリンクからの見積もりです。実際の支払済み金額ではありません。不明な時間や時給は0として扱いません。"
-                            : report.note}</Notice></Details>
-                        <Details><summary>{ja ? "収入のグラフ" : "Income charts"}</summary>
+                            : report.note}</Notice></OpenSection>
+                        <OpenSection><h3>{ja ? "収入のグラフ" : "Income charts"}</h3>
                         {staffChartComplete && (staffChartRows[0]?.total ?? 0) > 0 ? <DonutChart title={ja ? "月間収入の内訳" : "Monthly income breakdown"}
                             slices={staffDonutSlices} center={money(staffChartRows[0]?.total ?? 0, locale)} locale={locale} /> : <ChartNote role="note">{ja
                                 ? staffChartComplete ? "この月の収入はありません。" : "勤務時間、時給、またはドリンク手当が未確認のため、内訳グラフは表示できません。"
@@ -337,7 +339,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                         {staffIncomeByDate.length > 1 ? <HorizontalBarChart
                             title={ja ? "日別収入の見積もり" : "Estimated income by day"}
                             bars={staffIncomeByDate} locale={locale} /> : null}
-                        </Details>
+                        </OpenSection>
                         <h3>{ja ? "明細" : "Entries"}</h3>
                         {filtered.length ? <HistoryList>
                             {filtered.map((entry, index) => (
@@ -368,19 +370,19 @@ const Wrapper = styled.section`
     flex-direction: column;
     gap: var(--space-2);
     padding: var(--space-2);
-    border-radius: 12px;
+    min-width: 0;
     background: var(--neutral-900);
+    border-radius: 12px;
+    > h3 { font-size: var(--font-size-h4); }
 `;
 const OpenSection = styled.section`
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
     min-width: 0;
-    h3 { font-size: var(--font-size-h4); font-weight: 500; }
-`;
-const Details = styled.details`
-    summary { cursor: pointer; padding: var(--space-1) 0; font-weight: 500; }
-    &[open] > :not(summary) { margin-top: var(--space-1); }
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--neutral-700);
+    h3 { font-size: var(--font-size-h4); font-weight: 600; line-height: 1.35; }
 `;
 const Heading = styled.div`
     display: flex;
@@ -388,7 +390,8 @@ const Heading = styled.div`
     align-items: flex-start;
     gap: var(--space-2);
     h2 { font-size: var(--font-size-h4); }
-    p { color: var(--neutral-300); }
+    button { flex-shrink: 0; min-height: 44px; }
+    p { color: var(--neutral-200); }
 `;
 const Toolbar = styled.div`
     display: flex;
@@ -422,28 +425,35 @@ const Summary = styled.div`
     grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
     gap: var(--space-1);
 `;
-const Metric = styled.div`
+const Metric = styled.div<{ $primary?: boolean }>`
     display: flex;
     flex-direction: column;
-    gap: var(--space-0);
-    padding: var(--space-2);
-    border-radius: 10px;
-    background: var(--neutral-800);
-    span, small { color: var(--neutral-300); }
-    strong { font-family: var(--font-family-data); }
+    gap: var(--space-1);
+    min-width: 0;
+    padding: var(--space-2) 0;
+    grid-column: ${({ $primary }) => $primary ? "1 / -1" : "auto"};
+    span, small { color: var(--neutral-200); line-height: 1.5; }
+    small { font-size: calc(var(--font-size-p) * .875); }
+    strong { font-family: var(--font-family-data); font-variant-numeric: tabular-nums; font-size: ${({ $primary }) => $primary ? "calc(var(--font-size-p) * 2)" : "var(--font-size-h4)"}; line-height: 1.2; overflow-wrap: anywhere; }
+    @media(min-width:768px) { strong { font-size: ${({ $primary }) => $primary ? "calc(var(--font-size-p) * 2.5)" : "var(--font-size-h4)"}; } }
 `;
-const Notice = styled.p`color: var(--neutral-300);`;
+const StatusLabel = styled.em`font-style: normal; font-size: var(--font-size-small); color: var(--warning-500);`;
+const Notice = styled.p`color: var(--neutral-200); line-height: 1.6;`;
+const ReviewNotes = styled.div`
+    display: grid;
+    gap: var(--space-2);
+    &:has(> *) { border-left: 2px solid var(--warning-500); padding-left: var(--space-2); }
+`;
 const PayWarning = styled.div`
     color: var(--warning-500);
-    border: 1px solid var(--warning-500);
-    border-radius: 8px;
-    padding: var(--space-2);
-    strong { display: flex; align-items: center; gap: var(--space-1); }
+    line-height: 1.5;
+    strong { display: flex; align-items: flex-start; gap: var(--space-1); }
     strong span { display: inline-flex; flex-shrink: 0; }
+    p { margin-top: var(--space-1); }
     ul { margin: var(--space-1) 0 0; padding-left: 1.25rem; }
     li + li { margin-top: var(--space-0); }
 `;
-const ChartNote = styled.p`color: var(--neutral-300); font-size: var(--font-size-small);`;
+const ChartNote = styled.p`color: var(--neutral-200); font-size: var(--font-size-small);`;
 const HistoryList = styled.ul`
     list-style: none;
     display: flex;
@@ -460,9 +470,9 @@ const HistoryEntry = styled.li`
     padding: var(--space-1) 0;
     border-bottom: 1px solid var(--neutral-700);
 `;
-const Meta = styled.p`color: var(--neutral-300); font-size: var(--font-size-small);`;
+const Meta = styled.p`color: var(--neutral-200); font-size: var(--font-size-small);`;
 const Value = styled.strong`white-space: nowrap;`;
-const Muted = styled.p`color: var(--neutral-300);`;
+const Muted = styled.p`color: var(--neutral-200);`;
 const ErrorArea = styled.div`
     display: flex;
     align-items: center;

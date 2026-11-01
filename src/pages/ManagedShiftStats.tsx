@@ -105,9 +105,9 @@ export default function ManagedShiftStats({ userId, month, locale, active }: {
 }
 
 const Panel = styled.section`
-    display: grid; gap: var(--space-2); padding: var(--space-2);
-    border: 1px solid var(--neutral-700); border-radius: 12px; min-width: 0;
-    p { color: var(--neutral-300); }
+    display: grid; gap: var(--space-2); padding: 0;
+    min-width: 0;
+    p { color: var(--neutral-200); line-height: 1.6; }
 `;
 const Header = styled.div`
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1);

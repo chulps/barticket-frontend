@@ -46,6 +46,16 @@ export default function ChuckPayBreakdown({ report, locale }: { report: ChuckMon
         <Note>{ja ? "対象売上 × 配分率 = 総取り分。総取り分 − スタッフ給与 − 記録済み控除 = 差引後の見積もり。売上の全額が自分の給与になるわけではありません。" : "Eligible revenue × share rate = gross share. Gross share − staff pay − recorded deductions = remaining estimate. Not all managed-shift revenue is your pay."}</Note>
         {partial ? <Warning>{ja ? "未確認の勤務時間などは含まれません。スタッフ給与の小計は一部のみで、最終的な支払額ではありません。" : "Missing or unverified inputs are not included. The staff-pay subtotal is partial, not the final amount owed."}</Warning> : null}
         {data.inconsistent ? <Warning role="status">{ja ? "内訳と合計が一致しないため、差引後の金額は確認が必要です。" : "The breakdown does not reconcile with the totals; the remaining amount needs review."}</Warning> : null}
+        </DetailsColumn>
+        <ChartColumn aria-label={ja ? "取り分の配分グラフ" : "Share allocation chart"}>
+            <Warning role="note">{ja ? "中央はスタッフ給与・控除前の総取り分です。未記録のドリンク・控除などは含まれず、最終支払額や受領済み現金ではありません。" : "The center shows your gross share before staff pay and deductions. Missing drinks, deductions or other inputs are not included. This is not final pay or cash received."}</Warning>
+            {chartSlices.length > 0 && chartTotal > 0 ? <PayAllocationDonut
+                title={ja ? "総取り分の配分（記録済みデータ）" : "Gross share allocation (recorded data)"} slices={chartSlices}
+                center={money(report.gross_salary_yen)} locale={locale}
+                note={ja ? `円環全体は総取り分 ${money(report.gross_salary_yen)} の配分です。残額の区分は総取り分 − 記録済みスタッフ給与 − 記録済み控除です。各費用は一度だけ計上します。` : `The ring allocates your gross share of ${money(report.gross_salary_yen)}. The remaining segment is gross share − recorded staff costs − recorded deductions. Each cost is counted once.`} /> : <Note role="status">{ja ? "記録済みの金額が不明・不整合・負の場合、円グラフは表示しません。金額の明細で符号付きの金額を確認してください。" : "The donut is unavailable for unknown, inconsistent or negative allocations. See the signed amounts in the details."}</Note>}
+        </ChartColumn>
+        </Layout>
+        <LedgerDetails>
         <h3>{ja ? "給与からの記録済み控除" : "Recorded deductions from your share"}</h3>
         {data.deductions.length ? <List aria-label={ja ? "控除の明細" : "Deduction entries"}>{data.deductions.map(item => <Item key={item.id}>
             <div><strong>{categories[item.category] ?? item.category}</strong><Note>{item.business_date}{item.payee_name ? ` · ${item.payee_name}` : ""}</Note><p>{item.reason}</p>
@@ -59,25 +69,18 @@ export default function ChuckPayBreakdown({ report, locale }: { report: ChuckMon
             <Amount>{money(person.total)}</Amount>
         </Item>)}</List> : <Note>{ja ? "この月の担当シフトにスタッフ給与の記録はありません。記録がないことは、スタッフがいなかったことの確認ではありません。" : "No staff-pay records for your managed shifts this month. Missing records do not confirm that no staff worked."}</Note>}
         <Note>{ja ? "これは支払・現金受領の証明ではありません。給与が支払済みか、現金がすでに受領されたかは、この見積もりからは判断できません。" : "This is not a payment or cash-receipt record. It does not establish which wages have been paid or which cash has already been received."}</Note>
-        </DetailsColumn>
-        <ChartColumn aria-label={ja ? "取り分の配分グラフ" : "Share allocation chart"}>
-            <Warning role="note">{ja ? "中央はスタッフ給与・控除前の総取り分です。未記録のドリンク・控除などは含まれず、最終支払額や受領済み現金ではありません。" : "The center shows your gross share before staff pay and deductions. Missing drinks, deductions or other inputs are not included. This is not final pay or cash received."}</Warning>
-            {chartSlices.length > 0 && chartTotal > 0 ? <PayAllocationDonut
-                title={ja ? "総取り分の配分（記録済みデータ）" : "Gross share allocation (recorded data)"} slices={chartSlices}
-                center={money(report.gross_salary_yen)} locale={locale}
-                note={ja ? `円環全体は総取り分 ${money(report.gross_salary_yen)} の配分です。残額の区分は総取り分 − 記録済みスタッフ給与 − 記録済み控除です。各費用は一度だけ計上します。` : `The ring allocates your gross share of ${money(report.gross_salary_yen)}. The remaining segment is gross share − recorded staff costs − recorded deductions. Each cost is counted once.`} /> : <Note role="status">{ja ? "記録済みの金額が不明・不整合・負の場合、円グラフは表示しません。左の明細で符号付きの金額を確認してください。" : "The donut is unavailable for unknown, inconsistent or negative allocations. See the signed amounts in the details."}</Note>}
-        </ChartColumn>
-        </Layout>
+        </LedgerDetails>
     </Section>;
 }
-const Section = styled.section`display:flex; flex-direction:column; gap:var(--space-1); min-width:0; h3 {margin-top:var(--space-2);}`;
+const Section = styled.section`display:flex; flex-direction:column; gap:var(--space-1); min-width:0; h3 {margin-top:var(--space-3); font-size:var(--font-size-h4); line-height:1.35;}`;
+const LedgerDetails = styled.div`min-width:0; display:flex; flex-direction:column; gap:var(--space-1);`;
 const Layout = styled.div`display:grid; grid-template-columns:minmax(0, 1fr); gap:var(--space-3); @media(min-width:1000px) {grid-template-columns:minmax(0, 1.1fr) minmax(0, 1fr); align-items:start;}`;
 const DetailsColumn = styled.section`min-width:0; display:flex; flex-direction:column; gap:var(--space-1);`;
 const ChartColumn = styled.aside`min-width:0; display:flex; flex-direction:column; gap:var(--space-1);`;
-const Flow = styled.dl`margin:0; padding:var(--space-2); border-radius:10px; background:var(--neutral-800);`;
-const Line = styled.div<{ $total?: boolean }>`display:flex; justify-content:space-between; gap:var(--space-2); padding:var(--space-1) 0; border-top:${({$total}) => $total ? "1px solid var(--neutral-500)" : "none"}; font-weight:${({$total}) => $total ? 700 : 400}; dt {min-width:0; overflow-wrap:anywhere;} dd {margin:0; flex-shrink:0; font-family:var(--font-family-data);}`;
-const Note = styled.p`color:var(--neutral-300); font-size:var(--font-size-small); overflow-wrap:anywhere;`;
+const Flow = styled.dl`margin:0; padding:0;`;
+const Line = styled.div<{ $total?: boolean }>`display:flex; justify-content:space-between; gap:var(--space-2); padding:var(--space-1) 0; border-top:${({$total}) => $total ? "1px solid var(--neutral-500)" : "none"}; font-weight:${({$total}) => $total ? 700 : 400}; dt {min-width:0; overflow-wrap:anywhere;} dd {margin:0; flex-shrink:0; font-family:var(--font-family-data); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; max-width:55%;}`;
+const Note = styled.p`color:var(--neutral-200); font-size:calc(var(--font-size-p) * .875); line-height:1.6; overflow-wrap:anywhere;`;
 const Warning = styled.p`color:var(--warning-500);`;
 const List = styled.ul`list-style:none; margin:0; padding:0;`;
 const Item = styled.li`display:flex; justify-content:space-between; gap:var(--space-2); padding:var(--space-1) 0; border-bottom:1px solid var(--neutral-700); > div {min-width:0; overflow-wrap:anywhere;}`;
-const Amount = styled.strong`font-family:var(--font-family-data); flex-shrink:0;`;
+const Amount = styled.strong`font-family:var(--font-family-data); font-variant-numeric:tabular-nums; flex-shrink:0; max-width:55%; overflow-wrap:anywhere;`;

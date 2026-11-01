@@ -230,16 +230,16 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
             <div className="shift-review-grid">
                 <div><small>{ja ? "営業日" : "Business date"}</small><strong>{preview.shift.business_date}</strong></div>
                 <div><small>{ja ? "シフト" : "Shift"}</small><strong>#{preview.shift.id}</strong></div>
-                <div><small>{ja ? "会計済み売上（推定）" : "Paid revenue (preview)"}</small><strong>{yen(live?.paidTotal ?? 0)}</strong></div>
+                <div><small>{ja ? "会計済み売上（推定）" : "Paid revenue (preview)"}</small><strong>{live ? yen(live.paidTotal) : "—"}</strong></div>
                 <div><small>{ja ? "未会計伝票" : "Open tickets"}</small><strong>{blockers.length}</strong></div>
                 <div><small>{ja ? "繰越残高" : "Carried balance"}</small><strong>{verifiedReadiness ? yen(verifiedReadiness.receivables.outstanding_total) : "—"}</strong></div>
             </div>
             {!readinessMatches ? <p className="shift-alert" role="alert">{ja
-                ? "繰越残高と閉店可否を確認できません。最新情報を再読み込みしてください。"
-                : "Carry balances and close eligibility are unavailable until this shift’s readiness is verified. Refresh and recheck."}</p> : null}
-            <p className="shift-muted">{ja ? "現金" : "Cash"} {yen(live?.cash ?? 0)}
-                {" · "}{ja ? "カード" : "Card"} {yen(live?.card ?? 0)}
-                {" · "}{ja ? "その他" : "Other"} {yen(live?.other ?? 0)}</p>
+                ? "入金額、繰越残高と閉店可否を確認できません。最新情報を再読み込みしてください。"
+                : "Collected totals, carry balances and close eligibility are unavailable until this shift’s readiness is verified. Refresh and recheck."}</p> : null}
+            <p className="shift-muted">{ja ? "現金" : "Cash"} {live ? yen(live.cash) : "—"}
+                {" · "}{ja ? "カード" : "Card"} {live ? yen(live.card) : "—"}
+                {" · "}{ja ? "その他" : "Other"} {live ? yen(live.other) : "—"}</p>
             {blockers.length ? <div className="shift-alert" role="alert">
                 <strong>{ja ? "未会計伝票があるため閉店できません" : "Open tickets must be resolved first"}</strong>
                 <ul>{blockers.slice(0, 12).map(ticket => <li key={ticket.id}>{ticket.name || "#" + ticket.id} (#{ticket.id}){ticket.shift_id !== shiftId ? " — " + (ja ? "別の営業日または未割当" : "Other night or unassigned") : ""}</li>)}</ul>
