@@ -138,10 +138,14 @@ for(const locale of ['en','ja'])for(const width of [320,1280])test(`partial drin
  await expect(page.getByRole('status',{name:ja?'ドリンク記録の確認状況':'Drink-data coverage'})).toContainText(ja?'ドリンク記録が不足しています':'Drink records are incomplete');
  await page.getByText(ja?'給与の内訳・明細':'Pay breakdown and details',{exact:true}).click();
  const region=page.getByRole('region',{name:ja?'売上から給与までの内訳':'Revenue to pay breakdown'});
- await expect(region.getByText(ja?'記録済みスタッフ給与の内訳（一部）':'Recorded staff-pay breakdown (partial)',{exact:true})).toBeVisible();
+ await expect(region.getByRole('heading',{name:ja?'記録済み費用差引後の残額（暫定）':'Remaining after recorded costs (provisional)',exact:true})).toBeVisible();
  for(const name of ['Staff A','Staff B'])for(const part of [ja?'賃金':'Wages',ja?'記録済みドリンク手当':'Recorded drink bonus'])await expect(region.getByText(`${name} · ${part}`,{exact:true})).toBeVisible();
  await expect(region.getByText(ja?'差引後の自分の取り分（見積もり）':'Your remaining share (estimate)',{exact:true}).locator('..')).toContainText('—');
- await expect(region).not.toContainText(/[¥￥]6,500/);
+ await expect(region.getByRole('complementary',{name:ja?'取り分の配分グラフ':'Share allocation chart'})).toContainText(/[¥￥]6,500/);
+ const details=region.getByRole('region',{name:ja?'給与と控除の明細':'Pay and deduction details'}), chart=region.getByRole('complementary',{name:ja?'取り分の配分グラフ':'Share allocation chart'});
+ await expect(details.getByRole('list',{name:ja?'控除の明細':'Deduction entries'})).toContainText('Recorded ledger');
+ const a=await details.boundingBox(),b=await chart.boundingBox();
+ if(width===1280)expect(b.x).toBeGreaterThan(a.x+a.width-1);else expect(b.y).toBeGreaterThan(a.y+a.height-1);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath('pay-breakdown.png'),fullPage:true});
  expect(calls.filter(x=>!x.startsWith('GET '))).toEqual([]);

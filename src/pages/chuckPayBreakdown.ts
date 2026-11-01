@@ -7,17 +7,24 @@ export function buildChuckPayBreakdown(report: ChuckMonthlyPayPreview) {
         id: row.user_id, name: row.name, wages: row.wages_yen,
         drinks: row.staff_drink_bonus_yen, total: drinksIncomplete && row.recorded_total_yen !== undefined ? row.recorded_total_yen : row.total_owed_yen,
     }));
-    const componentsReconcile = staff.every(person => person.wages !== null && Number.isFinite(person.wages) && Number.isFinite(person.drinks) && person.wages + person.drinks === person.total);
+    const componentsReconcile = staff.every(person => person.wages !== null && Number.isSafeInteger(person.wages) && Number.isSafeInteger(person.drinks) && Number.isSafeInteger(person.total) && person.wages + person.drinks === person.total);
     const staffSum = staff.every(row => row.total !== null)
         ? staff.reduce((sum, row) => sum + (row.total ?? 0), 0) : null;
     const deductionSum = report.deductions.reduce((sum, row) => sum + row.amount_yen, 0);
+    const recordedStaffCost = drinksIncomplete && report.recorded_staff_cost_total_yen !== undefined ? report.recorded_staff_cost_total_yen : report.staff_cost_total_yen;
+    const recordedInputsReconcile = componentsReconcile && staffSum === recordedStaffCost && deductionSum === report.deduction_total_yen &&
+        [report.gross_salary_yen, recordedStaffCost, report.deduction_total_yen, ...report.deductions.map(row => row.amount_yen)].every(value => typeof value === "number" && Number.isSafeInteger(value));
+    // Arithmetic on recorded inputs only. Never substitute for the verified API net.
+    const recordedDifference = recordedInputsReconcile ? report.gross_salary_yen! - recordedStaffCost! - report.deduction_total_yen : null;
+    const recordedRemaining = Number.isSafeInteger(recordedDifference) ? recordedDifference : null;
     const reconciled = report.gross_salary_yen !== null && report.staff_cost_total_yen !== null &&
         componentsReconcile && staffSum === report.staff_cost_total_yen && deductionSum === report.deduction_total_yen &&
         report.net_amount_owed_yen !== null && report.net_amount_owed_yen >= 0 &&
         report.gross_salary_yen - report.staff_cost_total_yen - report.deduction_total_yen === report.net_amount_owed_yen;
     return {
         staff,
-        recordedStaffCost: drinksIncomplete && report.recorded_staff_cost_total_yen !== undefined ? report.recorded_staff_cost_total_yen : report.staff_cost_total_yen,
+        recordedStaffCost,
+        recordedRemaining,
         retained: report.complete && !drinksIncomplete && reconciled ? report.net_amount_owed_yen : null,
         inconsistent: report.complete && !drinksIncomplete && !reconciled,
         deductions: report.deductions,

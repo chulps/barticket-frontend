@@ -55,3 +55,22 @@ test('explicit recorded subtotals survive nulled final totals without becoming f
  assert.equal(r.retained,null);assert.equal(r.recordedStaffCost,3000);assert.equal(r.staffSlices.length,4);
  assert.equal(buildChuckPayBreakdown({...f,staff_drink_data_status:'incomplete',recorded_staff_cost_total_yen:null}).recordedStaffCost,null);
 });
+
+test('provisional recorded remainder includes every staff cost and signed deduction once, not the staff subtotal',()=>{
+ const r=buildChuckPayBreakdown({...fixture(),complete:false,staff_drink_data_status:'incomplete'});
+ assert.equal(r.recordedRemaining,6500);assert.equal(r.recordedStaffCost,3000);assert.equal(r.retained,null);
+ assert.equal(r.recordedRemaining+r.staffSlices.reduce((sum,p)=>sum+p.value,0)+500,10000);
+});
+test('recorded remainder fails closed for unknown wages, inconsistent ledger or totals',()=>{
+ const f=fixture();for(const change of [{gross_salary_yen:null},{recorded_staff_cost_total_yen:null,staff_drink_data_status:'incomplete'},{deduction_total_yen:501},{staff_owed:[{...f.staff_owed[0],wages_yen:null},f.staff_owed[1]]}])assert.equal(buildChuckPayBreakdown({...f,...change}).recordedRemaining,null);
+});
+test('recorded remainder preserves signed reversals, true zero, negative balance and empty recorded ledger',()=>{
+ const f=fixture();assert.equal(buildChuckPayBreakdown({...f,deductions:[],deduction_total_yen:0}).recordedRemaining,7000);
+ assert.equal(buildChuckPayBreakdown({...f,deductions:[{amount_yen:-500}],deduction_total_yen:-500}).recordedRemaining,7500);
+ assert.equal(buildChuckPayBreakdown({...f,deductions:[{amount_yen:7000}],deduction_total_yen:7000}).recordedRemaining,0);
+ assert.equal(buildChuckPayBreakdown({...f,deductions:[{amount_yen:8000}],deduction_total_yen:8000}).recordedRemaining,-1000);
+});
+test('provisional arithmetic rejects fractional yen and unsafe integer differences',()=>{
+ const f=fixture();assert.equal(buildChuckPayBreakdown({...f,gross_salary_yen:10000.5}).recordedRemaining,null);
+ assert.equal(buildChuckPayBreakdown({...f,gross_salary_yen:-Number.MAX_SAFE_INTEGER}).recordedRemaining,null);
+});
