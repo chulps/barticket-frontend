@@ -56,7 +56,7 @@ test('historical shift activity is requested only by explicit summon and older-p
    reads.push(url.searchParams.toString());const older=url.searchParams.has('before');
    return route.fulfill({json:{shift_id:30,items:[event(older?2:3,older?'clock_in':'shift_closed')],cursor:older?2:3,has_more:!older},headers});
   }
-  return route.fulfill({json:values[path]??{},headers});
+  return route.fulfill({json:Object.hasOwn(values,path)?values[path]:{},headers});
  });
  await page.goto('/analytics');const summon=page.getByRole('button',{name:'View notification history',exact:true});await expect(summon).toBeVisible();expect(reads).toEqual([]);
  await summon.click();const history=page.getByRole('region',{name:'Notification history'});await expect(history.getByText('Shift closed',{exact:false})).toBeVisible();expect(reads).toHaveLength(1);expect(reads[0]).toContain('shift_id=30');
