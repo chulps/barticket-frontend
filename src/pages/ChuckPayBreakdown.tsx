@@ -12,14 +12,19 @@ export default function ChuckPayBreakdown({ report, locale }: { report: ChuckMon
     const money = (value: number | null) => value == null ? "—" : new Intl.NumberFormat(localeTag(locale), {
         style: "currency", currency: "JPY", maximumFractionDigits: 0,
     }).format(value);
-    const chartSlices = data.retained !== null && data.retained >= 0 && report.deduction_total_yen >= 0 &&
-        data.staff.every(person => person.total !== null && person.total >= 0) ? [
-        { id:"retained", label:ja ? "自分の取り分" : "Your remaining share", value:data.retained, display:money(data.retained), color:"var(--royal-400)" },
-        ...data.staff.map((person, index) => ({id:`staff-${person.id}`, label:person.name, value:person.total ?? 0,
-            display:money(person.total), color:["var(--success-400)", "var(--warning-400)", "var(--neutral-400)"][index % 3]})),
+    const fullAllocation = data.retained !== null && data.retained >= 0 && report.deduction_total_yen >= 0 && data.staffSlices.length === data.staff.length * 2;
+    const staffSlices = data.staffSlices.map((part, index) => ({
+        id: part.id, label: `${part.name} · ${part.kind === "wages" ? (ja ? "賃金" : "Wages") : (ja ? "記録済みドリンク手当" : "Recorded drink bonus")}`,
+        value: part.value, display: money(part.value),
+        color: ["var(--success-400)", "var(--success-600)", "var(--warning-400)", "var(--warning-600)", "var(--royal-300)", "var(--royal-600)"][index % 6],
+    }));
+    const chartSlices = fullAllocation ? [
+        { id:"retained", label:ja ? "自分の取り分（見積もり）" : "Your remaining share (estimate)", value:data.retained!, display:money(data.retained), color:"var(--royal-400)" },
+        ...staffSlices,
         { id:"deductions", label:ja ? "記録済み控除" : "Recorded deductions", value:report.deduction_total_yen,
             display:money(report.deduction_total_yen), color:"var(--danger-400)" },
-    ] : [];
+    ] : staffSlices;
+    const chartTotal = chartSlices.reduce((sum, part) => sum + part.value, 0);
     const categories: Record<string, string> = {
         manager_pay_deduction: ja ? "マネージャー給与控除" : "Manager-pay deduction",
         manager_paid_staff_tip: ja ? "マネージャー負担のスタッフチップ" : "Manager-paid staff tip",
@@ -31,20 +36,20 @@ export default function ChuckPayBreakdown({ report, locale }: { report: ChuckMon
             <Line><dt>{ja ? "Chuck担当シフトの対象売上" : "Eligible revenue on your managed shifts"}</dt><dd>{money(report.eligible_revenue_yen)}</dd></Line>
             <Line><dt>{ja ? "給与配分率" : "Your revenue-share rate"}</dt><dd>{report.tier_rate_percent == null ? "—" : `${report.tier_rate_percent}%`}</dd></Line>
             <Line><dt>{ja ? "スタッフ給与・控除前の自分の取り分" : "Your gross share before staff pay and deductions"}</dt><dd>{money(report.gross_salary_yen)}</dd></Line>
-            <Line><dt>{partial ? (ja ? "記録済みスタッフ給与の小計（一部）" : "Recorded staff pay subtotal (partial)") : (ja ? "スタッフ給与" : "Staff pay")}</dt><dd>{money(report.staff_cost_total_yen)}</dd></Line>
+            <Line><dt>{partial ? (ja ? "記録済みスタッフ給与の小計（一部）" : "Recorded staff pay subtotal (partial)") : (ja ? "スタッフ給与" : "Staff pay")}</dt><dd>{money(data.recordedStaffCost)}</dd></Line>
             <Line><dt>{ja ? "記録済み控除（取消を含む）" : "Recorded deductions, net of reversals"}</dt><dd>{money(report.deduction_total_yen)}</dd></Line>
             <Line $total><dt>{ja ? "差引後の自分の取り分（見積もり）" : "Your remaining share (estimate)"}</dt><dd>{money(data.retained)}</dd></Line>
         </Flow>
         <Note>{ja ? "対象売上 × 配分率 = 総取り分。総取り分 − スタッフ給与 − 記録済み控除 = 差引後の見積もり。売上の全額が自分の給与になるわけではありません。" : "Eligible revenue × share rate = gross share. Gross share − staff pay − recorded deductions = remaining estimate. Not all managed-shift revenue is your pay."}</Note>
         {partial ? <Warning>{ja ? "未確認の勤務時間などは含まれません。スタッフ給与の小計は一部のみで、最終的な支払額ではありません。" : "Missing or unverified inputs are not included. The staff-pay subtotal is partial, not the final amount owed."}</Warning> : null}
         {data.inconsistent ? <Warning role="status">{ja ? "内訳と合計が一致しないため、差引後の金額は確認が必要です。" : "The breakdown does not reconcile with the totals; the remaining amount needs review."}</Warning> : null}
-        {chartSlices.length > 0 && (report.gross_salary_yen ?? 0) > 0 ? <DonutChart
-            title={ja ? "総取り分の配分" : "Gross share allocation"} slices={chartSlices}
-            center={money(report.gross_salary_yen)} locale={locale}
-            note={ja ? "自分の取り分・スタッフ別給与・記録済み控除の配分です。" : "Your remaining share, each staff member’s pay, and recorded deductions."} /> : null}
+        {chartSlices.length > 0 && chartTotal > 0 ? <DonutChart
+            title={fullAllocation ? (ja ? "総取り分の配分（記録に基づく見積もり）" : "Gross share allocation (recorded estimate)") : (ja ? "記録済みスタッフ給与の内訳（一部）" : "Recorded staff-pay breakdown (partial)")} slices={chartSlices}
+            center={money(chartTotal)} locale={locale}
+            note={fullAllocation ? (ja ? "賃金と記録済みドリンク手当を別々に表示します。未記録分は含まれません。" : "Wages and recorded drink bonuses are separate, not counted twice. Unrecorded drinks are not included.") : (ja ? "記録済みの賃金とドリンク手当のみ。総取り分の配分や最終支払額ではありません。" : "Recorded wages and drink bonuses only—not the allocation of your gross share or a final amount owed.")} /> : null}
         <h3>{ja ? "スタッフ別の配分" : "What goes to each staff member"}</h3>
         {data.staff.length ? <List aria-label={ja ? "スタッフ別給与の明細" : "Staff pay entries"}>{data.staff.map(person => <Item key={person.id}>
-            <div><strong>{person.name}</strong><Note>{ja ? "賃金" : "Wages"} {money(person.wages)} · {ja ? "スタッフドリンク手当" : "Staff-drink bonus"} {money(person.drinks)}</Note></div>
+            <div><strong>{person.name}</strong><Note>{ja ? "賃金" : "Wages"} {money(person.wages)} · {ja ? "記録済みスタッフドリンク手当" : "Recorded staff-drink bonus"} {money(person.drinks)}</Note></div>
             <Amount>{money(person.total)}</Amount>
         </Item>)}</List> : <Note>{ja ? "この月の担当シフトにスタッフ給与の記録はありません。記録がないことは、スタッフがいなかったことの確認ではありません。" : "No staff-pay records for your managed shifts this month. Missing records do not confirm that no staff worked."}</Note>}
         <h3>{ja ? "給与からの記録済み控除" : "Recorded deductions from your share"}</h3>

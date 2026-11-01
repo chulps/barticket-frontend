@@ -86,7 +86,7 @@ for(const locale of ["en","ja"]) {
 test("Chuck pay leads with unavailable amount and blockers, statistics load only on request",async({page}, testInfo)=>{
   const calls=await fixture(page,{id:901,incomplete:true});
   const pay=page.getByRole("region",{name:"Chuck's monthly pay"});
-  await expect(pay.getByText("Amount owed to Chuck",{exact:true}).locator("..").locator("strong")).toHaveText("—");
+  await expect(pay.getByText("Chuck’s remaining estimate (recorded data)",{exact:true}).locator("..").locator("strong")).toHaveText("—");
   await expect(pay.getByText("A staff hourly rate is missing.",{exact:true})).toBeVisible();
   await page.screenshot({path:testInfo.outputPath("chuck-pay-summary.png")});
   expect(calls).not.toContain("GET /analytics/shifts");

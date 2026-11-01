@@ -23,7 +23,7 @@ test("Profile income is personal for staff and managers and shows wages and drin
     assert.match(breakdown, /Your gross share before staff pay and deductions/);
     assert.match(breakdown, /Recorded staff pay subtotal/);
     assert.match(breakdown, /Recorded deductions from your share/);
-    assert.match(income, /Amount owed to Chuck/);
+    assert.match(income, /Chuck’s remaining estimate \(recorded data\)/);
     assert.match(breakdownData, /staff_owed\.map/);
     assert.match(breakdown, /data\.deductions\.map/);
     assert.match(income, /response\.user_id !== userId/);
@@ -64,7 +64,7 @@ test("staff income never presents an estimate as a paid amount or treats unknown
     assert.match(income, /amount_yen_unrounded/);
     assert.match(income, /Hourly rate unavailable/);
     assert.match(income, /Could not load income breakdown/);
-    assert.match(income, /これはChuck担当シフトに基づく月次の支払見積もりです/);
+    assert.match(income, /これはChuck担当シフトの記録済みデータに基づく月次見積もりです/);
     assert.match(income, /: chuckReport\.note/);
     assert.match(income, /bonus\?\.complete \? bonus\.amount_yen : null/);
 });

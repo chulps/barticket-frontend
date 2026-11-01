@@ -20,7 +20,7 @@ function yen(value: number | null, locale: Locale) {
     }).format(value);
 }
 function amount(row: NoriMonthlyPay["staff_owed"][number]) {
-    return row.status === "estimate" && row.user_id !== null && Number.isSafeInteger(row.user_id) && row.user_id > 0 && row.source !== null &&
+    return row.status === "estimate" && !row.blockers.includes("staff_drink_data_incomplete") && row.user_id !== null && Number.isSafeInteger(row.user_id) && row.user_id > 0 && row.source !== null &&
         row.amount_yen !== null && Number.isSafeInteger(row.amount_yen) && row.amount_yen >= 0
         ? row.amount_yen : null;
 }
@@ -43,6 +43,7 @@ function blocker(code: string, ja: boolean) {
         staff_hours_unverified: ["勤務時間の確認が必要です。", "Work hours need verification."],
         staff_hourly_rate_missing: ["時給の設定が必要です。", "An hourly rate is missing."],
         hourly_wages_incomplete: ["勤務時間または時給の確認が必要です。", "Hours or hourly rates need verification."],
+        staff_drink_data_incomplete: ["スタッフドリンク記録が不足しています。", "Staff-drink records are incomplete."],
         staff_drink_bonus_incomplete: ["スタッフドリンク手当の確認が必要です。", "Staff-drink bonuses need verification."],
         staff_payroll_costs_incomplete: ["スタッフ給与の確認が必要です。", "Staff payroll costs need verification."],
         working_manager_unassigned: ["担当マネージャーが未設定のシフトがあります。", "A shift has no confirmed manager."],
