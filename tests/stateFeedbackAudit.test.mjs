@@ -16,7 +16,7 @@ test('both chart clipboard entrypoints disclose failure with selectable localize
  assert.equal((s.match(/setFailedCopy\(text\)/g)||[]).length,2);
  assert.equal((s.match(/<ManualCopyDialog text=\{failedCopy\}/g)||[]).length,2);
  assert.match(s,/readOnly value=\{text\}/);assert.match(s,/Couldn’t copy automatically/);assert.match(s,/自動コピーできませんでした/);
- assert.match(s,/showModal\(\)/);assert.match(s,/onCancel=\{onClose\}/);
+ assert.match(s,/showModal\(\)/);assert.match(s,/onCancel=\{event => \{ event.preventDefault\(\); onClose\(\); \}\}/); assert.match(s,/onClick=\{onClose\}/);
  assert.match(s,/if \(!event.currentTarget.open\) onClose\(\)/);
 });
 test('account autosave reports state, preserves draft on failure and disables conflicts',()=>{

@@ -38,6 +38,8 @@ for (const locale of ['en', 'ja']) for (const width of [320, 1280]) for (const m
   await page.getByRole('spinbutton').fill('300');
   expect(await group.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true);
+  await expect(page.getByRole('dialog').locator('data')).toHaveText('¥700');
+  await expect(page.getByRole('dialog').locator('data')).toBeInViewport();
   if (method === 'paypay') await page.screenshot({ path: testInfo.outputPath('payment-methods.png'), fullPage: true });
   const confirm = page.getByRole('button', { name: locale === 'ja' ? '会計を確定' : 'Confirm Payment', exact: true });
   await confirm.evaluate(el => { el.click(); el.click(); });

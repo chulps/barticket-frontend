@@ -56,7 +56,9 @@ function ManualCopyDialog({ text, locale, onClose }: { text: string; locale: "en
         textarea.current?.select();
         return () => { document.body.style.overflow = overflow; element?.close(); };
     }, []);
-    return createPortal(<ManualCopySurface ref={dialog} aria-labelledby={titleId} onCancel={onClose} onClose={event => {
+    // User dismissal unmounts in React first so scroll unlock and native close
+    // share one layout cleanup, rather than waiting for a queued close event.
+    return createPortal(<ManualCopySurface ref={dialog} aria-labelledby={titleId} onCancel={event => { event.preventDefault(); onClose(); }} onClose={event => {
         // StrictMode closes/reopens during effect replay. Ignore its queued close
         // event once this same dialog is open again; real dismissals remain closed.
         if (!event.currentTarget.open) onClose();
@@ -70,7 +72,7 @@ function ManualCopyDialog({ text, locale, onClose }: { text: string; locale: "en
         <h2 id={titleId}>{ja ? "自動コピーできませんでした" : "Couldn’t copy automatically"}</h2>
         <p role="alert">{ja ? "下のテキストを選択して、端末のコピー操作を使ってください。" : "Select the text below and use your device’s Copy command."}</p>
         <textarea ref={textarea} readOnly value={text} aria-label={ja ? "コピーするテキスト" : "Text to copy"} onFocus={event => event.currentTarget.select()} />
-        <button type="button" className="secondary" onClick={() => dialog.current?.close()}>{ja ? "閉じる" : "Close"}</button>
+        <button type="button" className="secondary" onClick={onClose}>{ja ? "閉じる" : "Close"}</button>
     </ManualCopySurface>, document.body);
 }
 
