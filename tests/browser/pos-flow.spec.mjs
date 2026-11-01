@@ -1089,13 +1089,31 @@ for(const width of [390,1280]) for(const locale of ['en','ja']) test(`dirty add-
  await dialog.getByRole('button',{name:/Highball.*¥700/}).click();
  const sizedDrink=dialog.getByRole('button',{name:/Same price whisky 15ml.*¥700/});
  await sizedDrink.focus();await sizedDrink.press('Enter');
- for(const dismiss of [()=>page.keyboard.press('Escape'),()=>dialog.locator('button').first().click(),()=>dialog.locator('..').click({position:{x:1,y:1}})]){
-  page.once('dialog',d=>d.dismiss());await dismiss();await expect(dialog).toBeVisible();
+ const overlay=dialog.locator('..');
+ const answerDiscard=async(action,accept=false)=>{
+  // Await a real confirmation for every attempted close; an unconsumed once-listener
+  // must not silently dismiss a later explicit discard.
+  const handled=page.waitForEvent('dialog').then(async prompt=>{
+   expect(prompt.type()).toBe('confirm');
+   expect(prompt.message()).toContain(locale==='ja'?'選択したドリンクを破棄':'Discard the selected drinks');
+   if(accept)await prompt.accept();else await prompt.dismiss();
+  });
+  await Promise.all([handled,action()]);
+ };
+ if(width<768){
+  // The phone dialog fills the viewport: (1,1) hits its content, not an exposed backdrop.
+  expect(await overlay.evaluate(node=>document.elementFromPoint(1,1)===node)).toBe(false);
+ }
+ const attemptBackdrop=()=>width<768
+  ? overlay.dispatchEvent('click') // Guard contract only; no reachable phone backdrop is claimed.
+  : overlay.click({position:{x:1,y:1}}); // Real pointer dismissal on desktop.
+ for(const dismiss of [()=>page.keyboard.press('Escape'),()=>dialog.locator('button').first().click(),attemptBackdrop]){
+  await answerDiscard(dismiss);await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('button',{name:locale==='ja'?/Highball.*数量を増やす/:/Increase quantity of Highball/})).toBeVisible();
  }
  expect(state.itemPosts).toBe(0);
  await page.screenshot({path:testInfo.outputPath(`audit-dirty-discard-retained-${locale}-${width}.png`)});
- page.once('dialog',d=>d.accept());await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
+ await answerDiscard(()=>page.keyboard.press('Escape'),true);await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
  await trigger.click();await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
 });
 
@@ -1134,6 +1152,9 @@ for(const width of [390,1280]) for(const locale of ['en','ja']) test(`checkout p
  await page.keyboard.press('Escape');await expect(dialog).toBeVisible();
  await dialog.locator('..').click({position:{x:1,y:1}});await expect(dialog).toBeVisible();
  expect(requests).toHaveLength(1);release();await expect(dialog.getByRole('alert')).toBeVisible();
+ await expect(dialog.locator('button').last()).toBeEnabled();
+ await expect(dialog.locator('button').last()).toHaveCSS('filter','none');
+ await expect(dialog.locator('button').last()).toHaveCSS('opacity','1');
  await page.screenshot({path:testInfo.outputPath(`audit-checkout-uncertain-${locale}-${width}.png`)});
  page.once('dialog',d=>d.dismiss());await page.keyboard.press('Escape');await expect(dialog).toBeVisible();
  page.once('dialog',d=>d.accept());await dialog.getByRole('button',{name:ja?'閉じて伝票を確認':'Close and check ticket',exact:true}).click();

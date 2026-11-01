@@ -72,3 +72,13 @@ test('missing server balance never claims fully settled; wrong ticket response s
  const wrong=await modal(async()=>({id:12,balanceDue:0}));wrong.send();await settle();
  assert.ok(wrong.error().props.children.join('').includes('unconfirmed'));assert.ok(recovery.paymentAttemptRecovery.get(11));
 });
+
+
+test('receipt text has a readable foreground without changing the success surface',()=>{
+ const css=readFileSync(new URL('../src/index.css',import.meta.url),'utf8');
+ const source=readFileSync(new URL('../src/components/PaymentModal.tsx',import.meta.url),'utf8');
+ assert.match(source,/const SuccessContainer = styled.div`\s*background: var\(--success-400\);\s*color: var\(--neutral-950\);/);
+ const token=name=>css.match(new RegExp('--'+name+': #(\\w{6})'))[1];
+ const luminance=hex=>hex.match(/\w\w/g).map(c=>parseInt(c,16)/255).map(v=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[0.2126,0.7152,0.0722][i],0);
+ assert.ok((luminance(token('success-400'))+0.05)/(luminance(token('neutral-950'))+0.05)>=4.5);
+});

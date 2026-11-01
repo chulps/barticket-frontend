@@ -28,7 +28,7 @@ async function fixture(page,locale='en',balance=700,width=390) {
  return state;
 }
 const open=async(page,ja=false)=>{await page.getByRole('button',{name:ja?'支払いを記録':'Record payment',exact:true}).click();return page.getByRole('dialog');};
-for(const width of [390,1280]) for(const locale of ['en','ja']){
+for(const width of [390,768,1280]) for(const locale of ['en','ja']){
  const ja=locale==='ja';
  for(const [balance,amount,remaining] of [[700,300,400],[400,400,0],[500,200,300]])test(`authoritative partial receipt ${balance}/${amount}: ${locale} ${width}px`,async({page},testInfo)=>{
   const state=await fixture(page,locale,balance,width);const dialog=await open(page,ja);
@@ -36,6 +36,17 @@ for(const width of [390,1280]) for(const locale of ['en','ja']){
   await dialog.locator('button').last().click();
   await expect(dialog.getByRole('heading',{name:ja?'入金を記録しました':'Payment recorded'})).toBeVisible();
   await expect(dialog.getByRole('status')).toContainText(`¥${remaining}`);
+  const receipt=dialog.getByRole('heading',{name:ja?'入金を記録しました':'Payment recorded'}).locator('..');
+  const ratios=await receipt.evaluate(node=>{
+   const rgb=value=>value.match(/[\d.]+/g).slice(0,3).map(Number);
+   const luminance=color=>rgb(color).map(v=>v/255).map(v=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[0.2126,0.7152,0.0722][i],0);
+   const background=luminance(getComputedStyle(node).backgroundColor);
+   return [...node.querySelectorAll('h1,h3,p,data')].map(text=>{
+    const foreground=luminance(getComputedStyle(text).color);
+    return (Math.max(foreground,background)+0.05)/(Math.min(foreground,background)+0.05);
+   });
+  });
+  expect(Math.min(...ratios)).toBeGreaterThanOrEqual(4.5);
   await page.screenshot({path:testInfo.outputPath(`audit-payment-receipt-${locale}-${width}-${balance}-${amount}.png`)});
   await expect(dialog.getByText(ja?'全額お支払い済み':'Fully settled',{exact:true})).toHaveCount(remaining===0?1:0);
   expect(state.posts).toHaveLength(1);expect(state.posts[0].body.amount).toBe(amount);
@@ -50,6 +61,9 @@ for(const width of [390,1280]) for(const locale of ['en','ja']){
   await dialog.locator('..').click({position:{x:1,y:1}});await expect(dialog).toBeVisible();
   expect(state.posts).toHaveLength(1);release();state.hold=null;
   await expect(dialog.getByRole('alert')).toBeVisible();
+  await expect(dialog.locator('button').last()).toBeEnabled();
+  await expect(dialog.locator('button').last()).toHaveCSS('filter','none');
+  await expect(dialog.locator('button').last()).toHaveCSS('opacity','1');
   await page.screenshot({path:testInfo.outputPath(`audit-payment-uncertain-${locale}-${width}.png`)});
   page.once('dialog',d=>d.dismiss());await page.keyboard.press('Escape');await expect(dialog).toBeVisible();
   page.once('dialog',d=>d.accept());await dialog.getByRole('button',{name:ja?'閉じて伝票を確認':'Close and check ticket',exact:true}).click();await expect(dialog).toHaveCount(0);

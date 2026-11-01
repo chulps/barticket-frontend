@@ -359,6 +359,7 @@ const Amount = styled.data`
 
 const SuccessContainer = styled.div`
     background: var(--success-400);
+    color: var(--neutral-950);
     display: flex;
     flex-direction: column;
     justify-content: center;
