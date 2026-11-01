@@ -124,8 +124,8 @@ test('interruption cancels scheduled notes, preserves preference, and cannot aut
 test('notification type controls are disclosed and toggle hover cannot inherit button fill',()=>{
   const ui=readFileSync(new URL('../src/components/NotificationPreferences.tsx',import.meta.url),'utf8');
   const settings=readFileSync(new URL('../src/components/NotificationSettings.tsx',import.meta.url),'utf8');
-  assert.match(settings,/aria-expanded=\{open\}/); assert.match(settings,/hidden=\{!open\}/);
-  assert.match(settings,/event.key === 'Escape'/); assert.match(settings,/trigger.current\?\.focus/);
+  assert.match(settings,/aria-expanded=\{open\}/); assert.match(settings,/&:not\(\[open\]\) \{ display: none/);
+  assert.match(settings,/event.key === 'Escape'/); assert.match(settings,/trigger.current.focus\(\{ preventScroll: true \}\)/);
   assert.match(ui,/&&:hover, &&:active \{ background: transparent/);
   assert.match(ui,/var\(--success-500\)/); assert.match(ui,/:focus-visible/);
   const master=readFileSync(new URL('../src/components/PushSettings.tsx',import.meta.url),'utf8');

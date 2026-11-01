@@ -22,3 +22,13 @@ test('Profile uses shared responsive geometry, without hiding the indicator',()=
   assert.doesNotMatch(profile,/> \[role="group"\] > div > div/);
   assert.match(source,/rect.top - containerRect.top/);
 });
+
+test('responsive section grid is opt-in and retains one shared measured indicator',()=>{
+  assert.match(source,/responsiveColumns\?: readonly \{ minWidth: number; columns: number \}\[\]/);
+  assert.match(source,/\$responsiveColumns\?\.length/);
+  assert.match(source,/grid-auto-rows: 1fr/);
+  assert.match(source,/min-width: \$\{minWidth\}px/);
+  assert.match(source,/repeat\(\$\{columns\}, minmax\(0, 1fr\)\)/);
+  assert.match(source,/activeIndex >= 0 && indicator.width > 0/);
+  assert.match(source,/nextSelectorIndex\(index, tabs.length, event.key\)/);
+});
