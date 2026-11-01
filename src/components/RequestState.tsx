@@ -39,10 +39,10 @@ const Notice = styled.div<{ $compact: boolean; $warning: boolean }>`
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
-  padding: ({ $compact }) => $compact ? "var(--space-1)" : "var(--space-2)";
+  padding: ${({ $compact }) => $compact ? "var(--space-1)" : "var(--space-2)"};
   border-radius: var(--space-1);
-  border: 1px solid ({ $warning }) => $warning ? "var(--danger-500)" : "var(--neutral-700)";
-  color: var(--neutral-100);
+  border: 1px solid ${({ $warning }) => $warning ? "var(--danger-500)" : "var(--neutral-700)"};
+  color: inherit;
   min-width: 0;
   span { overflow-wrap: anywhere; flex: 1 1 15rem; }
   button { width: auto; min-height: 44px; }

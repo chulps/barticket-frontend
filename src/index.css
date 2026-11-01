@@ -170,6 +170,13 @@
   --dark: var(--neutral-900);
   --background-color: var(--neutral-950);
   --font-color: var(--neutral-100);
+  /* Paired foregrounds for cards that retain their dark surface in either theme. */
+  --surface-card: var(--neutral-900);
+  --on-surface-card: #ffffff;
+  --on-surface-card-muted: var(--neutral-200);
+  --label-color: var(--neutral-200);
+  --muted-text: var(--neutral-300);
+  --primary-hover: var(--royal-600);
 
 }
 
@@ -390,7 +397,7 @@ label {
   line-height: var(--line-height-label);
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: var(--secondary);
+  color: var(--label-color);
 }
 
 small {
@@ -444,7 +451,7 @@ button:hover,
 input[type="submit"]:hover {
   filter: brightness(1.1);
   -webkit-filter: brightness(1.1);
-  background: var(--royal-400);
+  background: var(--primary-hover);
   -webkit-transform: scale(1.025);
   -ms-transform: scale(1.025);
   transform: scale(1.025);
@@ -511,6 +518,12 @@ button.danger {
 button.hollow.danger {
   background: var(--neutral-900);
   outline: 1px solid var(--danger-700);
+}
+
+/* These semantic hollow controls retain dark surfaces in the light theme. */
+button.hollow.success,
+button.hollow.danger {
+  color: var(--on-surface-card);
 }
 
 button.info {
@@ -751,7 +764,9 @@ button[disabled],
   --neutral-800: var(--neutral-100);
   --white: var(--neutral-600);
   --neutral-700: var(--neutral-200);
-  --primary: var(--royal-300);
+  --primary: var(--royal-600);
+  --label-color: var(--neutral-600);
+  --muted-text: var(--neutral-600);
   --secondary: var(--neutral-700);
   --light: var(--neutral-100);
   --dark: var(--neutral-050);
@@ -770,7 +785,7 @@ html.light button:not(.secondary):not(.dark):not(.hollow) {
 }
 
 html.light label {
-  color: var(--neutral-200);
+  color: var(--label-color);
 }
 
 html.light button.hollow,
