@@ -61,6 +61,7 @@ function payBlockerLabel(code: string, ja: boolean) {
         working_manager_shift_open: "A Chuck-managed shift is still open.",
         staff_hours_unverified: "Staff hours are incomplete for at least one Chuck-managed shift.",
         staff_hourly_rate_missing: "A staff hourly rate is missing.",
+        staff_drink_data_incomplete: "Staff-drink records are known to be incomplete. Recorded bonuses are partial; the remaining estimate is unavailable.",
         unattributed_staff_drink: "A paid staff drink has no linked staff member.",
         unassigned_staff_history: "Verified historical hours include a staff member not linked to an account.",
         staff_payroll_costs_incomplete: "Staff pay is incomplete, so the net amount owed cannot be calculated.",
@@ -72,6 +73,7 @@ function payBlockerLabel(code: string, ja: boolean) {
         working_manager_shift_open: "Chuck担当のシフトがまだ営業中です。",
         staff_hours_unverified: "Chuck担当のシフトのスタッフ勤務時間が未確認です。",
         staff_hourly_rate_missing: "スタッフの時給が未設定です。",
+        staff_drink_data_incomplete: "スタッフドリンク記録が不足しています。記録済み手当は一部のみのため、差引後の見積もりは表示できません。",
         unattributed_staff_drink: "スタッフが紐づいていない支払済みドリンクがあります。",
         unassigned_staff_history: "アカウントに紐づいていないスタッフの履歴があります。",
         staff_payroll_costs_incomplete: "スタッフ給与が不完全なため、差引後の金額を計算できません。",
@@ -279,14 +281,20 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                     <>
                         <Summary>
                             <Metric>
-                                <span>{ja ? "Chuckへの支払予定額" : "Amount owed to Chuck"}</span>
+                                <span>{ja ? "Chuckの差引後見積もり（記録済みデータ）" : "Chuck’s remaining estimate (recorded data)"}</span>
                                 <strong>{money(payDisplay?.netAmount ?? null, locale)}</strong>
-                                {!chuckReport.complete ? <small>{ja ? "一部の記録が不足しているため確定できません" : "Unavailable until required records are complete"}</small> : null}
+                                {payDisplay?.netAmount == null ? <small>{ja ? "一部の記録が不足しているため確定できません" : "Unavailable until required records are complete"}</small> : null}
                             </Metric>
                         </Summary>
                         <p>{ja ? "これは給与見積もりであり、支払記録ではありません。" : "This is a pay estimate, not a payment record."}</p>
+                        {chuckReport.staff_drink_data_status !== "complete" || chuckReport.blockers.includes("staff_drink_data_incomplete") ? <PayWarning role="status" aria-label={ja ? "ドリンク記録の確認状況" : "Drink-data coverage"}>
+                            <strong><span aria-hidden="true"><Icon name="Warning" /></span>{chuckReport.staff_drink_data_status === "incomplete" || chuckReport.blockers.includes("staff_drink_data_incomplete")
+                                ? (ja ? "ドリンク記録が不足しています" : "Drink records are incomplete")
+                                : (ja ? "ドリンク記録の網羅性は未確認です" : "Drink-record coverage is unreviewed")}</strong>
+                            <p>{ja ? "表示される手当は記録済み分のみです。未記録分は0円とは扱わず、この見積もりは最終支払額ではありません。" : "Bonuses shown include recorded drinks only. Missing drinks are not assumed to be zero; this is not a final amount owed."}</p>
+                        </PayWarning> : null}
                         <Details><summary>{ja ? "見積もりについて" : "About this estimate"}</summary><Notice role="note">{ja
-                            ? "これはChuck担当シフトに基づく月次の支払見積もりです。勤務時間・時給・対象スタッフドリンク・控除がすべて確認できるまで、支払予定額は表示されません。これは支払記録ではなく、不明な項目を0円とは扱いません。"
+                            ? "これはChuck担当シフトの記録済みデータに基づく月次見積もりです。ドリンク記録の網羅性が未確認の場合、最終支払額ではありません。記録不足が確認された場合は差引後の見積もりを表示しません。支払記録ではなく、不明な項目を0円とは扱いません。"
                             : chuckReport.note}</Notice></Details>
                         {!chuckReport.complete && chuckReport.blockers.length ? (
                             <PayWarning role="status" aria-label={ja ? "給与見積もりの確認事項" : "Pay estimate warnings"}>
@@ -314,6 +322,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                             <Metric>
                                 <span>{ja ? "スタッフドリンク手当" : "Staff-drink bonus"}</span>
                                 <strong>{money(bonus?.complete ? bonus.amount_yen : null, locale)}</strong>
+                                {bonus && !bonus.complete ? <small>{ja ? "記録済み小計（一部）" : "Recorded subtotal (partial)"}: {money(bonus.amount_yen, locale)}</small> : null}
                             </Metric>
                         </Summary>
                         <p>{ja ? "これは給与見積もりであり、支払記録ではありません。" : "This is a pay estimate, not a payment record."}</p>

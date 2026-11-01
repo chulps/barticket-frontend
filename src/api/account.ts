@@ -305,6 +305,11 @@ export type PersonalEarningsPreview = {
 };
 
 export type ChuckMonthlyPayPreview = {
+    /** Absent on older servers means unreviewed, not verified complete. */
+    staff_drink_data_status?: "unknown" | "incomplete" | "complete";
+    final_pay_complete?: boolean;
+    recorded_inputs_only?: boolean;
+    recorded_staff_cost_total_yen?: number | null;
     user_id: number;
     month: string;
     preview_only: true;
@@ -319,6 +324,7 @@ export type ChuckMonthlyPayPreview = {
         wages_yen: number | null;
         staff_drink_bonus_yen: number;
         total_owed_yen: number | null;
+        recorded_total_yen?: number | null;
         hours: {
             business_date: string;
             shift_id: number | null;

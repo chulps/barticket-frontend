@@ -21,3 +21,7 @@ test("complete estimates preserve real zero and positive amounts", () => {
     for (const netAmount of [0, 10000]) assert.deepEqual(chuckPayDisplay({ complete: true, net_amount_owed_yen: netAmount, blockers: [] }),
         { netAmount, staffSubtotalPartial: false });
 });
+test('explicit drink incompleteness overrides complete=true without blanking unknown months',()=>{
+ for(const change of [{staff_drink_data_status:'incomplete'},{blockers:['staff_drink_data_incomplete']}])assert.deepEqual(chuckPayDisplay({complete:true,net_amount_owed_yen:10000,blockers:[],...change}),{netAmount:null,staffSubtotalPartial:true});
+ assert.equal(chuckPayDisplay({complete:true,net_amount_owed_yen:10000,blockers:[],staff_drink_data_status:'unknown'}).netAmount,10000);
+});
