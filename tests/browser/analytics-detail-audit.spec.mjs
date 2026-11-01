@@ -65,6 +65,11 @@ for (const locale of ['en','ja']) for (const width of [320,768,1280]) {
   await page.keyboard.press('Tab'); await expect(trigger).not.toBeFocused();
   await page.keyboard.press('Escape'); await expect(trigger).toHaveAttribute('aria-expanded','false');
   await expect(trigger).toBeFocused();
+  await trigger.press('Enter');
+  // October's leading September 30 and selected October 30 are separate cells.
+  const selectedDay=trigger.locator('..').getByRole('button',{name:'30',exact:true}).last();
+  await selectedDay.focus(); await selectedDay.press('Enter');
+  await expect(trigger).toHaveAttribute('aria-expanded','false'); await expect(trigger).toBeFocused();
   expect(state.reads.filter(p=>p.startsWith('/tickets?')||p.startsWith('/analytics/shifts?')).length).toBe(reads);
   expect(state.posts).toEqual([]); await fits(page);
  });
@@ -79,6 +84,7 @@ for (const locale of ['en','ja']) for (const width of [320,768,1280]) {
   await expect(ticket).toBeFocused();
   const trigger=picker(page); await trigger.click();
   const popup=trigger.locator('..').locator(':scope > div').last();
+  await expect(popup).toBeVisible();
   const rect=await popup.boundingBox(); expect(rect.x).toBeGreaterThanOrEqual(0); expect(rect.x+rect.width).toBeLessThanOrEqual(width);
   await fits(page); await page.keyboard.press('Escape'); expect(state.posts).toEqual([]);
  });
