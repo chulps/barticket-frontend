@@ -119,7 +119,7 @@ for (const locale of ["en", "ja"]) for (const width of [320, 1280]) test(`revenu
   await expect(breakdown).toContainText("40%");
   await expect(page.getByRole("status",{name:ja?"ドリンク記録の確認状況":"Drink-data coverage"})).toContainText(ja?"ドリンク記録の網羅性は未確認です":"Drink-record coverage is unreviewed");
   for(const name of ["Staff A","Staff B"])for(const part of [ja?"賃金":"Wages",ja?"記録済みドリンク手当":"Recorded drink bonus"])await expect(breakdown.getByText(`${name} · ${part}`,{exact:true})).toBeVisible();
-  await expect(breakdown.getByText(ja ? "差引後の自分の取り分（見積もり）" : "Your remaining share (estimate)", {exact:true}).locator("..")).toContainText(/[¥￥]6,500/);
+  await expect(breakdown.locator("dl").getByText(ja ? "差引後の自分の取り分（見積もり）" : "Your remaining share (estimate)", {exact:true}).locator("..")).toContainText(/[¥￥]6,500/);
   await expect(breakdown.getByRole("list", {name:ja ? "スタッフ別給与の明細" : "Staff pay entries"}).getByText("Staff A", {exact:true}).locator("../..")).toContainText(/[¥￥]1,000/);
   await expect(breakdown.getByRole("list", {name:ja ? "スタッフ別給与の明細" : "Staff pay entries"}).getByText("Staff B", {exact:true}).locator("../..")).toContainText(/[¥￥]2,000/);
   await expect(breakdown).toContainText(/-[¥￥]500/);
