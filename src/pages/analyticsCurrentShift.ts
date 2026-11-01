@@ -116,3 +116,23 @@ export function clockedInTeam(shift: ShiftReport, members: readonly Account[] | 
     );
 }
 
+
+
+// Display-only: follow PaymentModal's balance → billed less paid precedence.
+// Never turn incomplete/malformed payment data into an unpaid zero.
+export function openTicketUnpaidAmount(ticket: Ticket): number | null {
+    const yen = (value: unknown): value is number =>
+        typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+    if (ticket.balanceDue != null) return yen(ticket.balanceDue) ? ticket.balanceDue : null;
+    const total = ticket.serverTotal ?? (
+        ticket.items.every((item) => yen(item.subtotal))
+            ? ticket.items.reduce((sum, item) => sum + item.subtotal, 0) : null
+    );
+    if (!yen(total)) return null;
+    if (ticket.amountPaid != null && !yen(ticket.amountPaid)) return null;
+    if (ticket.amountPaid == null && (
+        ticket.settlementStatus === "partially_paid" ||
+        ticket.payment != null || Boolean(ticket.payments?.length)
+    )) return null;
+    return Math.max(0, total - (ticket.amountPaid ?? 0));
+}

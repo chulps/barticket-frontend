@@ -4,7 +4,7 @@ import type { Account, ShiftReport } from "../api/account";
 import type { NoticeList } from "../api/notices";
 import type { Ticket } from "../types/Ticket";
 import { localeTag, menuLabel, useI18n } from "../i18n";
-import { clockedInTeam, type OnDuty } from "./analyticsCurrentShift";
+import { clockedInTeam, openTicketUnpaidAmount, type OnDuty } from "./analyticsCurrentShift";
 import { creatorDisplayName } from "../utils/creatorDisplayName";
 
 function formatYen(amount: number): string {
@@ -37,6 +37,9 @@ export default function OpenShiftOverview({
     const { t, locale } = useI18n();
     const shiftTickets = tickets.filter((ticket) => ticket.shiftId === shift.id);
     const openTickets = shiftTickets.filter((ticket) => ticket.status === "open");
+    const openAmounts = openTickets.map(openTicketUnpaidAmount);
+    const unpaidTotal = openAmounts.every((amount) => amount !== null)
+        ? openAmounts.reduce<number>((sum, amount) => sum + (amount ?? 0), 0) : null;
     const onDuty = clockedInTeam(shift, members);
     const managers = onDuty.filter((person) => person.role === "manager");
     const staff = onDuty.filter((person) => person.role === "staff");
@@ -141,14 +144,19 @@ export default function OpenShiftOverview({
                         <Muted>{locale === "ja" ? "未会計のチケットはありません" : "No open tickets"}</Muted>
                     ) : (
                         <DetailList>
-                            {openTickets.map((ticket) => (
+                            {openTickets.map((ticket, index) => (
                                 <li key={ticket.id}>
                                     <NoticeName>{ticket.name || `#${ticket.id}`}</NoticeName>
-                                    <strong>{formatYen(ticket.items.reduce((sum, item) => sum + item.subtotal, 0))}</strong>
+                                    <strong>{openAmounts[index] === null ? "—" : formatYen(openAmounts[index])}</strong>
                                 </li>
                             ))}
                         </DetailList>
                     )}
+                    <UnpaidSummary>
+                        <span>{locale === "ja" ? "未会計の合計" : "Unpaid total"}</span>
+                        <strong>{unpaidTotal === null ? "—" : formatYen(unpaidTotal)}</strong>
+                    </UnpaidSummary>
+                    {unpaidTotal === null ? <Footnote $important>{locale === "ja" ? "一部の未会計金額を確認できないため、合計は表示できません。" : "Some unpaid amounts are unavailable, so the total cannot be shown."}</Footnote> : null}
                     {openTickets.length > 0 ? <Footnote>{locale === "ja" ? "未会計の金額は売上に含まれません" : "Unpaid amounts are not included in revenue."}</Footnote> : null}
                 </LivePanel>
             </LivePanels>
@@ -352,9 +360,28 @@ const Swatch = styled.span<{ $color: string }>`
     background: ${({ $color }) => $color};
 `;
 
-const Footnote = styled.p`
+const Footnote = styled.p<{ $important?: boolean }>`
     margin: var(--space-1) 0 0;
-    color: var(--neutral-400);
+    color: ${({ $important }) => $important ? "var(--neutral-300)" : "var(--neutral-400)"};
     font-size: var(--font-size-small);
 `;
 
+
+
+const UnpaidSummary = styled.div`
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+    padding-top: var(--space-1);
+    border-top: 1px solid var(--neutral-700);
+    font-weight: 600;
+    strong {
+        font-family: var(--font-family-data);
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+    }
+`;
