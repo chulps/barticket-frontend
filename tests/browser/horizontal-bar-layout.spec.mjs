@@ -51,5 +51,5 @@ for(const locale of ["en","ja"])for(const width of [320,1280])test("shared horiz
  expect(geometry[1].width/geometry[0].width).toBeCloseTo(2,1);
  expect(geometry[2].width).toBe(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
- await page.screenshot({path:testInfo.outputPath("weekday-horizontal-long-"+locale+width+".png"),fullPage:true});
+ await page.screenshot({path:testInfo.outputPath("pay.png"),fullPage:true});
 });

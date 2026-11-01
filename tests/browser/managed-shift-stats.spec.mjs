@@ -78,7 +78,7 @@ for (const locale of ["en", "ja"]) for (const width of [320, 1280]) {
         await expect(page.getByRole("combobox")).toBeFocused();
         expect(requests).toEqual(["month", "year", "all_time"]);
         await page.getByRole("combobox").selectOption("month");
-        await page.screenshot({ path: testInfo.outputPath("weekday-horizontal-" + locale + width + ".png"), fullPage: true });
+        await page.screenshot({ path: testInfo.outputPath("pay.png"), fullPage: true });
 
         await page.getByRole("button", { name: locale === "en" ? "Refresh stats" : "再読み込み" }).click();
         await expect.poll(() => requests.length).toBe(4);
