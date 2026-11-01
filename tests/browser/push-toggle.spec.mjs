@@ -180,6 +180,10 @@ test('late ownership check cannot turn on the switch after an account change',as
     window.dispatchEvent(new Event('barticket-auth'));
   });
   release();
+  // Auth changes intentionally remount private UI, closing the settings disclosure.
+  const settings=page.getByRole('button',{name:'Notification settings',exact:true});
+  await expect(settings).toHaveAttribute('aria-expanded','false');
+  await settings.click();
   await expect(f.control).toBeEnabled();
   await expect(f.control).toHaveAttribute('aria-checked','false');
   expect(await page.evaluate(()=>window.__checkedHistory)).not.toContain('true');
