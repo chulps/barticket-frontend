@@ -13,7 +13,7 @@ import { canViewChuckPersonalPay } from "./chuckProfileAccess";
 import ManagedShiftStats from "./ManagedShiftStats";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
 import { shiftMonth } from "./analyticsNavigation";
-import ChuckPayBreakdown from "./ChuckPayBreakdown";
+import ChuckPayBreakdown, { ChuckPayMethodology } from "./ChuckPayBreakdown";
 import { buildChuckPayBreakdown } from "./chuckPayBreakdown";
 
 type Category = "all" | "hourly_wages" | "staff_drink_bonus";
@@ -145,6 +145,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
     }, [role, userId, month, refreshKey, ja, isChuckProfile]);
 
 
+    const chuckBreakdown = chuckReport ? buildChuckPayBreakdown(chuckReport) : null;
     const recordedRemaining = chuckReport ? buildChuckPayBreakdown(chuckReport).recordedRemaining : null;
 
     const wage = report?.categories.find((item): item is WageCategory => item.category === "hourly_wages");
@@ -283,7 +284,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                                 <span>{ja ? "Chuckの差引後見積もり（記録済みデータ）" : "Chuck’s remaining estimate (recorded data)"}</span>
                                 <strong>{money(recordedRemaining, locale)}</strong>
                                 <StatusLabel>{ja ? "暫定" : "Provisional"}</StatusLabel>
-                                <small>{ja ? "記録済み費用差引後の暫定額です。未記録分は含まず、最終支払額・支払記録ではありません。" : "Provisional after recorded costs. Missing records are not included; this is not final pay or a payment record."}</small>
+                                <small>{ja ? "記録済みデータのみ。最終支払額・支払記録ではありません。" : "Provisional after recorded costs—not final pay or a payment record."}</small>
                                 {recordedRemaining == null ? <small>{ja ? "記録済み金額の整合性を確認できるまで表示できません" : "Unavailable until recorded amounts can be reconciled"}</small> : null}
                             </Metric>
                         </Summary>
@@ -292,7 +293,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                             <strong><span aria-hidden="true"><Icon name="Warning" /></span>{chuckReport.staff_drink_data_status === "incomplete" || chuckReport.blockers.includes("staff_drink_data_incomplete")
                                 ? (ja ? "ドリンク記録が不足しています" : "Drink records are incomplete")
                                 : (ja ? "ドリンク記録の網羅性は未確認です" : "Drink-record coverage is unreviewed")}</strong>
-                            <p>{ja ? "表示される手当は記録済み分のみです。未記録分は0円とは扱わず、この見積もりは最終支払額ではありません。" : "Bonuses shown include recorded drinks only. Missing drinks are not assumed to be zero; this is not a final amount owed."}</p>
+                            <p>{ja ? "ドリンク手当は記録済み分のみです。不明な分を0円とは扱いません。" : "Recorded drink bonuses only; missing drinks are not assumed to be zero."}</p>
                         </PayWarning> : null}
                         {!chuckReport.complete && chuckReport.blockers.some(code => code !== "staff_drink_data_incomplete") ? (
                             <PayWarning role="status" aria-label={ja ? "給与見積もりの確認事項" : "Pay estimate warnings"}>
@@ -300,13 +301,14 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                                 <ul>{chuckReport.blockers.filter(code => code !== "staff_drink_data_incomplete").map(code => <li key={code}>{payBlockerLabel(code, ja)}</li>)}</ul>
                             </PayWarning>
                         ) : null}
+                        {chuckBreakdown?.inconsistent ? <PayWarning role="status">{ja ? "内訳と合計が一致しません。確認が必要です。" : "The breakdown and totals do not reconcile. Review is needed."}</PayWarning> : null}
                         </ReviewNotes>
                         <OpenSection><h3>{ja ? "給与の内訳・明細" : "Pay breakdown and details"}</h3>
                             <ChuckPayBreakdown report={chuckReport} locale={locale} />
                         </OpenSection>
                         <OpenSection><h3>{ja ? "見積もりについて" : "About this estimate"}</h3><Notice role="note">{ja
-                            ? "これはChuck担当シフトの記録済みデータに基づく月次見積もりです。ドリンク記録の網羅性が未確認の場合、最終支払額ではありません。記録不足がある場合、整合する記録済み金額だけの暫定残額を表示しますが、最終額は未確定です。支払記録ではなく、不明な項目を0円とは扱いません。"
-                            : chuckReport.note}</Notice></OpenSection>
+                            ? "これはChuck担当シフトの記録済みデータに基づく月次見積もりです。ドリンク記録の網羅性が未確認の場合、最終支払額ではありません。"
+                            : chuckReport.note}</Notice><ChuckPayMethodology locale={locale} /></OpenSection>
                     </>
                 ) : report ? (
                     <>

@@ -41,18 +41,15 @@ export default function ChuckPayBreakdown({ report, locale }: { report: ChuckMon
             <Line><dt>{partial ? (ja ? "記録済みスタッフ給与の小計（一部）" : "Recorded staff pay subtotal (partial)") : (ja ? "スタッフ給与" : "Staff pay")}</dt><dd>{money(data.recordedStaffCost)}</dd></Line>
             <Line><dt>{ja ? "記録済み控除（取消を含む）" : "Recorded deductions, net of reversals"}</dt><dd>{money(report.deduction_total_yen)}</dd></Line>
             <Line $total><dt>{ja ? "記録済み費用差引後の残額（暫定）" : "Remaining after recorded costs (provisional)"}</dt><dd>{money(data.recordedRemaining)}</dd></Line>
-            <Line><dt>{ja ? "差引後の自分の取り分（見積もり）" : "Your remaining share (estimate)"}</dt><dd>{money(data.retained)}</dd></Line>
+            <Line><dt>{data.retained === null ? (ja ? "全体の見積もり（未確認）" : "Full estimate (not verified)") : (ja ? "報告済みの給与見積もり" : "Reported pay estimate")}</dt><dd>{money(data.retained)}</dd></Line>
         </Flow>
-        <Note>{ja ? "対象売上 × 配分率 = 総取り分。総取り分 − スタッフ給与 − 記録済み控除 = 差引後の見積もり。売上の全額が自分の給与になるわけではありません。" : "Eligible revenue × share rate = gross share. Gross share − staff pay − recorded deductions = remaining estimate. Not all managed-shift revenue is your pay."}</Note>
-        {partial ? <Warning>{ja ? "未確認の勤務時間などは含まれません。スタッフ給与の小計は一部のみで、最終的な支払額ではありません。" : "Missing or unverified inputs are not included. The staff-pay subtotal is partial, not the final amount owed."}</Warning> : null}
-        {data.inconsistent ? <Warning role="status">{ja ? "内訳と合計が一致しないため、差引後の金額は確認が必要です。" : "The breakdown does not reconcile with the totals; the remaining amount needs review."}</Warning> : null}
         </DetailsColumn>
         <ChartColumn aria-label={ja ? "取り分の配分グラフ" : "Share allocation chart"}>
-            <Warning role="note">{ja ? "中央はスタッフ給与・控除前の総取り分です。未記録のドリンク・控除などは含まれず、最終支払額や受領済み現金ではありません。" : "The center shows your gross share before staff pay and deductions. Missing drinks, deductions or other inputs are not included. This is not final pay or cash received."}</Warning>
+            {chartSlices.length > 0 && chartTotal > 0 ? <Note role="note">{ja ? "中央はスタッフ給与・控除前の総取り分です。" : "Center: gross share before staff pay and deductions."}</Note> : null}
             {chartSlices.length > 0 && chartTotal > 0 ? <PayAllocationDonut
                 title={ja ? "総取り分の配分（記録済みデータ）" : "Gross share allocation (recorded data)"} slices={chartSlices}
                 center={money(report.gross_salary_yen)} locale={locale}
-                note={ja ? `円環全体は総取り分 ${money(report.gross_salary_yen)} の配分です。残額の区分は総取り分 − 記録済みスタッフ給与 − 記録済み控除です。各費用は一度だけ計上します。` : `The ring allocates your gross share of ${money(report.gross_salary_yen)}. The remaining segment is gross share − recorded staff costs − recorded deductions. Each cost is counted once.`} /> : <Note role="status">{ja ? "記録済みの金額が不明・不整合・負の場合、円グラフは表示しません。金額の明細で符号付きの金額を確認してください。" : "The donut is unavailable for unknown, inconsistent or negative allocations. See the signed amounts in the details."}</Note>}
+                note={ja ? "記録済みの費用と残額の配分です。" : "Allocation of recorded costs and remaining share."} /> : fullAllocation && chartTotal === 0 ? <Note role="status">{ja ? "記録済みの総取り分は0円のため、円グラフはありません。" : "The recorded gross share is zero, so there is no allocation to chart."}</Note> : <Note role="status">{ja ? "記録済みの金額が不明・不整合・負の場合、円グラフは表示しません。金額の明細で符号付きの金額を確認してください。" : "The donut is unavailable for unknown, inconsistent or negative allocations. See the signed amounts in the details."}</Note>}
         </ChartColumn>
         </Layout>
         <LedgerDetails>
@@ -62,15 +59,21 @@ export default function ChuckPayBreakdown({ report, locale }: { report: ChuckMon
                 {item.reversal_of_id !== null ? <Note>{ja ? "取消元の記録" : "Reversal of entry"} #{item.reversal_of_id}</Note> : null}</div>
             <Amount>{money(item.amount_yen)}</Amount>
         </Item>)}</List> : <Note>{ja ? "控除は記録されていません。未記録の現金引出しや支払いがないことを意味するものではありません。" : "No deductions are recorded. This does not confirm that there were no unrecorded withdrawals or payments."}</Note>}
-        <Note>{ja ? "正の控除は取り分を減らし、負の取消は戻します。現金引出しやイベントスタッフへの支払いは、登録された区分・受取人・理由のまま表示します。勤務給与との重複を金額だけで推測したり、自動的に差し引いたりしません。" : "Positive deductions reduce your share; negative reversals restore it. Withdrawals and event-staff payments appear only as recorded categories, payees and reasons. Entries are not inferred or automatically deduplicated against wages by matching amounts."}</Note>
         <h3>{ja ? "スタッフ別の配分" : "What goes to each staff member"}</h3>
         {data.staff.length ? <List aria-label={ja ? "スタッフ別給与の明細" : "Staff pay entries"}>{data.staff.map(person => <Item key={person.id}>
             <div><strong>{person.name}</strong><Note>{ja ? "賃金" : "Wages"} {money(person.wages)} · {ja ? "記録済みスタッフドリンク手当" : "Recorded staff-drink bonus"} {money(person.drinks)}</Note></div>
             <Amount>{money(person.total)}</Amount>
         </Item>)}</List> : <Note>{ja ? "この月の担当シフトにスタッフ給与の記録はありません。記録がないことは、スタッフがいなかったことの確認ではありません。" : "No staff-pay records for your managed shifts this month. Missing records do not confirm that no staff worked."}</Note>}
-        <Note>{ja ? "これは支払・現金受領の証明ではありません。給与が支払済みか、現金がすでに受領されたかは、この見積もりからは判断できません。" : "This is not a payment or cash-receipt record. It does not establish which wages have been paid or which cash has already been received."}</Note>
         </LedgerDetails>
     </Section>;
+}
+export function ChuckPayMethodology({ locale }: { locale: Locale }) {
+    const ja = locale === "ja";
+    return <>
+        <Note>{ja ? "対象売上 × 配分率 = 総取り分。そこから記録済みスタッフ給与と控除を各1回差し引いた額が暫定残額です。全体の見積もりは、必要な記録が揃い整合するまで表示しません。" : "Eligible revenue × share rate = gross share. Subtract each recorded staff cost and deduction once for the provisional remainder. The full estimate stays unavailable until its required records reconcile."}</Note>
+        <Note>{ja ? "未記録・未確認の時間やドリンク等は含まず、不明を0円とは扱いません。給与が支払済みか、現金を受領したかは、この見積もりからは判断できません。" : "Missing or unverified hours, drinks and other inputs are excluded, not assumed to be zero. This estimate does not establish which wages have been paid or which cash has been received."}</Note>
+        <Note>{ja ? "正の控除は取り分を減らし、負の取消は戻します。区分・受取人・理由を記録どおり表示し、金額が同じでも勤務給与との重複を推測して削除しません。" : "Positive deductions reduce your share; negative reversals restore it. Categories, recipients and reasons stay as recorded; matching amounts are not automatically deduplicated against wages."}</Note>
+    </>;
 }
 const Section = styled.section`display:flex; flex-direction:column; gap:var(--space-1); min-width:0; h3 {margin-top:var(--space-3); font-size:var(--font-size-h4); line-height:1.35;}`;
 const LedgerDetails = styled.div`min-width:0; display:flex; flex-direction:column; gap:var(--space-1);`;
@@ -80,7 +83,6 @@ const ChartColumn = styled.aside`min-width:0; display:flex; flex-direction:colum
 const Flow = styled.dl`margin:0; padding:0;`;
 const Line = styled.div<{ $total?: boolean }>`display:flex; justify-content:space-between; gap:var(--space-2); padding:var(--space-1) 0; border-top:${({$total}) => $total ? "1px solid var(--neutral-500)" : "none"}; font-weight:${({$total}) => $total ? 700 : 400}; dt {min-width:0; overflow-wrap:anywhere;} dd {margin:0; flex-shrink:0; font-family:var(--font-family-data); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; max-width:55%;}`;
 const Note = styled.p`color:var(--neutral-200); font-size:calc(var(--font-size-p) * .875); line-height:1.6; overflow-wrap:anywhere;`;
-const Warning = styled.p`color:var(--warning-500);`;
 const List = styled.ul`list-style:none; margin:0; padding:0;`;
 const Item = styled.li`display:flex; justify-content:space-between; gap:var(--space-2); padding:var(--space-1) 0; border-bottom:1px solid var(--neutral-700); > div {min-width:0; overflow-wrap:anywhere;}`;
 const Amount = styled.strong`font-family:var(--font-family-data); font-variant-numeric:tabular-nums; flex-shrink:0; max-width:55%; overflow-wrap:anywhere;`;
