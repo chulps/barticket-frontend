@@ -47,7 +47,14 @@ for (const locale of ['en','ja']) for (const mode of ['empty','zero','unknown'])
     const card=page.locator('section').filter({has:page.getByRole('heading',{name:locale==='ja'?'未会計のチケット':'Open tickets',exact:true})}).last();
     const total=card.getByText(locale==='ja'?'未会計の合計':'Unpaid total',{exact:true}).locator('..');
     await expect(total.locator('strong')).toHaveText(mode==='unknown'?'—':'¥0');
-    if(mode==='unknown') await expect(card.getByText(locale==='ja'?'一部の未会計金額を確認できないため、合計は表示できません。':'Some unpaid amounts are unavailable, so the total cannot be shown.')).toBeVisible();
+    if(mode==='unknown') {
+      const explanation=card.getByText(locale==='ja'?'一部の未会計金額を確認できないため、合計は表示できません。':'Some unpaid amounts are unavailable, so the total cannot be shown.');
+      await expect(explanation).toBeVisible();
+      const colors=await explanation.evaluate(el=>({fg:getComputedStyle(el).color,bg:getComputedStyle(el.closest('section')).backgroundColor}));
+      const luminance=color=>color.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;}).reduce((s,v,i)=>s+v*[0.2126,0.7152,0.0722][i],0);
+      const a=luminance(colors.fg),b=luminance(colors.bg);
+      expect((Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)).toBeGreaterThanOrEqual(4.5);
+    }
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await card.screenshot({path:testInfo.outputPath('audit-open-shift-unpaid-state.png')});
   });

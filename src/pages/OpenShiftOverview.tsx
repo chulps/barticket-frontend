@@ -156,7 +156,7 @@ export default function OpenShiftOverview({
                         <span>{locale === "ja" ? "未会計の合計" : "Unpaid total"}</span>
                         <strong>{unpaidTotal === null ? "—" : formatYen(unpaidTotal)}</strong>
                     </UnpaidSummary>
-                    {unpaidTotal === null ? <Footnote>{locale === "ja" ? "一部の未会計金額を確認できないため、合計は表示できません。" : "Some unpaid amounts are unavailable, so the total cannot be shown."}</Footnote> : null}
+                    {unpaidTotal === null ? <Footnote $important>{locale === "ja" ? "一部の未会計金額を確認できないため、合計は表示できません。" : "Some unpaid amounts are unavailable, so the total cannot be shown."}</Footnote> : null}
                     {openTickets.length > 0 ? <Footnote>{locale === "ja" ? "未会計の金額は売上に含まれません" : "Unpaid amounts are not included in revenue."}</Footnote> : null}
                 </LivePanel>
             </LivePanels>
@@ -360,9 +360,9 @@ const Swatch = styled.span<{ $color: string }>`
     background: ${({ $color }) => $color};
 `;
 
-const Footnote = styled.p`
+const Footnote = styled.p<{ $important?: boolean }>`
     margin: var(--space-1) 0 0;
-    color: var(--neutral-400);
+    color: ${({ $important }) => $important ? "var(--neutral-300)" : "var(--neutral-400)"};
     font-size: var(--font-size-small);
 `;
 
