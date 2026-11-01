@@ -355,6 +355,9 @@ export function DonutChart({
 export function HorizontalBarChart({ title, bars, copyContext, locale = "en" }: { title: string; bars: NamedBar[]; copyContext?: string; locale?: "en" | "ja" }) {
     const { ref, width: container } = useWidth();
     const max = niceMax(Math.max(...bars.map((bar) => bar.value), 0));
+    const min = Math.min(0, ...bars.map(bar => bar.value));
+    const span = max - min || 1;
+    const zero = -min / span;
     const compact = container > 0 && container < 400;
     const width = Math.max(container, 320);
     const row = 28;
@@ -369,23 +372,25 @@ export function HorizontalBarChart({ title, bars, copyContext, locale = "en" }: 
                 {compact ? <CompactBars>{bars.map(bar => <li key={bar.id}>
                     <CompactBarLabel><span>{bar.label}</span><strong>{bar.display}</strong></CompactBarLabel>
                     <CompactBarTrack aria-hidden="true"><div style={{
-                        width: `${max === 0 ? 0 : (bar.value / max) * 100}%`,
+                        width: `${Math.abs(bar.value) / span * 100}%`,
+                        marginLeft: `${(Math.min(0, bar.value) - min) / span * 100}%`,
                         minWidth: bar.value > 0 ? 2 : 0,
                         background: bar.color ?? "var(--royal-300)",
                     }} /></CompactBarTrack>
                 </li>)}</CompactBars> : (
-                <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img" aria-label={title}>
-                    <line x1={labelWidth} x2={labelWidth} y1={8} y2={height - 8} stroke="var(--neutral-600)" />
+                <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} role="img" aria-label={`${title}: ${bars.map(bar => `${bar.label}: ${bar.display}`).join("; ")}`}>
+                    <line x1={labelWidth + zero * plot} x2={labelWidth + zero * plot} y1={8} y2={height - 8} stroke="var(--neutral-600)" />
                     {bars.map((bar, index) => {
                         const y = 20 + index * row;
-                        const barWidth = max === 0 ? 0 : (bar.value / max) * plot;
+                        const barWidth = Math.abs(bar.value) / span * plot;
+                        const start = labelWidth + (Math.min(0, bar.value) - min) / span * plot;
                         return (
                             <g key={bar.id}>
                                 <text x={0} y={y + 5} textAnchor="start" fill="var(--neutral-200)" fontSize="13">
                                     {bar.label}
                                 </text>
-                                <rect x={labelWidth} y={y - 8} width={Math.max(barWidth, bar.value > 0 ? 2 : 0)} height="16" fill={bar.color ?? "var(--royal-300)"} rx="2" />
-                                <text x={labelWidth + barWidth + 8} y={y + 5} fill="var(--neutral-300)" fontSize="12" fontFamily="var(--font-family-data)">
+                                <rect x={start} y={y - 8} width={Math.max(barWidth, bar.value > 0 ? 2 : 0)} height="16" fill={bar.color ?? "var(--royal-300)"} rx="2" />
+                                <text x={start + barWidth + 8} y={y + 5} fill="var(--neutral-300)" fontSize="12" fontFamily="var(--font-family-data)">
                                     {bar.display}
                                 </text>
                             </g>

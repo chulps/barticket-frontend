@@ -15,7 +15,8 @@ test("mobile price fields accept numeric keyboard input and visible focus", () =
 test("category selectors use explicit chevrons and custom choices", () => {
   assert.match(form, /<SelectInput id=\{id \+ "-category"\}/);
   assert.match(form, /<SelectInput id=\{id \+ "-subcategory"\}/);
-  assert.match(form, /<Caret aria-hidden="true">⌄<\/Caret>/);
+  assert.doesNotMatch(form, /<Caret/);
+  assert.match(readFileSync(new URL("../src/index.css", import.meta.url), "utf8"), /background-image: var\(--dropdown-caret-image\)/);
   assert.match(form, /<option value="__new__">/);
   assert.doesNotMatch(form, /<datalist/);
 });

@@ -63,7 +63,7 @@ for(const locale of ['en','ja'])test(`owned device notification switch turns off
   await expect(f.control).toBeEnabled();
   await expect(f.control).toContainText(locale==='ja'?'オン':'On');
   const colors=await f.control.evaluate(el=>({track:getComputedStyle(el.querySelector('[data-checked]')).backgroundColor,dot:getComputedStyle(el.closest('section').querySelector('[role="status"] > span')).backgroundColor}));
-  expect(colors).toEqual({track:'rgb(18, 121, 61)',dot:'rgb(67, 213, 133)'});
+  expect(colors).toEqual({track:'rgb(30, 202, 107)',dot:'rgb(30, 202, 107)'});
   await page.screenshot({path:testInfo.outputPath(`notification-toggle-enabled-${locale}.png`),fullPage:true});
   await f.control.focus();
   await page.keyboard.press('Space');

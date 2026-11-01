@@ -757,7 +757,7 @@ test("historical-hours reconciliation reveals each step only when it is actionab
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin");
   const adminSection = page.getByRole("combobox", { name: "Admin section", exact: true });
-  await expect(adminSection).toHaveValue("overview");
+  await expect(adminSection).toHaveValue("accounts");
   await expect(adminSection.locator('option[value="adjustments"]')).toHaveText("Pay deductions");
   expect(await adminSection.evaluate(element => element.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
   await adminSection.selectOption("historicalHours");
@@ -870,14 +870,15 @@ test("clocked-in staff get a bell without a zero badge",async ({page}) => {
   await expect(bell).toHaveText("");
 });
 
-test("Admin overview leads to team pay, records and account access", async ({page}) => {
+test("Admin opens Accounts and keeps team navigation available", async ({page}) => {
   const state=await mockedPOS(page);
   await page.goto("/admin");
-  await expect(page.getByRole("heading",{name:"Team and pay"})).toBeVisible();
-  await page.getByRole("button",{name:"Review team and pay",exact:true}).click();
+  const nav=page.getByRole("navigation",{name:"Admin sections"});
+  await expect(nav.getByRole("button",{name:"Overview",exact:true})).toHaveCount(0);
+  await expect(nav.getByRole("button",{name:"Accounts",exact:true})).toHaveAttribute("aria-pressed","true");
+  await nav.getByRole("button",{name:"Team",exact:true}).click();
   await expect(page.getByRole("navigation",{name:"Team directory"})).toBeVisible();
-  await page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Overview",exact:true}).click();
-  await page.getByRole("button",{name:"Manage accounts",exact:true}).click();
+  await page.goBack();
   await expect(page.getByRole("button",{name:"Refresh accounts",exact:true})).toBeVisible();
   expect(state.requests.filter(r=>/^(POST|PUT|PATCH|DELETE) /.test(r))).toEqual([]);
 });

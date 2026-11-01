@@ -13,6 +13,22 @@ let armedToken: string | null = null;
 let armedAt = Infinity;
 let lastPlayed = 0;
 const changed = () => window.dispatchEvent(new Event('barticket-sound-settings'));
+function audioContext() {
+  if (!context) {
+    context = new AudioContext();
+    context.onstatechange = () => {
+      // Safari can interrupt audio without hiding the page. Keep the saved
+      // preference, but invalidate this session and cancel any scheduled notes.
+      // A later running state never rearms automatically or replays old cues.
+      if (context?.state !== 'running') {
+        armedToken = null; armedAt = Infinity;
+        stopNotes();
+      }
+      changed();
+    };
+  }
+  return context;
+}
 export function automaticSoundsSupported() {
   return typeof AudioContext !== 'undefined' && !!navigator.locks;
 }
@@ -34,9 +50,9 @@ export async function enableSounds() {
   if (!automaticSoundsSupported()) throw new Error('Automatic audio unsupported');
   const token = getToken();
   if (!token) throw new Error('Sign in first');
-  context ??= new AudioContext();
-  await context.resume();
-  if (getToken() !== token || context.state !== 'running' || document.visibilityState !== 'visible') throw new Error('Audio unavailable');
+  const current = audioContext();
+  await current.resume();
+  if (getToken() !== token || current.state !== 'running' || document.visibilityState !== 'visible') throw new Error('Audio unavailable');
   localStorage.setItem(SETTING, 'on');
   armedToken = token; armedAt = Date.now();
   changed();
@@ -63,8 +79,8 @@ export async function previewSound(cue: SoundCue) {
   // Preview unlocks audio but does not opt into future sounds.
   const token = getToken();
   if (!token) throw new Error('Sign in first');
-  context ??= new AudioContext(); await context.resume();
-  if (getToken() !== token || context.state !== 'running' || document.visibilityState !== 'visible') throw new Error('Audio unavailable');
+  const current = audioContext(); await current.resume();
+  if (getToken() !== token || current.state !== 'running' || document.visibilityState !== 'visible') throw new Error('Audio unavailable');
   play(cue);
 }
 export function installNotificationSounds() {

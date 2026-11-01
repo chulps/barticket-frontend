@@ -10,9 +10,11 @@ import { DonutChart, HorizontalBarChart, type DonutSlice, type NamedBar } from "
 import Icon from "../components/Icon";
 import type { PayChartRow } from "../components/PayBreakdownChart";
 import { canViewChuckPersonalPay } from "./chuckProfileAccess";
-import { buildChuckProfileStats, type ChuckProfileStats } from "./chuckProfileStats";
+import ManagedShiftStats from "./ManagedShiftStats";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
 import { shiftMonth } from "./analyticsNavigation";
+import { chuckPayDisplay } from "./chuckPayDisplay";
+import ChuckPayBreakdown from "./ChuckPayBreakdown";
 
 type Category = "all" | "hourly_wages" | "staff_drink_bonus";
 type SortOrder = "date" | "category";
@@ -95,11 +97,6 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
     const [sort, setSort] = useState<SortOrder>("date");
     const [report, setReport] = useState<PersonalEarningsPreview | null>(null);
     const [chuckReport, setChuckReport] = useState<ChuckMonthlyPayPreview | null>(null);
-    const [chuckStatsResult, setChuckStatsResult] = useState<{
-        key: string;
-        stats?: ChuckProfileStats;
-        error?: string;
-    } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
@@ -146,30 +143,8 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
         return () => { cancelled = true; };
     }, [role, userId, month, refreshKey, ja, isChuckProfile]);
 
-    useEffect(() => {
-        if (!isChuckProfile || !showStats) return;
-        let cancelled = false;
-        const key = `${userId}:${month}`;
-        const [year, monthNumber] = month.split("-").map(Number);
-        const lastDay = new Date(year, monthNumber, 0).getDate();
-        const dateFrom = `${month}-01`;
-        const dateTo = `${month}-${String(lastDay).padStart(2, "0")}`;
-        Promise.all([accountApi.analyticsShifts(), accountApi.serviceSales(dateFrom, dateTo)])
-            .then(([shifts, sales]) => {
-                if (sales.basis !== "original_service_business_date") throw new Error("Unexpected sales basis");
-                if (!cancelled) setChuckStatsResult({ key, stats: buildChuckProfileStats(shifts, sales, userId, month) });
-            })
-            .catch(err => {
-                if (!cancelled) setChuckStatsResult({ key, error: err instanceof ApiError ? err.message : String(err) });
-            });
-        return () => { cancelled = true; };
-    }, [isChuckProfile, month, refreshKey, userId, showStats]);
 
-    const statsResult = isChuckProfile && chuckStatsResult?.key === `${userId}:${month}`
-        ? chuckStatsResult : null;
-    const chuckStats = statsResult?.stats ?? null;
-    const chuckStatsLoading = isChuckProfile && statsResult === null;
-    const chuckStatsError = statsResult?.error ?? "";
+    const payDisplay = chuckReport ? chuckPayDisplay(chuckReport) : null;
 
     const wage = report?.categories.find((item): item is WageCategory => item.category === "hourly_wages");
     const bonus = report?.categories.find((item): item is DrinkCategory => item.category === "staff_drink_bonus");
@@ -187,28 +162,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
         ],
         total: (wage?.amount_yen_unrounded == null ? 0 : Number(wage.amount_yen_unrounded)) + (bonus?.amount_yen ?? 0),
     }] : [];
-    const chuckChartRows: PayChartRow[] = chuckReport?.complete && chuckReport.gross_salary_yen !== null &&
-        chuckReport.staff_cost_total_yen !== null && chuckReport.net_amount_owed_yen !== null &&
-        chuckReport.deduction_total_yen >= 0 && chuckReport.staff_cost_total_yen >= 0 && chuckReport.net_amount_owed_yen >= 0 &&
-        Math.abs(chuckReport.gross_salary_yen - chuckReport.staff_cost_total_yen - chuckReport.deduction_total_yen - chuckReport.net_amount_owed_yen) < 1
-        ? [{
-            key: "chuck-monthly-pay",
-            label: ja ? "月間内訳" : "Monthly breakdown",
-            segments: [
-                { key: "owed", label: ja ? "Chuckへの支払予定額" : "Owed to Chuck", value: chuckReport.net_amount_owed_yen, color: "var(--royal-400)" },
-                { key: "staff-pay", label: ja ? "スタッフ給与" : "Staff pay", value: chuckReport.staff_cost_total_yen, color: "var(--success-400)" },
-                { key: "deductions", label: ja ? "その他の控除" : "Other deductions", value: chuckReport.deduction_total_yen, color: "var(--warning-400)" },
-            ],
-            total: chuckReport.gross_salary_yen,
-        }] : [];
     const staffDonutSlices: DonutSlice[] = staffChartRows[0]?.segments.map(segment => ({
-        id: segment.key,
-        label: segment.label,
-        value: segment.value,
-        display: money(segment.value, locale),
-        color: segment.color,
-    })) ?? [];
-    const chuckDonutSlices: DonutSlice[] = chuckChartRows[0]?.segments.map(segment => ({
         id: segment.key,
         label: segment.label,
         value: segment.value,
@@ -261,30 +215,6 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                 display: money(amount, locale),
             }))
         : [];
-    const completeStaffOwed = chuckReport?.complete
-        ? chuckReport.staff_owed.filter((person): person is typeof person & { total_owed_yen: number } => person.total_owed_yen !== null)
-        : [];
-    const chuckStaffBars: NamedBar[] = chuckReport?.complete && completeStaffOwed.length > 1 && completeStaffOwed.length === chuckReport.staff_owed.length
-        ? completeStaffOwed.map(person => ({
-            id: String(person.user_id),
-            label: person.name,
-            value: person.total_owed_yen,
-            display: money(person.total_owed_yen, locale),
-        }))
-        : [];
-    const knownChuckSales = (chuckStats?.nights ?? []).filter(
-        (night): night is typeof night & { billedSalesYen: number } => night.billedSalesYen !== null);
-    const chuckRevenueBars: NamedBar[] = knownChuckSales.map(night => ({
-        id: String(night.shiftId),
-        label: new Date(`${night.businessDate}T12:00:00`).toLocaleDateString(localeTag(locale), { month: "short", day: "numeric" }),
-        value: night.billedSalesYen,
-        display: money(night.billedSalesYen, locale),
-    }));
-    const chuckBilledSales = chuckStats && chuckStats.nights.every(night => night.billedSalesYen !== null)
-        ? chuckStats.nights.reduce((sum, night) => sum + (night.billedSalesYen ?? 0), 0)
-        : null;
-    const chuckMissingSalesNights = chuckStats?.nights.filter(night => night.billedSalesYen === null).length ?? 0;
-    const chuckGuests = chuckStats?.nights.reduce((sum, night) => sum + night.guests, 0) ?? null;
 
     return (
         <Wrapper aria-label={isChuckProfile
@@ -350,7 +280,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                         <Summary>
                             <Metric>
                                 <span>{ja ? "Chuckへの支払予定額" : "Amount owed to Chuck"}</span>
-                                <strong>{money(chuckReport.net_amount_owed_yen, locale)}</strong>
+                                <strong>{money(payDisplay?.netAmount ?? null, locale)}</strong>
                                 {!chuckReport.complete ? <small>{ja ? "一部の記録が不足しているため確定できません" : "Unavailable until required records are complete"}</small> : null}
                             </Metric>
                         </Summary>
@@ -359,55 +289,13 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                             ? "これはChuck担当シフトに基づく月次の支払見積もりです。勤務時間・時給・対象スタッフドリンク・控除がすべて確認できるまで、支払予定額は表示されません。これは支払記録ではなく、不明な項目を0円とは扱いません。"
                             : chuckReport.note}</Notice></Details>
                         {!chuckReport.complete && chuckReport.blockers.length ? (
-                            <ErrorArea role="status">
+                            <PayWarning role="status" aria-label={ja ? "給与見積もりの確認事項" : "Pay estimate warnings"}>
+                                <strong><span aria-hidden="true"><Icon name="Warning" /></span>{ja ? "確認が必要です" : "Needs review"}</strong>
                                 <ul>{chuckReport.blockers.map(code => <li key={code}>{payBlockerLabel(code, ja)}</li>)}</ul>
-                            </ErrorArea>
+                            </PayWarning>
                         ) : null}
                         <Details><summary>{ja ? "給与の内訳・明細" : "Pay breakdown and details"}</summary>
-                        <Summary>
-                            <Metric>
-                                <span>{ja ? "Chuckの総給与" : "Gross salary"}</span>
-                                <strong>{money(chuckReport.gross_salary_yen, locale)}</strong>
-                            </Metric>
-                            <Metric>
-                                <span>{ja ? "スタッフに支払う金額" : "Staff pay owed"}</span>
-                                <strong>{money(chuckReport.staff_cost_total_yen, locale)}</strong>
-                            </Metric>
-                            <Metric>
-                                <span>{ja ? "その他の控除" : "Other deductions"}</span>
-                                <strong>{money(chuckReport.deduction_total_yen, locale)}</strong>
-                            </Metric>
-                        </Summary>
-                        {chuckDonutSlices.length && (chuckChartRows[0]?.total ?? 0) > 0 ? <DonutChart title={ja ? "総給与の内訳" : "Gross salary breakdown"}
-                            slices={chuckDonutSlices} center={money(chuckReport.gross_salary_yen, locale)} locale={locale}
-                            note={ja ? "総給与は支払予定額、スタッフ給与、その他の控除に分かれます。" : "Gross salary is divided into amount owed to Chuck, staff pay, and other deductions."} /> : null}
-                        <h3>{ja ? "Chuck担当シフトのスタッフ給与" : "Staff pay on Chuck-managed shifts"}</h3>
-                        {chuckStaffBars.length > 1 ? <HorizontalBarChart
-                            title={ja ? "スタッフ別の支払予定額" : "Staff pay owed by person"}
-                            bars={chuckStaffBars} locale={locale} /> : null}
-                        {chuckReport.staff_owed.length ? <HistoryList>
-                            {chuckReport.staff_owed.map(item => (
-                                <HistoryEntry key={item.user_id}>
-                                    <div>
-                                        <strong>{item.name}</strong>
-                                        <Meta>{ja ? "賃金" : "Wages"} {money(item.wages_yen, locale)} · {ja ? "スタッフドリンク" : "Staff drinks"} {money(item.staff_drink_bonus_yen, locale)}</Meta>
-                                    </div>
-                                    <Value>{money(item.total_owed_yen, locale)}</Value>
-                                </HistoryEntry>
-                            ))}
-                        </HistoryList> : <Muted>{ja ? "この月のChuck担当シフトにスタッフ給与はありません。" : "No staff pay is recorded for Chuck-managed shifts this month."}</Muted>}
-                        <h3>{ja ? "その他の控除" : "Other deductions"}</h3>
-                        {chuckReport.deductions.length ? <HistoryList>
-                            {chuckReport.deductions.map(item => (
-                                <HistoryEntry key={item.id}>
-                                    <div>
-                                        <strong>{item.business_date} · {item.payee_name}</strong>
-                                        <Meta>{item.reason}{item.reversal_of_id ? (ja ? " · 取消" : " · reversal") : ""}</Meta>
-                                    </div>
-                                    <Value>{money(item.amount_yen, locale)}</Value>
-                                </HistoryEntry>
-                            ))}
-                        </HistoryList> : <Muted>{ja ? "その他の控除は記録されていません。" : "No other deductions are recorded."}</Muted>}
+                            <ChuckPayBreakdown report={chuckReport} locale={locale} />
                         </Details>
                     </>
                 ) : report ? (
@@ -457,37 +345,10 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                         </HistoryList> : <Muted>{ja ? "この月の収入記録はありません。" : "No income records for this month."}</Muted>}
                     </>
                 ) : null}
-            {isChuckProfile ? <Details onToggle={event => setShowStats(event.currentTarget.open)}><summary>{ja ? "担当シフトの売上・来客数" : "Managed-shift sales and guests"}</summary><StatsPanel aria-label={ja ? "Chuck担当シフトの統計" : "Stats for Chuck-managed shifts"}>
-                <div>
-                    <h3>{ja ? "Chuck担当シフトの統計" : "Chuck-managed shift stats"}</h3>
-                    <p>{ja ? "営業日ごとの記録済み売上と来客数です。" : "Recorded service sales and guests by business date."}</p>
-                </div>
-                {chuckStatsLoading ? <p role="status">{ja ? "統計を読み込み中…" : "Loading stats…"}</p>
-                    : chuckStatsError ? <p role="alert">{chuckStatsError}</p>
-                        : chuckStats ? <>
-                            <Summary>
-                                <Metric><span>{ja ? "担当した営業日" : "Managed nights"}</span><strong>{chuckStats.nights.length}</strong></Metric>
-                                <Metric><span>{ja ? "記録済み売上" : "Recorded sales"}</span><strong>{money(chuckBilledSales, locale)}</strong></Metric>
-                                <Metric><span>{ja ? "来客数" : "Guests"}</span><strong>{chuckGuests === null ? "—" : chuckGuests.toLocaleString(localeTag(locale))}</strong></Metric>
-                            </Summary>
-                            {chuckRevenueBars.length ? <HorizontalBarChart
-                                title={ja ? "営業日別の売上" : "Recorded sales by night"}
-                                bars={chuckRevenueBars} locale={locale} />
-                                : <ChartNote role="note">{chuckStats.nights.length === 0
-                                    ? (ja ? "この月にChuck担当で終了したシフトはありません。" : "No closed shifts assigned to Chuck were recorded this month.")
-                                    : (ja ? "スタッフ別売上の記録がないため、グラフを表示できません。" : "Ticket-level sales are unavailable for the recorded Chuck-managed shifts.")}
-                                </ChartNote>}
-                            {chuckMissingSalesNights > 0 ? <ChartNote role="note">{ja
-                                ? `売上記録がない営業日が ${chuckMissingSalesNights} 日あります。合計では不明な金額を0円として扱いません。`
-                                : `Ticket details are missing for ${chuckMissingSalesNights} managed night(s); each date uses its recorded shift total.`}</ChartNote> : null}
-                            {chuckStats.unassignedManagerDays || chuckStats.ambiguousManagerDays ? <ChartNote role="note">{ja
-                                ? `担当未設定または担当が重複した営業日は個人の統計に含めていません（未設定 ${chuckStats.unassignedManagerDays} 日、要確認 ${chuckStats.ambiguousManagerDays} 日）。`
-                                : `Days without one confirmed manager are excluded from your stats (${chuckStats.unassignedManagerDays} unassigned, ${chuckStats.ambiguousManagerDays} needing review).`}</ChartNote> : null}
-                            <ChartNote>{ja
-                                ? "チケット明細がある日は請求額を、ない日はシフトに記録された合計を表示します。未収分はサービス日に一度だけ含み、後日の回収は加算しません。"
-                                : "Sales use the original service date: ticket totals when available; otherwise, the recorded shift total fills the gap. Deferred tickets count once on that date; later collections are not added again."}</ChartNote>
-                        </> : null}
-            </StatsPanel></Details> : null}
+            {isChuckProfile ? <Details onToggle={event => setShowStats(event.currentTarget.open)}>
+                <summary>{ja ? "担当シフトの売上・来客数" : "Managed-shift sales and guests"}</summary>
+                <ManagedShiftStats userId={userId} month={month} locale={locale} active={showStats} />
+            </Details> : null}
 
         </Wrapper>
     );
@@ -504,17 +365,6 @@ const Wrapper = styled.section`
 const Details = styled.details`
     summary { cursor: pointer; padding: var(--space-1) 0; font-weight: 500; }
     &[open] > :not(summary) { margin-top: var(--space-1); }
-`;
-const StatsPanel = styled.section`
-    display:flex;
-    flex-direction:column;
-    gap:var(--space-1);
-    padding:var(--space-2);
-    border:1px solid var(--neutral-700);
-    border-radius:12px;
-    background:var(--neutral-900);
-    h3{font-size:var(--font-size-h4);}
-    p{color:var(--neutral-300);}
 `;
 const Heading = styled.div`
     display: flex;
@@ -567,6 +417,16 @@ const Metric = styled.div`
     strong { font-family: var(--font-family-data); }
 `;
 const Notice = styled.p`color: var(--neutral-300);`;
+const PayWarning = styled.div`
+    color: var(--warning-500);
+    border: 1px solid var(--warning-500);
+    border-radius: 8px;
+    padding: var(--space-2);
+    strong { display: flex; align-items: center; gap: var(--space-1); }
+    strong span { display: inline-flex; flex-shrink: 0; }
+    ul { margin: var(--space-1) 0 0; padding-left: 1.25rem; }
+    li + li { margin-top: var(--space-0); }
+`;
 const ChartNote = styled.p`color: var(--neutral-300); font-size: var(--font-size-small);`;
 const HistoryList = styled.ul`
     list-style: none;

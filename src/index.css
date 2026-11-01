@@ -2,6 +2,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap');
 
 :root {
+  /* Phosphor CaretDown, regular: same geometry as Icon's canonical down caret. */
+  --dropdown-caret-size: 18px;
+  --dropdown-caret-inset: 14px;
+  --dropdown-caret-gap: 10px;
+  --dropdown-caret-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%23f5f5f5'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
+
   --root-size: 56.25%; /* equal to 9px = 1em = 1rem */
   font-size: var(--root-size);
 
@@ -263,6 +269,23 @@ body {
 #root {
   min-width: 0;
   width: 100%;
+}
+
+/* Only the POS board owns a viewport-sized shell. Other routes (long forms,
+   reports, settings) retain normal document scrolling. The header and banners
+   take their actual height; the board gets the remainder, not guessed offsets. */
+body:has([data-ticket-dashboard]) {
+  height: 100vh;
+  height: 100dvh;
+  padding-bottom: max(var(--space-2), env(safe-area-inset-bottom, 0px));
+}
+#root:has([data-ticket-dashboard]) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#root:has([data-ticket-dashboard]) > :not([data-ticket-dashboard]) {
+  flex-shrink: 0;
 }
 
 /* scrollbar width */
@@ -722,6 +745,9 @@ button[disabled],
 /* light theme */
 
 :root.light {
+  /* Same canonical caret, matching the light theme select foreground. */
+  --dropdown-caret-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%234c4f55'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E");
+
   --neutral-800: var(--neutral-100);
   --white: var(--neutral-600);
   --neutral-700: var(--neutral-200);
@@ -834,4 +860,27 @@ textarea {
   font-family: var(--font-family-default);
   font-size: var(--font-size-default);
   color: inherit;
+}
+
+/* One indicator for every native dropdown, including styled.select. The narrow
+   important rules protect the indicator from component background/padding
+   shorthands, without overriding their colors, borders, or focus treatment.
+   Keep the native element: OS pickers, touch, labels and keyboard remain native. */
+select:not([multiple]):not([size]), select[size="1"]:not([multiple]) {
+  background-image: var(--dropdown-caret-image) !important;
+  background-repeat: no-repeat !important;
+  background-position: right var(--dropdown-caret-inset) center !important;
+  background-size: var(--dropdown-caret-size) var(--dropdown-caret-size) !important;
+  padding-right: calc(var(--dropdown-caret-inset) + var(--dropdown-caret-size) + var(--dropdown-caret-gap)) !important;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* High contrast modes may suppress background images: restore the OS arrow. */
+@media (forced-colors: active) {
+  select:not([multiple]):not([size]), select[size="1"]:not([multiple]) {
+    appearance: auto !important;
+    -webkit-appearance: auto !important;
+    background-image: none !important;
+  }
 }
