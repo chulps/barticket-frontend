@@ -25,7 +25,7 @@ for (const locale of ['en', 'ja']) {
       await expect(feedback).toBeVisible();
       await expect(feedback).toHaveCSS('transform', 'none');
       await expect(feedback).toHaveCSS('animation-name', 'none');
-      await expect(page.getByRole('status')).toContainText('#1');
+      await expect(page.locator('.ticket-action-feedback[role=status]')).toContainText('#1');
     }
     const tabs = page.locator('aside [role=group] button');
     await tabs.first().focus();
