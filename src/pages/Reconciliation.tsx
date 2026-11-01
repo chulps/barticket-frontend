@@ -162,7 +162,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
         <SelectBox><select value={mapping[key] ?? ""} onChange={event => mapField(key, event.target.value)}>
             <option value="">{ja ? "選択なし" : "Not mapped"}</option>
             {csv?.headers.map(header => <option key={header} value={header}>{header}</option>)}
-        </select><Caret aria-hidden="true">▾</Caret></SelectBox>
+        </select></SelectBox>
     </label>;
 
     async function readCsv(file?: File) {
@@ -299,7 +299,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                             <option value="Kanata">{ja ? "カナタ" : "Kanata"}</option>
                             <option value="Haruka">{ja ? "ハルカ" : "Haruka"}</option>
                             <option value="guest">{ja ? "ゲスト・その他" : "Guest / Other"}</option>
-                        </select><Caret aria-hidden="true">▾</Caret></SelectBox>
+                        </select></SelectBox>
                     </label>
                     {draft.staff === "guest" ? <>
                         <label>{ja ? "ゲスト名" : "Guest bartender"}
@@ -308,7 +308,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                                 <option value="other">{ja ? "その他・新規" : "Other / new guest"}</option>
                                 <option value="Yuchan">Yuchan</option>
                                 <option value="Mii-chan">Mii-chan</option>
-                            </select><Caret aria-hidden="true">▾</Caret></SelectBox>
+                            </select></SelectBox>
                         </label>
                         <label>{ja ? "名前（確認・編集）" : "Guest name (confirm / edit)"}
                             <input value={draft.guestName} placeholder={ja ? "ゲストの名前" : "Enter guest name"}
@@ -321,7 +321,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                                 <option value="flat">{ja ? "固定報酬" : "Flat fee"}</option>
                                 <option value="revenue">{ja ? "売上歩合" : "Revenue percentage"}</option>
                                 <option value="custom">{ja ? "その他" : "Custom"}</option>
-                            </select><Caret aria-hidden="true">▾</Caret></SelectBox>
+                            </select></SelectBox>
                         </label>
                         {draft.guestPayType && draft.guestPayType !== "custom" ? <label>{draft.guestPayType === "revenue" ? (ja ? "売上歩合 (%)" : "Revenue share (%)") : (ja ? "契約金額 (円)" : "Agreed amount (JPY)")}
                             <input type="number" min="0" max={draft.guestPayType === "revenue" ? 100 : undefined} step="any" value={draft.guestPayAmount}
@@ -339,7 +339,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                             <option value="open">{ja ? "営業" : "Open"}</option>
                             <option value="closed">{ja ? "休業" : "Closed"}</option>
                             <option value="event">{ja ? "イベント" : "Event"}</option>
-                        </select><Caret aria-hidden="true">▾</Caret></SelectBox>
+                        </select></SelectBox>
                     </label>
                     <label>{text.notes}<input value={draft.notes} onChange={e => update("notes", e.target.value)} /></label>
                 </Fields>
@@ -351,7 +351,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                     <SelectBox><select value={extraHourKey} onChange={e => setExtraHourKey(e.target.value)}>
                         <option value="">{ja ? "選択してください" : "Select staff"}</option>
                         {["Kanata", "Haruka", "Yuchan", "Mii-chan", ...(draft.guestName.trim() ? [draft.guestName.trim()] : [])].filter(name => !Object.hasOwn(draft.staffHours, name)).map(name => <option key={name} value={name}>{name}</option>)}
-                    </select><Caret aria-hidden="true">▾</Caret></SelectBox>
+                    </select></SelectBox>
                 </label>
                 <button type="button" className="small secondary" disabled={!extraHourKey} onClick={() => { if (!Object.hasOwn(draft.staffHours, extraHourKey)) setDraft({ ...draft, staffHours: { ...draft.staffHours, [extraHourKey]: "" } }); setExtraHourKey(""); }}>{ja ? "追加" : "Add staff"}</button>
                 {invalidDraft ? <p role="alert">{ja ? "担当者・売上・来客数・勤務時間を確認してください。" : "Check manager, revenue, guests and hours for invalid values."}</p> : null}
@@ -550,10 +550,6 @@ const Actions = styled.div`display: flex; flex-wrap: wrap; gap: var(--space-1); 
 const SelectBox = styled.span`
     position: relative; display: block;
     select { appearance: none; -webkit-appearance: none; padding-right: 2.5em; background: var(--dark); }
-`;
-const Caret = styled.span`
-    position: absolute; right: 1em; top: 50%; transform: translateY(-50%);
-    pointer-events: none; color: var(--neutral-300); font-size: 1.15em;
 `;
 const RadioRow = styled.div`
     display: flex; gap: var(--space-2); flex-wrap: wrap;

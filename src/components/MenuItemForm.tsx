@@ -159,7 +159,6 @@ export default function MenuItemForm({
                         {Array.from(new Set(categories)).filter(Boolean).map((option) => <option key={option} value={option}>{option}</option>)}
                         <option value="__new__">{help("+ New category…", "＋新しいカテゴリー…")}</option>
                     </SelectInput>
-                    <Caret aria-hidden="true">⌄</Caret>
                 </SelectWrap>
                 {categoryChoice === "__new__" ? <TextInput aria-label={help("New category", "新しいカテゴリー")}
                     value={customCategory} onChange={(e) => setCustomCategory(e.target.value)}
@@ -175,7 +174,6 @@ export default function MenuItemForm({
                         {Array.from(new Set(subcategories)).filter(Boolean).map((option) => <option key={option} value={option}>{option}</option>)}
                         <option value="__new__">{help("+ New subcategory…", "＋新しいサブカテゴリー…")}</option>
                     </SelectInput>
-                    <Caret aria-hidden="true">⌄</Caret>
                 </SelectWrap>
                 {subcategoryChoice === "__new__" ? <TextInput aria-label={help("New subcategory", "新しいサブカテゴリー")}
                     value={customSubcategory} onChange={(e) => setCustomSubcategory(e.target.value)}
@@ -308,11 +306,6 @@ const SelectInput = styled.select`
     position: relative; z-index: 1; cursor: pointer;
     pointer-events: auto; touch-action: manipulation;
     &:focus { outline: 2px solid var(--royal-400); outline-offset: 1px; }
-`;
-const Caret = styled.span`
-    position: absolute; z-index: 2; right: 15px; top: 50%;
-    transform: translateY(-58%); font-size: 30px; font-weight: bold;
-    line-height: 1; color: var(--neutral-100); pointer-events: none;
 `;
 const TagBox = styled.div`
     display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1);

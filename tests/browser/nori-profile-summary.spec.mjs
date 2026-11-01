@@ -56,7 +56,7 @@ for(const locale of ["en","ja"]){
     await page.setViewportSize({width:375,height:812});
     const {calls}=await fixture(page,{locale});
     const ja=locale==="ja",region=page.getByRole("region",{name:ja?"Noriの月次サマリー":"Nori's monthly summary"});
-    await expect(region.getByText(ja?"Noriの収入":"Nori's income",{exact:true}).locator("..").locator("strong")).toHaveText("—");
+    await expect(region.getByText(ja?"スタッフ給与差引後の残額":"Remaining after staff earnings",{exact:true}).locator("..").locator("strong")).toHaveText("—");
     await expect(region.getByText("Chuck",{exact:true}).locator("../..")).toContainText(/[¥￥]27,000/);
     await expect(region.getByText("Haruka",{exact:true}).locator("../..")).toContainText(/[¥￥]0/);
     await expect(region.getByText("Kanata",{exact:true}).locator("../..")).toContainText("—");
@@ -75,7 +75,7 @@ test("Nori comparison uses exact server amounts without inferring owner income",
   const region=page.getByRole("region",{name:"Nori's monthly summary"});
   await region.getByText("Compare amounts",{exact:true}).click();
   await expect(region.getByRole("region",{name:"Estimated pay by person"})).toBeVisible();
-  await expect(region.getByText("Nori's income",{exact:true}).locator("..").locator("strong")).toHaveText("—");
+  await expect(region.getByText("Remaining after staff earnings",{exact:true}).locator("..").locator("strong")).toHaveText("—");
   await expect(region.getByText("Kanata",{exact:true}).first().locator("../..")).toContainText("19,501");
 });
 for(const status of [403,404,503]){
@@ -126,4 +126,88 @@ test("users-only invalidation rechecks configured payees without changing owner 
   await expect(region).not.toContainText(/[¥￥]27,000/);
   expect(calls.filter(path=>path.includes("/profile/nori-monthly-pay")).every(path=>path.includes("month=2026-10"))).toBe(true);
   expect(calls.filter(path=>!path.startsWith("GET "))).toEqual([]);
+});
+
+const completeIncome = {
+  amount_yen:350000,status:"estimate",complete:true,blockers:[],
+  source:"monthly_revenue_less_recorded_staff_earnings",basis:"before_other_expenses",
+  revenue_yen:500000,staff_earnings_yen:150000,chuck_net_earnings_yen:27000,
+  hourly_staff_earnings_yen:120000,recorded_staff_tips_commissions_yen:3000,
+  other_manager_deductions_excluded_yen:5000,
+};
+for(const locale of ["en","ja"]) for(const width of [320,1280]) {
+  test(`owner remainder is server-authoritative and before expenses ${locale} ${width}`,async({page},testInfo)=>{
+    await page.setViewportSize({width,height:850});
+    const {calls}=await fixture(page,{locale,report:{own_income:completeIncome}});
+    const ja=locale==="ja",region=page.getByRole("region",{name:ja?"Noriの月次サマリー":"Nori's monthly summary"});
+    const income=region.getByText(ja?"スタッフ給与差引後の残額":"Remaining after staff earnings",{exact:true}).locator("..");
+    await expect(income.locator("strong")).toHaveText(/[¥￥]350,000/);
+    await expect(income).toContainText(ja?"その他の経費を差し引く前":"Before other expenses");
+    await expect(income).toContainText(ja?"利益や支払いの記録ではありません":"not profit or a payment record");
+    // The named cards are not the full payroll: no client-side subtraction from those three.
+    await region.getByText(ja?"見積もりの情報源":"Estimate sources",{exact:true}).click();
+    await expect(region.getByText(ja?"全スタッフの給与・手当":"All staff earnings",{exact:true}).locator("..")).toContainText(/[¥￥]150,000/);
+    await expect(region.getByText(ja?"記録された売上":"Recorded revenue",{exact:true}).locator("..")).toContainText(/[¥￥]500,000/);
+    await expect(region).toContainText(ja?"現金の受取額や使える残高ではありません":"not cash received or an available balance");
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    expect(calls.filter(x=>!x.startsWith("GET "))).toEqual([]);
+    await page.screenshot({path:testInfo.outputPath("owner-remainder.png"),fullPage:true});
+  });
+}
+for(const amount of [0,-25000]) test(`owner remainder preserves signed amount ${amount}`,async({page})=>{
+  await fixture(page,{report:{own_income:{...completeIncome,amount_yen:amount}}});
+  const value=page.getByText("Remaining after staff earnings",{exact:true}).locator("..").locator("strong");
+  await expect(value).toHaveText(amount===0?/[¥￥]0/:/-[¥￥]25,000/);
+});
+for(const override of [
+  {status:"incomplete",complete:false,blockers:["staff_payroll_costs_incomplete"]},
+  {basis:undefined}, {source:null}, {amount_yen:0,complete:false},
+  {blockers:["staff_hours_unverified"]}, {amount_yen:9007199254740992},
+]) test(`unverified owner remainder is never shown ${JSON.stringify(override)}`,async({page})=>{
+  await fixture(page,{report:{own_income:{...completeIncome,...override}}});
+  await expect(page.getByText("Remaining after staff earnings",{exact:true}).locator("..").locator("strong")).toHaveText("—");
+});
+
+test("owner remainder updates from server while preserving month and sources disclosure",async({page})=>{
+  let socket;
+  await page.routeWebSocket("**/realtime/ws",peer=>{socket=peer;peer.onMessage(raw=>{
+    if(JSON.parse(raw).type==="authenticate")peer.send(JSON.stringify({type:"ready",version:1,cursor:0}));
+  });});
+  const report={own_income:{...completeIncome}};
+  await fixture(page,{report});
+  await page.getByRole("button",{name:"Previous month",exact:true}).click();
+  const region=page.getByRole("region",{name:"Nori's monthly summary"});
+  await expect(region.getByText("September 2026",{exact:true})).toBeVisible();
+  const details=region.locator("details").filter({hasText:"Estimate sources"});
+  await details.locator("summary").click();
+  const value=region.getByText("Remaining after staff earnings",{exact:true}).locator("..").locator("strong");
+  await expect(value).toHaveText(/[¥￥]350,000/);
+  report.own_income={...completeIncome,amount_yen:325000,staff_earnings_yen:175000};
+  socket.send(JSON.stringify({type:"invalidate",version:1,cursor:1,scopes:["analytics"]}));
+  await expect(value).toHaveText(/[¥￥]325,000/);
+  await expect(details).toHaveAttribute("open","");
+  await expect(region.getByText("September 2026",{exact:true})).toBeVisible();
+});
+
+test("historical correction can withdraw an estimate without inventing zero or changing the month",async({page})=>{
+  const report={own_income:{...completeIncome}};
+  const {calls}=await fixture(page,{report});
+  const region=page.getByRole("region",{name:"Nori's monthly summary"});
+  await region.getByRole("button",{name:"Previous month",exact:true}).click();
+  const value=region.getByText("Remaining after staff earnings",{exact:true}).locator("..").locator("strong");
+  await expect(value).toHaveText(/[¥￥]350,000/);
+  const details=region.locator("details").filter({hasText:"Estimate sources"});
+  await details.locator("summary").click();
+  report.own_income={...completeIncome,amount_yen:null,status:"incomplete",complete:false,
+    staff_earnings_yen:null,blockers:["staff_hours_unverified"]};
+  await region.getByRole("button",{name:"Refresh",exact:true}).click();
+  await expect(value).toHaveText("—");
+  await expect(region).toContainText("Work hours need verification.");
+  await expect(details).toHaveAttribute("open","");
+  await expect(region.getByText("September 2026",{exact:true})).toBeVisible();
+  // A verified correction/reversal may legitimately produce a signed remainder.
+  report.own_income={...completeIncome,amount_yen:-25000,staff_earnings_yen:525000};
+  await region.getByRole("button",{name:"Refresh",exact:true}).click();
+  await expect(value).toHaveText(/-[¥￥]25,000/);
+  expect(calls.filter(x=>!x.startsWith("GET "))).toEqual([]);
 });

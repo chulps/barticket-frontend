@@ -44,7 +44,7 @@ test("delayed cold Admin entry coalesces authentication and keeps a stable loadi
   const state=await fixture(page);
   await page.goto("/admin");
   if(!baseline)await expect(page.locator('header a[href="/tickets"]:visible')).toBeVisible();
-  await expect(page.getByRole("button",{name:"Review team and pay",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:baseline?"Review team and pay":"Refresh accounts",exact:true})).toBeVisible();
   const auth=state.calls.filter(x=>x.path==="/auth/me");
   const users=state.calls.find(x=>x.path==="/users");
   const shift=state.calls.find(x=>x.path==="/shifts/current");
@@ -86,7 +86,7 @@ test("account switches cannot expose a previous manager snapshot or pending refr
   test.skip(baseline);
   const state=await fixture(page);
   await page.goto("/admin");
-  await expect(page.getByRole("button",{name:"Review team and pay",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:baseline?"Review team and pay":"Refresh accounts",exact:true})).toBeVisible();
   state.delay=600;
   await page.evaluate(()=>window.dispatchEvent(new Event("focus")));
   state.role="staff";
@@ -94,17 +94,17 @@ test("account switches cannot expose a previous manager snapshot or pending refr
     localStorage.setItem("barticket_token","PERFORMANCE_TEST_B");
     window.dispatchEvent(new Event("barticket-auth"));
   });
-  await expect(page.getByRole("button",{name:"Review team and pay",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:baseline?"Review team and pay":"Refresh accounts",exact:true})).toHaveCount(0);
   await expect(page).toHaveURL(/\/profile$/);
   await expect(page.locator('header a[href="/admin"]:visible')).toHaveCount(0);
-  await expect(page.getByRole("button",{name:"Review team and pay",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:baseline?"Review team and pay":"Refresh accounts",exact:true})).toHaveCount(0);
 });
 
 test("warm Profile and Admin transitions do not fan out authentication reads",async({page})=>{
   test.skip(baseline);
   const state=await fixture(page);
   await page.goto("/admin");
-  await expect(page.getByRole("button",{name:"Review team and pay",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:baseline?"Review team and pay":"Refresh accounts",exact:true})).toBeVisible();
   const before=state.calls.filter(x=>x.path==="/auth/me").length;
   const started=Date.now();
   await page.getByRole("button",{name:"More navigation options"}).click();
@@ -118,7 +118,7 @@ test("warm Profile and Admin transitions do not fan out authentication reads",as
   expect(state.calls.filter(x=>x.path==="/auth/me").length-before).toBeLessThanOrEqual(1);
   await page.getByRole("button",{name:"More navigation options"}).click();
   await page.locator('#desktop-more-menu a[href="/admin"]').click();
-  await expect(page.getByRole("button",{name:"Review team and pay",exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:baseline?"Review team and pay":"Refresh accounts",exact:true})).toBeVisible();
   console.log(JSON.stringify({scenario:"warm-transitions",profileMs,totalMs:Date.now()-started,
     authReads:state.calls.filter(x=>x.path==="/auth/me").length-before}));
   expect(state.calls.filter(x=>x.path==="/auth/me").length-before).toBeLessThanOrEqual(2);

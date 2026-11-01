@@ -13,6 +13,7 @@ type TabGroupProps<T extends string> = {
   onChange: (id: T) => void;
   label?: string;
   mobileColumns?: number;
+  fitLabels?: boolean;
 };
 
 export default function TabGroup<T extends string>({
@@ -21,6 +22,7 @@ export default function TabGroup<T extends string>({
   onChange,
   label,
   mobileColumns,
+  fitLabels,
 }: TabGroupProps<T>) {
     const activeIndex = tabs.findIndex(tab => tab.id === activeTab);
     const viewport = useRef<HTMLDivElement>(null);
@@ -77,7 +79,7 @@ export default function TabGroup<T extends string>({
 
     return (
         <Viewport ref={viewport} role="group" aria-label={label ?? tabs.map(tab => tab.label).join(" / ")}>
-            <Track ref={track} $mobileColumns={mobileColumns}>
+            <Track ref={track} $mobileColumns={mobileColumns} $fitLabels={fitLabels}>
                 {indicator.width > 0 && <IndicatorClip aria-hidden="true" data-tab-indicator-clip>
                     <Indicator data-tab-indicator $left={indicator.left} $top={indicator.top} $width={indicator.width} $height={indicator.height} />
                 </IndicatorClip>}
@@ -110,7 +112,7 @@ const Viewport = styled.div`
   &::-webkit-scrollbar { display: none; }
 `;
 
-const Track = styled.div<{ $mobileColumns?: number }>`
+const Track = styled.div<{ $mobileColumns?: number; $fitLabels?: boolean }>`
   position: relative;
   display: grid;
   grid-auto-flow: column;
@@ -120,6 +122,14 @@ const Track = styled.div<{ $mobileColumns?: number }>`
   gap: var(--space-0);
   padding: var(--space-0);
   box-sizing: border-box;
+
+  /* Short status labels must not break mid-word in the narrow desktop rail.
+     Keep the scroll fallback for enlarged text instead of clipping labels. */
+  ${({ $fitLabels }) => $fitLabels ? `
+    grid-auto-columns: auto;
+    width: max-content;
+    > button { min-width: max-content; white-space: nowrap; overflow-wrap: normal; }
+  ` : ""}
 
   ${({ $mobileColumns }) => $mobileColumns ? `
     @media (max-width: 600px) {

@@ -283,7 +283,7 @@ export default function Dashboard({
 
   return (
 
-    <DashboardContainer>
+    <DashboardContainer data-ticket-dashboard>
       <TicketActionFeedback feedback={actionFeedback} />
       <ShiftStatusBar role="status" aria-live="polite">
         <span className={canCreate ? "on-duty" : ""}>
@@ -329,6 +329,7 @@ export default function Dashboard({
         {locale === "ja" ? "メニューを更新できません。価格と在庫を確認してください。" : "Menu is unavailable or out of date. Verify prices and stock before adding drinks."}
         <button type="button" className="small hollow secondary" onClick={() => window.dispatchEvent(new Event("barticket-retry-menu"))}>{locale === "ja" ? "再試行" : "Retry"}</button>
       </MenuLoadWarning> : null}
+      <TicketBoard>
       <TicketSidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -388,26 +389,40 @@ export default function Dashboard({
           </EmptyTicketDetails>
         )}
       </Content>
+      </TicketBoard>
     </DashboardContainer>
   );
 }
 
 //styling
 const DashboardContainer = styled.main`
-  display: grid;
-  grid-template-columns: var(--space-6) minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   min-width: 0;
   width: 100%;
   gap: var(--space-1);
-  height: calc(100vh - var(--space-4));
   padding: var(--space-2) 0;
+  overflow-y: auto;
+  > :not(:last-child) { flex-shrink: 0; }
+`;
 
+const TicketBoard = styled.div`
+  display: grid;
+  grid-template-columns: var(--space-6) minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-height: 180px;
+  gap: var(--space-1);
   @media (max-width: 768px) {
-    display: block;
+    grid-template-columns: minmax(0, 1fr);
   }
 `;
 
 const Content = styled.section<{ $open: boolean }>`
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
   border-left: 1px solid var(--neutral-800);
   padding-left: var(--space-3);
 
@@ -416,6 +431,7 @@ const Content = styled.section<{ $open: boolean }>`
     flex-direction: column;
     position: fixed;
     inset: 0;
+    height: 100vh;
     height: 100dvh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -426,6 +442,7 @@ const Content = styled.section<{ $open: boolean }>`
     background: var(--neutral-950);
     border: none;
     padding: var(--space-2);
+    padding-top: calc(var(--space-2) + env(safe-area-inset-top, 0px));
     padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
   }
 `;

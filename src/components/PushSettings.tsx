@@ -220,7 +220,7 @@ const StatusDot = styled.span`
   margin-top: 0.4em;
   border-radius: 50%;
   background: var(--neutral-400);
-  [data-enabled="true"] & { background: var(--success-400); }
+  [data-enabled="true"] & { background: var(--success-500); }
   [data-state="unavailable"] &, [data-state="error"] &, [data-state="unsupported"] & {
     background: var(--neutral-400);
   }
@@ -288,7 +288,7 @@ const SwitchTrack = styled.span`
   height: 26px;
   border-radius: 13px;
   background: var(--neutral-500);
-  &[data-checked="true"] { background: var(--success-700); }
+  &[data-checked="true"] { background: var(--success-500); }
   &[data-checked="true"] > span { transform: translateX(18px); }
 `;
 

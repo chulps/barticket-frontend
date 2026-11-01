@@ -4,12 +4,12 @@ import { runInNewContext } from 'node:vm';
 import { test } from 'node:test';
 import ts from 'typescript';
 function fixture(sharedStorage) {
-  const events = new Map(), storage = sharedStorage ?? new Map(), played = [];
+  const changes = []; const events = new Map(), storage = sharedStorage ?? new Map(), played = [];
   const document = { visibilityState: 'visible', addEventListener: (k, v) => events.set(`document:${k}`, v) };
   let token = 'one', now = 100000;
   const context = { document, console, Infinity, Date: { now: () => now }, Event,
     getToken: () => token, localStorage: { getItem: k => storage.get(k) ?? null, setItem: (k,v) => storage.set(k,v), removeItem: k => storage.delete(k) },
-    window: { dispatchEvent() {}, addEventListener: (k,v) => events.set(k,v) },
+    window: { dispatchEvent(event) { changes.push(event.type); }, addEventListener: (k,v) => events.set(k,v) },
     navigator: { locks: { request: async (_name, fn) => fn() } },
     AudioContext: class { state='suspended'; currentTime=0; destination={}; async resume(){this.state='running'} async suspend(){this.state='suspended'}
       createOscillator(){ return {frequency:{value:0},connect(){},start(){played.push(1)},stop(){},disconnect(){}}; }
@@ -21,7 +21,7 @@ function fixture(sharedStorage) {
     runInNewContext(ts.transpileModule(src,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText, context);
   }
   context.installNotificationSounds();
-  return {context, storage, played, events, document, setToken:v=>token=v, advance:v=>now+=v,
+  return {context, storage, played, events, document, changes, setToken:v=>token=v, advance:v=>now+=v,
     emit(detail){events.get('barticket-push')({detail});}};
 }
 const event = (overrides={}) => ({eventId:'12345678-1234-1234-1234-123456789abc',occurredAt:101,eventType:'ticket_payment_recorded',soundCue:'ticket_paid',...overrides});
@@ -64,6 +64,7 @@ test('UI explicitly separates account push, device sounds, and background OS beh
   assert.match(ui,/across devices/); assert.match(ui,/role="switch"/); assert.match(ui,/lock-screen notification sounds/);
   assert.match(ui,/setPreferences\(null\)/);assert.match(ui,/getToken\(\) === token/);
   assert.match(ui,/Previews do not turn sounds on/);
+  assert.match(ui,/turn Silent mode off/);
 });
 
 test('shared persisted identity deduplicates across two active tabs', async () => {
@@ -91,4 +92,41 @@ test('hiding cancels scheduled notes instead of replaying them after resuming', 
   assert.equal(runInNewContext('activeNotes.size',f.context),3);
   f.document.visibilityState='hidden';f.events.get('document:visibilitychange')();
   assert.equal(runInNewContext('activeNotes.size',f.context),0);
+});
+
+// Reproduction: Safari may interrupt a running context without page visibility changing.
+test('audio interruption publishes readiness change so UI offers resume', async () => {
+  const f=fixture(); await f.context.enableSounds(); const before=f.changes.length;
+  runInNewContext("context.state='interrupted'; context.onstatechange?.()",f.context);
+  assert.equal(f.context.soundsReady(),false);
+  assert.equal(f.context.soundsEnabled(),true);
+  assert.ok(f.changes.length > before, 'UI must be notified while preference remains enabled');
+});
+
+test('interruption cancels scheduled notes, preserves preference, and cannot auto-rearm', async () => {
+  const f=fixture(); await f.context.enableSounds(); f.advance(1000); f.emit(event());
+  assert.equal(runInNewContext('activeNotes.size',f.context),3);
+  runInNewContext("context.state='interrupted'; context.onstatechange()",f.context);
+  assert.equal(runInNewContext('activeNotes.size',f.context),0);
+  assert.equal(f.context.soundsEnabled(),true);
+  runInNewContext("context.state='running'; context.onstatechange()",f.context);
+  assert.equal(f.context.soundsReady(),false);
+  f.advance(1000); f.emit(event({eventId:'32345678-1234-1234-1234-123456789abc',occurredAt:102}));
+  assert.equal(f.played.length,3);
+  await f.context.enableSounds();
+  assert.equal(f.context.soundsReady(),true);
+  f.emit(event({eventId:'42345678-1234-1234-1234-123456789abc',occurredAt:101}));
+  assert.equal(f.played.length,3);
+  f.advance(1000); f.emit(event({eventId:'52345678-1234-1234-1234-123456789abc',occurredAt:103}));
+  assert.equal(f.played.length,6);
+});
+
+test('notification type controls are disclosed and toggle hover cannot inherit button fill',()=>{
+  const ui=readFileSync(new URL('../src/components/NotificationPreferences.tsx',import.meta.url),'utf8');
+  assert.match(ui,/aria-expanded=\{typesOpen\}/); assert.match(ui,/hidden=\{!typesOpen\}/);
+  assert.match(ui,/event.key === 'Escape'/); assert.match(ui,/typesButton.current\?\.focus/);
+  assert.match(ui,/&&:hover, &&:active \{ background: transparent/);
+  assert.match(ui,/var\(--success-500\)/); assert.match(ui,/:focus-visible/);
+  const master=readFileSync(new URL('../src/components/PushSettings.tsx',import.meta.url),'utf8');
+  assert.doesNotMatch(master,/--success-(400|700)/); assert.match(master,/--success-500/);
 });

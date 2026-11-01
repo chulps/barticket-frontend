@@ -32,6 +32,26 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run mocked browser tests
         run: npx playwright test --config=playwright.config.mjs
+      - name: Preserve pay UI fixture screenshots before continuity tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: profile-pay-visuals
+          path: |
+            test-results/**/pay-breakdown.png
+            test-results/**/pay.png
+          if-no-files-found: warn
+          retention-days: 5
+      - name: Preserve notification and caret fixture screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-controls-visuals
+          path: |
+            test-results/**/preferences.png
+            test-results/**/carets*.png
+          if-no-files-found: warn
+          retention-days: 5
       - name: Build old/new deployment fixtures
         run: node scripts/build-deployment-fixtures.mjs
       - name: Verify active-session deployment continuity

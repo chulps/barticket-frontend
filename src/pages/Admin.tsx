@@ -16,10 +16,9 @@ import AdminPayDeductions from "./AdminPayDeductions";
 import AdminPayments from "./AdminPayments";
 import { paymentSetupAccess } from "../api/paymentSetupAccess";
 
-type AdminSection = "overview" | "accounts" | "team" | "historicalHours" | "schedules" | "adjustments" | "payments";
+type AdminSection = "accounts" | "team" | "historicalHours" | "schedules" | "adjustments" | "payments";
 
 const adminSectionTabs: { id: AdminSection; label: { en: string; ja: string } }[] = [
-    { id: "overview", label: { en: "Overview", ja: "概要" } },
     { id: "accounts", label: { en: "Accounts", ja: "アカウント" } },
     { id: "team", label: { en: "Team", ja: "チーム" } },
     { id: "historicalHours", label: { en: "Historical hours", ja: "履歴勤務時間" } },
@@ -52,11 +51,10 @@ export default function Admin() {
     const [accountsError, setAccountsError] = useState("");
     const [accountsLoading, setAccountsLoading] = useState(false);
     const [busy, setBusy] = useState(false);
-    const [section, setSection] = useState<AdminSection>(
-        () => staffId !== undefined || new URLSearchParams(location.search).has("teamView") ? "team" : "overview",
-    );
-    const activeSection = staffId !== undefined || new URLSearchParams(location.search).has("teamView")
-        ? "team" : new URLSearchParams(location.search).get("section") === "payments" ? "payments" : section;
+    const sectionParams = new URLSearchParams(location.search);
+    const requestedSection = sectionParams.get("section");
+    const activeSection: AdminSection = staffId !== undefined || sectionParams.has("teamView")
+        ? "team" : adminSectionTabs.find(tab => tab.id === requestedSection)?.id ?? "accounts";
     const canConfigurePayments = me?.role === "manager" && paymentAccess?.token === getToken() && paymentAccess?.allowed === true;
     const updatePaymentAccess = useCallback((allowed: boolean | null) => {
         const token = getToken();
@@ -100,32 +98,36 @@ export default function Admin() {
             ? Number(staffId) : -1;
 
     function chooseSection(next: AdminSection) {
-        setSection(next);
-        if (staffId !== undefined || location.search) navigate("/admin");
-        if (next === "historicalHours") void loadHistoricalShifts();
+        navigate(next === "accounts" ? "/admin" : `/admin?section=${next}`);
     }
 
-    async function loadHistoricalShifts() {
-        if (historicalLoading || me?.role !== "manager") return;
+    useEffect(() => {
+        if (activeSection !== "historicalHours" || me?.role !== "manager") return;
         const token = getToken();
         if (!token) return;
-        setHistoricalLoading(true);
-        setHistoricalError("");
-        try {
-            setHistoricalShifts(await accountApi.closedShifts());
-        } catch (err) {
-            if (getToken() === token) {
-                setHistoricalShifts([]);
-                setHistoricalError(err instanceof ApiError ? err.message : String(err));
-            }
-        } finally {
-            if (getToken() === token) setHistoricalLoading(false);
-        }
-    }
+        let cancelled = false;
+        const load = () => {
+            setHistoricalLoading(true);
+            setHistoricalError("");
+            return accountApi.closedShifts().then(shifts => {
+                if (!cancelled && getToken() === token) setHistoricalShifts(shifts);
+            }).catch(err => {
+                if (!cancelled && getToken() === token) {
+                    setHistoricalShifts([]);
+                    setHistoricalError(err instanceof ApiError ? err.message : String(err));
+                }
+            }).finally(() => {
+                if (!cancelled && getToken() === token) setHistoricalLoading(false);
+            });
+        };
+        void load();
+        return () => { cancelled = true; };
+    }, [activeSection, me]);
 
     function chooseMember(id: number | null) {
-        setSection("team");
-        navigate((id === null ? "/admin" : `/admin/staff/${id}`) + location.search);
+        const params = new URLSearchParams(location.search);
+        params.set("section", "team");
+        navigate((id === null ? "/admin" : `/admin/staff/${id}`) + "?" + params.toString());
     }
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
@@ -262,6 +264,13 @@ export default function Admin() {
     );
     if (me?.role !== "manager") return <Navigate to="/profile" replace />;
 
+    if (requestedSection === "overview") {
+        const params = new URLSearchParams(location.search);
+        params.delete("section");
+        const search = params.toString();
+        return <Navigate to={location.pathname + (search ? "?" + search : "") + location.hash} replace />;
+    }
+
     if (auditRoute) {
         const person = team.find(member => member.id === selectedId);
         if (!person) return (
@@ -313,38 +322,7 @@ export default function Admin() {
                     {locale === "ja" ? tab.label.ja : tab.label.en}
                 </SectionButton>)}
             </SectionNav>
-            {activeSection === "overview" ? (
-                <>
-                    <SummaryGrid>
-                        <Section>
-                            <h2>{locale === "ja" ? "チーム・給与" : "Team and pay"}</h2>
-                            <p>{locale === "ja" ? "スタッフ別の勤務記録、給与見積もり、時給を確認します。" : "Review each person's work history, pay estimates and hourly rates."}</p>
-                            <button type="button" onClick={() => chooseSection("team")}>{locale === "ja" ? "チームを確認" : "Review team and pay"}</button>
-                        </Section>
-                        <Section>
-                            <h2>{locale === "ja" ? "勤務記録の照合" : "Review work records"}</h2>
-                            <p>{locale === "ja" ? "過去の勤務時間を原本と照合し、差異を確認します。" : "Compare historical hours with source records and review discrepancies."}</p>
-                            <button type="button" className="secondary" onClick={() => chooseSection("historicalHours")}>{locale === "ja" ? "勤務時間を照合" : "Review historical hours"}</button>
-                        </Section>
-                        <Section>
-                            <h2>{locale === "ja" ? "報酬控除" : "Pay deductions"}</h2>
-                            <p>{locale === "ja" ? "承認済みのマネージャー報酬控除と履歴を確認します。" : "Review recorded manager-pay deductions and their history."}</p>
-                            <button type="button" className="secondary" onClick={() => chooseSection("adjustments")}>{locale === "ja" ? "控除を確認" : "Review deductions"}</button>
-                        </Section>
-                    </SummaryGrid>
-                    <p>{locale === "ja" ? "給与は見積もりであり、実際の支払記録ではありません。" : "Pay figures are estimates, not records of payments made."}</p>
-                    <Section>
-                        <h2>{locale === "ja" ? "アカウント・アクセス権" : "Accounts and access"}</h2>
-                        <p>{locale === "ja" ? "ログイン情報、スタッフ権限、マネージャー権限を管理します。勤務記録や給与はチームで確認してください。" : "Manage sign-in details and staff or manager access. Work records and pay are in Team."}</p>
-                        {accountsError ? <ErrorText role="alert">{accountsError}</ErrorText> : <p>{locale === "ja"
-                            ? `アカウント ${team.length}件 · スタッフ ${team.filter(person => person.role === "staff").length}名 · マネージャー ${team.filter(person => person.role === "manager").length}名`
-                            : `${team.length} accounts · ${team.filter(person => person.role === "staff").length} staff · ${team.filter(person => person.role === "manager").length} managers`}</p>}
-                        <button type="button" className="small hollow secondary" onClick={() => chooseSection("accounts")}>
-                            {locale === "ja" ? "アカウントを管理" : "Manage accounts"}
-                        </button>
-                    </Section>
-                </>
-            ) : activeSection === "accounts" ? (
+            {activeSection === "accounts" ? (
                 <Grid>
                     <Section>
                         <h2>{t("team")} ({accountsError ? "—" : team.length})</h2>
@@ -555,13 +533,6 @@ const Who = styled.div`
     gap: 2px;
     strong { font-size: var(--font-size-h4); font-weight: 500; }
     span { color: var(--neutral-300); overflow-wrap: anywhere; }
-`;
-const SummaryGrid = styled.div`
-    display: grid;
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-    gap: var(--space-2);
-    @media (min-width: 720px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    strong { display: block; font-size: var(--font-size-h4); }
 `;
 const ErrorText = styled.p`color: var(--danger, #e06c75);`;
 const Warning = styled.p`color: var(--danger-400); font-size: var(--font-size-small);`;

@@ -97,6 +97,7 @@ export default function TicketItems({
                 <SectionTitle>{t("subtotal")}</SectionTitle>
 
                 <AddItemButton
+                    aria-label={t("addItem")}
                     disabled={!isEditable}
                     onClick={() => {
                         if (!menu) return;

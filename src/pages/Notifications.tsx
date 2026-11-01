@@ -2,6 +2,7 @@ import { shouldPoll } from "../api/realtime";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useSearchParams } from "react-router-dom";
+import NotificationActivity from "../components/NotificationActivity";
 import NotificationPreferences from "../components/NotificationPreferences";
 import NotificationTicket from "../components/NotificationTicket";
 import { clearNotificationReturn } from "../api/notificationNavigation";
@@ -172,6 +173,7 @@ export default function Notifications() {
                     </Alert>
                 ))
                 : null}
+            <NotificationActivity activeStockIds={!denied ? notices?.notices.map(notice => notice.id) ?? [] : []} />
         </main>
     );
 }

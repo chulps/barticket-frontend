@@ -63,7 +63,7 @@ for(const locale of ['en','ja'])test(`owned device notification switch turns off
   await expect(f.control).toBeEnabled();
   await expect(f.control).toContainText(locale==='ja'?'オン':'On');
   const colors=await f.control.evaluate(el=>({track:getComputedStyle(el.querySelector('[data-checked]')).backgroundColor,dot:getComputedStyle(el.closest('section').querySelector('[role="status"] > span')).backgroundColor}));
-  expect(colors).toEqual({track:'rgb(18, 121, 61)',dot:'rgb(67, 213, 133)'});
+  expect(colors).toEqual({track:'rgb(30, 202, 107)',dot:'rgb(30, 202, 107)'});
   await page.screenshot({path:testInfo.outputPath(`notification-toggle-enabled-${locale}.png`),fullPage:true});
   await f.control.focus();
   await page.keyboard.press('Space');
@@ -112,7 +112,7 @@ test('blocked permission is off with guidance and never requests permission',asy
   const f=await fixture(page,{permission:'denied',subscribed:false,owned:false});
   await expect(f.control).toBeDisabled();
   await expect(f.control).toHaveAttribute('aria-checked','false');
-  await expect(page.getByRole('status')).toContainText(/blocked|settings/i);
+  await expect(page.getByRole('region',{name:'Push notification settings',exact:true}).getByRole('status')).toContainText(/blocked|settings/i);
   expect((await f.state()).permissionRequests).toBe(0);
   expect(f.writes).toEqual([]);
 });
@@ -161,7 +161,7 @@ test('Check again recovers after the user allows notifications in device setting
   await page.getByRole('button',{name:'Check again',exact:true}).click();
   await expect(f.control).toBeEnabled();
   await expect(f.control).toHaveAttribute('aria-checked','false');
-  await expect(page.getByRole('status')).toContainText('Push is ready');
+  await expect(page.getByRole('region',{name:'Push notification settings',exact:true}).getByRole('status')).toContainText('Push is ready');
   expect((await f.state()).permissionRequests).toBe(0);
   expect(f.writes).toEqual([]);
 });
