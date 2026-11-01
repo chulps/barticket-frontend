@@ -10,7 +10,7 @@ test('one heading settings action owns all three mounted panels, not the notific
  assert.match(settings,/<SettingsPanel ref=\{panel\}/);
  assert.match(settings,/:not\(\[open\]\) \{ display: none/);
  assert.match(settings,/<PushSettings \/>[\s\S]*<NotificationPreferences \/>/);
- assert.doesNotMatch(settings,/open &&|open \? <|NotificationActivity|apiRequest|fetch\(/);
+ assert.doesNotMatch(settings,/open &&\s*<|open \? <|NotificationActivity|apiRequest|fetch\(/);
  assert.match(page,/<NotificationActivity /);
  assert.doesNotMatch(preferences,/DotsThree|typesOpen|Notification type settings/);
 });
@@ -63,4 +63,10 @@ test('phone Tab loops visible enabled controls and auth changes replace the disc
  assert.match(settings,/const authChanged = \(\) => close\(true\)/);
  assert.match(settings,/addEventListener\('barticket-auth', authChanged, true\)/);
  assert.match(settings,/removeEventListener\('barticket-auth', authChanged, true\)/);
+});
+
+test('one scroll origin survives responsive presentation changes',()=>{
+ assert.match(settings,/if \(open && !scrollOrigin.current\) scrollOrigin.current =/);
+ assert.match(settings,/const \{ x, y \} = scrollOrigin.current \?\?/);
+ assert.match(settings,/if \(!open\) scrollOrigin.current = null/);
 });

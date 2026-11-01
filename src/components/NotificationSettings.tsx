@@ -31,6 +31,7 @@ export default function NotificationSettings() {
   const lastFocused = useRef<HTMLElement | null>(null);
   const wasOpen = useRef(false);
   const closing = useRef(false);
+  const scrollOrigin = useRef<{ x: number; y: number } | null>(null);
 
   const close = useCallback((replaceEntry = false) => {
     if (closing.current) return;
@@ -47,8 +48,15 @@ export default function NotificationSettings() {
   }, [location.state, navigate, params, setParams]);
 
   useLayoutEffect(() => {
+    // Keep one origin for the whole disclosure session. Browser resize scroll
+    // anchoring can move the page before the media-query effect runs.
+    if (open && !scrollOrigin.current) scrollOrigin.current = { x: window.scrollX, y: window.scrollY };
+    if (!open) scrollOrigin.current = null;
+  }, [open]);
+
+  useLayoutEffect(() => {
     if (!open || !phone) return;
-    const x = window.scrollX, y = window.scrollY;
+    const { x, y } = scrollOrigin.current ?? { x: window.scrollX, y: window.scrollY };
     const body = document.body;
     const previous = { position: body.style.position, top: body.style.top, left: body.style.left, width: body.style.width, overflow: body.style.overflow };
     // Fixed-body locking also prevents touch scrolling behind a modal on iOS.

@@ -156,7 +156,9 @@ test('phone focus, feed scroll and desktop resize preserve the same settings sub
   await page.setViewportSize({width:768,height:900});await expect(prefs).toBeFocused();
   expect(await panel.evaluate(el=>el.matches(':modal'))).toBe(false);expect((await panel.boundingBox()).width).toBeLessThan(768);
   expect(await page.evaluate(()=>document.body.style.position)).toBe('');
+  expect(await page.evaluate(()=>scrollY)).toBe(scrollBefore);
   await page.setViewportSize({width:390,height:700});await expect(prefs).toBeFocused();expect(await panel.evaluate(el=>el.matches(':modal'))).toBe(true);
+  expect(await page.evaluate(()=>document.body.style.top)).toBe(`-${scrollBefore}px`);
   await page.getByRole('button',{name:'Close notification settings',exact:true}).click();
   await expect(options).toBeFocused();expect(await page.evaluate(()=>scrollY)).toBe(scrollBefore);
   await options.click();await page.getByRole('button',{name:'Close notification settings',exact:true}).click();
