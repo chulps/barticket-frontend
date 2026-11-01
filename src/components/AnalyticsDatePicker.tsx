@@ -21,6 +21,7 @@ export default function AnalyticsDatePicker({
     const [open, setOpen] = useState(false);
     const [visibleMonth, setVisibleMonth] = useState(() => monthKey(value || todayIso()));
     const rootRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
     const nights = new Set(shiftDates);
 
     useEffect(() => {
@@ -29,7 +30,12 @@ export default function AnalyticsDatePicker({
             if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
         }
         function handleKey(event: KeyboardEvent) {
-            if (event.key === "Escape") setOpen(false);
+            if (event.key === "Escape") {
+                // Only return focus when dismissal removes the focused picker control.
+                // Escape elsewhere must not steal focus from another part of the page.
+                if (rootRef.current?.contains(document.activeElement)) triggerRef.current?.focus();
+                setOpen(false);
+            }
         }
         document.addEventListener("mousedown", handleClickOutside);
         document.addEventListener("keydown", handleKey);
@@ -46,6 +52,7 @@ export default function AnalyticsDatePicker({
     return (
         <Root ref={rootRef}>
             <DateButton
+                ref={triggerRef}
                 type="button"
                 aria-expanded={open}
                 onClick={() => {
@@ -92,6 +99,7 @@ export default function AnalyticsDatePicker({
                                     onClick={() => {
                                         onChange(cell.iso);
                                         setOpen(false);
+                                        triggerRef.current?.focus();
                                     }}
                                 >
                                     {cell.day}

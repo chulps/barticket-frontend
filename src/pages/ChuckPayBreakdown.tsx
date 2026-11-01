@@ -2,7 +2,7 @@ import styled from "styled-components";
 import type { ChuckMonthlyPayPreview } from "../api/account";
 import { localeTag, type Locale } from "../i18n";
 import { buildChuckPayBreakdown } from "./chuckPayBreakdown";
-import { DonutChart } from "../components/AnalyticsCharts";
+import PayAllocationDonut from "./PayAllocationDonut";
 import { chuckPayDisplay } from "./chuckPayDisplay";
 
 export default function ChuckPayBreakdown({ report, locale }: { report: ChuckMonthlyPayPreview; locale: Locale }) {
@@ -61,11 +61,11 @@ export default function ChuckPayBreakdown({ report, locale }: { report: ChuckMon
         <Note>{ja ? "これは支払・現金受領の証明ではありません。給与が支払済みか、現金がすでに受領されたかは、この見積もりからは判断できません。" : "This is not a payment or cash-receipt record. It does not establish which wages have been paid or which cash has already been received."}</Note>
         </DetailsColumn>
         <ChartColumn aria-label={ja ? "取り分の配分グラフ" : "Share allocation chart"}>
-            <Warning role="note">{ja ? "中央は記録済み費用だけを差し引いた暫定残額です。未記録のドリンク・控除などは含まれず、最終支払額や受領済み現金ではありません。" : "The center shows what remains after recorded costs only. Missing drinks, deductions or other inputs are not included. This is not final pay or cash received."}</Warning>
-            {chartSlices.length > 0 && chartTotal > 0 ? <DonutChart
-                title={ja ? "記録済み費用差引後の残額（暫定）" : "Remaining after recorded costs (provisional)"} slices={chartSlices}
-                center={money(data.recordedRemaining)} locale={locale}
-                note={ja ? `円環全体は総取り分 ${money(report.gross_salary_yen)} の配分です。中央は総取り分 − 記録済みスタッフ給与 − 記録済み控除です。各費用は一度だけ計上します。` : `The ring allocates your gross share of ${money(report.gross_salary_yen)}. The center is gross share − recorded staff costs − recorded deductions. Each cost is counted once.`} /> : <Note role="status">{ja ? "記録済みの金額が不明・不整合・負の場合、円グラフは表示しません。左の明細で符号付きの金額を確認してください。" : "The donut is unavailable for unknown, inconsistent or negative allocations. See the signed amounts in the details."}</Note>}
+            <Warning role="note">{ja ? "中央はスタッフ給与・控除前の総取り分です。未記録のドリンク・控除などは含まれず、最終支払額や受領済み現金ではありません。" : "The center shows your gross share before staff pay and deductions. Missing drinks, deductions or other inputs are not included. This is not final pay or cash received."}</Warning>
+            {chartSlices.length > 0 && chartTotal > 0 ? <PayAllocationDonut
+                title={ja ? "総取り分の配分（記録済みデータ）" : "Gross share allocation (recorded data)"} slices={chartSlices}
+                center={money(report.gross_salary_yen)} locale={locale}
+                note={ja ? `円環全体は総取り分 ${money(report.gross_salary_yen)} の配分です。残額の区分は総取り分 − 記録済みスタッフ給与 − 記録済み控除です。各費用は一度だけ計上します。` : `The ring allocates your gross share of ${money(report.gross_salary_yen)}. The remaining segment is gross share − recorded staff costs − recorded deductions. Each cost is counted once.`} /> : <Note role="status">{ja ? "記録済みの金額が不明・不整合・負の場合、円グラフは表示しません。左の明細で符号付きの金額を確認してください。" : "The donut is unavailable for unknown, inconsistent or negative allocations. See the signed amounts in the details."}</Note>}
         </ChartColumn>
         </Layout>
     </Section>;

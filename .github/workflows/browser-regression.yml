@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+# Only a newer revision of the same PR supersedes an in-flight regression run.
+# Manual runs are independent, including two dispatches on the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   browser:
     runs-on: ubuntu-24.04
@@ -79,6 +85,7 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            deployment-test-results/
           if-no-files-found: ignore
           retention-days: 5
 
