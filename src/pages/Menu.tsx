@@ -141,12 +141,17 @@ export default function Menu({
     ].some(value => menuHaystack(value).toLowerCase().includes(archiveSearch))
   );
 
+  const websiteLink = !authenticated ? (
+    <WebsiteLink href="https://www.rockbarfxxkup.com/">rockbarfxxkup.com</WebsiteLink>
+  ) : null;
+
   if (loadingMenu) {
-    return <main><RequestState kind="loading" detail={t("loading")} /></main>;
+    return <main>{websiteLink}<RequestState kind="loading" detail={t("loading")} /></main>;
   }
 
   if (!menu) {
     return <main>
+      {websiteLink}
       <h2>{t("drinkMenu")}</h2>
       <RequestState kind={menuError ? "error" : "empty"}
         detail={menuError
@@ -183,6 +188,7 @@ export default function Menu({
 
   return (
     <main>
+      {websiteLink}
       {menuError ? (
         <LoadWarning role="alert">
           {locale === "ja" ? "メニューの更新に失敗しました。表示中の情報が古い可能性があります。" : "Menu refresh failed; displayed prices or stock may be outdated."}
@@ -274,6 +280,21 @@ export default function Menu({
   );
 }
 
+
+const WebsiteLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
+  color: var(--neutral-200);
+  font-size: var(--font-size-label);
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+
+  &:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+  @media (hover: hover) { &:hover { color: var(--neutral-050); } }
+`;
 
 const StickySearch = styled.div`
   position: sticky;
