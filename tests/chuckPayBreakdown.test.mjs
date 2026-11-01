@@ -31,3 +31,22 @@ test('a negative net is never presented as retained pay even in an inconsistent 
   const result=buildChuckPayBreakdown({...fixture(),complete:true,net_amount_owed_yen:-1000,deduction_total_yen:8000,deductions:[{id:1,amount_yen:8000}]});
   assert.equal(result.retained,null);assert.equal(result.inconsistent,true);
 });
+
+test('donut components split wages and recorded drinks exactly once with stable person IDs',()=>{
+ const r=buildChuckPayBreakdown(fixture());
+ assert.deepEqual(r.staffSlices.map(x=>[x.id,x.kind,x.value]),[['staff-11-wages','wages',800],['staff-11-drinks','drinks',200],['staff-12-wages','wages',1800],['staff-12-drinks','drinks',200]]);
+ assert.equal(r.staffSlices.reduce((s,x)=>s+x.value,0),3000);
+});
+test('explicit missing drinks suppresses legacy complete net but preserves recorded component data',()=>{
+ for(const change of [{staff_drink_data_status:'incomplete'},{blockers:['staff_drink_data_incomplete']}]){
+  const r=buildChuckPayBreakdown({...fixture(),...change});assert.equal(r.retained,null);assert.equal(r.staffSlices.length,4);assert.equal(r.staff[0].drinks,200);
+ }
+});
+test('unknown coverage keeps a recorded estimate, never fabricates missing bonus values',()=>{
+ const r=buildChuckPayBreakdown({...fixture(),staff_drink_data_status:'unknown'});assert.equal(r.retained,6500);assert.equal(r.staff[0].drinks,200);
+});
+test('signed or unknown components never distort a donut; mismatched sums fail closed',()=>{
+ for(const row of [{wages_yen:-100,staff_drink_bonus_yen:1100,total_owed_yen:1000},{wages_yen:null,staff_drink_bonus_yen:1000,total_owed_yen:1000},{wages_yen:800,staff_drink_bonus_yen:201,total_owed_yen:1000}]){
+ const r=buildChuckPayBreakdown({...fixture(),staff_owed:[{...fixture().staff_owed[0],...row},fixture().staff_owed[1]]});assert.deepEqual(r.staffSlices,[]);
+ }
+});

@@ -305,6 +305,10 @@ export type PersonalEarningsPreview = {
 };
 
 export type ChuckMonthlyPayPreview = {
+    /** Absent on older servers means unreviewed, not verified complete. */
+    staff_drink_data_status?: "unknown" | "incomplete" | "complete";
+    final_pay_complete?: boolean;
+    recorded_inputs_only?: boolean;
     user_id: number;
     month: string;
     preview_only: true;
