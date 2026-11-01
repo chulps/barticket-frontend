@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import Icon from './Icon';
 import { getToken } from '../api/client';
 import { getNotificationPreferences, updateNotificationPreference, PUSH_TYPES, type PushPreferences, type PushType } from '../api/notificationPreferences';
 import { automaticSoundsSupported, disableSounds, enableSounds, previewSound, soundsEnabled, soundsReady } from '../api/notificationSounds';
@@ -11,22 +10,6 @@ export default function NotificationPreferences() {
   const { locale } = useI18n();
   const ja = locale === 'ja';
   const audioSupported = automaticSoundsSupported();
-  const [typesOpen, setTypesOpen] = useState(false);
-  const typesPanel = useRef<HTMLElement>(null);
-  const typesButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!typesOpen) return;
-    const close = () => { setTypesOpen(false); typesButton.current?.focus(); };
-    const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !typesPanel.current?.contains(event.target)) close();
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); close(); }
-    };
-    document.addEventListener('pointerdown', outside);
-    document.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); };
-  }, [typesOpen]);
   const [preferences, setPreferences] = useState<PushPreferences | null>(null);
   const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState<PushType | null>(null);
@@ -74,13 +57,10 @@ export default function NotificationPreferences() {
     finally { if (getToken() === token) { setAudioBusy(false); setEnabled(soundsEnabled()); setReady(soundsReady()); } }
   };
   return <>
-    <Panel ref={typesPanel} aria-labelledby="push-types-heading">
-      <Heading><h3 id="push-types-heading">{ja ? 'プッシュ通知の種類' : 'Push notification types'}</h3>
-        <OptionsButton ref={typesButton} type="button" aria-label={ja ? '通知の種類の設定' : 'Notification type settings'} aria-expanded={typesOpen} aria-controls="push-type-controls" onClick={() => setTypesOpen(open => !open)}><Icon name="DotsThreeOutlineVertical" size={24} /></OptionsButton>
-      </Heading>
+    <Panel aria-labelledby="push-types-heading">
+      <h3 id="push-types-heading">{ja ? 'プッシュ通知の種類' : 'Push notification types'}</h3>
       <p>{ja ? 'このアカウントのすべての端末に適用されます。各端末でプッシュ通知を有効にしてください。アプリ内の通知一覧には影響しません。' : 'Applies to your account across devices. Push must also be enabled on each device. Your in-app notification list is unchanged.'}</p>
       <p>{ja ? '営業開始・終了は勤務外でも届きます。その他の通知は出勤中のみです。' : 'Shift opening and closing alerts can arrive off shift. Other push alerts require you to be clocked in.'}</p>
-      <div id="push-type-controls" hidden={!typesOpen}>
       {error ? <p role="alert">{error} <button type="button" onClick={() => { setError(''); setRevision(r => r + 1); }}>{ja ? '再読み込み' : 'Reload settings'}</button></p> : null}
       {!preferences && !error ? <p role="status">{ja ? '設定を読み込み中…' : 'Loading settings…'}</p> : null}
       {preferences ? <Rows>{PUSH_TYPES.map(([type, en, jp]) => <Row key={type}>
@@ -88,7 +68,6 @@ export default function NotificationPreferences() {
         <Switch type="button" role="switch" aria-checked={preferences[type]} aria-labelledby={`push-type-${type}`} disabled={busy !== null} onClick={() => void update(type)}><span /></Switch>
       </Row>)}</Rows> : null}
       {busy ? <p role="status">{ja ? '保存中…' : 'Saving…'}</p> : null}
-      </div>
     </Panel>
     <Panel aria-labelledby="sound-heading">
       <h3 id="sound-heading">{ja ? 'アプリを開いている間の音' : 'Sounds while BarTicket is open'}</h3>
@@ -128,9 +107,3 @@ const Switch = styled.button`
   &:disabled { opacity: .6; }
 `;
 const Previews = styled.div`display: flex; flex-wrap: wrap; gap: var(--space-1); button { white-space: normal; width: auto; min-height: 44px; }`;
-
-const Heading = styled.div`display: flex; align-items: center; justify-content: space-between; gap: var(--space-1); h3 { margin: 0; min-width: 0; flex: 1; }`;
-const OptionsButton = styled.button`
-  && { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; min-width: 44px; max-width: 44px; height: 44px; min-height: 44px; padding: 0; background: transparent; color: var(--white); font-size: 28px; }
-  &&:focus-visible { outline: 2px solid var(--royal-300); outline-offset: 2px; }
-`;

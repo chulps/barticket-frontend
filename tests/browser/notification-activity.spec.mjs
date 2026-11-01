@@ -35,7 +35,8 @@ test('clocked-out push-disabled staff receive socket activity without REST and n
  state.items.push(event(3,'ticket_payment_recorded'));h.send();h.send();h.send();
  await expect(feed.getByText('Payments recorded',{exact:true})).toBeVisible();await expect(feed.locator('li')).toHaveCount(2);
  expect(h.reads).toEqual([]);expect(h.writes).toEqual([]);
- await expect(page.getByRole('switch',{name:'Use sounds on this device'})).toHaveAttribute('aria-checked','false');
+ await expect(page.getByRole('switch',{name:'Use sounds on this device'})).toBeHidden();
+ await expect(page.getByRole('button',{name:'Notification settings',exact:true})).toHaveAttribute('aria-expanded','false');
 });
 test('role reset and shift close clear old rows without history requests',async({page})=>{
  const state={role:'manager',items:[event(1,'ticket_payment_corrected')]};const h=await fixture(page,state),feed=page.getByRole('region',{name:'Current shift activity'});

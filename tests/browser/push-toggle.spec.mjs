@@ -51,6 +51,7 @@ async function fixture(page,{locale='en',permission='granted',subscribed=true,ow
     await route.fulfill({status,json:body,headers});
   });
   await page.goto('/notifications');
+  await page.getByRole('button',{name:locale==='ja'?'通知設定':'Notification settings',exact:true}).click();
   const control=page.getByRole('switch',{name:locale==='ja'?'端末のプッシュ通知':'Device push notifications',exact:true});
   await expect(control).toBeVisible();
   return {control,writes,state:()=>page.evaluate(()=>window.__pushFixture)};
