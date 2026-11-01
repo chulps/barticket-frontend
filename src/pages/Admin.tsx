@@ -510,11 +510,13 @@ const Section = styled.section`
     flex-direction: column;
     gap: var(--space-1);
     padding: var(--space-2);
-    background: var(--neutral-900);
+    background: var(--surface-card);
+    color: var(--on-surface-card);
+    --label-color: var(--on-surface-card-muted);
     border-radius: 12px;
     form { display: flex; flex-direction: column; gap: var(--space-1); }
     label { display: flex; flex-direction: column; gap: var(--space-0); }
-    input, select { width: 100%; box-sizing: border-box; }
+    input, select { width: 100%; box-sizing: border-box; color: var(--font-color); }
     input:focus, select:focus { transform: none; }
     select { background: var(--dark); }
     strong { font-family: var(--font-family-data); }
