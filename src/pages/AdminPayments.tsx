@@ -180,7 +180,9 @@ const Panel = styled.section`
   fieldset label span { display:flex; align-items:center; gap:var(--space-2); }
   fieldset input { flex:none; min-width:18px; min-height:18px; }
   a, p, button, summary { overflow-wrap:anywhere; }
-  label { display: grid; gap: var(--space-1); min-width: 0; }
+  && label { display: grid; gap: var(--space-1); min-width: 0; color: var(--font-color); }
+  html.light & { background: var(--neutral-050); }
+  html.light & a { color: #1d4ed8; }
   input, select { width: 100%; min-width: 0; box-sizing: border-box; font-size: 16px; }
   a { color: var(--primary-300, #a8bcff); } li { margin-bottom: var(--space-1); }
   output { font-size: 1.2rem; font-weight: 600; }
