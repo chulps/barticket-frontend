@@ -24,3 +24,8 @@ test('dark and light native indicators share geometry and match theme foreground
  const paths=[...css.matchAll(/%3Cpath d='([^']+)'/g)].map(match=>match[1]);assert.equal(paths.length,2);assert.equal(new Set(paths).size,1);
  assert.match(css,/fill='%23f5f5f5'/);assert.match(css,/:root\.light \{[\s\S]*?fill='%234c4f55'/);
 });
+
+test('light native and styled selects have an opaque matching control palette',()=>{
+ assert.match(css,/html\.light select[\s\S]*?background-color: var\(--neutral-050\) !important;[\s\S]*?color: var\(--neutral-600\) !important/);
+ const download=readFileSync('src/components/DataDownload.tsx','utf8');assert.match(download,/max-width: 100%/);assert.match(download,/white-space: normal/);
+});

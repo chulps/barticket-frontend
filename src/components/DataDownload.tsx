@@ -92,7 +92,9 @@ const DownloadArea = styled.div`
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-0);
-    button { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; }
+    button { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; max-width: 100%; box-sizing: border-box; white-space: normal; }
+    button span { min-width: 0; overflow-wrap: anywhere; }
+    button svg { flex-shrink: 0; }
     small, [role="status"] { color: var(--neutral-300); font-size: var(--font-size-small); }
     [role="status"]:empty { display: none; }
 `;

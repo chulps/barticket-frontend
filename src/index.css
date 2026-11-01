@@ -859,6 +859,13 @@ select:not([multiple]):not([size]), select[size="1"]:not([multiple]) {
   max-width: 100%;
 }
 
+/* Pair the light indicator with an opaque light control surface, including
+   selects whose component inherits a dark panel background. */
+html.light select:not([multiple]):not([size]), html.light select[size="1"]:not([multiple]) {
+  background-color: var(--neutral-050) !important;
+  color: var(--neutral-600) !important;
+}
+
 /* High contrast modes may suppress background images: restore the OS arrow. */
 @media (forced-colors: active) {
   select:not([multiple]):not([size]), select[size="1"]:not([multiple]) {

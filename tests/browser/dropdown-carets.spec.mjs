@@ -53,8 +53,12 @@ for(const locale of ["en","ja"])for(const width of [320,390,1280])test(`consiste
  const role=page.locator("form select");await expect(role).toBeVisible();
  const selects=page.locator("select:visible");
  async function inspect(){
-  const styles=await selects.evaluateAll(nodes=>nodes.map(el=>{const s=getComputedStyle(el);return {image:s.backgroundImage,size:s.backgroundSize,pad:s.paddingRight,position:s.backgroundPosition,appearance:s.appearance};}));
+  const styles=await selects.evaluateAll(nodes=>nodes.map(el=>{const s=getComputedStyle(el);return {image:s.backgroundImage,size:s.backgroundSize,pad:s.paddingRight,position:s.backgroundPosition,appearance:s.appearance,color:s.color,bg:s.backgroundColor,effectiveBg:(()=>{let node=el;while(node){const bg=getComputedStyle(node).backgroundColor;if(bg!=="rgba(0, 0, 0, 0)"&&bg!=="transparent")return bg;node=node.parentElement;}return "rgb(255, 255, 255)";})()};}));
   expect(styles.length).toBeGreaterThan(0);
+  const luminance=value=>{const rgb=value.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;});return rgb[0]*0.2126+rgb[1]*0.7152+rgb[2]*0.0722;};
+  for(const style of styles){const a=luminance(style.color),b=luminance(style.effectiveBg);expect((Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)).toBeGreaterThanOrEqual(4.5);}
+  const download=page.getByRole("button",{name:locale==="ja"?"管理データのJSONをダウンロード":"Download admin data (JSON)",exact:true});
+  if(await download.count()){const bounds=await download.boundingBox();expect(bounds.x+bounds.width).toBeLessThanOrEqual(width);expect(await download.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);}
   for(const s of styles){expect(s.image).toContain("M213.66");expect(s.size).toBe("18px 18px");expect(s.pad).toBe("42px");expect(s.appearance).toBe("none");}
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
@@ -66,6 +70,7 @@ for(const locale of ["en","ja"])for(const width of [320,390,1280])test(`consiste
  await page.getByRole("heading",{name:locale==="ja"?"管理":"Admin",exact:true}).click();
  await page.screenshot({path:testInfo.outputPath("carets.png"),fullPage:true});
  await page.evaluate(()=>document.documentElement.classList.add("light"));
+ await expect(page.locator("body")).toHaveCSS("background-color","rgb(255, 255, 255)");
  await inspect();
  const lightImage=await role.evaluate(el=>getComputedStyle(el).backgroundImage);
  expect(decodeURIComponent(lightImage)).toContain("fill='#4c4f55'");
