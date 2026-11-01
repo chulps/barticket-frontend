@@ -27,11 +27,11 @@ export default function Profile() {
     const [password, setPassword] = useState("");
     const [searchParams, setSearchParams] = useSearchParams();
     const requestedView = searchParams.get("section");
-    const view: ProfileView = requestedView === "history" || requestedView === "shift" || requestedView === "account" ? requestedView : "pay";
+    const view: ProfileView = requestedView === "pay" || requestedView === "history" || requestedView === "account" ? requestedView : "shift";
     function setView(next: ProfileView) {
         setSearchParams(previous => {
             const params = new URLSearchParams(previous);
-            if (next === "pay") params.delete("section");
+            if (next === "shift") params.delete("section");
             else params.set("section", next);
             return params;
         });
@@ -159,9 +159,9 @@ export default function Profile() {
                         activeTab={view}
                         onChange={setView}
                         tabs={[
+                            { id: "shift", label: locale === "ja" ? "勤務" : "Shift" },
                             { id: "pay", label: locale === "ja" ? "給与" : "My pay" },
                             { id: "history", label: locale === "ja" ? "勤務履歴" : "Work history" },
-                            { id: "shift", label: locale === "ja" ? "勤務" : "Shift" },
                             { id: "account", label: locale === "ja" ? "アカウント設定" : "Account settings" },
                         ]}
                     />

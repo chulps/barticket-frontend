@@ -47,7 +47,7 @@ for(const locale of ["en","ja"])test("Dashboard time clock link and Profile brow
  const calls=await fixture(page,{locale});
  const ja=locale==="ja";
  const tabs=page.getByRole("group",{name:ja?"プロフィール表示":"Profile sections"});
- await expect(tabs.getByRole("button",{name:ja?"給与":"My pay",exact:true})).toHaveAttribute("aria-pressed","true");
+ await expect(tabs.getByRole("button",{name:ja?"勤務":"Shift",exact:true})).toHaveAttribute("aria-pressed","true");
  await page.goto("/tickets");
  const link=page.getByRole("link",{name:ja?"タイムカードを見る":"View time clock"});
  await expect(link).toHaveAttribute("href","/profile?section=shift");
@@ -58,12 +58,45 @@ for(const locale of ["en","ja"])test("Dashboard time clock link and Profile brow
  await page.goForward();
  await expect(tabs.getByRole("button",{name:ja?"勤務":"Shift",exact:true})).toHaveAttribute("aria-pressed","true");
  await tabs.getByRole("button",{name:ja?"給与":"My pay",exact:true}).click();
- await expect(page).toHaveURL(/\/profile$/);
+ await expect(page).toHaveURL(/\/profile\?section=pay$/);
  await page.goBack();
  await expect(tabs.getByRole("button",{name:ja?"勤務":"Shift",exact:true})).toHaveAttribute("aria-pressed","true");
  await page.goto("/profile?section=unknown&from=fixture");
- await expect(tabs.getByRole("button",{name:ja?"給与":"My pay",exact:true})).toHaveAttribute("aria-pressed","true");
+ await expect(tabs.getByRole("button",{name:ja?"勤務":"Shift",exact:true})).toHaveAttribute("aria-pressed","true");
  await tabs.getByRole("button",{name:ja?"勤務履歴":"Work history",exact:true}).click();
  await expect(page).toHaveURL(/section=history&from=fixture/);
+ expect(calls.filter(call=>!call.startsWith("GET "))).toEqual([]);
+});
+
+for(const locale of ["en","ja"])for(const id of [7,901,902])test("Shift is first/default without resetting selected destination "+locale+" "+id,async({page})=>{
+ await page.setViewportSize({width:320,height:900});
+ const calls=await fixture(page,{locale,id});
+ const ja=locale==="ja", tabs=page.getByRole("group",{name:ja?"プロフィール表示":"Profile sections"});
+ const labels=ja?["勤務","給与","勤務履歴","アカウント設定"]:["Shift","My pay","Work history","Account settings"];
+ await expect(tabs.getByRole("button")).toHaveText(labels);
+ const shift=tabs.getByRole("button",{name:labels[0],exact:true});
+ await expect(shift).toHaveAttribute("aria-pressed","true");
+ expect(calls.filter(call=>/GET \/profile\/(earnings|chuck-monthly-pay|nori-monthly-pay|work-history)$/.test(call))).toEqual([]);
+ await shift.focus();
+ await page.keyboard.press("ArrowRight");
+ const pay=tabs.getByRole("button",{name:labels[1],exact:true});
+ await expect(pay).toBeFocused();
+ await expect(pay).toHaveAttribute("aria-pressed","true");
+ await expect(page).toHaveURL(/section=pay/);
+ await page.evaluate(()=>{
+  window.dispatchEvent(new CustomEvent("barticket-realtime",{detail:{scopes:["shift","tickets","analytics"]}}));
+  window.dispatchEvent(new Event("focus"));
+ });
+ await expect(pay).toHaveAttribute("aria-pressed","true");
+ await expect(page).toHaveURL(/section=pay/);
+ await page.keyboard.press("Home");
+ await expect(shift).toBeFocused();
+ await expect(shift).toHaveAttribute("aria-pressed","true");
+ await expect(page).toHaveURL(/\/profile$/);
+ await page.goBack();
+ await expect(pay).toHaveAttribute("aria-pressed","true");
+ await page.goForward();
+ await expect(shift).toHaveAttribute("aria-pressed","true");
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  expect(calls.filter(call=>!call.startsWith("GET "))).toEqual([]);
 });
