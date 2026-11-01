@@ -377,13 +377,13 @@ const ComparisonRows = styled.ul`
     list-style: none; margin: 0; padding: 0;
     display: grid; gap: 12px; min-width: 0;
     li {
-        display: grid; grid-template-columns: 4rem minmax(24px, 1fr) minmax(0, 12rem);
+        display: grid; grid-template-columns: minmax(48px, 4rem) minmax(24px, 1fr) minmax(0, 12rem);
         align-items: center; gap: 8px; min-width: 0; min-height: 28px;
     }
     [data-chart-label] { color: var(--neutral-200); font-size: 13px; overflow-wrap: anywhere; }
     [data-chart-value] { color: var(--neutral-300); font: 12px var(--font-family-data); overflow-wrap: anywhere; }
     @media (max-width: 480px) {
-        li { grid-template-columns: 2.5rem minmax(24px, 1fr) minmax(0, 6.5rem); gap: 6px; }
+        li { grid-template-columns: 48px minmax(24px, 1fr) minmax(0, 84px); gap: 6px; }
     }
 `;
 const ComparisonTrack = styled.div`

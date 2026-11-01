@@ -32,7 +32,7 @@ test("shared horizontal rows retain every value/label and signed zero geometry",
         assert.match(html, /水曜日の長いラベル/);
         assert.match(html, /left:0%;width:33.33333333333333%/);
         assert.match(html, /width:66.66666666666666%/);
-        assert.match(css, /grid-template-columns:4rem minmax\(24px, 1fr\) minmax\(0, 12rem\)/);
+        assert.match(css, /grid-template-columns:minmax\(48px, 4rem\) minmax\(24px, 1fr\) minmax\(0, 12rem\)/);
         assert.match(css, /align-items:center/);
         assert.match(css, /overflow-wrap:anywhere/);
         assert.doesNotMatch(html, /tabindex=/); // Noninteractive chart must not add keyboard stops.

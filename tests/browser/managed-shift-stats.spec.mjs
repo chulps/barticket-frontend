@@ -43,6 +43,10 @@ for (const locale of ["en", "ja"]) for (const width of [320, 1280]) {
         await page.getByRole("combobox").selectOption("month");
         await expect(list.locator("li")).toHaveCount(7);
         expect(requests).toEqual(["month", "year", "all_time"]);
+        // Abbreviated weekdays (including the tie star) must fit on one line
+        // even with the application's 10px root rem sizing.
+        const labelHeights = await list.locator("[data-chart-label]").evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().height));
+        expect(Math.max(...labelHeights)).toBeLessThan(26);
         const labels = await list.innerText();
         expect(labels).toContain(locale === "en" ? "Thu" : "木");
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
