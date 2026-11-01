@@ -38,7 +38,8 @@ test("later collections are idempotent, partial, and visible across business dat
 test("receivables use readable localized status labels and a clear empty-filter reset", () => {
     const page = source("pages/Receivables.tsx");
     assert.match(page, /Needs collection/);
-    assert.match(page, /Partially collected/);
+    assert.match(source("components/settlementLabels.ts"), /Partially collected/);
+    assert.match(page, /settlementLabel\(ticket.settlement_status/);
     assert.match(page, /未回収/);
     assert.match(page, /No receivables match these filters/);
     assert.match(page, /Show unpaid balances/);

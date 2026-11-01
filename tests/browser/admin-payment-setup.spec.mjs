@@ -212,3 +212,31 @@ test('saved terminal provider remains unchanged until an explicit save and draft
   await expect(page.getByRole('region',{name:'Stripe online setup',exact:true})).toHaveCount(0);
   expect(state.writes).toEqual([]);
 });
+
+for(const locale of ["en","ja"]) for(const width of [320,768]) test(`editing payment preferences clears stale success ${locale} ${width}`,async({page})=>{
+ await page.setViewportSize({width,height:900});
+ const state=await fixture(page,{direct:true});
+ if(locale==='ja') {
+  if(width<=768)await page.getByRole('button',{name:'Navigation menu',exact:true}).click();
+  await page.getByRole('switch').click();
+  await page.keyboard.press('Escape');
+ }
+ const ja=locale==='ja';
+ const save=page.getByRole('button',{name:ja?'設定の希望を保存':'Save setup preferences',exact:true});
+ const saved=page.getByText(ja?'希望を保存しました。決済はまだ有効ではありません。':'Preferences saved. Payments are not enabled.',{exact:true});
+ const edits=[
+  ()=>page.getByRole('combobox',{name:ja?'現在または検討中の決済会社':'Current or proposed provider',exact:true}).selectOption('square'),
+  ()=>page.getByRole('combobox',{name:ja?'決済方式':'Payment channel',exact:true}).selectOption('terminal'),
+  ()=>page.getByRole('checkbox',{name:ja?'カード':'Cards',exact:true}).check(),
+  ()=>page.getByRole('button',{name:ja?'Stripeのオンライン設定を選択':'Choose Stripe online setup',exact:true}).click(),
+ ];
+ for(const edit of edits){
+  await save.click();await expect(saved).toBeVisible();
+  const writes=state.writes.length;await edit();await expect(saved).toHaveCount(0);
+  expect(state.writes).toHaveLength(writes);
+ }
+ state.writeStatus=503;await save.click();
+ await expect(page.getByRole('button',{name:ja?'保存した設定を再読み込み':'Reload saved setup',exact:true})).toBeVisible();
+ await expect(save).toBeDisabled();
+ await expect(page.getByRole('combobox',{name:ja?'決済方式':'Payment channel',exact:true})).toBeDisabled();
+});

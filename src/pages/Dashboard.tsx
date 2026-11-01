@@ -56,6 +56,14 @@ export default function Dashboard({
   const [showTicketDetails, setShowTicketDetails] = useState(false);
   // Async create callbacks must respect any navigation that happened meanwhile.
   const selectionRef = useRef(selectedTicketId);
+  const paymentView = useRef({ activeTab, selectedTicketId, showTicketDetails });
+  const paymentSession = useRef(0);
+  useEffect(() => {
+    const invalidate = () => { paymentSession.current += 1; };
+    window.addEventListener("barticket-auth", invalidate);
+    return () => { invalidate(); window.removeEventListener("barticket-auth", invalidate); };
+  }, []);
+  useEffect(() => { paymentView.current = { activeTab, selectedTicketId, showTicketDetails }; }, [activeTab, selectedTicketId, showTicketDetails]);
   useEffect(() => { selectionRef.current = selectedTicketId; }, [selectedTicketId]);
   const [shiftLookup, setShiftLookup] = useState<ShiftLookup>({ status: "loading", shiftId: null });
   const [me, setMe] = useState<Account | null>(null);
@@ -228,15 +236,18 @@ export default function Dashboard({
     idempotencyKey?: string,
     collection?: CollectionDateConfirmation,
   ) => {
+    const startedView = paymentView.current;
+    const startedSession = paymentSession.current;
     const saved = await payTicket(ticketId, paymentType, amount, idempotencyKey, collection);
-    if (!saved) return false;
+    if (!saved || paymentSession.current !== startedSession) return null;
+    if (paymentView.current !== startedView) return saved;
     confirmAction("paid", saved);
 
     // Follow the confirmed response, not an amount calculated before the request.
     setActiveTab(saved.status);
     setSelectedTicketId(ticketId);
     setShowTicketDetails(true);
-    return true;
+    return saved;
   };
 
   const handleDeferTicket = async (ticketId: number, body: { reason: string; confirmed_balance: number; note?: string; follow_up_date?: string }) => {

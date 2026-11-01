@@ -1,3 +1,4 @@
+import { settlementLabel, unpaidReasonLabel } from "../settlementLabels";
 import PaymentDateHistory from "../PaymentDateHistory";
 // TicketFooter.tsx
 
@@ -26,7 +27,7 @@ type TicketFooterProps = {
         amount: number,
         idempotencyKey?: string,
         collection?: CollectionDateConfirmation,
-    ) => Promise<boolean>;
+    ) => Promise<Ticket | null>;
     onDeferTicket: (ticketId: number, body: { reason: string; confirmed_balance: number; note?: string; follow_up_date?: string }) => Promise<boolean>;
 
     onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => Promise<boolean>;
@@ -85,8 +86,8 @@ export default function TicketFooter({
                 </details>}
                 {ticket.serviceStatus === "completed" && ticket.deferredAt ? <section aria-label={locale === "ja" ? "未払い情報" : "Unpaid balance details"}>
                     <p><strong>{locale === "ja" ? "サービス営業日" : "Service date"}:</strong> {ticket.serviceBusinessDate ?? "—"}</p>
-                    <p><strong>{locale === "ja" ? "状態" : "Settlement"}:</strong> {ticket.settlementStatus ?? "outstanding"}</p>
-                    <p><strong>{locale === "ja" ? "理由" : "Reason"}:</strong> {ticket.unpaidReason ?? "—"}</p>
+                    <p><strong>{locale === "ja" ? "状態" : "Settlement"}:</strong> {settlementLabel(ticket.settlementStatus ?? "outstanding", locale === "ja")}</p>
+                    <p><strong>{locale === "ja" ? "理由" : "Reason"}:</strong> {unpaidReasonLabel(ticket.unpaidReason, locale === "ja")}</p>
                     {ticket.followUpDate ? <p><strong>{locale === "ja" ? "フォロー日" : "Follow-up"}:</strong> {ticket.followUpDate}</p> : null}
                     {ticket.unpaidNote ? <p><strong>{locale === "ja" ? "スタッフメモ" : "Staff note"}:</strong> {ticket.unpaidNote}</p> : null}
                     {(ticket.writeOffs?.length ?? 0) > 0 ? <ul>{ticket.writeOffs?.map((row, index) => <li key={index}>

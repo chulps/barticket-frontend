@@ -20,8 +20,8 @@ test('requires explicit valid date and reason, never guesses receipt date', () =
 });
 test('modal keeps date blank until explicitly entered and locks retry payload', () => {
  const modal = readFileSync(new URL('../src/components/PaymentModal.tsx', import.meta.url), 'utf8');
- assert.match(modal, /\[collectionDate, setCollectionDate\] = useState\(""\)/);
- assert.match(modal, /useRef\(crypto\.randomUUID\(\)\)/);
+ assert.match(modal, /\[collectionDate, setCollectionDate\] = useState\(recovered\?\.collection\?\.collection_business_date \?\? ""\)/);
+ assert.match(modal, /useRef\(recovered\?\.key \?\? crypto\.randomUUID\(\)\)/);
  assert.match(modal, /disabled=\{saving \|\| attempted\}/);
  assert.match(modal, /collection_business_date: collectionDate/);
  assert.match(modal, /collection_date_reason: collectionReason.trim\(\)/);

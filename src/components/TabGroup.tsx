@@ -217,7 +217,7 @@ const TabButton = styled.button<{ $active: boolean }>`
   background: transparent;
 
   color: ${({ $active }) =>
-    $active ? "white" : "var(--neutral-400)"};
+    $active ? "white" : "var(--neutral-200)"};
 
   transition: color 0.2s ease;
 

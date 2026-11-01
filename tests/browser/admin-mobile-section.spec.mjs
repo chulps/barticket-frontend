@@ -1,3 +1,4 @@
+import {assertTabContrast} from "./helpers/tab-contrast.mjs";
 import {test,expect} from "@playwright/test";
 
 const people=[
@@ -165,3 +166,22 @@ for (const locale of ["en", "ja"]) for (const width of [570, 768, 1280]) {
   expect(requests.some(r=>r.method!=="GET")).toBe(false);
  });
 }
+
+for(const locale of ['en','ja'])for(const width of [320,768,1280])test(`Admin actual selector effective contrast ${locale} ${width}`,async({page},testInfo)=>{
+ await page.setViewportSize({width,height:900});
+ const requests=await mockTeam(page,locale);
+ await page.goto('/admin');
+ const ja=locale==='ja';
+ const nav=page.getByRole('navigation',{name:ja?'管理セクション':'Admin sections',exact:true});
+ if(width<570){
+  // Phones intentionally use a native selector; there is no visible TabGroup to certify.
+  await expect(nav).toBeHidden();
+  await expect(page.getByRole('combobox',{name:ja?'管理メニュー':'Admin section',exact:true})).toBeVisible();
+ }else{
+  const group=nav.getByRole('group');
+  await expect(group).toBeVisible();
+  await assertTabContrast(group,page);
+ }
+ expect(requests.some(request=>request.method!=='GET')).toBe(false);
+ await page.screenshot({path:testInfo.outputPath(`audit-admin-tab-contrast-${locale}-${width}.png`),fullPage:true});
+});

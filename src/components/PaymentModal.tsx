@@ -1,8 +1,10 @@
 // src/components/PaymentModal.tsx
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { ApiError } from "../api/client";
 import { businessDateJst } from "../pages/shiftControlPolicy";
 import { isPreviousServiceDate, validCollectionConfirmation } from "./paymentCollectionPolicy";
+import { paymentAttemptRecovery, verifiedRemainingBalance } from "./paymentAttemptRecovery";
 import { nextSelectorIndex } from "./selectorNavigation";
 import styled from "styled-components";
 
@@ -17,7 +19,7 @@ type IconName = React.ComponentProps<typeof Icon>["name"];type PaymentType = "ca
 type PaymentModalProps = {
     ticket: Ticket;
     canConfirmCollectionDate?: boolean;
-    onConfirm: (paymentType: PaymentType, amount: number, idempotencyKey?: string, collection?: CollectionDateConfirmation) => Promise<boolean>;
+    onConfirm: (paymentType: PaymentType, amount: number, idempotencyKey?: string, collection?: CollectionDateConfirmation) => Promise<Ticket | null>;
 };
 
 
@@ -48,18 +50,25 @@ export default function PaymentModal({
     onConfirm,
     canConfirmCollectionDate = false,
 }: PaymentModalProps) {
-    const { closeModal } = useModal();
+    const { closeModal, registerCloseGuard } = useModal();
+    const [recovered] = useState(() => paymentAttemptRecovery.get(ticket.id));
+    const mounted = useRef(true);
+    const resolved = useRef(false);
+    useEffect(() => {
+        mounted.current = true;
+        return () => { mounted.current = false; };
+    }, []);
     const { t, locale } = useI18n();
 
     const [paymentType, setPaymentType] =
-        useState<PaymentType>("cash");
+        useState<PaymentType>(recovered?.method ?? "cash");
 
     const [step, setStep] =
         useState<"select" | "success">("select");
     const pending = useRef(false);
     const methodButtons = useRef<(HTMLButtonElement | null)[]>([]);
     function handleMethodArrow(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-        if (saving) return;
+        if (saving || attempted) return;
         const next = nextSelectorIndex(index, paymentMethods.length, event.key);
         if (next === null) return;
         event.preventDefault();
@@ -67,7 +76,8 @@ export default function PaymentModal({
         methodButtons.current[next]?.focus();
     }
     const [saving, setSaving] = useState(false);
-    const [attempted, setAttempted] = useState(false);
+    const [attempted, setAttempted] = useState(Boolean(recovered));
+    const [receipt, setReceipt] = useState<Ticket | null>(null);
     const [error, setError] = useState("");
 
     const ticketTotal = ticket.serverTotal ?? ticket.items.reduce(
@@ -82,36 +92,79 @@ export default function PaymentModal({
     const serviceBusinessDate = ticket.serviceBusinessDate ?? businessDateJst(ticket.created_at * 1000);
     const previousNight = isPreviousServiceDate(serviceBusinessDate, currentBusinessDate);
     const requiresDate = previousNight && (!isReceivable || canConfirmCollectionDate);
-    const [collectionDate, setCollectionDate] = useState("");
-    const [collectionReason, setCollectionReason] = useState("");
+    const [collectionDate, setCollectionDate] = useState(recovered?.collection?.collection_business_date ?? "");
+    const [collectionReason, setCollectionReason] = useState(recovered?.collection?.collection_date_reason ?? "");
     const dateConfirmed = !requiresDate || (canConfirmCollectionDate && validCollectionConfirmation(
         collectionDate, collectionReason, serviceBusinessDate, currentBusinessDate,
     ));
-    const [amount, setAmount] = useState(String(total));
-    const idempotencyKey = useRef(crypto.randomUUID());
+    const [amount, setAmount] = useState(String(recovered?.amount ?? total));
+    const idempotencyKey = useRef(recovered?.key ?? crypto.randomUUID());
     const numericAmount = Number(amount);
 
+    useEffect(() => {
+        registerCloseGuard(() => {
+            if (pending.current) return false;
+            if (resolved.current || !paymentAttemptRecovery.get(ticket.id)) return true;
+            return window.confirm(locale === "ja"
+                ? "結果は未確認です。閉じて伝票を確認しますか？このタブで再度開くと同じ記録を再確認できます。再読み込みやログアウトの前に支払い履歴を確認してください。"
+                : "Payment is unconfirmed. Close and check the ticket? Reopening in this tab keeps the same collection for retry. Check payment history before reloading or signing out.");
+        });
+        return () => registerCloseGuard(null);
+    }, [registerCloseGuard, locale, ticket.id]);
+
     const handleConfirm = async () => {
-        if (pending.current) return;
-        if (!dateConfirmed) return;
+        if (pending.current || resolved.current) return;
+        if (!attempted && (!dateConfirmed || !Number.isSafeInteger(numericAmount) || numericAmount < 1 || numericAmount > total)) return;
+        const attempt = paymentAttemptRecovery.remember(ticket.id, {
+            key: idempotencyKey.current, method: paymentType, amount: numericAmount,
+            collection: requiresDate ? {
+                collection_business_date: collectionDate,
+                collection_date_reason: collectionReason.trim(),
+            } : undefined,
+        });
+        if (!attempt) {
+            setError(locale === "ja" ? "未確認の支払いが多すぎます。新しい支払いの前に管理者と支払い履歴を確認してください。" : "Too many unconfirmed payments. Review payment history with a manager before recording another payment.");
+            return;
+        }
         pending.current = true;
         setAttempted(true);
         setSaving(true);
         setError("");
         try {
-            const confirmed = await onConfirm(paymentType, numericAmount, idempotencyKey.current, requiresDate ? {
-                collection_business_date: collectionDate,
-                collection_date_reason: collectionReason.trim(),
-            } : undefined);
-            if (confirmed) setStep("success");
-            else setError(locale === "ja" ? "お支払いを確認できませんでした。再試行前にチケットの状態を確認してください。" : "Payment not confirmed. Check the ticket before retrying.");
-        } catch {
-            setError(locale === "ja"
-                ? "お支払いを確認できませんでした。伝票の状態を確認してください。"
-                : "Payment could not be confirmed. Check ticket status before retrying.");
+            const confirmed = await onConfirm(attempt.method, attempt.amount, attempt.key, attempt.collection);
+            // Logout/account change clears the recovery store. An old response must
+            // neither clear a newer attempt nor update a replacement dialog.
+            if (!paymentAttemptRecovery.isCurrent(ticket.id, attempt)) return;
+            if (confirmed && confirmed.id === ticket.id) {
+                paymentAttemptRecovery.complete(ticket.id, attempt);
+                resolved.current = true;
+                if (mounted.current) { setReceipt(confirmed); setStep("success"); }
+            } else {
+                paymentAttemptRecovery.markUncertain(attempt);
+                if (mounted.current) setError(locale === "ja"
+                ? "お支払いの結果は未確認です。同じ記録を再確認するか、閉じて伝票の支払い履歴を確認してください。"
+                : "Payment is unconfirmed. Retry the same collection, or close and check the ticket’s payment history.");
+            }
+        } catch (error) {
+            if (!paymentAttemptRecovery.isCurrent(ticket.id, attempt)) return;
+            // Only a first, explicit validation rejection proves no write happened.
+            // A later error must never erase an earlier ambiguous collection.
+            if (error instanceof ApiError && (error.status === 400 || error.status === 422) && !paymentAttemptRecovery.wasUncertain(attempt)) {
+                paymentAttemptRecovery.complete(ticket.id, attempt);
+                idempotencyKey.current = crypto.randomUUID();
+                if (mounted.current) {
+                    setAttempted(false);
+                    setError(locale === "ja" ? "支払いは記録されませんでした。閉じて最新の残高を確認し、金額を修正してください。" : "Payment was not recorded. Close and check the latest balance, then correct the amount.");
+                }
+                return;
+            }
+            paymentAttemptRecovery.markUncertain(attempt);
+            if (mounted.current) setError(locale === "ja"
+                ? "お支払いの結果は未確認です。同じ記録を再確認するか、閉じて伝票の支払い履歴を確認してください。"
+                : "Payment is unconfirmed. Retry the same collection, or close and check the ticket’s payment history.");
         } finally {
             pending.current = false;
-            setSaving(false);
+            if (mounted.current) setSaving(false);
         }
     };
 
@@ -120,13 +173,18 @@ export default function PaymentModal({
             <SuccessContainer>
                 <Check>٩( ᐛ )و <br/><br/></Check>
 
-                <h3>{t("paymentComplete")}</h3>
+                <h3>{locale === "ja" ? "入金を記録しました" : "Payment recorded"}</h3>
+                <p>{locale === "ja" ? "記録した入金額" : "Recorded amount"}</p>
 
                 <SuccessTotal>
-                    ¥{(isReceivable ? numericAmount : total).toLocaleString()}
+                    ¥{numericAmount.toLocaleString()}
                 </SuccessTotal>
 
                 <p>{t(paymentType)}</p>
+                <p role="status">{receipt && verifiedRemainingBalance(receipt) !== null
+                    ? (locale === "ja" ? `未払い残高: ¥${verifiedRemainingBalance(receipt)!.toLocaleString()}` : `Remaining balance: ¥${verifiedRemainingBalance(receipt)!.toLocaleString()}`)
+                    : (locale === "ja" ? "残高は未確認です。伝票の支払い履歴を確認してください。" : "Balance unavailable. Check the ticket’s payment history.")}</p>
+                {receipt && verifiedRemainingBalance(receipt) === 0 && <p>{locale === "ja" ? "全額お支払い済み" : "Fully settled"}</p>}
             </SuccessContainer>
         );
     }
@@ -190,10 +248,10 @@ export default function PaymentModal({
                     onClick={closeModal}
                     disabled={saving}
                 >
-                    {t("cancel")}
+                    {attempted ? (locale === "ja" ? "閉じて伝票を確認" : "Close and check ticket") : t("cancel")}
                 </button>
 
-                <button disabled={saving || !dateConfirmed || !Number.isSafeInteger(numericAmount) || numericAmount < 1 || numericAmount > total} onClick={() => void handleConfirm()}>
+                <button disabled={saving || (!attempted && (!dateConfirmed || !Number.isSafeInteger(numericAmount) || numericAmount < 1 || numericAmount > total))} onClick={() => void handleConfirm()}>
                     {saving ? (locale === "ja" ? "処理中…" : "Processing…") : attempted
                         ? (locale === "ja" ? "同じ記録を安全に再確認" : "Safely retry same collection") : t("confirmPayment")}
                 </button>

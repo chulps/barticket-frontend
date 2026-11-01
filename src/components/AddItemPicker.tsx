@@ -28,9 +28,11 @@ export default function AddItemPicker({ menu, tickets, onAddItem, onAddStaffDrin
     const [error, setError] = useState("");
 
     useEffect(() => {
-        registerCloseGuard(() => !submitting.current);
+        registerCloseGuard(() => !submitting.current && (selectedItems.length === 0 || window.confirm(locale === "ja"
+            ? "選択したドリンクを破棄しますか？再度追加する前に伝票をご確認ください。"
+            : "Discard the selected drinks? Check the ticket before adding them again.")));
         return () => registerCloseGuard(null);
-    }, [registerCloseGuard]);
+    }, [registerCloseGuard, selectedItems.length, locale]);
 
     const handleSave = async () => {
         if (submitting.current || selectedItems.length === 0) return;
@@ -91,6 +93,10 @@ export default function AddItemPicker({ menu, tickets, onAddItem, onAddStaffDrin
                     <PriceButtons>
                         {options.map((priceKey) => (
                             <PriceButton key={priceKey} type="button" className="small hollow"
+                                disabled={saving}
+                                aria-label={locale === "ja"
+                                    ? `${menuLabel(locale, item.name)}${priceKey === "standard" ? "" : ` ${priceKey}`} · ¥${item.prices[priceKey]!.toLocaleString()} を追加`
+                                    : `Add ${menuLabel(locale, item.name)}${priceKey === "standard" ? "" : ` ${priceKey}`} · ¥${item.prices[priceKey]!.toLocaleString()}`}
                                 onClick={() => {
                                     if (saving) return;
                                     setSelectedItems((previous) => addSelection(previous, item, priceKey));
@@ -129,10 +135,10 @@ export default function AddItemPicker({ menu, tickets, onAddItem, onAddStaffDrin
                         {selectedItems.map(({ item, priceKey, quantity }) => (
                             <Selection key={item.id + "-" + priceKey}>
                                 <SelectionLabel>{menuLabel(locale, item.name)}{priceKey !== "standard" ? " · " + priceKey : ""}</SelectionLabel>
-                                <QuantityButton type="button" aria-label={locale === "ja" ? "数量を減らす" : "Decrease quantity"}
+                                <QuantityButton type="button" aria-label={locale === "ja" ? `${menuLabel(locale, item.name)}${priceKey === "standard" ? "" : ` ${priceKey}`} の数量を減らす` : `Decrease quantity of ${menuLabel(locale, item.name)}${priceKey === "standard" ? "" : ` ${priceKey}`}`}
                                     disabled={saving} onClick={() => setSelectedItems((current) => changeSelectionQuantity(current, item.id, priceKey, -1))}>−</QuantityButton>
                                 <span aria-label={locale === "ja" ? "数量" : "Quantity"}>{quantity}</span>
-                                <QuantityButton type="button" aria-label={locale === "ja" ? "数量を増やす" : "Increase quantity"} disabled={saving || quantity >= 99}
+                                <QuantityButton type="button" aria-label={locale === "ja" ? `${menuLabel(locale, item.name)}${priceKey === "standard" ? "" : ` ${priceKey}`} の数量を増やす` : `Increase quantity of ${menuLabel(locale, item.name)}${priceKey === "standard" ? "" : ` ${priceKey}`}`} disabled={saving || quantity >= 99}
                                     onClick={() => setSelectedItems((current) => changeSelectionQuantity(current, item.id, priceKey, 1))}>+</QuantityButton>
                             </Selection>
                         ))}

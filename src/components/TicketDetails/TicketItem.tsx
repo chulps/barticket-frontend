@@ -9,6 +9,7 @@ type TicketDetailItemProps = {
     id: number;
 
     name: string;
+    priceKey?: string;
     unitPrice: number;
     quantity: number;
     lineSubtotal?: number;
@@ -32,6 +33,7 @@ type TicketDetailItemProps = {
 
 export default function TicketDetailItem({
     name,
+    priceKey,
     unitPrice,
     quantity,
     lineSubtotal,
@@ -100,6 +102,7 @@ export default function TicketDetailItem({
     };
 
     const isEditable = activeTab === "open" && !pending;
+    const quantityItemName = priceKey && priceKey !== "standard" ? `${name} ${priceKey}` : name;
 
     return (
         <Container>
@@ -147,29 +150,31 @@ export default function TicketDetailItem({
             </Info>
 
             <Controls>
-                <QuantityButton 
+                <QuantityButton type="button"
+                    aria-label={locale === "ja" ? `${quantityItemName} の数量を増やす` : `Increase quantity of ${quantityItemName}`}
                     disabled={!isEditable}
                     onClick={onIncrease}>
-                    <PlusWrapper>
+                    <PlusWrapper aria-hidden="true">
                         <Icon name="Plus" />
                     </PlusWrapper>
 
-                    <UpCaretWrapper>
+                    <UpCaretWrapper aria-hidden="true">
                         <Icon name="CaretUp" />
                     </UpCaretWrapper>
                 </QuantityButton>
 
                 <Quantity>{quantity}</Quantity>
 
-                <QuantityButton 
+                <QuantityButton type="button"
+                    aria-label={locale === "ja" ? `${quantityItemName} の数量を減らす` : `Decrease quantity of ${quantityItemName}`}
                     disabled={!isEditable}
                     onClick={onDecrease}>
 
-                    <MinusWrapper>
+                    <MinusWrapper aria-hidden="true">
                         <Icon name="Minus" />
                     </MinusWrapper>
 
-                    <DownCaretWrapper>
+                    <DownCaretWrapper aria-hidden="true">
                         <Icon name="CaretDown" />
                     </DownCaretWrapper>
                 </QuantityButton>

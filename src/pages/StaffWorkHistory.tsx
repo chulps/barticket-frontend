@@ -191,6 +191,7 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
                     <TimeControls>
                         <TabGroup<TimeScale>
                             label={ja ? "表示期間" : "Time scale"}
+                            mobileColumns={2}
                             tabs={[
                                 { id: "all", label: ja ? "全期間" : "All Time" },
                                 { id: "year", label: ja ? "年" : "Year" },
@@ -354,6 +355,7 @@ const TimeControls = styled.div`
     display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2);
     min-width: 0;
     > [role="group"] { width: max-content; max-width: 100%; }
+    @media (max-width: 600px) { > [role="group"] { width: 100%; } }
 `;
 const PeriodNav = styled.div`
     display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px;
@@ -372,7 +374,7 @@ const Summary = styled.div`
 const Metric = styled.div`
     padding: var(--space-2); background: var(--neutral-800); border-radius: 8px;
     display: flex; flex-direction: column; gap: var(--space-0);
-    span { color: var(--neutral-300); }
+    span { color: var(--neutral-200); }
     strong { font-size: var(--font-size-h3); font-weight: 500; }
 `;
 const HistoryList = styled.div`display: flex; flex-direction: column;`;
