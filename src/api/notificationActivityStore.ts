@@ -1,5 +1,5 @@
 import { applyActivityFrame, type ActivitySnapshot } from './notificationActivity';
-const empty=():ActivitySnapshot=>({shiftId:null,items:[],received:false,connected:false});
+const empty=():ActivitySnapshot=>({shiftId:null,items:[],received:false,connected:false,hasMore:false});
 let snapshot=empty(),owner:string|null=null;
 let lastCursor=-1,awaitingReset=true;
 const listeners=new Set<()=>void>();
