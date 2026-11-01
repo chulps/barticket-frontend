@@ -14,10 +14,10 @@ test("Admin renders Accounts, Team, historical hours, and spreadsheet schedules"
     assert.match(admin, /<SectionNav\b[^>]*aria-label=/);
     assert.doesNotMatch(admin, /id: "overview"/);
     assert.match(admin, /visibleSectionTabs\.map/);
-    assert.match(admin, /aria-pressed=\{activeSection === tab\.id\}/);
-    assert.match(admin, /onClick=\{\(\) => chooseSection\(tab\.id\)\}/);
-    assert.match(admin, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
-    assert.match(admin, /grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
+    assert.match(admin, /<TabGroup/);
+    assert.match(admin, /activeTab=\{activeSection\}/);
+    assert.match(admin, /onChange=\{chooseSection\}/);
+    assert.match(admin, /responsiveColumns=\{adminSectionColumns\}/);
     for (const section of ["accounts", "team", "schedules"]) {
         assert.match(admin, new RegExp(`\\{ id: "${section}", label:`));
     }

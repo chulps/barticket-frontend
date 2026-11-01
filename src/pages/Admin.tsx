@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Navigate, useLocation, useMatch, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
+import TabGroup from "../components/TabGroup";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
@@ -25,6 +26,12 @@ const adminSectionTabs: { id: AdminSection; label: { en: string; ja: string } }[
     { id: "schedules", label: { en: "Schedules", ja: "シフト予定" } },
     { id: "adjustments", label: { en: "Pay deductions", ja: "報酬控除" } },
     { id: "payments", label: { en: "Payment setup", ja: "決済設定" } },
+];
+
+const adminSectionColumns = [
+    { minWidth: 0, columns: 2 },
+    { minWidth: 640, columns: 3 },
+    { minWidth: 1000, columns: 6 },
 ];
 
 /**
@@ -59,41 +66,11 @@ export default function Admin() {
         const token = getToken();
         if (token) setPaymentAccess({token, allowed});
     }, []);
-    // All authorized managers may read the generic terminal guide. Private
-    // setup remains guarded separately by the owner capability and API.
+    // Generic guide is available to managers; private saved setup remains owner-only.
     const visibleSectionTabs = adminSectionTabs;
-    const sectionNavRef = useRef<HTMLElement>(null);
-    const sectionButtons = useRef<(HTMLButtonElement | null)[]>([]);
-    const [tabIndicator, setTabIndicator] = useState({ left: 0, top: 0, width: 0, height: 0 });
-
-    useLayoutEffect(() => {
-        const nav = sectionNavRef.current;
-        const activeIndex = visibleSectionTabs.findIndex(tab => tab.id === activeSection);
-        const activeButton = sectionButtons.current[activeIndex];
-        if (!nav || !activeButton) return;
-
-        const measure = () => {
-            const navRect = nav.getBoundingClientRect();
-            const buttonRect = activeButton.getBoundingClientRect();
-            setTabIndicator({
-                left: buttonRect.left - navRect.left - nav.clientLeft,
-                top: buttonRect.top - navRect.top - nav.clientTop,
-                width: buttonRect.width,
-                height: buttonRect.height,
-            });
-        };
-
-        measure();
-        if (typeof ResizeObserver === "undefined") {
-            window.addEventListener("resize", measure);
-            return () => window.removeEventListener("resize", measure);
-        }
-
-        const observer = new ResizeObserver(measure);
-        observer.observe(nav);
-        sectionButtons.current.forEach(button => { if (button) observer.observe(button); });
-        return () => observer.disconnect();
-    }, [activeSection, visibleSectionTabs]);
+    const localizedSectionTabs = useMemo(() => visibleSectionTabs.map(tab => ({
+        id: tab.id, label: locale === "ja" ? tab.label.ja : tab.label.en,
+    })), [visibleSectionTabs, locale]);
     const selectedId = staffId === undefined ? null
         : /^[1-9][0-9]*$/.test(staffId) && Number.isSafeInteger(Number(staffId))
             ? Number(staffId) : -1;
@@ -303,24 +280,14 @@ export default function Admin() {
                     </option>)}
                 </select>
             </MobileSectionPicker>
-            <SectionNav ref={sectionNavRef} aria-label={locale === "ja" ? "管理セクション" : "Admin sections"}>
-                <SectionIndicator
-                    aria-hidden="true"
-                    $left={tabIndicator.left}
-                    $top={tabIndicator.top}
-                    $width={visibleSectionTabs.some(tab => tab.id === activeSection) ? tabIndicator.width : 0}
-                    $height={tabIndicator.height}
+            <SectionNav aria-label={locale === "ja" ? "管理セクション" : "Admin sections"}>
+                <TabGroup
+                    tabs={localizedSectionTabs}
+                    activeTab={activeSection}
+                    onChange={chooseSection}
+                    label={locale === "ja" ? "管理セクション" : "Admin sections"}
+                    responsiveColumns={adminSectionColumns}
                 />
-                {visibleSectionTabs.map((tab, index) => <SectionButton
-                    key={tab.id}
-                    ref={node => { sectionButtons.current[index] = node; }}
-                    type="button"
-                    aria-pressed={activeSection === tab.id}
-                    $active={activeSection === tab.id}
-                    onClick={() => chooseSection(tab.id)}
-                >
-                    {locale === "ja" ? tab.label.ja : tab.label.en}
-                </SectionButton>)}
             </SectionNav>
             {activeSection === "accounts" ? (
                 <Grid>
@@ -444,59 +411,10 @@ const MobileSectionPicker = styled.label`
     @media (min-width: 570px) { display: none; }
 `;
 const SectionNav = styled.nav`
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-0);
-    padding: var(--space-0);
-    border: 1px solid var(--neutral-700);
-    border-radius: var(--space-1);
-    @media (max-width: 569px) { display: none; }
-    @media (min-width: 640px) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    @media (min-width: 1000px) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-`;
-const SectionIndicator = styled.div<{
-    $left: number;
-    $top: number;
-    $width: number;
-    $height: number;
-}>`
-    position: absolute;
-    z-index: 0;
-    pointer-events: none;
-    left: 0;
-    top: 0;
-    width: ${({ $width }) => `${$width}px`};
-    height: ${({ $height }) => `${$height}px`};
-    opacity: ${({ $width, $height }) => $width && $height ? 1 : 0};
-    border-radius: calc(var(--space-1) - 2px);
-    background: var(--royal-500, #577ff5);
-    box-shadow: 0 0 0 1px var(--royal-400, #7899ff);
-    transform: translate(${({ $left, $top }) => `${$left}px, ${$top}px`});
-    transition:
-        transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1),
-        width 180ms ease,
-        height 180ms ease,
-        opacity 100ms ease;
-
-    @media (prefers-reduced-motion: reduce) {
-        transition: none;
-    }
-`;
-const SectionButton = styled.button<{ $active: boolean }>`
-    position: relative;
-    z-index: 1;
     min-width: 0;
-    min-height: 48px;
-    padding: var(--space-1);
-    border: 1px solid transparent;
-    border-radius: calc(var(--space-1) - 2px);
-    background: transparent;
-    color: ${({ $active }) => $active ? "white" : "var(--neutral-300)"};
-    overflow-wrap: anywhere;
-    text-align: center;
-    &:hover { color: white; }
-    &:focus-visible { outline: 2px solid var(--royal-400); outline-offset: 1px; }
+    @media (max-width: 569px) { display: none; }
+    /* Layout adapter only: visual states and the indicator come from TabGroup. */
+    button { min-height: 48px; }
 `;
 const Grid = styled.div`
     display: grid;

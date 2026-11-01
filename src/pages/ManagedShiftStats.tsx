@@ -86,15 +86,15 @@ export default function ManagedShiftStats({ userId, month, locale, active }: {
         {selected ? <>
             <p>{winners.length ? `${ja ? (winners.length > 1 ? "最高平均（同率）" : "最高平均") : (winners.length > 1 ? "Tied highest average" : "Highest average")}: ${winners.map(day => weekdayLabel(day, locale)).join(ja ? "・" : ", ")}`
                 : (ja ? "比較できるシフトがありません。" : "No eligible shifts to compare.")}</p>
-            <HorizontalBarRows label={ja ? "曜日別の平均売上とシフト数" : "Weekday averages and shift counts"}
+            {selected.weekdays.some(row => row.shift_count > 0) ? <HorizontalBarRows label={ja ? "曜日別の平均売上とシフト数" : "Weekday averages and shift counts"}
                 bars={selected.weekdays.map(row => ({
                     id: String(row.weekday),
                     label: weekdayLabel(row.weekday, locale) + (winners.includes(row.weekday) ? " ★" : ""),
                     value: row.average_sales_yen ?? 0,
                     display: `${row.average_sales_yen === null ? (ja ? "データなし" : "No data") : money(row.average_sales_yen)} · ${row.shift_count} ${ja ? "シフト" : row.shift_count === 1 ? "shift" : "shifts"}`,
                     color: winners.includes(row.weekday) ? "var(--success-400)" : "var(--royal-300)",
-                }))} />
-            <p>{ja ? "少ないシフト数の平均は変動しやすいため、各曜日の件数も確認してください。" : "Small samples can vary widely; compare the shift counts as well as the averages."}</p>
+                }))} /> : null}
+            {selected.weekdays.some(row => row.shift_count > 0) ? <p>{ja ? "少ないシフト数の平均は変動しやすいため、各曜日の件数も確認してください。" : "Small samples can vary widely; compare the shift counts as well as the averages."}</p> : null}
             <p>{ja
                 ? `除外: 営業中 ${selected.excluded_open_shift_count}、記録未完了 ${selected.excluded_incomplete_shift_count}（うち営業日重複 ${selected.excluded_ambiguous_day_count}）。`
                 : `Excluded: ${selected.excluded_open_shift_count} open shifts, ${selected.excluded_incomplete_shift_count} incomplete shifts (including ${selected.excluded_ambiguous_day_count} ambiguous business dates).`}</p>
@@ -105,9 +105,9 @@ export default function ManagedShiftStats({ userId, month, locale, active }: {
 }
 
 const Panel = styled.section`
-    display: grid; gap: var(--space-2); padding: var(--space-2);
-    border: 1px solid var(--neutral-700); border-radius: 12px; min-width: 0;
-    p { color: var(--neutral-300); }
+    display: grid; gap: var(--space-2); padding: 0;
+    min-width: 0;
+    p { color: var(--neutral-200); line-height: 1.6; }
 `;
 const Header = styled.div`
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1);

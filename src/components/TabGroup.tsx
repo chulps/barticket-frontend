@@ -14,6 +14,8 @@ type TabGroupProps<T extends string> = {
   label?: string;
   mobileColumns?: number;
   fitLabels?: boolean;
+  /** Optional wrapping grid; keeps the shared visual/interaction contract. */
+  responsiveColumns?: readonly { minWidth: number; columns: number }[];
 };
 
 export default function TabGroup<T extends string>({
@@ -23,6 +25,7 @@ export default function TabGroup<T extends string>({
   label,
   mobileColumns,
   fitLabels,
+  responsiveColumns,
 }: TabGroupProps<T>) {
     const activeIndex = tabs.findIndex(tab => tab.id === activeTab);
     const viewport = useRef<HTMLDivElement>(null);
@@ -79,8 +82,8 @@ export default function TabGroup<T extends string>({
 
     return (
         <Viewport ref={viewport} role="group" aria-label={label ?? tabs.map(tab => tab.label).join(" / ")}>
-            <Track ref={track} $mobileColumns={mobileColumns} $fitLabels={fitLabels}>
-                {indicator.width > 0 && <IndicatorClip aria-hidden="true" data-tab-indicator-clip>
+            <Track ref={track} $mobileColumns={mobileColumns} $fitLabels={fitLabels} $responsiveColumns={responsiveColumns}>
+                {activeIndex >= 0 && indicator.width > 0 && <IndicatorClip aria-hidden="true" data-tab-indicator-clip>
                     <Indicator data-tab-indicator $left={indicator.left} $top={indicator.top} $width={indicator.width} $height={indicator.height} />
                 </IndicatorClip>}
                 {tabs.map((tab, index) => (
@@ -112,7 +115,11 @@ const Viewport = styled.div`
   &::-webkit-scrollbar { display: none; }
 `;
 
-const Track = styled.div<{ $mobileColumns?: number; $fitLabels?: boolean }>`
+const Track = styled.div<{
+  $mobileColumns?: number;
+  $fitLabels?: boolean;
+  $responsiveColumns?: readonly { minWidth: number; columns: number }[];
+}>`
   position: relative;
   display: grid;
   grid-auto-flow: column;
@@ -141,6 +148,20 @@ const Track = styled.div<{ $mobileColumns?: number; $fitLabels?: boolean }>`
       min-width: 0;
       > button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     }
+  ` : ""}
+
+  ${({ $responsiveColumns }) => $responsiveColumns?.length ? `
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-auto-rows: 1fr;
+    width: 100%;
+    min-width: 0;
+    > button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+    ${$responsiveColumns.map(({ minWidth, columns }) => `
+      @media (min-width: ${minWidth}px) {
+        grid-template-columns: repeat(${columns}, minmax(0, 1fr));
+      }
+    `).join("")}
   ` : ""}
 `;
 
@@ -196,9 +217,14 @@ const TabButton = styled.button<{ $active: boolean }>`
   background: transparent;
 
   color: ${({ $active }) =>
-    $active ? "white" : "var(--neutral-400)"};
+    $active ? "white" : "var(--neutral-200)"};
 
   transition: color 0.2s ease;
+
+  &:focus-visible {
+    outline: 2px solid var(--royal-400);
+    outline-offset: -2px;
+  }
 
   /* Global buttons grow on hover; tab targets must retain their measured bounds. */
   &:hover, &:active {

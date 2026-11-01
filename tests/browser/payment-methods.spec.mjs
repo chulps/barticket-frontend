@@ -13,6 +13,10 @@ async function fixture(page, locale) {
   if (request.method() === 'POST') {
    writes.push({ path, body: request.postDataJSON(), key: request.headers()['idempotency-key'] });
    await new Promise(r => setTimeout(r, 100));
+   const body = request.postDataJSON();
+   ticket.amount_paid += body.amount; ticket.balance_due -= body.amount;
+   ticket.settlement_status = ticket.balance_due === 0 ? 'settled' : 'partially_paid';
+   ticket.payment = { type: body.method, amount: body.amount, paid_at: NOW / 1000 };
    return route.fulfill({ json: ticket, headers });
   }
   const values = { '/auth/me': { id: 7, name: 'Fixture manager', role: 'manager' }, '/auth/status': { has_accounts: true }, '/menu': { items: [] }, '/tickets/receivables': { items: [ticket], total: 1, offset: 0, limit: 50 }, '/shifts/current': null, '/tickets': [], '/users/recipients': [], '/notices': { notices: [] }, '/realtime/events': { cursor: 0, scopes: [] } };
@@ -37,7 +41,9 @@ for (const locale of ['en', 'ja']) for (const width of [320, 1280]) for (const m
   if (method === 'paypay') await page.screenshot({ path: testInfo.outputPath('payment-methods.png'), fullPage: true });
   const confirm = page.getByRole('button', { name: locale === 'ja' ? '会計を確定' : 'Confirm Payment', exact: true });
   await confirm.evaluate(el => { el.click(); el.click(); });
-  await expect(page.getByRole('heading', { name: locale === 'ja' ? '会計完了' : 'Payment Complete' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: locale === 'ja' ? '入金を記録しました' : 'Payment recorded' })).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('status')).toContainText('¥400');
+  await expect(page.getByText(locale === 'ja' ? '全額お支払い済み' : 'Fully settled', { exact: true })).toHaveCount(0);
   expect(writes).toHaveLength(1); expect(writes[0].path).toBe('/tickets/42/pay');
   expect(writes[0].body).toEqual({ method, amount: 300 }); expect(writes[0].key).toBeTruthy();
  });

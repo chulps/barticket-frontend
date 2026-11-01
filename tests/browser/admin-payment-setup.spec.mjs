@@ -222,6 +222,35 @@ test('saved terminal provider remains unchanged until an explicit save and draft
   expect(state.writes).toEqual([]);
 });
 
+for(const locale of ["en","ja"]) for(const width of [320,768]) test(`editing payment preferences clears stale success ${locale} ${width}`,async({page})=>{
+ await page.setViewportSize({width,height:900});
+ const state=await fixture(page,{direct:true});
+ await expandLegacyControls(page);
+ if(locale==='ja') {
+  if(width<=768)await page.getByRole('button',{name:'Navigation menu',exact:true}).click();
+  await page.getByRole('switch').click();
+  await page.keyboard.press('Escape');
+ }
+ const ja=locale==='ja';
+ const save=page.getByRole('button',{name:ja?'設定の希望を保存':'Save setup preferences',exact:true});
+ const saved=page.getByText(ja?'希望を保存しました。決済はまだ有効ではありません。':'Preferences saved. Payments are not enabled.',{exact:true});
+ const edits=[
+  ()=>page.getByRole('combobox',{name:ja?'現在または検討中の決済会社':'Current or proposed provider',exact:true}).selectOption('square'),
+  ()=>page.getByRole('combobox',{name:ja?'決済方式':'Payment channel',exact:true}).selectOption('terminal'),
+  ()=>page.getByRole('checkbox',{name:ja?'カード':'Cards',exact:true}).check(),
+  ()=>page.getByRole('button',{name:ja?'Stripeのオンライン設定を選択':'Choose Stripe online setup',exact:true}).click(),
+ ];
+ for(const edit of edits){
+  await save.click();await expect(saved).toBeVisible();
+  const writes=state.writes.length;await edit();await expect(saved).toHaveCount(0);
+  expect(state.writes).toHaveLength(writes);
+ }
+ state.writeStatus=503;await save.click();
+ await expect(page.getByRole('button',{name:ja?'保存した設定を再読み込み':'Reload saved setup',exact:true})).toBeVisible();
+ await expect(save).toBeDisabled();
+ await expect(page.getByRole('combobox',{name:ja?'決済方式':'Payment channel',exact:true})).toBeDisabled();
+});
+
 for (const locale of ['en', 'ja']) test(`owner saves terminal identification only, ${locale}, 320px`, async ({ page }, testInfo) => {
  await page.setViewportSize({ width: 320, height: 844 });
  const state = await fixture(page);
@@ -239,6 +268,10 @@ for (const locale of ['en', 'ja']) test(`owner saves terminal identification onl
  await expect.poll(() => state.writes.length).toBe(1);
  expect(state.writes[0]).toEqual({ provider: 'unknown', channel: 'online', methods: [], revision: 0, terminal_model: 'vega3000_mx', terminal_connection: 'wifi' });
  await expect(page.getByText(locale === 'ja' ? '端末メモを保存しました。接続や決済の有効化は行っていません。' : 'Terminal notes saved. Nothing was connected or enabled.', { exact: true })).toBeVisible();
+ const savedNotice = page.getByText(locale === 'ja' ? '端末メモを保存しました。接続や決済の有効化は行っていません。' : 'Terminal notes saved. Nothing was connected or enabled.', { exact: true });
+ const localizedModel = page.getByRole('combobox', { name: locale === 'ja' ? '端末の機種' : 'Terminal model', exact: true });
+ await localizedModel.selectOption('vega3000_mx'); await expect(savedNotice).toBeVisible();
+ await localizedModel.selectOption('unknown'); await expect(savedNotice).toHaveCount(0); expect(state.writes).toHaveLength(1);
  await page.reload(); await expandLegacyControls(page);
  await expect(page.getByRole('combobox', { name: locale === 'ja' ? '端末の機種' : 'Terminal model', exact: true })).toHaveValue('vega3000_mx');
  expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true);
@@ -279,7 +312,7 @@ for (const locale of ['en', 'ja']) for (const plan of Object.keys(planNames)) te
  await expect(guide.getByRole('button')).toHaveCount(3);
  if (plan === 'advanced_stripe') await guide.getByText(locale === 'ja' ? 'ほかの方法・Stripe（開発が必要）' : 'More options · Stripe (more setup work)', { exact: true }).click();
  const card = guide.getByRole('article', { name: planNames[plan][locale === 'ja' ? 1 : 0], exact: true });
- const choose = card.getByRole('button'); await choose.focus(); await page.keyboard.press('Space');
+ const choose = card.locator('button[aria-pressed]'); await choose.focus(); await page.keyboard.press('Space');
  await expect(choose).toHaveAttribute('aria-pressed', 'true');
  expect(state.writes).toHaveLength(0);
  if (plan === 'phone_square') await page.screenshot({ path: testInfo.outputPath('payment-options.png'), fullPage: true });
@@ -291,7 +324,41 @@ for (const locale of ['en', 'ja']) for (const plan of Object.keys(planNames)) te
  await page.reload();
  const reloaded = page.getByRole('region', { name: locale === 'ja' ? '支払い方法の選び方' : 'Choose a payment approach', exact: true });
  if (plan === 'advanced_stripe') await reloaded.getByText(locale === 'ja' ? 'ほかの方法・Stripe（開発が必要） — 選択中' : 'More options · Stripe (more setup work) — selected', { exact: true }).click();
- await expect(reloaded.getByRole('article', { name: planNames[plan][locale === 'ja' ? 1 : 0], exact: true }).getByRole('button')).toHaveAttribute('aria-pressed', 'true');
+ await expect(reloaded.getByRole('article', { name: planNames[plan][locale === 'ja' ? 1 : 0], exact: true }).locator('button[aria-pressed]')).toHaveAttribute('aria-pressed', 'true');
+});
+for (const locale of ['en', 'ja']) test(`changing a saved preference clearly remains unsaved, ${locale}`, async ({ page }, testInfo) => {
+ await page.setViewportSize({ width: 320, height: 844 });
+ const state = await fixture(page, { showAdvanced: false });
+ if (locale === 'ja') await page.evaluate(() => { localStorage.setItem('barticket_locale', 'ja'); dispatchEvent(new Event('barticket-locale')); });
+ const ja = locale === 'ja';
+ const guide = page.getByRole('region', { name: ja ? '支払い方法の選び方' : 'Choose a payment approach', exact: true });
+ const choice = plan => guide.getByRole('article', { name: planNames[plan][ja ? 1 : 0], exact: true }).locator('button[aria-pressed]');
+ const save = page.getByRole('button', { name: ja ? '希望する方法を保存' : 'Save preferred option', exact: true });
+ const saved = page.getByText(ja ? '希望を保存しました。決済会社や決済設定は変更していません。まだ接続されていません。' : 'Preference saved. No provider or payment settings were changed; nothing is connected.', { exact: true });
+ const unsaved = page.getByText(ja ? 'この選択はまだ保存されていません。「希望する方法を保存」で保存してください。' : 'This choice is not saved yet. Choose Save preferred option to keep it.', { exact: true });
+ await choice('current_jms').click(); await expect(unsaved).toBeVisible(); await save.click(); await expect(saved).toBeVisible(); await expect(unsaved).toHaveCount(0);
+ await expect(save).toBeDisabled();
+ await choice('current_jms').click(); await expect(saved).toBeVisible(); await expect(unsaved).toHaveCount(0); await expect(save).toBeDisabled();
+ expect(state.writes).toHaveLength(1);
+ await choice('phone_square').click(); await expect(saved).toHaveCount(0); await expect(unsaved).toBeVisible();
+ const selectedCard = guide.getByRole('article', { name: planNames.phone_square[ja ? 1 : 0], exact: true });
+ await expect(selectedCard.getByRole('status')).toHaveText(await unsaved.textContent());
+ await expect(selectedCard.getByRole('button', { name: ja ? '希望する方法を保存' : 'Save preferred option', exact: true })).toBeEnabled();
+ const chooseBounds = await choice('phone_square').boundingBox();
+ const cueBounds = await unsaved.boundingBox(); const saveBounds = await save.boundingBox();
+ expect(cueBounds.y - (chooseBounds.y + chooseBounds.height)).toBeLessThan(40);
+ expect(saveBounds.y + saveBounds.height - chooseBounds.y).toBeLessThan(300);
+ await choice('phone_square').scrollIntoViewIfNeeded();
+ await expect(unsaved).toBeInViewport(); await expect(save).toBeInViewport();
+ await page.screenshot({ path: testInfo.outputPath("payment-options-unsaved.png") });
+ expect(state.writes).toHaveLength(1); expect(state.saved.payment_plan).toBe('current_jms');
+ await choice('current_jms').click(); await expect(unsaved).toHaveCount(0); await expect(save).toBeDisabled(); expect(state.writes).toHaveLength(1);
+ await choice('phone_square').click(); await expect(unsaved).toBeVisible();
+ await page.reload(); await expect(choice('current_jms')).toHaveAttribute('aria-pressed', 'true'); await expect(unsaved).toHaveCount(0);
+ await choice('current_jms').click(); await expect(save).toBeDisabled(); await expect(unsaved).toHaveCount(0); expect(state.writes).toHaveLength(1);
+ await choice('phone_square').click(); await save.click(); await expect(saved).toBeVisible(); await expect(unsaved).toHaveCount(0);
+ expect(state.writes).toHaveLength(2); expect(state.saved.payment_plan).toBe('phone_square');
+ expect(state.saved.provider).toBe('unknown'); expect(state.saved.processing_status).toBe('not_connected');
 });
 test('nonowner sees the simple comparison without private requests or save controls', async ({ page }) => {
  const state = await fixture(page, { canConfigure: false, accountId: 901, direct: true, showAdvanced: false });
@@ -301,27 +368,42 @@ test('nonowner sees the simple comparison without private requests or save contr
  await expect(guide).toContainText('Which is cheapest? Not known yet.');
  expect(state.reads).toBe(0); expect(state.writes).toHaveLength(0);
 });
-test('uncertain preference save locks further edits until a fresh read', async ({ page }) => {
+for (const locale of ['en', 'ja']) test(`uncertain preference save locks further edits until a fresh read, ${locale}`, async ({ page }, testInfo) => {
+ await page.setViewportSize({ width: 320, height: 844 });
  const state = await fixture(page, { showAdvanced: false });
- const guide = page.getByRole('region', { name: 'Choose a payment approach', exact: true });
- await guide.getByRole('article', { name: planNames.phone_square[0], exact: true }).getByRole('button').click();
- state.writeStatus = 409;
- await page.getByRole('button', { name: 'Save preferred option', exact: true }).click();
- await expect(page.getByRole('alert')).toContainText('Save could not be confirmed');
- await expect(page.getByRole('button', { name: 'Save preferred option', exact: true })).toBeDisabled();
- await expect(guide.getByRole('article', { name: planNames.current_jms[0], exact: true }).getByRole('button')).toBeDisabled();
+ const ja = locale === 'ja';
+ if (ja) await page.evaluate(() => { localStorage.setItem('barticket_locale', 'ja'); dispatchEvent(new Event('barticket-locale')); });
+ const guide = page.getByRole('region', { name: ja ? '支払い方法の選び方' : 'Choose a payment approach', exact: true });
+ const choice = plan => guide.getByRole('article', { name: planNames[plan][ja ? 1 : 0], exact: true }).locator('button[aria-pressed]');
+ const save = page.getByRole('button', { name: ja ? '希望する方法を保存' : 'Save preferred option', exact: true });
+ await choice('phone_square').click(); state.writeStatus = 409; await save.click();
+ await expect(page.getByRole('alert')).toBeInViewport();
+ await expect(page.getByRole('button', { name: ja ? '保存した設定を再読み込み' : 'Reload saved setup', exact: true })).toBeInViewport();
+ await page.screenshot({ path: testInfo.outputPath('payment-options-uncertain.png') });
+ await expect(page.getByRole('alert')).toContainText(ja ? '保存を確認できません' : 'Save could not be confirmed');
+ await expect(save).toBeDisabled(); await expect(choice('current_jms')).toBeDisabled();
+ await choice('current_jms').evaluate(el => el.click());
+ await expect(choice('phone_square')).toHaveAttribute('aria-pressed', 'true');
+ await expect(page.getByRole('alert')).toContainText(ja ? '保存を確認できません' : 'Save could not be confirmed');
  expect(state.writes).toHaveLength(1);
+ state.writeStatus = 200;
+ await page.getByRole('button', { name: ja ? '保存した設定を再読み込み' : 'Reload saved setup', exact: true }).click();
+ await expect(page.getByRole('alert')).toHaveCount(0); await expect(save).toBeDisabled();
+ expect(state.writes).toHaveLength(1);
+ await choice('current_jms').click(); await save.click();
+ await expect(page.getByText(ja ? '希望を保存しました。決済会社や決済設定は変更していません。まだ接続されていません。' : 'Preference saved. No provider or payment settings were changed; nothing is connected.', { exact: true })).toBeVisible();
+ expect(state.writes).toHaveLength(2); expect(state.saved.processing_status).toBe('not_connected');
 });
 
-for (const width of [320, 1280]) for (const theme of ['dark', 'light']) test(`simple Japanese comparison layout, ${width}px, ${theme}`, async ({ page }, testInfo) => {
+for (const locale of ['en', 'ja']) for (const width of [320, 390, 768, 1280]) for (const theme of ['dark', 'light']) test(`simple comparison layout, ${locale}, ${width}px, ${theme}`, async ({ page }, testInfo) => {
  await page.setViewportSize({ width, height: 844 });
  const state = await fixture(page, { showAdvanced: false });
- await page.evaluate(theme => { localStorage.setItem('barticket_locale', 'ja'); dispatchEvent(new Event('barticket-locale')); document.documentElement.classList.toggle('light', theme === 'light'); }, theme);
- const guide = page.getByRole('region', { name: '支払い方法の選び方', exact: true });
+ await page.evaluate(({theme, locale}) => { localStorage.setItem('barticket_locale', locale); dispatchEvent(new Event('barticket-locale')); document.documentElement.classList.toggle('light', theme === 'light'); }, {theme, locale});
+ const guide = page.getByRole('region', { name: locale === 'ja' ? '支払い方法の選び方' : 'Choose a payment approach', exact: true });
  await expect(guide.getByRole('button')).toHaveCount(3);
- await expect(page.getByRole('combobox', { name: '現在または検討中の決済会社', exact: true })).not.toBeVisible();
+ await expect(page.getByRole('combobox', { name: locale === 'ja' ? '現在または検討中の決済会社' : 'Current or proposed provider', exact: true })).not.toBeVisible();
  expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true);
  expect(await guide.evaluate(el => [...el.querySelectorAll('article')].filter(node => node.getBoundingClientRect().width > 0).every(node => node.getBoundingClientRect().right <= innerWidth))).toBe(true);
- await page.screenshot({ path: testInfo.outputPath(`payment-options-${theme}-${width}.png`), fullPage: true });
+ await page.screenshot({ path: testInfo.outputPath(`payment-options-${locale}-${theme}-${width}.png`), fullPage: true });
  expect(state.writes).toHaveLength(0);
 });

@@ -320,9 +320,9 @@ test("Japanese add-item controls expose localized names and failure guidance",as
   state.delayTicketCreate=false;
   await page.getByRole("button",{name:"商品を追加"}).click();
   const dialog=page.getByRole("dialog");
-  await dialog.getByRole("button",{name:"¥700",exact:true}).first().click();
-  await expect(dialog.getByRole("button",{name:"数量を減らす"})).toBeVisible();
-  await expect(dialog.getByRole("button",{name:"数量を増やす"})).toBeVisible();
+  await dialog.getByRole("button",{name:/Highball.*¥700/}).first().click();
+  await expect(dialog.getByRole("button",{name:/Highball.*数量を減らす/})).toBeVisible();
+  await expect(dialog.getByRole("button",{name:/Highball.*数量を増やす/})).toBeVisible();
   state.failNextItem=true;
   await dialog.getByRole("button",{name:/保存/}).click();
   await expect(dialog.getByRole("alert")).toContainText("未確認");
@@ -352,8 +352,8 @@ test("partial multi-item failure leaves unresolved items visible without automat
   await expect(dialog).toBeVisible();
   // Regression: this click must be a real pointer hit, not force:true.
   // Earlier a sticky "All drinks" heading intercepted the price button.
-  await dialog.getByRole("button",{name:"¥700",exact:true}).first().click();
-  await dialog.getByRole("button",{name:"¥600",exact:true}).first().click();
+  await dialog.getByRole("button",{name:/Highball.*¥700/}).first().click();
+  await dialog.getByRole("button",{name:/Lemon Sour.*¥600/}).first().click();
   await dialog.getByRole("button",{name:/Save \(2\)/}).click();
   await expect.poll(()=>state.itemPosts).toBe(2);
   await expect(dialog.getByRole("alert")).toContainText(/unconfirmed/);
@@ -803,7 +803,7 @@ test("mobile picker traps focus and contains scroll; keyboard dismissal restores
 
   const first=dialog.locator("button").first();
   await page.keyboard.press("Shift+Tab");
-  await expect(dialog.getByRole("button",{name:"¥723",exact:true})).toBeFocused();
+  await expect(dialog.getByRole("button",{name:/¥723/})).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(first).toBeFocused();
 
@@ -1077,4 +1077,96 @@ test('ticket action cues: mobile reduced motion keeps Japanese text and partial 
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button',{name:/チケットを閉じる/})).toBeVisible();
+});
+
+for(const width of [390,1280]) for(const locale of ['en','ja']) test(`dirty add-drink round survives accidental dismissal: ${locale} ${width}px`,async({page},testInfo)=>{
+ await page.setViewportSize({width,height:844});
+ const state=await mockedPOS(page,{locale});
+ state.activeMenu.items.push({id:4,name:'Same price whisky',category:'Whisky',prices:{'15ml':700,'30ml':900},inStock:true});
+ await page.goto('/tickets');await page.getByRole('button',{name:/Test Walk-in/}).first().click();
+ const trigger=page.getByRole('button',{name:locale==='ja'?'商品を追加':'Add Item',exact:true});await trigger.click();
+ const dialog=page.getByRole('dialog');
+ await dialog.getByRole('button',{name:/Highball.*¥700/}).click();
+ const sizedDrink=dialog.getByRole('button',{name:/Same price whisky 15ml.*¥700/});
+ await sizedDrink.focus();await sizedDrink.press('Enter');
+ const overlay=dialog.locator('..');
+ const answerDiscard=async(action,accept=false)=>{
+  // Await a real confirmation for every attempted close; an unconsumed once-listener
+  // must not silently dismiss a later explicit discard.
+  const handled=page.waitForEvent('dialog').then(async prompt=>{
+   expect(prompt.type()).toBe('confirm');
+   expect(prompt.message()).toContain(locale==='ja'?'選択したドリンクを破棄':'Discard the selected drinks');
+   if(accept)await prompt.accept();else await prompt.dismiss();
+  });
+  await Promise.all([handled,action()]);
+ };
+ if(width<768){
+  // The phone dialog fills the viewport: (1,1) hits its content, not an exposed backdrop.
+  expect(await overlay.evaluate(node=>document.elementFromPoint(1,1)===node)).toBe(false);
+ }
+ const attemptBackdrop=()=>width<768
+  ? overlay.dispatchEvent('click') // Guard contract only; no reachable phone backdrop is claimed.
+  : overlay.click({position:{x:1,y:1}}); // Real pointer dismissal on desktop.
+ for(const dismiss of [()=>page.keyboard.press('Escape'),()=>dialog.locator('button').first().click(),attemptBackdrop]){
+  await answerDiscard(dismiss);await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button',{name:locale==='ja'?/Highball.*数量を増やす/:/Increase quantity of Highball/})).toBeVisible();
+ }
+ expect(state.itemPosts).toBe(0);
+ await page.screenshot({path:testInfo.outputPath(`audit-dirty-discard-retained-${locale}-${width}.png`)});
+ await answerDiscard(()=>page.keyboard.press('Escape'),true);await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();
+ await trigger.click();await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
+});
+
+
+for(const width of [390,1280]) for(const locale of ['en','ja']) test(`checkout pending dismissal and uncertain reopen preserve exact intent through settled replay: ${locale} ${width}px`,async({page},testInfo)=>{
+ const ja=locale==='ja';await page.setViewportSize({width,height:844});
+ const state=await mockedPOS(page,{locale});const requests=[];let release,collections=0;
+ const firstResponse=new Promise(resolve=>{release=resolve;});
+ await page.route(MOCK_ORIGIN+'/tickets/11/pay',async route=>{
+  const req=route.request();if(req.method()==='OPTIONS')return route.fallback();
+  const headers={'Access-Control-Allow-Origin':'*'};
+  requests.push({body:req.postDataJSON(),key:req.headers()['idempotency-key']});
+  if(requests.length===1){
+   await firstResponse;
+   return route.fulfill({status:503,json:{detail:'Fixture uncertain response before collection'},headers});
+  }
+  if(requests.length===2){
+   collections++;
+   Object.assign(state.tickets[0],{status:'paid',balance_due:0,amount_paid:700,settlement_status:'settled',paid_at:now(),payment:{type:req.postDataJSON().method,amount:700,paid_at:now()}});
+   return route.fulfill({status:503,json:{detail:'Fixture response lost after collection'},headers});
+  }
+  // The backend's replay precedes closed-ticket validation; no second collection.
+  expect(requests.at(-1)).toEqual(requests[0]);
+  return route.fulfill({json:state.tickets[0],headers});
+ });
+ await page.goto('/tickets');
+ if(width<769)await page.getByRole('button',{name:/Test Walk-in/}).first().click();
+ const reopenPayment=async()=>{
+  await page.getByRole('button',{name:ja?'チケットを閉じる':'Close ticket',exact:true}).click();
+  await page.getByRole('button',{name:ja?'会計':'Take Payment',exact:true}).click();
+  return page.getByRole('dialog');
+ };
+ let dialog=await reopenPayment();await dialog.locator('button').last().click();
+ await expect.poll(()=>requests.length).toBe(1);
+ await dialog.locator('button').first().click();await expect(dialog).toBeVisible();
+ await page.keyboard.press('Escape');await expect(dialog).toBeVisible();
+ await dialog.locator('..').click({position:{x:1,y:1}});await expect(dialog).toBeVisible();
+ expect(requests).toHaveLength(1);release();await expect(dialog.getByRole('alert')).toBeVisible();
+ await expect(dialog.locator('button').last()).toBeEnabled();
+ await expect(dialog.locator('button').last()).toHaveCSS('filter','none');
+ await expect(dialog.locator('button').last()).toHaveCSS('opacity','1');
+ await page.screenshot({path:testInfo.outputPath(`audit-checkout-uncertain-${locale}-${width}.png`)});
+ page.once('dialog',d=>d.dismiss());await page.keyboard.press('Escape');await expect(dialog).toBeVisible();
+ page.once('dialog',d=>d.accept());await dialog.getByRole('button',{name:ja?'閉じて伝票を確認':'Close and check ticket',exact:true}).click();
+ await expect(dialog).toHaveCount(0);
+ dialog=await reopenPayment();await dialog.locator('button').last().click();
+ await expect(dialog.getByRole('alert')).toBeVisible();expect(state.tickets[0].status).toBe('paid');
+ await dialog.locator('button').last().click();
+ await expect(dialog.getByRole('heading',{name:ja?'入金を記録しました':'Payment recorded'})).toBeVisible();
+ await expect(dialog.getByRole('status')).toContainText('¥0');
+ await expect(dialog.getByText(ja?'全額お支払い済み':'Fully settled',{exact:true})).toBeVisible();
+ await page.screenshot({path:testInfo.outputPath(`audit-checkout-settled-replay-${locale}-${width}.png`)});
+ expect(collections).toBe(1);expect(requests).toHaveLength(3);
+ expect(requests[1]).toEqual(requests[0]);expect(requests[2]).toEqual(requests[0]);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });

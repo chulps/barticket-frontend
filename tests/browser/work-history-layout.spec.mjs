@@ -1,7 +1,7 @@
 import {test, expect} from "@playwright/test";
 const API = "http://127.0.0.1:8765";
 
-async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
+async function fixture(page, {locale = "en", id = 7, incomplete = false, incompleteHours = false} = {}) {
   // Keep monthly fixtures and screenshots independent of the machine date.
   await page.clock.install({time:new Date("2026-10-31T00:00:00Z")});
   const calls = [];
@@ -23,7 +23,7 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
     else if(url.pathname === "/menu") body = {items:[]};
     else if(url.pathname === "/shifts/current") body = null;
     else if(url.pathname === "/notices") body = {notices:[]};
-    else if(url.pathname === "/profile/work-history") body = {user_id:id,shifts:[{shift_id:10,business_date:"2026-10-20",status:"closed",hours_seconds:7200,historical_hours_seconds:null,hours_basis:"time_clock",hours_state:"verified",clocked_in:false,drinks:[{name:"季節限定の国産柚子と香り豊かな生姜を使った特製ノンアルコールカクテル",quantity:2}]}]};
+    else if(url.pathname === "/profile/work-history") body = {user_id:id,shifts:[{shift_id:10,business_date:"2026-10-20",status:"closed",hours_seconds:incompleteHours?null:7200,historical_hours_seconds:null,hours_basis:"time_clock",hours_state:incompleteHours?"incomplete":"verified",clocked_in:false,drinks:[{name:"季節限定の国産柚子と香り豊かな生姜を使った特製ノンアルコールカクテル",quantity:2}]}]};
     else if(url.pathname === "/profile/earnings") body = {user_id:id,month,preview_only:true,note:"Estimate only, not paid wages.",categories:[
       {category:"hourly_wages",amount_yen_unrounded:incomplete ? null : "13000",complete:!incomplete,entries:[]},
       {category:"staff_drink_bonus",amount_yen:0,complete:true,entries:[]},
@@ -43,7 +43,7 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
 }
 
 
-for(const locale of ["en","ja"]) for(const width of [320,1280]) {
+for(const locale of ["en","ja"]) for(const width of [320,768,1280]) {
  test("work history compact periods and long Japanese records "+locale+" "+width,async({page},testInfo)=>{
   await page.setViewportSize({width,height:900});
   const calls=await fixture(page,{locale});
@@ -51,6 +51,12 @@ for(const locale of ["en","ja"]) for(const width of [320,1280]) {
   await page.getByRole("group",{name:ja?"プロフィール表示":"Profile sections"}).getByRole("button",{name:ja?"勤務履歴":"Work history",exact:true}).click();
   const periods=page.getByRole("group",{name:ja?"表示期間":"Time scale"});
   await expect(periods).toBeVisible();
+  await expect(periods.locator('button[aria-pressed="false"]').first()).toHaveCSS("color","rgb(178, 180, 185)");
+  await expect(page.getByText(ja?"記録された勤務時間":"Recorded hours",{exact:true})).toHaveCSS("color","rgb(178, 180, 185)");
+  if(width===320) {
+   const monthly=periods.getByRole("button",{name:ja?"月次":"Monthly",exact:true});
+   expect(await monthly.evaluate(button=>{const range=document.createRange();range.selectNodeContents(button);return range.getClientRects().length;})).toBe(1);
+  }
   const bounds=await periods.boundingBox();
   expect(bounds.width).toBeLessThan(400);
   for(const name of [ja?"年":"Year",ja?"月次":"Monthly",ja?"日次":"Daily",ja?"全期間":"All Time"]){
@@ -72,3 +78,15 @@ for(const locale of ["en","ja"]) for(const width of [320,1280]) {
   await page.screenshot({path:testInfo.outputPath("history.png"),fullPage:true});
  });
 }
+
+for(const locale of ['en','ja'])test(`incomplete work hours remain unknown rather than zero ${locale}`,async({page})=>{
+ await page.setViewportSize({width:320,height:900});
+ const calls=await fixture(page,{locale,incompleteHours:true});
+ const ja=locale==='ja';
+ await expect(page.getByText(ja?'打刻時間が不完全':'Incomplete punch',{exact:false})).toBeVisible();
+ const metric=page.getByText(ja?'記録された勤務時間':'Recorded hours',{exact:true}).locator('..');
+ await expect(metric.locator('strong')).toHaveText('—');
+ await page.getByText(ja?'記録について':'About these records',{exact:true}).click();
+ await expect(page.getByRole('note')).toContainText(ja?'0とは異なります':'not zero');
+ expect(calls.filter(call=>!call.startsWith('GET '))).toEqual([]);
+});

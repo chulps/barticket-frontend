@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {runInNewContext} from 'node:vm';import ts from 'typescript';
 function module(name,imports={}){const m={exports:{}};runInNewContext(ts.transpileModule(readFileSync(new URL(`../src/api/${name}.ts`,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:m,exports:m.exports,require:p=>imports[p]});return m.exports;}
-const policy=module('notificationActivity'),item=id=>({id,type:'ticket_created',at:1793480000,ticket_id:id,stock_notice_id:null}),empty={shiftId:null,items:[],received:false,connected:false};
+const policy=module('notificationActivity'),item=id=>({id,type:'ticket_created',at:1793480000,ticket_id:id,stock_notice_id:null}),empty={shiftId:null,items:[],received:false,connected:false,hasMore:false};
 const frame=(items,extra={})=>({type:'activity',version:1,cursor:1,shift_id:4,reset:true,items,has_more:false,...extra});
 test('live snapshots and deltas are bounded, ordered and deduplicated',()=>{
  let state=policy.applyActivityFrame(empty,frame(Array.from({length:200},(_,i)=>item(i+1))));
@@ -47,4 +47,19 @@ test('reconnect transport ready cannot bless retained rows before a negotiated r
  assert.equal(store.getActivitySnapshot().connected,false);assert.equal(store.getActivitySnapshot().items[0].id,1);
  store.receiveNotificationActivity(frame([],{shift_id:null,cursor:0}),'one');
  assert.equal(store.getActivitySnapshot().connected,true);assert.equal(store.getActivitySnapshot().items.length,0);
+});
+
+test('recent-only disclosure retains server truncation and local eviction, not duplicate delivery',()=>{
+ let state=policy.applyActivityFrame(empty,frame([item(1)],{has_more:true}));assert.equal(state.hasMore,true);
+ state=policy.applyActivityFrame(state,frame([item(2)],{reset:false}));assert.equal(state.hasMore,true);
+ state=policy.applyActivityFrame(state,frame(Array.from({length:200},(_,i)=>item(i+1))));assert.equal(state.hasMore,false);
+ state=policy.applyActivityFrame(state,frame([item(200)],{reset:false}));assert.equal(state.hasMore,false);
+ state=policy.applyActivityFrame(state,frame([item(201)],{reset:false}));assert.equal(state.hasMore,true);assert.equal(state.items.length,200);
+ state=policy.applyActivityFrame(state,frame([],{shift_id:null}));assert.equal(state.hasMore,false);
+ const store=module('notificationActivityStore',{'./notificationActivity':policy});
+ store.receiveNotificationActivity(frame([item(1)],{has_more:true}),'one');
+ store.activityConnectionChanged(false);assert.equal(store.getActivitySnapshot().hasMore,true);
+ store.receiveNotificationActivity(frame([item(2)],{cursor:0}),'one');assert.equal(store.getActivitySnapshot().hasMore,false);
+ store.receiveNotificationActivity(frame([item(3)],{cursor:1,has_more:true}),'one');
+ store.resetActivityAccount('two');assert.equal(store.getActivitySnapshot().hasMore,false);
 });

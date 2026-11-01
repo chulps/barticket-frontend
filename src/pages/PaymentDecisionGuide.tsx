@@ -1,4 +1,5 @@
 import styled from "styled-components";
+import type { ReactNode } from "react";
 import type { PaymentPlan } from "./paymentPlans";
 
 type Props = {
@@ -6,15 +7,16 @@ type Props = {
     selected?: PaymentPlan | null;
     onSelect?: (plan: PaymentPlan) => void;
     disabled?: boolean;
+    selectionFooter?: ReactNode;
 };
 
 /** Public-to-managers comparison only: never fetches or writes saved settings. */
-export default function PaymentDecisionGuide({ ja, selected = null, onSelect, disabled = false }: Props) {
+export default function PaymentDecisionGuide({ ja, selected = null, onSelect, disabled = false, selectionFooter }: Props) {
     const t = (en: string, jp: string) => ja ? jp : en;
-    const choose = (plan: PaymentPlan) => onSelect ? <Choose type="button" disabled={disabled}
+    const choose = (plan: PaymentPlan) => onSelect ? <><Choose type="button" disabled={disabled}
         aria-pressed={selected === plan} onClick={() => onSelect(plan)}>
         {selected === plan ? t("Selected preference", "この方法を選択中") : t("Choose this preference", "この方法を希望する")}
-    </Choose> : null;
+    </Choose>{selected === plan ? selectionFooter : null}</> : null;
     return <Guide aria-label={t("Choose a payment approach", "支払い方法の選び方")}>
         <header>
             <h3>{t("What fits the bar best?", "お店には、どの方法が合う？")}</h3>

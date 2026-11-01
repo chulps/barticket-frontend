@@ -50,6 +50,7 @@ export default function Menu({
   const { t, locale } = useI18n();
   const retryMenu = () => window.dispatchEvent(new Event("barticket-retry-menu"));
   const { openModal } = useModal();
+  const [stockErrors, setStockErrors] = useState<MenuItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [archivedMode, setArchivedMode] = useState(false);
   const [archivedItems, setArchivedItems] = useState<MenuItem[]>([]);
@@ -109,11 +110,14 @@ export default function Menu({
     try {
       const saved = await onToggleStock(item);
       if (saved) {
+        setStockErrors(items => items.filter(row => row.id !== item.id));
         window.dispatchEvent(new Event("barticket-notices"));
         notifyMutation("success", locale === "ja" ? "在庫状況を更新しました" : "Stock status updated");
       }
     } catch {
-      notifyMutation("error", locale === "ja" ? "在庫状況を更新できませんでした" : t("stockUpdateFailed"));
+      // A failed response can leave the server outcome unknown. Do not replay a toggle.
+      setStockErrors(items => [...items.filter(row => row.id !== item.id), item]);
+      notifyMutation("error", locale === "ja" ? "在庫の更新を確認できませんでした。メニュー上部の案内を確認してください。" : "Stock update could not be confirmed. See the recovery notice above the menu.");
     }
   }
 
@@ -141,12 +145,17 @@ export default function Menu({
     ].some(value => menuHaystack(value).toLowerCase().includes(archiveSearch))
   );
 
+  const websiteLink = !authenticated ? (
+    <WebsiteLink href="https://www.rockbarfxxkup.com/">rockbarfxxkup.com</WebsiteLink>
+  ) : null;
+
   if (loadingMenu) {
-    return <main><RequestState kind="loading" detail={t("loading")} /></main>;
+    return <main>{websiteLink}<RequestState kind="loading" detail={t("loading")} /></main>;
   }
 
   if (!menu) {
     return <main>
+      {websiteLink}
       <h2>{t("drinkMenu")}</h2>
       <RequestState kind={menuError ? "error" : "empty"}
         detail={menuError
@@ -183,12 +192,21 @@ export default function Menu({
 
   return (
     <main>
+      {websiteLink}
       {menuError ? (
         <LoadWarning role="alert">
           {locale === "ja" ? "メニューの更新に失敗しました。表示中の情報が古い可能性があります。" : "Menu refresh failed; displayed prices or stock may be outdated."}
           <button type="button" className="small hollow secondary" onClick={retryMenu}>{locale === "ja" ? "再試行" : "Retry"}</button>
         </LoadWarning>
       ) : null}
+      {authenticated && stockErrors.length > 0 ? <LoadWarning role="alert">
+        <div>
+          <p>{locale === "ja" ? "在庫の更新を確認できませんでした。メニューを再読み込みし、在庫状況を確認してから再試行してください。" : "Could not confirm the stock update. Refresh the menu and check stock before trying again."}</p>
+          <ul>{stockErrors.map(item => <li key={item.id}>{menuLabel(locale, item.name)}</li>)}</ul>
+        </div>
+        <button type="button" className="small hollow secondary" onClick={retryMenu}>{locale === "ja" ? "メニューを再読み込み" : "Refresh menu"}</button>
+        <button type="button" className="small hollow secondary" onClick={() => setStockErrors([])}>{locale === "ja" ? "閉じる" : "Dismiss"}</button>
+      </LoadWarning> : null}
       <MenuHeader>
         <h2>{t("drinkMenu")}</h2>
         {authenticated ? <HeaderActions>
@@ -275,6 +293,21 @@ export default function Menu({
 }
 
 
+const WebsiteLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
+  color: var(--neutral-200);
+  font-size: var(--font-size-label);
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+
+  &:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+  @media (hover: hover) { &:hover { color: var(--neutral-050); } }
+`;
+
 const StickySearch = styled.div`
   position: sticky;
   top: 64px;
@@ -340,7 +373,9 @@ const LoadWarning = styled.div`
   padding: var(--space-2);
   border: 1px solid var(--danger-500);
   border-radius: var(--space-1);
-  button { width: auto; }
+  min-width: 0;
+  overflow-wrap: anywhere;
+  button { width: auto; min-height: 44px; }
 `;
 
 

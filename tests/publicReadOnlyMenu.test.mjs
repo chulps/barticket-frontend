@@ -42,3 +42,16 @@ test("Changed React files parse as TSX", () => {
         assert.deepEqual(parsed.parseDiagnostics.map(d => d.messageText), [], name);
     }
 });
+
+test("Guest menu exposes a small native website link in every menu state", () => {
+    assert.match(menu, /const websiteLink = !authenticated \? \(/);
+    assert.match(menu, /<WebsiteLink href="https:\/\/www\.rockbarfxxkup\.com\/">rockbarfxxkup\.com<\/WebsiteLink>/);
+    assert.match(menu, /const WebsiteLink = styled\.a`/);
+    assert.match(menu, /font-size: var\(--font-size-label\)/);
+    assert.match(menu, /min-height: 44px/);
+    assert.match(menu, /overflow-wrap: anywhere/);
+    assert.equal((menu.match(/\{websiteLink\}/g) ?? []).length, 3, "loaded, loading and unavailable states retain the link");
+    assert.ok(menu.indexOf("{websiteLink}", menu.indexOf("  return (")) < menu.indexOf("<MenuHeader>"));
+    const link = menu.slice(menu.indexOf("const websiteLink"), menu.indexOf("if (loadingMenu)"));
+    assert.doesNotMatch(link, /onClick|nofollow|<label|target=/);
+});

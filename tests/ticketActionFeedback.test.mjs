@@ -33,7 +33,7 @@ test('feedback lives outside data refresh and never remounts the detail ticket',
   assert.doesNotMatch(hooks,/confirmAction|confirmedTicketCue/);
   assert.match(dash,/key=\{selectedTicket.id\}/);
   assert.match(dash,/setActiveTab\(saved.status\)/);
-  assert.match(dash,/if \(!saved\) return false;\s*confirmAction\("paid", saved\)/);
+  assert.match(dash,/if \(!saved \|\| paymentSession.current !== startedSession\) return null;\s*if \(paymentView.current !== startedView\) return saved;\s*confirmAction\("paid", saved\)/);
   const css=readFileSync(new URL('../src/components/TicketActionFeedback.css',import.meta.url),'utf8');
   assert.match(css,/pointer-events: none/);
   assert.match(css,/prefers-reduced-motion: reduce/);

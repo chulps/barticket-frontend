@@ -1,3 +1,4 @@
+import {assertTabContrast} from "./helpers/tab-contrast.mjs";
 import {test,expect} from "@playwright/test";
 
 const people=[
@@ -98,4 +99,89 @@ test("Admin legacy Overview never bypasses the manager guard",async({page})=>{
  await expect(page).toHaveURL(/\/profile$/);
  await expect(page.getByRole("navigation",{name:"Admin sections"})).toHaveCount(0);
  expect(requests.some(r=>r.path==="/users" || r.method!=="GET")).toBe(false);
+});
+
+// Same component and neutral visual contract as Analytics, including at the
+// two-column breakpoint. All requests stay synthetic/read-only in mockTeam.
+for (const locale of ["en", "ja"]) for (const width of [570, 768, 1280]) {
+ test(`Admin shared tab states stay neutral and aligned: ${locale} ${width}`, async ({page}, testInfo) => {
+  const ja = locale === "ja", requests = await mockTeam(page, locale);
+  await page.setViewportSize({width, height:900});
+  await page.goto("/admin");
+  const nav = page.getByRole("navigation", {name:ja ? "管理セクション" : "Admin sections"});
+  const tabs = nav.getByRole("group", {name:ja ? "管理セクション" : "Admin sections", exact:true});
+  const buttons = tabs.getByRole("button");
+  await expect(buttons).toHaveCount(6);
+  const indicator = tabs.locator("[data-tab-indicator]");
+  const align = async () => {
+   await expect(indicator).toBeVisible();
+   await expect.poll(() => tabs.evaluate(el => {
+    const active = el.querySelector('[aria-pressed="true"]').getBoundingClientRect();
+    const selected = el.querySelector('[data-tab-indicator]').getBoundingClientRect();
+    return Math.max(...['left','top','right','bottom'].map(k => Math.abs(active[k] - selected[k])));
+   })).toBeLessThan(0.6);
+  };
+  await align();
+  expect(await tabs.evaluate(el => {
+   const track = el.firstElementChild, columns = getComputedStyle(track).gridTemplateColumns.split(' ').length;
+   return {columns, overflow:el.scrollWidth > el.clientWidth + 1,
+    labelsFit:[...track.querySelectorAll('button')].every(b => b.scrollWidth <= b.clientWidth + 1 && b.scrollHeight <= b.clientHeight + 1)};
+  })).toMatchObject({columns:width < 640 ? 2 : width < 1000 ? 3 : 6, overflow:false, labelsFit:true});
+  // Compare resolved colors rather than a token's authored notation (hex/rgb).
+  const neutral = await tabs.evaluate(el => {
+   const probe = document.createElement('span'); probe.style.color = 'var(--neutral-800)'; el.append(probe);
+   const expected = getComputedStyle(probe).color; probe.remove(); return expected;
+  });
+  await expect(indicator).toHaveCSS('background-color', neutral);
+  await buttons.nth(1).hover();
+  await expect(buttons.nth(1)).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(buttons.nth(1)).toHaveCSS('transform', 'none');
+  await buttons.nth(1).click(); await align();
+  await expect(buttons.nth(1)).toHaveAttribute('aria-pressed','true');
+  await page.goBack(); await align();
+  await expect(buttons.first()).toHaveAttribute('aria-pressed','true');
+  await buttons.first().press('ArrowRight');
+  await expect(buttons.nth(1)).toBeFocused();
+  await expect(buttons.nth(1)).toHaveCSS('outline-style','solid');
+  await align();
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await buttons.nth(1).press('Home'); await align();
+  await expect(indicator).toHaveCSS('transition-duration','0s');
+  // Primary actions are deliberately still blue; no global palette override.
+  const submit = page.locator('main form button[type="submit"]');
+  const primary = await submit.evaluate(el => {
+   const probe=document.createElement('span'); probe.style.color='var(--primary)'; el.append(probe);
+   const expected=getComputedStyle(probe).color;probe.remove();return expected;
+  });
+  await expect(submit).toHaveCSS('background-color', primary);
+  await page.screenshot({path:testInfo.outputPath(`audit-admin-tabs-${locale}-${width}.png`),fullPage:true});
+  await page.setViewportSize({width:320,height:812});
+  await expect(nav).toBeHidden();
+  const picker=page.getByRole('combobox',{name:ja?'管理メニュー':'Admin section',exact:true});
+  await expect(picker).toBeVisible(); await picker.selectOption('schedules');
+  await expect(picker).toHaveValue('schedules');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.setViewportSize({width:768,height:1024}); await align();
+  await expect(buttons.nth(3)).toHaveAttribute('aria-pressed','true');
+  expect(requests.some(r=>r.method!=="GET")).toBe(false);
+ });
+}
+
+for(const locale of ['en','ja'])for(const width of [320,768,1280])test(`Admin actual selector effective contrast ${locale} ${width}`,async({page},testInfo)=>{
+ await page.setViewportSize({width,height:900});
+ const requests=await mockTeam(page,locale);
+ await page.goto('/admin');
+ const ja=locale==='ja';
+ const nav=page.getByRole('navigation',{name:ja?'管理セクション':'Admin sections',exact:true});
+ if(width<570){
+  // Phones intentionally use a native selector; there is no visible TabGroup to certify.
+  await expect(nav).toBeHidden();
+  await expect(page.getByRole('combobox',{name:ja?'管理メニュー':'Admin section',exact:true})).toBeVisible();
+ }else{
+  const group=nav.getByRole('group');
+  await expect(group).toBeVisible();
+  await assertTabContrast(group,page);
+ }
+ expect(requests.some(request=>request.method!=='GET')).toBe(false);
+ await page.screenshot({path:testInfo.outputPath(`audit-admin-tab-contrast-${locale}-${width}.png`),fullPage:true});
 });

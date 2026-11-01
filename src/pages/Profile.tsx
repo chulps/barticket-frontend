@@ -23,6 +23,8 @@ export default function Profile() {
     const [busy, setBusy] = useState(false);
     const busyRef = useRef(false);
     const [name, setName] = useState("");
+    const [nameDraft, setNameDraft] = useState<string | null>(null);
+    const [nameSaveState, setNameSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [searchParams, setSearchParams] = useSearchParams();
@@ -76,9 +78,19 @@ export default function Profile() {
                 if (active()) setLoading(false);
             }
         }
+        function authChanged() {
+            setNameDraft(null);
+            setNameSaveState("idle");
+            setPassword("");
+            setAccount(null);
+            setLoading(true);
+            void load();
+        }
         load();
+        window.addEventListener("barticket-auth", authChanged);
         window.addEventListener("barticket-users-updated", load);
         return () => {
+            window.removeEventListener("barticket-auth", authChanged);
             window.removeEventListener("barticket-users-updated", load);
             cancelled = true;
         };
@@ -87,16 +99,36 @@ export default function Profile() {
     async function run(action: () => Promise<void>) {
         if (busyRef.current) return;
         busyRef.current = true;
+        const token = getToken();
         setBusy(true);
         setError("");
         try {
             await action();
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : translate(readLocale(), "somethingWrong"));
+            if (token === getToken()) setError(err instanceof ApiError ? err.message : translate(readLocale(), "somethingWrong"));
         } finally {
             busyRef.current = false;
             setBusy(false);
         }
+    }
+
+    function saveName() {
+        const next = (nameDraft ?? account?.name ?? "").trim();
+        if (!account || busyRef.current || !next || next === account.name) return;
+        const token = getToken();
+        setNameSaveState("saving");
+        void run(async () => {
+            try {
+                const updated = await accountApi.updateMe({ name: next });
+                if (token !== getToken()) return;
+                setAccount(updated);
+                setNameDraft(null);
+                setNameSaveState("saved");
+            } catch (err) {
+                if (token === getToken()) setNameSaveState("error");
+                throw err;
+            }
+        });
     }
 
     if (loading) return <Page $signedIn={false}><h1>{t("account")}</h1><RequestState kind="loading" detail={locale === "ja" ? "アカウントを読み込み中…" : "Loading account…"} /></Page>;
@@ -170,7 +202,7 @@ export default function Profile() {
                     {view === "history" ? <StaffWorkHistory key={account.id} userId={account.id} locale={locale} /> : null}
                     {view === "shift" ? <ShiftControls account={account} locale={locale} /> : null}
 
-                    {view === "account" ? <Section aria-label={locale === "ja" ? "アカウント設定" : "Account settings"}>
+                    {view === "account" ? <Section aria-busy={busy} aria-label={locale === "ja" ? "アカウント設定" : "Account settings"}>
                         <h2>{locale === "ja" ? "アカウント設定" : "Account settings"}</h2>
                         <Who>
                             <strong>{account.name}</strong>
@@ -180,22 +212,26 @@ export default function Profile() {
                         <label>
                             {t("name")}
                             <input
-                                defaultValue={account.name}
-                                onBlur={(event) => {
-                                    const next = event.target.value.trim();
-                                    if (next && next !== account.name) {
-                                        run(async () => {
-                                            const updated = await accountApi.updateMe({ name: next });
-                                            setAccount(updated);
-                                        });
-                                    }
-                                }}
+                                value={nameDraft ?? account.name}
+                                disabled={busy}
+                                aria-describedby="account-name-status"
+                                onChange={(event) => { setNameDraft(event.target.value); setNameSaveState("idle"); }}
+                                onBlur={saveName}
                             />
                         </label>
+                        <p id="account-name-status" role="status">
+                            {nameSaveState === "saving" ? (locale === "ja" ? "名前を保存中… 完了するまでお待ちください。" : "Saving name… Please wait before making another change.")
+                                : nameSaveState === "saved" ? (locale === "ja" ? "名前を保存しました。" : "Name saved.")
+                                : nameSaveState === "error" ? (locale === "ja" ? "名前は保存されていません。入力内容を確認して再試行してください。" : "Name not saved. Your edit is still here; review it and retry.")
+                                : (locale === "ja" ? "名前は入力欄を離れると自動保存されます。" : "Your name saves automatically when you leave the field.")}
+                        </p>
+                        {nameSaveState === "error" ? <button type="button" className="hollow secondary" disabled={busy} onClick={saveName}>{locale === "ja" ? "名前の保存を再試行" : "Retry saving name"}</button> : null}
+                        {busy && nameSaveState !== "saving" ? <p role="status">{locale === "ja" ? "処理中…" : "Working…"}</p> : null}
                         <label>
                             {t("newPassword")}
                             <input
                                 type="password"
+                                disabled={busy}
                                 value={password}
                                 onChange={(event) => setPassword(event.target.value)}
                             />
@@ -204,6 +240,7 @@ export default function Profile() {
                             <button
                                 type="button"
                                 className="secondary"
+                                disabled={busy}
                                 onClick={() =>
                                     run(async () => {
                                         await accountApi.updateMe({ password });
@@ -216,6 +253,7 @@ export default function Profile() {
                             <SignOutButton
                                 type="button"
                                 className="hollow"
+                                disabled={busy}
                                 onClick={() =>
                                     run(async () => {
                                         await accountApi.logout();

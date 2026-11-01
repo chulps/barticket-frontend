@@ -40,6 +40,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openModal = useCallback((options: ModalOptions) => {
+    if (guardRef.current && !guardRef.current()) return;
     guardRef.current = null;
     setModal(options);
   }, []);

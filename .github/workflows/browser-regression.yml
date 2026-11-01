@@ -74,6 +74,8 @@ jobs:
           path: |
             test-results/**/payment-guide-*.png
             test-results/**/payment-methods.png
+            test-results/**/payment-options*.png
+            test-results/**/terminal-identification*.png
           if-no-files-found: warn
           retention-days: 5
       - name: Build old/new deployment fixtures
