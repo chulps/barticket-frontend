@@ -1,3 +1,23 @@
+export type ManagedSalesPeriod = "month" | "year" | "all_time";
+export type ManagedShiftStatsReport = {
+    user_id: number;
+    month: string;
+    period: ManagedSalesPeriod;
+    basis: "original_service_business_date";
+    date_from: string | null;
+    date_to: string | null;
+    weekdays: { weekday: number; shift_count: number; sales_total_yen: number; average_sales_yen: number | null }[];
+    nights: { business_date: string; shift_id: number; sales_yen: number; guests: number; sales_source: "tickets" | "shift_summary" }[];
+    excluded_open_shift_count: number;
+    excluded_incomplete_shift_count: number;
+    excluded_ambiguous_day_count: number;
+    summary_shift_count: number;
+    summary_sales_yen: number;
+    summary_guests: number;
+};
+
+export type AnalyticsShiftIndex = { id: number | null; business_date: string; status: "open" | "closed" | null };
+export type AnalyticsDateScope = { date_from?: string; date_to?: string };
 import type { RevenueSharePolicy } from "./revenueSharePolicy";
 import { apiRequest, getToken, setToken } from "./client";
 import { createSessionRead } from "./sessionRead";
@@ -479,6 +499,9 @@ export const accountApi = {
     personalEarnings: (month: string) =>
         apiRequest<PersonalEarningsPreview>(`/profile/earnings?month=${encodeURIComponent(month)}`),
 
+    managedShiftStats: (month: string, period: ManagedSalesPeriod) =>
+        apiRequest<ManagedShiftStatsReport>(`/profile/managed-shift-stats?month=${encodeURIComponent(month)}&period=${period}`),
+
     chuckMonthlyPay: (month: string) =>
         apiRequest<ChuckMonthlyPayPreview>(`/profile/chuck-monthly-pay?month=${encodeURIComponent(month)}`),
 
@@ -549,7 +572,7 @@ export const accountApi = {
             { method: "POST", body: { reason } },
         ),
 
-    closeShift: () => apiRequest<ShiftReport>("/shifts/close", { method: "POST" }),
+    closeShift: (shiftId: number) => apiRequest<ShiftReport>(`/shifts/${shiftId}/close`, { method: "POST" }),
 
     keepShiftOpen: (shiftId: number, reason: string) => apiRequest<ShiftReport>(`/shifts/${shiftId}/keep-open`, {
         method: "POST", body: { reason },
@@ -579,7 +602,13 @@ export const accountApi = {
 
     closedShifts: () => apiRequest<ShiftReport[]>("/analytics/shifts"),
 
-    analyticsShifts: () => apiRequest<AnalyticsShiftReport[]>("/analytics/shifts"),
+    analyticsShiftIndex: () => apiRequest<AnalyticsShiftIndex[]>("/analytics/shift-index"),
+
+    analyticsShifts: (scope?: AnalyticsDateScope) => apiRequest<AnalyticsShiftReport[]>(
+        scope?.date_from && scope?.date_to
+            ? `/analytics/shifts?date_from=${encodeURIComponent(scope.date_from)}&date_to=${encodeURIComponent(scope.date_to)}`
+            : "/analytics/shifts",
+    ),
 
     serviceSales: (dateFrom: string, dateTo: string) => apiRequest<ServiceSalesReport>(
         `/analytics/service-sales?service_date_from=${encodeURIComponent(dateFrom)}&service_date_to=${encodeURIComponent(dateTo)}`,
@@ -587,3 +616,4 @@ export const accountApi = {
 
     shiftHistory: () => apiRequest<ShiftReport[]>("/shifts"),
 };
+

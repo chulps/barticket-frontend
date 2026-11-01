@@ -89,6 +89,8 @@ export default function TicketSidebar({
           <label>{t("status")}</label>
 
           <TabGroup
+            fitLabels
+            label={t("status")}
             tabs={[
               { id: "open", label: t("open") },
               { id: "paid", label: t("paid") },
@@ -186,13 +188,15 @@ const SidebarContainer = styled.aside`
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  min-height: 0;
+  overflow-y: auto;
   gap: var(--space-2);
   padding-top: var(--space-2);
 
-  @media (min-width: 768px) {
+  > :not(:last-child) { flex-shrink: 0; }
+
+  @media (min-width: 769px) {
     padding-right: var(--space-2);
-    height: calc(100vh - 100px);
   }
 `;
 
@@ -222,7 +226,8 @@ const TicketList = styled.div`
   flex-direction: column;
   gap: var(--space-1);
   overflow: auto;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 100px;
 
   > div { min-width: 0; }
   padding: var(--space-1);

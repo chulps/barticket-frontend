@@ -6,7 +6,7 @@ type Setup = { provider: string; channel: string; methods: string[]; revision: n
 
 const providers = [
   { id: "unknown", name: "Other / Unknown · その他・不明", url: "", en: "Check the name on your terminal or settlement statement first.", ja: "まず端末または入金明細で決済会社名を確認してください。" },
-  { id: "stripe", name: "Stripe", url: "https://stripe.com/jp/pricing", en: "Recommended for customer phone checkout. Cards and eligible Apple Pay / Google Pay wallets; PayPay requires merchant review. Rakuten Pay requires early-access approval.", ja: "お客様のスマホ決済におすすめ。カードと利用条件を満たすApple Pay・Google Payに対応。PayPayは加盟店審査、楽天ペイは先行提供の承認が必要です。" },
+  { id: "stripe", name: "Stripe", url: "https://stripe.com/jp/pricing", en: "Online checkout candidate. Cards and eligible Apple Pay / Google Pay wallets; PayPay availability depends on merchant eligibility. Rakuten Pay requires early-access approval.", ja: "オンライン決済の候補。カードと利用条件を満たすApple Pay・Google Payに対応。PayPayは加盟店の利用条件確認、楽天ペイは先行提供の承認が必要です。" },
   { id: "square", name: "Square", url: "https://squareup.com/jp/ja/payments/pricing", en: "Online links support cards, Apple Pay and Google Pay. Terminal and online rates differ; confirm the product and contract.", ja: "オンラインリンクはカード、Apple Pay、Google Payに対応。対面とオンラインでは料金が異なるため、商品と契約を確認してください。" },
   { id: "airpay", name: "Airペイ", url: "https://airregi.jp/payment/service/online/", en: "Offers online payment through its own management screen. Automatic BarTicket integration is not confirmed.", ja: "専用管理画面からオンライン決済を利用できます。BarTicketとの自動連携は未確認です。" },
   { id: "paypay", name: "PayPay", url: "https://paypay.ne.jp/store-online/", en: "Online merchant setup is separate from assuming an existing shop QR contract supports web payments.", ja: "店舗用QRの契約だけでオンライン決済が使えるとは限りません。オンライン加盟店の利用条件を確認してください。" },
@@ -113,10 +113,10 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
   const disabled = busy || needsReload;
   return <Panel>
     <header><h2>{t("Payment setup", "決済設定")}</h2>
-      <p>{t("Set up Stripe for customer phone payments", "お客様のスマホ決済にStripeを設定")}</p></header>
+      <p>{t("Choose a provider for customer phone payments", "お客様のスマホ決済の会社を選択")}</p></header>
     <Status role="status">{t("Payment processing: not connected", "決済処理：未接続")}</Status>
-    <p>{t("Save your preferences, then register with your provider. Payments remain disabled until connected.", "希望を保存し、決済会社で登録してください。接続が完了するまで決済は無効です。")}</p>
-    <p>{t("We recommend Stripe for online payments; you can keep your existing card terminal.", "オンライン決済にはStripeをおすすめします。現在のカード端末はそのまま使えます。")}</p>
+    <p>{t("Save setup preferences only. Confirm the bar’s existing merchant account before registering. Online processing remains unavailable; manual payment recording is unchanged.", "ここでは設定の希望のみを保存します。登録前にお店の既存の加盟店アカウントを確認してください。オンライン決済は未接続です。手動の支払記録は引き続き利用できます。")}</p>
+    <p>{t("Stripe is an online checkout option, not a confirmed provider. Choosing it here only edits this draft; it does not connect or change an existing terminal.", "Stripeはオンライン決済の候補であり、確定した決済会社ではありません。ここで選択しても未保存の希望が変わるだけで、接続や既存端末の変更は行われません。")}</p>
     {(providerId !== "stripe" || channel !== "online") && <button type="button" className="hollow secondary" disabled={disabled} onClick={() => { setProviderId("stripe"); setChannel("online"); }}>{t("Choose Stripe online setup", "Stripeのオンライン設定を選択")}</button>}
     <label>{t("Current or proposed provider", "現在または検討中の決済会社")}
       <select disabled={disabled} value={providerId} onChange={e => setProviderId(e.target.value)}>{providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
@@ -161,13 +161,13 @@ function StripeGuide({ ja }: { ja: boolean }) {
   return <section aria-label={t("Stripe online setup", "Stripeのオンライン設定")}>
     <details><summary>{t("Prepare your Stripe account", "Stripeアカウントの準備")}</summary>
     <ol>
-      <li>{t("Create a Stripe account for the bar, or sign in to its existing Stripe account. Complete business verification and payout details in Stripe.", "お店のStripeアカウントを作成、または既存のアカウントにログインし、Stripeで事業者確認と入金先の登録を完了してください。")}</li>
-      <li>{t("Review payment methods in Stripe. Apple Pay and Google Pay depend on customer device and eligibility; PayPay needs approval. Rakuten Pay is early access, not guaranteed.", "Stripeで支払方法を確認してください。Apple Pay・Google Payは端末や利用条件によります。PayPayは審査が必要です。楽天ペイは先行提供のため、利用は保証されません。")}</li>
+      <li>{t("First confirm whether the bar already has a Stripe account and who owns it. If the owner chooses Stripe, use that account or register with Stripe; business verification and payout details belong only in Stripe.", "まずお店の既存のStripeアカウントと所有者を確認してください。所有者がStripeを選ぶ場合は既存アカウントを使うかStripeで登録し、事業者確認と入金先情報はStripe内でのみ入力してください。")}</li>
+      <li>{t("Review payment methods in Stripe. Apple Pay and Google Pay depend on customer device and eligibility; PayPay depends on merchant eligibility and may be reviewed. Rakuten Pay is early access, not guaranteed.", "Stripeで支払方法を確認してください。Apple Pay・Google Payは端末や利用条件によります。PayPayは加盟店の利用条件を満たす必要があり、審査される場合があります。楽天ペイは先行提供のため、利用は保証されません。")}</li>
       <li>{t("Save these preferences, then have the BarTicket administrator arrange the secure Stripe connection and sandbox checks. Account registration alone does not enable ticket payments.", "この設定の希望を保存した後、BarTicket管理者に安全なStripe連携とテスト環境での確認を依頼してください。アカウント登録だけではチケットの決済は有効になりません。")}</li>
     </ol></details>
     <p><a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener noreferrer">{t("Create a Stripe account ↗", "Stripeアカウントを作成 ↗")}</a>{" · "}<a href="https://dashboard.stripe.com/" target="_blank" rel="noopener noreferrer">{t("Open Stripe Dashboard ↗", "Stripeダッシュボードを開く ↗")}</a></p>
     <details><summary>{t("Payment method requirements", "支払方法の利用条件")}</summary>
-      <p><a href="https://docs.stripe.com/payments/wallets" target="_blank" rel="noopener noreferrer">{t("Wallet requirements ↗", "ウォレットの利用条件 ↗")}</a>{" · "}<a href="https://support.stripe.com/questions/accepting-paypay-payments-for-japan-based-stripe-accounts" target="_blank" rel="noopener noreferrer">{t("PayPay review ↗", "PayPayの審査 ↗")}</a>{" · "}<a href="https://docs.stripe.com/payments/rakuten-pay" target="_blank" rel="noopener noreferrer">{t("Rakuten Pay early access ↗", "楽天ペイの先行提供 ↗")}</a></p>
+      <p><a href="https://docs.stripe.com/payments/wallets" target="_blank" rel="noopener noreferrer">{t("Wallet requirements ↗", "ウォレットの利用条件 ↗")}</a>{" · "}<a href="https://docs.stripe.com/payments/paypay" target="_blank" rel="noopener noreferrer">{t("PayPay eligibility ↗", "PayPayの利用条件 ↗")}</a>{" · "}<a href="https://docs.stripe.com/payments/rakuten-pay" target="_blank" rel="noopener noreferrer">{t("Rakuten Pay early access ↗", "楽天ペイの先行提供 ↗")}</a></p>
     </details>
   </section>;
 }

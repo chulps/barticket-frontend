@@ -15,7 +15,7 @@ export function StaffDetails({ people, shifts, locale }: { people: Account[]; sh
         <h2>{ja ? "スタッフディレクトリ" : "Staff directory"}</h2>
         <p>{ja ? "現在有効なアカウントと、APIで確認できる勤務記録のみ表示します。" : "Active accounts and recorded shift activity only. Historical staffing data may be incomplete."}</p>
         <Controls><input aria-label={ja ? "スタッフを検索" : "Search staff"} placeholder={ja ? "名前・メールで検索" : "Search name or email"} value={search} onChange={e => setSearch(e.target.value)} />
-        <Select><select aria-label={ja ? "役割で絞り込む" : "Filter role"} value={role} onChange={e => setRole(e.target.value)}><option value="all">{ja ? "すべて" : "All roles"}</option><option value="staff">{ja ? "スタッフ" : "Staff"}</option><option value="manager">{ja ? "マネージャー" : "Manager"}</option><option value="guest">{ja ? "ゲスト" : "Guest bartenders"}</option></select><i aria-hidden="true">▾</i></Select></Controls>
+        <Select><select aria-label={ja ? "役割で絞り込む" : "Filter role"} value={role} onChange={e => setRole(e.target.value)}><option value="all">{ja ? "すべて" : "All roles"}</option><option value="staff">{ja ? "スタッフ" : "Staff"}</option><option value="manager">{ja ? "マネージャー" : "Manager"}</option><option value="guest">{ja ? "ゲスト" : "Guest bartenders"}</option></select></Select></Controls>
         <Directory>{people.filter(p => (role === "all" || (role === "guest" ? isGuest(p.name) : p.role === role && (role !== "staff" || !isGuest(p.name)))) && (p.name + " " + p.email).toLowerCase().includes(search.toLowerCase())).map(p =>
             <button key={p.id} type="button" className={p.id === personId ? "secondary" : "hollow secondary"} onClick={() => setPersonId(p.id)}>
                 <strong>{p.name}</strong><small>{isGuest(p.name) ? (ja ? "ゲスト（都度契約）" : "Guest · per-shift agreement") : p.role} · {p.email}</small>
@@ -66,7 +66,7 @@ export function AdminSettings({locale}: {locale:string}) {
 }
 const Panel=styled.section`display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-2);background:var(--neutral-900);border-radius:12px;min-width:0;h2{font-size:var(--font-size-h4)}`;
 const Controls=styled.div`display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-1);@media(min-width:680px){grid-template-columns:repeat(2,minmax(0,1fr))}label{display:flex;flex-direction:column;gap:var(--space-0)}input,select{width:100%;box-sizing:border-box}`;
-const Select=styled.div`position:relative;select{appearance:none;background:var(--dark);padding-right:2.5em}i{position:absolute;right:1em;top:50%;transform:translateY(-50%);font-style:normal;pointer-events:none}`;
+const Select=styled.div`position:relative;select{appearance:none;background:var(--dark);padding-right:2.5em}`;
 const Directory=styled.div`display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:var(--space-1);@media(min-width:680px){grid-template-columns:repeat(2,minmax(0,1fr))}button{text-align:left;display:flex;flex-direction:column;gap:3px;min-width:0;small{overflow-wrap:anywhere}}`;
 const Detail=styled.div`padding:var(--space-2);background:var(--neutral-800);border-radius:8px;display:flex;flex-direction:column;gap:var(--space-1)`;
 const Stats=styled.div`display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:var(--space-1);@media(min-width:680px){grid-template-columns:repeat(3,minmax(0,1fr))}div{display:flex;flex-direction:column;gap:4px}span{color:var(--neutral-300)}strong{font-size:var(--font-size-h4)}`;

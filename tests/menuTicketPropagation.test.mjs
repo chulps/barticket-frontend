@@ -13,7 +13,7 @@ test("ticket rendering uses saved names and refreshes immediately after committe
   assert.doesNotMatch(items, /menu\?\.items\.find\(row\s*=>\s*row\.id\s*===\s*item\.menu_item_id\)/);
   assert.match(app, /window\.dispatchEvent\(new Event\("barticket-push"\)\)/);
   assert.match(app, /notifyMutation\("info", t\("menuTicketsMayHaveChanged"\)\)/);
-  assert.match(tickets, /window\.addEventListener\("barticket-push", onFocus\)/);
+  assert.match(tickets, /window\.addEventListener\("barticket-push", onPush\)/);
 });
 
 test("backend price provenance is carried into open and historical ticket rows", () => {
@@ -28,3 +28,4 @@ test("backend price provenance is carried into open and historical ticket rows",
   assert.match(row, /<PriceOverride[^>]*>\{t\("customPrice"\)\}<\/PriceOverride>/);
   assert.match(row, /priceInput/); // the unsaved inline draft remains local to the editor
 });
+

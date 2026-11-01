@@ -65,11 +65,12 @@ export default function PaidTicketSummary({ ticket }: Props) {
                         weight="fill"
                         color="var(--success-700)"
                     />
-                    {t("dateTimePaid")}
+                    {locale === "ja" ? "記録日時（日本時間）" : "Recorded (JST)"}
                 </ValueLabel>
                 <Value>
                     {ticket.payment
                         ? new Date(ticket.payment.paid_at * 1000).toLocaleString(localeTag(locale), {
+                            timeZone: "Asia/Tokyo",
                             year: "numeric",
                             month: "numeric",
                             day: "numeric",

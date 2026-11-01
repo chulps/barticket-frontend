@@ -12,6 +12,8 @@ type TabGroupProps<T extends string> = {
   activeTab: T;
   onChange: (id: T) => void;
   label?: string;
+  mobileColumns?: number;
+  fitLabels?: boolean;
 };
 
 export default function TabGroup<T extends string>({
@@ -19,16 +21,26 @@ export default function TabGroup<T extends string>({
   activeTab,
   onChange,
   label,
+  mobileColumns,
+  fitLabels,
 }: TabGroupProps<T>) {
     const activeIndex = tabs.findIndex(tab => tab.id === activeTab);
     const viewport = useRef<HTMLDivElement>(null);
     const track = useRef<HTMLDivElement>(null);
     const buttons = useRef<(HTMLButtonElement | null)[]>([]);
-    const [indicator, setIndicator] = useState({ left: 0, width: 0 });
+    const [indicator, setIndicator] = useState({ left: 0, top: 0, width: 0, height: 0 });
 
     const measureActiveTab = useCallback(() => {
         const button = buttons.current[activeIndex];
-        if (button) setIndicator({ left: button.offsetLeft, width: button.offsetWidth });
+        const container = track.current;
+        if (!button || !container) return;
+        // Preserve fractional CSS pixels, and use the track origin exactly once.
+        const rect = button.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const left = rect.left - containerRect.left;
+        const top = rect.top - containerRect.top;
+        setIndicator(previous => previous.left === left && previous.top === top && previous.width === rect.width && previous.height === rect.height
+            ? previous : { left, top, width: rect.width, height: rect.height });
     }, [activeIndex]);
 
     useLayoutEffect(() => {
@@ -40,9 +52,10 @@ export default function TabGroup<T extends string>({
         // Keep keyboard and programmatic selection visible in the horizontal tab strip.
         const left = button.offsetLeft;
         const right = left + button.offsetWidth;
-        if (left < scroller.scrollLeft) scroller.scrollTo({ left, behavior: "smooth" });
+        const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
+        if (left < scroller.scrollLeft) scroller.scrollTo({ left, behavior });
         else if (right > scroller.scrollLeft + scroller.clientWidth) {
-            scroller.scrollTo({ left: right - scroller.clientWidth, behavior: "smooth" });
+            scroller.scrollTo({ left: right - scroller.clientWidth, behavior });
         }
     }, [activeIndex, measureActiveTab]);
 
@@ -51,10 +64,10 @@ export default function TabGroup<T extends string>({
         if (!resizeTarget || typeof ResizeObserver === "undefined") return;
         const observer = new ResizeObserver(measureActiveTab);
         observer.observe(resizeTarget);
-        const activeButton = buttons.current[activeIndex];
-        if (activeButton) observer.observe(activeButton);
+        // Any label/font change can alter every equal-width column.
+        buttons.current.forEach(button => { if (button) observer.observe(button); });
         return () => observer.disconnect();
-    }, [activeIndex, measureActiveTab]);
+    }, [tabs, measureActiveTab]);
 
     function handleArrow(event: KeyboardEvent<HTMLButtonElement>, index: number) {
         const next = nextSelectorIndex(index, tabs.length, event.key);
@@ -66,8 +79,10 @@ export default function TabGroup<T extends string>({
 
     return (
         <Viewport ref={viewport} role="group" aria-label={label ?? tabs.map(tab => tab.label).join(" / ")}>
-            <Track ref={track}>
-                <Indicator $left={indicator.left} $width={indicator.width} />
+            <Track ref={track} $mobileColumns={mobileColumns} $fitLabels={fitLabels}>
+                {indicator.width > 0 && <IndicatorClip aria-hidden="true" data-tab-indicator-clip>
+                    <Indicator data-tab-indicator $left={indicator.left} $top={indicator.top} $width={indicator.width} $height={indicator.height} />
+                </IndicatorClip>}
                 {tabs.map((tab, index) => (
                     <TabButton
                         key={tab.id}
@@ -97,31 +112,65 @@ const Viewport = styled.div`
   &::-webkit-scrollbar { display: none; }
 `;
 
-const Track = styled.div`
+const Track = styled.div<{ $mobileColumns?: number; $fitLabels?: boolean }>`
   position: relative;
-  display: flex;
-  width: max-content;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  width: 100%;
   min-width: 100%;
   gap: var(--space-0);
   padding: var(--space-0);
   box-sizing: border-box;
+
+  /* Short status labels must not break mid-word in the narrow desktop rail.
+     Keep the scroll fallback for enlarged text instead of clipping labels. */
+  ${({ $fitLabels }) => $fitLabels ? `
+    grid-auto-columns: auto;
+    width: max-content;
+    > button { min-width: max-content; white-space: nowrap; overflow-wrap: normal; }
+  ` : ""}
+
+  ${({ $mobileColumns }) => $mobileColumns ? `
+    @media (max-width: 600px) {
+      grid-auto-flow: row;
+      grid-template-columns: repeat(${$mobileColumns}, minmax(0, 1fr));
+      grid-auto-columns: auto;
+      grid-auto-rows: 1fr;
+      width: 100%;
+      min-width: 0;
+      > button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+    }
+  ` : ""}
+`;
+
+// Clip only decoration: labels, keyboard focus and hit targets remain untouched.
+const IndicatorClip = styled.div`
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  clip-path: inset(var(--space-0) round calc(var(--space-1) - 2px));
+  z-index: 0;
 `;
 
 const Indicator = styled.div<{
   $left: number;
+  $top: number;
   $width: number;
+  $height: number;
 }>`
   position: absolute;
-  top: var(--space-0);
-  bottom: var(--space-0);
-  left: var(--space-0);
+  top: 0;
+  height: ${({ $height }) => `${$height}px`};
+  left: 0;
   width: ${({ $width }) => `${$width}px`};
   pointer-events: none;
 
   background: var(--neutral-800);
   border-radius: calc(var(--space-1) - 2px);
 
-  transform: translateX(${({ $left }) => `${$left}px`});
+  transform: translate(${({ $left }) => `${$left}px`}, ${({ $top }) => `${$top}px`});
+  /* Restore the original quick bounce; the decorative clip contains overshoot. */
   transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
   z-index: 0;
   will-change: transform;
@@ -135,10 +184,11 @@ const TabButton = styled.button<{ $active: boolean }>`
   position: relative;
   z-index: 1;
 
-  flex: 1 0 max-content;
+  min-width: 0;
   min-height: 44px;
   padding: var(--space-1);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 
   border: none;
   border-radius: calc(var(--space-1) - 2px);
@@ -150,8 +200,14 @@ const TabButton = styled.button<{ $active: boolean }>`
 
   transition: color 0.2s ease;
 
+  /* Global buttons grow on hover; tab targets must retain their measured bounds. */
+  &:hover, &:active {
+    transform: none;
+  }
+
   &:hover {
     background: unset;
     color: white;
   }
 `;
+

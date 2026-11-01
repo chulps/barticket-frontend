@@ -18,7 +18,7 @@ test("pay and cancel require an existing confirmed open ticket, reopen a closed 
 test("rename is queued before terminal lock and terminal operations bypass only that lock",()=>{
   assert.match(hook,/flushRename\(ticketId\);\s*terminalPending\.current\.add\(ticketId\)/);
   assert.match(hook,/\.finally\(\(\) => terminalPending\.current\.delete\(ticketId\)\)/);
-  assert.match(hook,/ticketsApi\.pay\(ticketId, paymentType, amount, idempotencyKey\), undefined, true/);
+  assert.match(hook,/ticketsApi\.pay\(ticketId, paymentType, amount, idempotencyKey, collection\), undefined, true/);
   assert.match(payment,/if \(pending\.current\) return/);
   assert.doesNotMatch(hook,/setInterval\(\(\) => ticketsApi\.pay/);
 });
@@ -26,3 +26,4 @@ test("ticket hook still parses",()=>{
   const ast=ts.createSourceFile("useTickets.ts",hook,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
   assert.deepEqual(ast.parseDiagnostics.map(d=>d.messageText),[]);
 });
+

@@ -48,7 +48,7 @@ function schedule(id, date, state, actual = false) {
 }
 async function mockedPOS(page, { authenticated = true, locale = "en", role = "manager", noticeCount = 0, onShift = true } = {}) {
   await page.clock.setFixedTime(new Date(FIXTURE_NOW_MS));
-  const state = { tickets:[ticket()], requests:[], paymentPosts:0,
+  const state = { tickets:[ticket()], requests:[], requestUrls:[], paymentPosts:0,
     newTicketPosts:0, delayTicketCreate:false, itemPosts:0, failNextItem:false, failItemAt:0, failNextPayment:false,
     analyticsReads:0, delayAnalyticsReads:false, analyticsShifts:[], failShiftLookup:false,
     currentShift:shift(), venueStatus:{business_date:dayJst(),status:"open",event_value:null,updated_by:null,updated_at:null},
@@ -79,6 +79,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en", role = "ma
       return;
     }
     state.requests.push(key);
+    state.requestUrls.push(req.url());
     let status=200, response=null;
     const json=() => { try { return req.postDataJSON() ?? {}; } catch { return {}; } };
     if(key==="GET /auth/status") response={has_accounts:true,google_enabled:false};
@@ -136,6 +137,7 @@ async function mockedPOS(page, { authenticated = true, locale = "en", role = "ma
     else if(key==="GET /users") response=[account];
     else if(key==="GET /users/recipients") response=[{id:7,name:account.name}];
     else if(key==="GET /profile/work-history") response={user_id:7,coverage:{hours_source:"clock_punches_only",historical_hours:"not_imported",staff_drink_attribution:"verified_staff_id_only",unattributed_staff_drinks:"excluded_pending_review",compensation:"not_available"},shifts:[]};
+    else if(key==="GET /analytics/shift-index") response=state.analyticsShifts.map(({id,business_date,status})=>({id,business_date,status}));
     else if(key==="GET /analytics/shifts") {
       state.analyticsReads++;
       if(state.delayAnalyticsReads) await new Promise(resolve=>setTimeout(resolve,500));
@@ -282,7 +284,7 @@ test("payment conflict displays an error without duplicate POST, then paid/reope
   await confirm.dblclick();
   await expect.poll(()=>state.paymentPosts).toBe(1);
   await expect(dialog.getByRole("alert")).toBeVisible();
-  await confirm.click();
+  await dialog.getByRole("button",{name:/Safely retry same collection/i}).click();
   await expect.poll(()=>state.tickets[0].status).toBe("paid");
   await page.keyboard.press("Escape");
   await page.getByRole("button",{name:"Paid"}).click();
@@ -519,7 +521,7 @@ test("public menu never exposes archive, restore or full edit controls",async ({
   expect(state.requests.some(key=>key.includes("PATCH /menu/items/"))).toBe(false);
 });
 
-test("Analytics coalesces focus and push bursts and does not refetch on range changes",async ({page})=>{
+test("Analytics coalesces focus and push bursts and fetches the newly selected report range",async ({page})=>{
   const state=await mockedPOS(page);
   state.delayAnalyticsReads=true;
   await page.goto("/analytics");
@@ -536,8 +538,8 @@ test("Analytics coalesces focus and push bursts and does not refetch on range ch
   expect(state.analyticsReads).toBe(2);
 
   await page.getByRole("button",{name:"Monthly"}).click();
-  await page.waitForTimeout(100);
-  expect(state.analyticsReads).toBe(2);
+  await expect.poll(()=>state.analyticsReads).toBe(3);
+  expect(state.requestUrls.some(url=>url.includes("/analytics/shifts?date_from=2026-10-01"))).toBe(true);
 });
 
 test("Analytics renders a repeatable 100-shift, 1000-ticket fixture responsively",async ({page})=>{
@@ -755,7 +757,7 @@ test("historical-hours reconciliation reveals each step only when it is actionab
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin");
   const adminSection = page.getByRole("combobox", { name: "Admin section", exact: true });
-  await expect(adminSection).toHaveValue("overview");
+  await expect(adminSection).toHaveValue("accounts");
   await expect(adminSection.locator('option[value="adjustments"]')).toHaveText("Pay deductions");
   expect(await adminSection.evaluate(element => element.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
   await adminSection.selectOption("historicalHours");
@@ -827,6 +829,10 @@ for (const locale of ["en", "ja"]) {
     await expect(page).toHaveURL(/\/notifications$/);
     await expect(bell).toHaveAttribute("aria-current","page");
     await page.setViewportSize({width:1280,height:800});
+    await expect(bell).toHaveCount(1);
+    await expect(bell).toHaveAttribute("aria-label",label);
+    await expect(bell).toContainText("99+");
+    await expect(page.locator("#desktop-more-menu")).toHaveCount(0);
     await page.getByRole("button",{name:locale === "ja" ? "その他のナビゲーション" : "More navigation options"}).click();
     const unpaid = page.locator('#desktop-more-menu a[href="/receivables"]');
     await expect(unpaid).toHaveText(locale === "ja" ? "未払い伝票" : "Unpaid tickets");
@@ -839,12 +845,20 @@ for (const locale of ["en", "ja"]) {
   });
 }
 
-test("notification shortcut preserves staff visibility and zero-count behavior",async ({page}) => {
+test("off-shift staff retain visible notifications on mobile and desktop without a zero badge",async ({page}) => {
   await page.setViewportSize({width:375,height:740});
   await mockedPOS(page, {role:"staff",onShift:false});
   await page.goto("/menu");
   await expect(page.getByRole("textbox",{name:"Search menu"})).toBeVisible();
-  await expect(page.locator('header a[href="/notifications"]:visible')).toHaveCount(0);
+  const bell=page.locator('header a[href="/notifications"]:visible');
+  await expect(bell).toHaveCount(1);
+  await expect(bell).toHaveText("");
+  await bell.click();
+  await expect(page.getByRole("heading",{name:"Notifications",exact:true})).toBeVisible();
+  await page.setViewportSize({width:1280,height:800});
+  await expect(bell).toHaveCount(1);
+  await expect(bell).toHaveAttribute("aria-current","page");
+  await expect(page.locator("#desktop-more-menu")).toHaveCount(0);
 });
 
 test("clocked-in staff get a bell without a zero badge",async ({page}) => {
@@ -856,14 +870,211 @@ test("clocked-in staff get a bell without a zero badge",async ({page}) => {
   await expect(bell).toHaveText("");
 });
 
-test("Admin overview leads to team pay, records and account access", async ({page}) => {
+test("Admin opens Accounts and keeps team navigation available", async ({page}) => {
   const state=await mockedPOS(page);
   await page.goto("/admin");
-  await expect(page.getByRole("heading",{name:"Team and pay"})).toBeVisible();
-  await page.getByRole("button",{name:"Review team and pay",exact:true}).click();
+  const nav=page.getByRole("navigation",{name:"Admin sections"});
+  await expect(nav.getByRole("button",{name:"Overview",exact:true})).toHaveCount(0);
+  await expect(nav.getByRole("button",{name:"Accounts",exact:true})).toHaveAttribute("aria-pressed","true");
+  await nav.getByRole("button",{name:"Team",exact:true}).click();
   await expect(page.getByRole("navigation",{name:"Team directory"})).toBeVisible();
-  await page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Overview",exact:true}).click();
-  await page.getByRole("button",{name:"Manage accounts",exact:true}).click();
+  await page.goBack();
   await expect(page.getByRole("button",{name:"Refresh accounts",exact:true})).toBeVisible();
   expect(state.requests.filter(r=>/^(POST|PUT|PATCH|DELETE) /.test(r))).toEqual([]);
+});
+
+
+
+test("known ticket push reads only its ID; delete and unknown hint resync remain safe", async ({page}) => {
+  const state=await mockedPOS(page);
+  await openTicket(page);
+  await expect.poll(()=>state.requestUrls.some(url=>url.includes("include_open=true")&&url.includes("shift_id=3"))).toBe(true);
+  await page.waitForTimeout(500);
+  const lists=state.requests.filter(x=>x==="GET /tickets").length;
+  state.tickets[0].name="Targeted rename";
+  await page.evaluate(()=>{
+    const detail={eventType:"ticket_updated",ticketId:11};
+    window.dispatchEvent(new CustomEvent("barticket-push",{detail}));
+    window.dispatchEvent(new CustomEvent("barticket-push",{detail}));
+  });
+  await expect.poll(()=>state.requests.filter(x=>x==="GET /tickets/11").length).toBe(1);
+  await expect(page.getByText("Targeted rename",{exact:true}).first()).toBeVisible();
+  expect(state.requests.filter(x=>x==="GET /tickets").length).toBe(lists);
+  state.tickets=[];
+  await page.evaluate(()=>window.dispatchEvent(new CustomEvent("barticket-push",{detail:{eventType:"ticket_updated",ticketId:11}})));
+  await expect(page.getByText("Targeted rename",{exact:true})).toHaveCount(0);
+  await page.evaluate(()=>window.dispatchEvent(new Event("barticket-push")));
+  await expect.poll(()=>state.requests.filter(x=>x==="GET /tickets").length).toBeGreaterThan(lists);
+  expect(state.requests.some(x=>/^(POST|PATCH|DELETE) /.test(x))).toBe(false);
+});
+
+test("Analytics fetches selected period tickets, expanding to all only on explicit All Time", async ({page}) => {
+  const state=await mockedPOS(page);
+  await page.goto("/analytics");
+  await expect.poll(()=>state.requestUrls.some(url=>url.includes("/tickets?date_from="+dayJst())&&url.includes("date_to="+dayJst()))).toBe(true);
+  expect(state.requestUrls.some(url=>url.endsWith("/tickets"))).toBe(false);
+  expect(state.requestUrls.some(url=>url.endsWith("/analytics/shifts"))).toBe(false);
+  expect(state.requestUrls.some(url=>url.endsWith("/analytics/shift-index"))).toBe(true);
+  await page.getByRole("button",{name:"Monthly",exact:true}).click();
+  await expect.poll(()=>state.requestUrls.some(url=>url.includes("/tickets?date_from=2026-10-01")&&url.includes("date_to=2026-10-31"))).toBe(true);
+  await expect.poll(()=>state.requestUrls.some(url=>url.includes("/analytics/shifts?date_from=2026-10-01"))).toBe(true);
+  await page.getByRole("button",{name:"Year",exact:true}).click();
+  await expect.poll(()=>state.requestUrls.some(url=>url.includes("/analytics/shifts?date_from=2026-01-01")&&url.includes("date_to=2026-12-31"))).toBe(true);
+  await page.getByRole("button",{name:"All time",exact:true}).click();
+  await expect.poll(()=>state.requestUrls.some(url=>url.endsWith("/tickets"))).toBe(true);
+  await expect.poll(()=>state.requestUrls.some(url=>url.endsWith("/analytics/shifts"))).toBe(true);
+});
+
+test("healthy occupancy clock advances locally without ticket/report traffic, then applies a guest change", async ({page}) => {
+  const state=await mockedPOS(page);
+  state.tickets[0].guest_count=2;
+  let socket;
+  await page.routeWebSocket('**/realtime/ws', peer => {
+    socket=peer;
+    peer.onMessage(message=>{
+      if(JSON.parse(message).type==='authenticate') peer.send(JSON.stringify({type:'ready',version:1,cursor:100000}));
+    });
+  });
+  // Install before mounting: intervals registered before installation remain native.
+  await page.clock.install({time:new Date(FIXTURE_NOW_MS)});
+  await page.goto('/analytics');
+  const chart=page.getByTestId('guest-occupancy-chart');
+  await expect(chart).toBeVisible();
+  await expect(chart.locator('strong').first()).toHaveText('2');
+  await expect.poll(()=>Boolean(socket)).toBe(true);
+  await page.waitForTimeout(500);
+  const relevant=()=>state.requests.filter(path=>['GET /tickets','GET /analytics/shifts'].includes(path)).length;
+  const before=relevant();
+  const heartbeat=JSON.stringify({type:'heartbeat',version:1,cursor:100000,scopes:[]});
+  for(let i=0;i<16;i++){
+    socket.send(heartbeat);
+    await page.clock.runFor(4000);
+  }
+  console.log(JSON.stringify({scenario:'occupancy-clock-before-assert',browserNow:await page.evaluate(()=>Date.now()),ticketReportReads:relevant()-before}));
+  await expect(chart).toContainText('21:01');
+  await expect(chart.locator('strong').first()).toHaveText('2');
+  expect(relevant()).toBe(before);
+  state.tickets[0].guest_count=4;
+  socket.send(JSON.stringify({type:'invalidate',version:1,cursor:100001,scopes:['tickets','analytics']}));
+  await page.clock.runFor(500);
+  await expect(chart.locator('strong').first()).toHaveText('4');
+  expect(relevant()-before).toBe(2); // one scoped ticket read and one scoped report read, no duplicate fanout
+  expect(state.requests.some(path=>/^(POST|PATCH|DELETE) /.test(path))).toBe(false);
+  console.log(JSON.stringify({scenario:'occupancy-local-clock',stableSeconds:64,stableTicketReportReads:0,changeTicketReportReads:2,heartbeatJsonBytes:Buffer.byteLength(heartbeat)}));
+});
+
+
+test("previous-night payment requires explicit collection date and reason; Cancel is read-only",async ({page})=>{
+  const state=await mockedPOS(page);
+  state.tickets[0].service_business_date=dateOffset(-1);
+  state.tickets[0].service_status="active";
+  const payments=[];
+  page.on("request",request=>{
+    if(request.method()==="POST"&&new URL(request.url()).pathname==="/tickets/11/pay")
+      payments.push({body:request.postDataJSON(),key:request.headers()["idempotency-key"]});
+  });
+  await openTicket(page);
+  await closeStep(page);
+  await page.getByRole("button",{name:/Take Payment/i}).click();
+  let dialog=page.getByRole("dialog");
+  await expect(dialog.getByLabel("Actual collection business date")).toHaveValue("");
+  await expect(dialog.getByRole("button",{name:/Confirm Payment/i})).toBeDisabled();
+  await dialog.getByRole("button",{name:"Cancel",exact:true}).click();
+  expect(state.paymentPosts).toBe(0);
+  await page.getByRole("button",{name:/Take Payment/i}).click();
+  dialog=page.getByRole("dialog");
+  await dialog.getByLabel("Actual collection business date").fill(dateOffset(-1));
+  await expect(dialog.getByRole("button",{name:/Confirm Payment/i})).toBeDisabled();
+  await dialog.getByLabel("Confirmation reason").fill("Receipt confirms cash last night");
+  state.failNextPayment=true;
+  await dialog.getByRole("button",{name:/Confirm Payment/i}).click();
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  await expect(dialog.getByLabel("Actual collection business date")).toBeDisabled();
+  await dialog.getByRole("button",{name:/Safely retry same collection/i}).click();
+  await expect.poll(()=>state.tickets[0].status).toBe("paid");
+  expect(payments).toHaveLength(2);
+  expect(payments[0]).toEqual(payments[1]);
+  expect(payments[0].key).toBeTruthy();
+  expect(payments[0].body.collection_business_date).toBe(dateOffset(-1));
+  expect(payments[0].body.collection_date_reason).toBe("Receipt confirms cash last night");
+});
+
+// #327: lifecycle feedback only follows confirmed local actions, never snapshots.
+test('ticket action cues: create confirmation, no replay after refresh, cancellation and repeated creation', async ({page})=>{
+  const state=await mockedPOS(page);
+  await openTicket(page);
+  const cue=page.locator('[data-ticket-action]');
+  await expect(cue).toHaveCount(0);
+  state.delayTicketCreate=true;
+  await page.getByRole('button',{name:/New Ticket/i}).dblclick();
+  await expect(cue).toHaveCount(0);
+  await expect(cue).toHaveAttribute('data-ticket-action','created');
+  expect(state.newTicketPosts).toBe(1);
+  await expect(cue).toContainText('#13');
+  expect(await cue.evaluate(el=>getComputedStyle(el).animationName)).toBe('ticket-action-create');
+  expect(await cue.evaluate(el=>getComputedStyle(el).pointerEvents)).toBe('none');
+  await expect(cue).toHaveCount(0,{timeout:4000});
+  await page.evaluate(()=>window.dispatchEvent(new Event('barticket-push')));
+  await page.waitForTimeout(400);
+  await expect(cue).toHaveCount(0);
+  await closeStep(page);
+  await page.getByRole('button',{name:/Cancel Ticket/i}).click();
+  await page.getByRole('button',{name:'No',exact:true}).click();
+  await expect(cue).toHaveCount(0);
+  await page.getByRole('button',{name:/Cancel Ticket/i}).click();
+  await page.getByRole('button',{name:/Yes, cancel ticket/i}).click();
+  await expect(cue).toHaveAttribute('data-ticket-action','cancelled');
+  expect(await cue.evaluate(el=>getComputedStyle(el).animationName)).toBe('ticket-action-cancel');
+  await page.getByRole('button',{name:'Open',exact:true}).click();
+  await page.getByRole('button',{name:/New Ticket/i}).click();
+  await expect(cue).toHaveAttribute('data-ticket-action','created');
+  await expect(cue).toContainText('#14');
+});
+
+test('ticket action cues: failed double payment is quiet, confirmed payment and reopen are distinct',async({page})=>{
+  const state=await mockedPOS(page);
+  await openTicket(page);await closeStep(page);
+  const cue=page.locator('[data-ticket-action]');
+  await page.getByRole('button',{name:/Take Payment/i}).click();
+  state.failNextPayment=true;
+  const dialog=page.getByRole('dialog');
+  await dialog.getByRole('button',{name:/Confirm Payment/i}).dblclick();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  expect(state.paymentPosts).toBe(1);
+  await expect(cue).toHaveCount(0);
+  await dialog.getByRole('button',{name:/Safely retry same collection/i}).click();
+  await expect(cue).toHaveAttribute('data-ticket-action','paid');
+  await expect(cue).toContainText('Ticket paid');
+  expect(await cue.locator('.ticket-action-symbol').evaluate(el=>getComputedStyle(el).animationName)).toBe('ticket-action-check');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:/Reopen Ticket/i}).click();
+  await page.getByRole('dialog').getByRole('button',{name:/Customer returned/i}).click();
+  await expect(cue).toHaveAttribute('data-ticket-action','reopened');
+  expect(await cue.evaluate(el=>getComputedStyle(el).animationName)).toBe('ticket-action-return');
+  await expect(page.getByRole('button',{name:/Close ticket/i})).toBeVisible();
+});
+
+test('ticket action cues: mobile reduced motion keeps Japanese text and partial payment does not claim paid',async({page})=>{
+  await page.setViewportSize({width:375,height:740});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  const state=await mockedPOS(page,{locale:'ja'});
+  await page.goto('/tickets');
+  await page.getByRole('button',{name:/Test Walk-in/}).click();
+  await page.getByRole('button',{name:/チケットを閉じる/}).click();
+  await page.getByRole('button',{name:'会計',exact:true}).click();
+  // Mock an authoritative partial response, independent of the amount submitted.
+  await page.route(MOCK_ORIGIN+'/tickets/11/pay',async route=>{
+    if(route.request().method()==='OPTIONS') return route.fallback();
+    Object.assign(state.tickets[0],{status:'open',balance_due:200,amount_paid:500,settlement_status:'partially_paid'});
+    await route.fulfill({json:state.tickets[0],headers:{'Access-Control-Allow-Origin':'*'}});
+  });
+  await page.getByRole('dialog').getByRole('button',{name:/支払い確定|会計を確定|支払いを確定/}).click();
+  const cue=page.locator('[data-ticket-action]');
+  await expect(cue).toHaveAttribute('data-ticket-action','payment-recorded');
+  await expect(cue).toContainText('入金を記録しました');
+  expect(await cue.evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+  expect(await cue.locator('.ticket-action-symbol').evaluate(el=>getComputedStyle(el).animationName)).toBe('none');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button',{name:/チケットを閉じる/})).toBeVisible();
 });

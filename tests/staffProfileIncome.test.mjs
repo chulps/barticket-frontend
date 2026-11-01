@@ -6,6 +6,9 @@ import ts from "typescript";
 const profile = readFileSync(new URL("../src/pages/Profile.tsx", import.meta.url), "utf8");
 const history = readFileSync(new URL("../src/pages/StaffWorkHistory.tsx", import.meta.url), "utf8");
 const income = readFileSync(new URL("../src/pages/StaffIncome.tsx", import.meta.url), "utf8");
+const stats = readFileSync(new URL("../src/pages/ManagedShiftStats.tsx", import.meta.url), "utf8");
+const breakdown = readFileSync(new URL("../src/pages/ChuckPayBreakdown.tsx", import.meta.url), "utf8");
+const breakdownData = readFileSync(new URL("../src/pages/chuckPayBreakdown.ts", import.meta.url), "utf8");
 const chart = readFileSync(new URL("../src/components/PayBreakdownChart.tsx", import.meta.url), "utf8");
 const sharedCharts = readFileSync(new URL("../src/components/AnalyticsCharts.tsx", import.meta.url), "utf8");
 const account = readFileSync(new URL("../src/api/account.ts", import.meta.url), "utf8");
@@ -17,23 +20,24 @@ test("Profile income is personal for staff and managers and shows wages and drin
     assert.match(income, /accountApi\.personalEarnings\(month\)/);
     assert.match(income, /canViewChuckPersonalPay/);
     assert.match(income, /accountApi\.chuckMonthlyPay\(month\)/);
-    assert.match(income, /Gross salary/);
-    assert.match(income, /Staff pay owed/);
-    assert.match(income, /Other deductions/);
+    assert.match(breakdown, /Your gross share before staff pay and deductions/);
+    assert.match(breakdown, /Recorded staff pay subtotal/);
+    assert.match(breakdown, /Recorded deductions from your share/);
     assert.match(income, /Amount owed to Chuck/);
-    assert.match(income, /staff_owed\.map/);
-    assert.match(income, /chuckReport\.deductions\.map/);
+    assert.match(breakdownData, /staff_owed\.map/);
+    assert.match(breakdown, /data\.deductions\.map/);
     assert.match(income, /response\.user_id !== userId/);
     assert.match(income, /hourly_wages/);
     assert.match(income, /staff_drink_bonus/);
     assert.match(income, /Monthly income breakdown/);
-    assert.match(income, /Gross salary breakdown/);
+    assert.match(breakdown, /Gross share allocation/);
     assert.match(income, /DonutChart/);
     assert.match(income, /Estimated income by day/);
-    assert.match(income, /Staff pay owed by person/);
-    assert.match(income, /Chuck-managed shift stats/);
-    assert.match(income, /Recorded sales by night/);
-    assert.match(income, /original service date/);
+    assert.match(stats, /Chuck-managed shift stats/);
+    assert.match(stats, /Recorded sales by night/);
+    assert.match(stats, /original business date/);
+    assert.match(income, /<ManagedShiftStats userId=\{userId\}/);
+    assert.match(breakdown, /What goes to each staff member/);
     assert.match(account, /serviceSales: \(dateFrom: string, dateTo: string\)/);
     assert.match(account, /\/analytics\/service-sales/);
     assert.match(sharedCharts, /aria-label=\{title\}/);
@@ -49,7 +53,7 @@ test("Profile income is personal for staff and managers and shows wages and drin
     assert.match(account, /personalEarnings: \(month: string\) =>/);
     assert.match(account, /\/profile\/earnings\?month=/);
     assert.doesNotMatch(income, /accountApi\.listUsers\(|accountApi\.closedShifts\(|staffEarnings/);
-    for (const [name, source] of [["Profile", profile], ["StaffWorkHistory", history], ["StaffIncome", income], ["PayBreakdownChart", chart], ["AnalyticsCharts", sharedCharts]]) {
+    for (const [name, source] of [["ChuckPayBreakdown", breakdown], ["Profile", profile], ["StaffWorkHistory", history], ["StaffIncome", income], ["PayBreakdownChart", chart], ["AnalyticsCharts", sharedCharts]]) {
         assert.equal(ts.createSourceFile(name + ".tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).parseDiagnostics.length, 0);
     }
 });

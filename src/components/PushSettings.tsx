@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { disablePush, enablePush, getPushEnabled, getPushPublicKey, PushRequestError, supportsPush } from "../api/push";
 import { getToken } from "../api/client";
 import { useI18n } from "../i18n";
 
-type Availability = "checking" | "ready" | "unavailable" | "unsupported" | "error";
+type Availability = "checking" | "ready" | "unavailable" | "unsupported" | "blocked" | "error";
 
 function isAppleMobileDevice(): boolean {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent)
@@ -16,12 +16,14 @@ export default function PushSettings() {
   const ja = locale === "ja";
   const [enabled, setEnabled] = useState(false);
   const [availability, setAvailability] = useState<Availability>(() => supportsPush() ? "checking" : "unsupported");
+  const operationPending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [checkVersion, setCheckVersion] = useState(0);
 
   useEffect(() => {
     const changed = () => {
+      operationPending.current = false;
       setEnabled(false);
       setBusy(false);
       setError("");
@@ -37,6 +39,11 @@ export default function PushSettings() {
     const token = getToken();
     async function check() {
       if (!supportsPush()) return;
+      if (Notification.permission === "denied") {
+        setEnabled(false);
+        setAvailability("blocked");
+        return;
+      }
       try {
         const subscriptionExists = await getPushEnabled();
         if (!active || getToken() !== token) return;
@@ -60,6 +67,8 @@ export default function PushSettings() {
   const canEnable = enabled || availability === "ready";
   const statusText = availability === "checking"
     ? (ja ? "通知の利用状況を確認しています…" : "Checking notification availability…")
+    : availability === "blocked"
+      ? (ja ? "端末の設定で通知がブロックされています。BarTicketの通知を許可してから「再確認」をタップしてください。" : "Notifications are blocked in device settings. Allow notifications for BarTicket there, then tap “Check again.”")
     : availability === "unavailable"
       ? (ja ? "サーバー側の設定が完了するまで、この端末では通知を有効にできません。" : "Push isn’t set up on the server yet. This device won’t ask for notification permission until setup is complete.")
       : availability === "unsupported"
@@ -78,7 +87,7 @@ export default function PushSettings() {
           <p>{ja ? "この端末でBarTicketの通知を受け取ります。" : "Receive BarTicket alerts on this device."}</p>
         </div>
       </Heading>
-      <Status role="status" data-state={availability}>
+      <Status role="status" data-state={availability} data-enabled={enabled}>
         <StatusDot aria-hidden="true" />
         <span>{statusText}</span>
       </Status>
@@ -93,7 +102,7 @@ export default function PushSettings() {
             <li>{ja ? "画面下の共有ボタン（四角から上向き矢印）をタップします。" : "Tap Share — the button that looks like a square with an arrow pointing up."}</li>
             <li>{ja ? "「ホーム画面に追加」をタップし、右上の「追加」をタップします。" : "Tap “Add to Home Screen,” then tap “Add” in the top corner."}</li>
             <li>{ja ? "ホーム画面にできたBarTicketのアイコンを開きます。" : "Open the new BarTicket icon on your Home Screen."}</li>
-            <li>{ja ? "この画面に戻り、「この端末で通知を有効にする」をタップして「許可」を選びます。" : "Return here, tap “Enable notifications,” then tap “Allow.”"}</li>
+            <li>{ja ? "この画面に戻り、「端末のプッシュ通知」をオンにして「許可」を選びます。" : "Return here, turn on “Device push notifications,” then tap “Allow.”"}</li>
           </ol>
           <p>{ja
             ? "すでにホーム画面にBarTicketのアイコンがある場合は、削除せず、そのアイコンから開いて通知を有効にしてください。ブックマークしかない場合は、上の手順でホーム画面に追加してください。iOSまたはiPadOS 16.4以降が必要です。"
@@ -102,10 +111,18 @@ export default function PushSettings() {
       ) : null}
       {error ? <Error role="alert">{error}</Error> : null}
       <Actions>
-        <ActionButton
+        <SwitchRow>
+          <span>{ja ? "端末のプッシュ通知" : "Device push notifications"}</span>
+          <SwitchControl
           type="button"
+          role="switch"
+          aria-label={ja ? "端末のプッシュ通知" : "Device push notifications"}
+          aria-checked={enabled}
+          aria-busy={busy}
           disabled={!supported || availability === "checking" || !canEnable || busy}
           onClick={async () => {
+            if (operationPending.current) return;
+            operationPending.current = true;
             const token = getToken();
             setBusy(true);
             setError("");
@@ -122,24 +139,31 @@ export default function PushSettings() {
               setAvailability("ready");
             } catch (err) {
               if (getToken() !== token) return;
+              setAvailability("checking");
               setCheckVersion(version => version + 1);
-              if (err instanceof PushRequestError && err.status === 503) {
+              if (Notification.permission === "denied") {
+                setAvailability("blocked");
+                setEnabled(false);
+              } else if (err instanceof PushRequestError && err.status === 503) {
                 setAvailability("unavailable");
               } else {
-                setError(ja ? "通知設定を更新できませんでした。接続と端末の通知設定を確認してください。" : "Couldn’t update notification settings. Check your connection and device notification settings.");
+                setError(Notification.permission === "default"
+                  ? (ja ? "通知はオンになっていません。オンにするには、確認画面で「許可」を選んでください。" : "Notifications weren’t turned on. To enable them, choose “Allow” when prompted.")
+                  : (ja ? "通知設定の更新を確認できませんでした。端末の状態を再確認しています。接続を確認して再試行してください。" : "Couldn’t confirm the settings update. Rechecking this device’s subscription; check your connection and try again."));
               }
             } finally {
-              if (getToken() === token) setBusy(false);
+              if (getToken() === token) {
+                operationPending.current = false;
+                setBusy(false);
+              }
             }
           }}
         >
-          {busy
-            ? (ja ? "更新中…" : "Updating…")
-            : enabled
-              ? (ja ? "この端末の通知をオフにする" : "Turn off on this device")
-              : (ja ? "この端末で通知を有効にする" : "Enable notifications")}
-        </ActionButton>
-        {(availability === "unavailable" || availability === "error") && !enabled ? (
+          <SwitchTrack aria-hidden="true" data-checked={enabled}><SwitchThumb /></SwitchTrack>
+          <span>{busy ? (ja ? "更新中…" : "Updating…") : enabled ? (ja ? "オン" : "On") : (ja ? "オフ" : "Off")}</span>
+          </SwitchControl>
+        </SwitchRow>
+        {(availability === "unavailable" || availability === "error" || availability === "blocked") && !enabled ? (
           <RetryButton type="button" onClick={() => {
             setAvailability("checking");
             setError("");
@@ -195,7 +219,8 @@ const StatusDot = styled.span`
   height: 9px;
   margin-top: 0.4em;
   border-radius: 50%;
-  background: var(--royal-400);
+  background: var(--neutral-400);
+  [data-enabled="true"] & { background: var(--success-500); }
   [data-state="unavailable"] &, [data-state="error"] &, [data-state="unsupported"] & {
     background: var(--neutral-400);
   }
@@ -203,10 +228,7 @@ const StatusDot = styled.span`
 
 const InstallGuide = styled.div`
   min-width: 0;
-  padding: var(--space-1);
-  background: var(--neutral-800);
-  border: 1px solid var(--neutral-600);
-  border-radius: 8px;
+  padding-block: var(--space-1);
   h4 { margin: 0 0 var(--space-0); font-size: var(--font-size-default); }
   ol { margin: 0; padding-left: 1.35rem; }
   li { padding-left: 2px; }
@@ -216,23 +238,68 @@ const InstallGuide = styled.div`
 
 const Actions = styled.div`
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-0);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
   min-width: 0;
-  @media (max-width: 560px) {
-    flex-direction: column;
-    align-items: stretch;
-    button { width: 100%; white-space: normal; min-height: 48px; }
+`;
+
+const SwitchRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
+  > span { min-width: 0; }
+`;
+
+const SwitchControl = styled.button`
+  && {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex: none;
+    width: auto;
+    min-width: 100px;
+    min-height: 48px;
+    margin: 0;
+    padding: 4px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--white);
+    box-shadow: none;
+    filter: none;
+    transform: none;
+    font-size: var(--font-size-default);
+    line-height: 1.3;
+    &:disabled { opacity: 0.6; cursor: not-allowed; }
+    &:focus-visible { outline: 2px solid var(--royal-300); outline-offset: 2px; }
   }
 `;
 
-const ActionButton = styled.button`
-  width: auto;
-  min-width: min(100%, 240px);
-  max-width: 100%;
-  white-space: normal;
-  line-height: 1.3;
+const SwitchTrack = styled.span`
+  display: block;
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--neutral-500);
+  &[data-checked="true"] { background: var(--success-500); }
+  &[data-checked="true"] > span { transform: translateX(18px); }
+`;
+
+const SwitchThumb = styled.span`
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--white);
 `;
 
 const RetryButton = styled.button`
@@ -245,3 +312,4 @@ const Error = styled.p`
   color: var(--danger-400);
   overflow-wrap: anywhere;
 `;
+

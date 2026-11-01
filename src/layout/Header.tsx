@@ -27,12 +27,11 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
   const [userId, setUserId] = useState<number | null>(null);
   const [shiftForNoonReview, setShiftForNoonReview] = useState<ShiftReport | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [clockedIn, setClockedIn] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
   const promptedNoonShifts = useRef(new Set<string>());
   const { t, locale, setLocale } = useI18n();
   const { modal, openModal } = useModal();
-  const canSeeNotices = isManager || clockedIn;
+  const canSeeNotices = authenticated;
 
   const closeMainNavigation = useCallback((restoreFocus = false) => {
     setIsOpen(false);
@@ -55,7 +54,6 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           setUserName(null);
           setUserId(null);
           setShiftForNoonReview(null);
-          setClockedIn(false);
           setAlertCount(0);
           setIsOpen(false);
           setMoreOpen(false);
@@ -69,17 +67,12 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
         setUserName(me.name.trim() || null);
         setUserId(me.id);
         setShiftForNoonReview(shift);
-        setClockedIn(
-          Boolean(shift?.punches.some((punch) => punch.user_id === me.id && punch.clock_out === null)),
-        );
       } catch {
         if (!cancelled && request === generation && getToken() === token) {
           setIsManager(false);
           setUserName(null);
           setUserId(null);
           setShiftForNoonReview(null);
-          setClockedIn(false);
-          setAlertCount(0);
         }
       }
     }
@@ -347,6 +340,11 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           <ToggleThumb $japanese={locale === "ja"} />
         </ToggleTrack>
       </LanguageToggle>
+      {authenticated ? <DesktopNotificationLink to="/notifications" aria-label={t("notifications")} title={t("notifications")}
+        onClick={() => { setMoreOpen(false); closeMainNavigation(); }}>
+        {({isActive}) => <><Icon name="Bell" weight={isActive ? "fill" : "regular"} />
+          {alertCount > 0 ? <MenuBadge>{alertCount > 99 ? "99+" : alertCount}</MenuBadge> : null}</>}
+      </DesktopNotificationLink> : null}
       {authenticated ? (
         <MoreWrap ref={moreRef}>
           <MoreButton
@@ -369,12 +367,6 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
               <MoreLink to="/profile" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
                 <Icon name="UserCircle" />{userName ?? t("profile")}
               </MoreLink>
-              {canSeeNotices ? (
-                <MoreLink to="/notifications" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
-                  <Icon name="Bell" />{t("notifications")}
-                  {alertCount > 0 ? <AlertCount>{alertCount}</AlertCount> : null}
-                </MoreLink>
-              ) : null}
               <MoreLink to="/analytics" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
                 <Icon name="ChartDonut" />{t("analytics")}
               </MoreLink>
@@ -443,6 +435,11 @@ const MobilePrimaryLink = styled(RouterNavLink)`
     background: var(--neutral-800);
   }
   &:focus-visible { outline: 2px solid white; }
+`;
+
+const DesktopNotificationLink = styled(MobilePrimaryLink)`
+  flex-shrink: 0;
+  @media (max-width: 768px) { display: none; }
 `;
 
 const Hamburger = styled.button`
@@ -683,10 +680,7 @@ const ToggleThumb = styled.span<{ $japanese: boolean }>`
   }
 `;
 
-const AlertCount = styled.span`
-  color: var(--danger-400);
-  font-size: 12px;
-`;
+
 
 const NavLink = styled(RouterNavLink)`
   position: relative;

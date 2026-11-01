@@ -24,6 +24,14 @@ function amount(row: NoriMonthlyPay["staff_owed"][number]) {
         row.amount_yen !== null && Number.isSafeInteger(row.amount_yen) && row.amount_yen >= 0
         ? row.amount_yen : null;
 }
+function ownerAmount(income: NoriMonthlyPay["own_income"]) {
+    return income.status === "estimate" && income.complete === true && income.blockers.length === 0 &&
+        income.source === "monthly_revenue_less_recorded_staff_earnings" && income.basis === "before_other_expenses" &&
+        income.amount_yen !== null && Number.isSafeInteger(income.amount_yen) ? income.amount_yen : null;
+}
+function verifiedYen(value: number | null | undefined, locale: Locale) {
+    return yen(typeof value === "number" && Number.isSafeInteger(value) ? value : null, locale);
+}
 function blocker(code: string, ja: boolean) {
     const text: Record<string, [string, string]> = {
         payee_identity_not_configured: ["アカウントの設定が必要です。", "The payee account needs configuration."],
@@ -39,6 +47,12 @@ function blocker(code: string, ja: boolean) {
         staff_payroll_costs_incomplete: ["スタッフ給与の確認が必要です。", "Staff payroll costs need verification."],
         working_manager_unassigned: ["担当マネージャーが未設定のシフトがあります。", "A shift has no confirmed manager."],
         working_manager_shift_open: ["対象シフトが営業中です。", "A qualifying shift is still open."],
+        month_shift_open: ["この月に営業中のシフトがあります。", "A shift in this month is still open."],
+        unassigned_staff_history: ["スタッフが未設定の勤務記録があります。", "A work record has no assigned staff member."],
+        unattributed_staff_drink: ["スタッフが未設定のドリンク手当があります。", "A staff-drink bonus has no assigned recipient."],
+        staff_earnings_identity_unavailable: ["給与の受取人を確認できません。", "A staff earnings recipient could not be verified."],
+        chuck_earnings_incomplete: ["Chuckの給与に確認が必要です。", "Chuck’s earnings need verification."],
+        staff_adjustment_recipient_unknown: ["給与調整の受取人を確認できません。", "A pay adjustment has no verified recipient."],
         no_recorded_shifts: ["この月のシフト記録がありません。", "No shifts are recorded for this month."],
     };
     return text[code]?.[ja ? 0 : 1] ?? (ja ? "給与の記録に確認が必要です。" : "A pay record needs review.");
@@ -106,9 +120,12 @@ export default function NoriMonthlySummary({ userId, locale }: { userId: number;
             detail={failure === "unavailable" ? (ja ? "オーナーの給与サマリーはまだ利用できません。" : "The owner pay summary is not available yet.") : undefined}
         /> : report ? <>
             <OwnIncome>
-                <span>{ja ? "Noriの収入" : "Nori's income"}</span>
-                <strong>—</strong>
-                <p>{blocker("owner_income_rule_unconfirmed", ja)}</p>
+                <span>{ja ? "スタッフ給与差引後の残額" : "Remaining after staff earnings"}</span>
+                <strong>{yen(ownerAmount(report.own_income), locale)}</strong>
+                <p>{ja ? "その他の経費を差し引く前の見積もりです。利益や支払いの記録ではありません。" : "Before other expenses. This is an estimate, not profit or a payment record."}</p>
+                {ownerAmount(report.own_income) === null ? <p role="status">{report.own_income.blockers.length
+                    ? [...new Set(report.own_income.blockers.map(code => blocker(code, ja)))].join(" ")
+                    : (ja ? "売上またはスタッフ給与の確認が必要です。" : "Revenue or staff earnings need verification.")}</p> : null}
             </OwnIncome>
             <p>{ja ? "以下は記録に基づく給与見積もりです。支払済み金額ではありません。" : "The amounts below are pay estimates from recorded inputs, not payments made."}</p>
             <h3>{ja ? "支払予定額" : "Estimated amounts owed"}</h3>
@@ -125,7 +142,13 @@ export default function NoriMonthlySummary({ userId, locale }: { userId: number;
                 <HorizontalBarChart title={ja ? "メンバー別の給与見積もり" : "Estimated pay by person"} bars={bars} locale={locale} />
             </details> : null}
             <details><summary>{ja ? "見積もりの情報源" : "Estimate sources"}</summary>
-                <p>{ja ? "確認済みの給与記録のみを表示しています。不明な金額は0円として扱いません。オーナー収入を売上から推定しません。" : "Only verified pay inputs are shown. Missing amounts are not zero. Owner income is not inferred from sales."}</p>
+                <p>{ja ? "記録された月間売上から、全スタッフの給与・手当（Chuckの差引後給与を含む）を差し引いた残額です。下の3名だけの合計ではありません。不明な金額は0円として扱いません。" : "The remainder uses recorded monthly revenue less all staff earnings, including Chuck’s net pay. It is not limited to the three people listed here. Missing amounts are not zero."}</p>
+                <p>{ja ? "売上は営業日ベースで、未回収の売掛金を含む場合があります。現金の受取額や使える残高ではありません。" : "Revenue follows the service date and may include uncollected amounts. This is not cash received or an available balance."}</p>
+                <SourceFigures>
+                    <div><dt>{ja ? "記録された売上" : "Recorded revenue"}</dt><dd>{verifiedYen(report.own_income.revenue_yen, locale)}</dd></div>
+                    <div><dt>{ja ? "全スタッフの給与・手当" : "All staff earnings"}</dt><dd>{verifiedYen(report.own_income.staff_earnings_yen, locale)}</dd></div>
+                </SourceFigures>
+                <p>{ja ? "家賃・仕入れなど、その他の経費は含まれていません。スタッフの給与として記録されていないマネージャー控除も差し引きません。経費が未確認のため、純利益は算出しません。" : "Other expenses, such as rent and supplies, are excluded. Manager deductions not recorded as staff earnings are also excluded. Net profit is not calculated while expenses are unknown."}</p>
                 <ul>{rows.map(row => <li key={row.payee}>{row.name ?? payeeNames[row.payee]}: {row.source === "chuck_monthly_pay_preview"
                     ? (ja ? "月次マネージャー給与見積もり" : "Monthly manager-pay estimate")
                     : row.source === "personal_earnings_preview" ? (ja ? "個人の賃金・手当見積もり" : "Personal wages and bonus estimate")
@@ -148,7 +171,7 @@ const MonthNav = styled.div`
 `;
 const OwnIncome = styled.div`
     display:flex;flex-direction:column;gap:var(--space-1);padding:var(--space-2);
-    background:var(--neutral-800);border-radius:10px;strong{font-size:var(--font-size-h3);}p{color:var(--neutral-300);}
+    background:var(--neutral-800);border-radius:10px;strong{font-size:var(--font-size-h3);overflow-wrap:anywhere;}p{color:var(--neutral-300);}
 `;
 const Payees = styled.div`display:flex;flex-direction:column;`;
 const Payee = styled.div`
@@ -157,3 +180,9 @@ const Payee = styled.div`
     p{color:var(--neutral-300);font-size:var(--font-size-small);}div{min-width:0;overflow-wrap:anywhere;}
 `;
 const Value = styled.strong`white-space:nowrap;`;
+
+const SourceFigures = styled.dl`
+    margin:var(--space-1) 0;
+    div{display:flex;justify-content:space-between;gap:var(--space-1);flex-wrap:wrap;}
+    dt{min-width:0;overflow-wrap:anywhere;}dd{margin:0;font-variant-numeric:tabular-nums;}
+`;

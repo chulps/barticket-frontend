@@ -32,12 +32,45 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run mocked browser tests
         run: npx playwright test --config=playwright.config.mjs
-      - uses: actions/upload-artifact@v4
-        if: failure()
+      - name: Preserve pay UI fixture screenshots before continuity tests
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: browser-regression-failure
+          name: profile-pay-visuals
+          path: |
+            test-results/**/pay-breakdown.png
+            test-results/**/pay.png
+          if-no-files-found: warn
+          retention-days: 5
+      - name: Preserve notification and caret fixture screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-controls-visuals
+          path: |
+            test-results/**/preferences.png
+            test-results/**/carets*.png
+          if-no-files-found: warn
+          retention-days: 5
+      - name: Preserve disconnected payment guidance fixtures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: payment-setup-visuals
+          path: test-results/**/payment-guide-*.png
+          if-no-files-found: warn
+          retention-days: 5
+      - name: Build old/new deployment fixtures
+        run: node scripts/build-deployment-fixtures.mjs
+      - name: Verify active-session deployment continuity
+        run: npx playwright test --config=playwright.deployment.config.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-regression-results
           path: |
             playwright-report/
             test-results/
           if-no-files-found: ignore
           retention-days: 5
+

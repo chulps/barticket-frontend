@@ -1,0 +1,42 @@
+/* This layer never takes focus or captures a click, even above mobile details. */
+.ticket-action-feedback {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 76px);
+  right: max(16px, env(safe-area-inset-right, 0px));
+  z-index: 1100;
+  pointer-events: none;
+  max-width: min(340px, calc(100vw - 32px));
+}
+.ticket-action-cue {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  color: var(--neutral-100);
+  background: var(--neutral-900);
+  border: 1px solid var(--neutral-500);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px #0004;
+  transform-origin: right center;
+  animation: ticket-action-settle 360ms ease-out both;
+}
+.ticket-action-cue strong { display: block; font-size: 14px; }
+.ticket-action-cue small { display: block; color: var(--neutral-300); font-size: 12px; }
+.ticket-action-symbol { font-size: 26px; line-height: 1; flex: 0 0 28px; text-align: center; }
+.ticket-action-cue[data-ticket-action="created"] { animation: ticket-action-create 480ms cubic-bezier(.2,.8,.2,1) both; }
+.ticket-action-cue[data-ticket-action="paid"] { border-color: var(--success-300); }
+.ticket-action-cue[data-ticket-action="paid"] .ticket-action-symbol { color: var(--success-300); animation: ticket-action-check 440ms ease-out both; }
+.ticket-action-cue[data-ticket-action="cancelled"] { color: var(--neutral-300); animation: ticket-action-cancel 400ms ease-out both; }
+.ticket-action-cue[data-ticket-action="cancelled"] .ticket-action-symbol { border: 1px dashed currentColor; border-radius: 50%; }
+.ticket-action-cue[data-ticket-action="reopened"] { animation: ticket-action-return 480ms ease-out both; }
+.ticket-action-cue[data-ticket-action="reopened"] .ticket-action-symbol { animation: ticket-action-turn 480ms ease-out both; }
+@keyframes ticket-action-create { 0% { opacity: 0; transform: translateY(12px) scale(.92); } 65% { opacity: 1; transform: translateY(-2px) scale(1.02); } 100% { transform: none; } }
+@keyframes ticket-action-settle { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes ticket-action-check { 0% { opacity: 0; transform: scale(.4); } 65% { opacity: 1; transform: scale(1.16); } 100% { transform: none; } }
+/* Subdued retreat, while keeping the confirmed cancellation readable. */
+@keyframes ticket-action-cancel { from { opacity: .5; transform: translateX(-8px) scale(1.03); } to { opacity: 1; transform: none; } }
+@keyframes ticket-action-return { 0% { opacity: 0; transform: translateX(18px); } 65% { opacity: 1; transform: translateX(-3px); } 100% { transform: none; } }
+@keyframes ticket-action-turn { from { transform: rotate(-75deg); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .ticket-action-cue, .ticket-action-symbol { animation: none !important; transform: none !important; }
+}

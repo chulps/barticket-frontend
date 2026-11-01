@@ -1,9 +1,18 @@
+import NotificationActivityHistory from "../components/NotificationActivityHistory";
+import PaymentDateHistory from "../components/PaymentDateHistory";
+import { useAnalyticsReports } from "../hooks/useAnalyticsReports";
+import { businessDateJst } from "./shiftControlPolicy";
+import { useAnalyticsTickets } from "../hooks/useAnalyticsTickets";
+import { withLiveShiftHours } from "./analyticsLiveClock";
+import { startBackgroundRefresh } from "../hooks/backgroundRefresh";
+import { shouldPoll } from "../api/realtime";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import styled from "styled-components";
+import { Link } from "react-router-dom";
+import { formatBusinessNight, staleAnalyticsShift, type StaleAnalyticsShift } from "./analyticsStaleShift";
 import RequestState from "../components/RequestState";
 
-import { accountApi, type Account, type AnalyticsShiftReport, type ShiftReport } from "../api/account";
-import { ticketsApi, toTicket } from "../api/tickets";
+import { accountApi, type Account, type AnalyticsShiftReport, type AnalyticsShiftIndex, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
 import { listNotices, type NoticeList } from "../api/notices";
 import { BarChart, DonutChart, HorizontalBarChart, CopyPanelButton, type TimeBar } from "../components/AnalyticsCharts";
@@ -16,7 +25,7 @@ import { topSellingItems } from "../components/topSellingItems";
 import GuestOccupancyChart from "../components/GuestOccupancyChart";
 import { paymentAllocation, ticketCountsUnavailable } from "./analyticsLegacy";
 import { analyticsDrillDownTarget, shiftDay, shiftMonth, shiftYear } from "./analyticsNavigation";
-import { analyticsShiftOnDate, initialAnalyticsShift, liveAnalyticsShift } from "./analyticsCurrentShift";
+import { liveAnalyticsShift } from "./analyticsCurrentShift";
 import { groupAnalyticsTickets } from "./analyticsTicketGroups";
 import { createRefreshCoordinator } from "./analyticsRefresh";
 import { ticketDataForClipboard, ticketListDataForClipboard } from "./ticketDataExport";
@@ -108,22 +117,7 @@ function formatMonth(key: string, locale: Locale) {
     });
 }
 
-function formatNight(iso: string, locale: Locale) {
-    const start = parseDate(iso);
-    const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
-    const tag = localeTag(locale);
-    const weekday = start.toLocaleDateString(tag, { weekday: "short" });
-    const startDay = start.getDate();
-    const endDay = end.getDate();
-    if (locale === "ja") {
-        const startMonth = start.getMonth() + 1;
-        const endLabel = start.getMonth() === end.getMonth() ? `${endDay}日` : `${end.getMonth() + 1}月${endDay}日`;
-        return `${startMonth}月${startDay}日(${weekday})~${endLabel}`;
-    }
-    const month = start.toLocaleDateString(tag, { month: "short" });
-    const endLabel = start.getMonth() === end.getMonth() ? String(endDay) : end.toLocaleDateString(tag, { month: "short", day: "numeric" });
-    return `${weekday}, ${month} ${startDay}~${endLabel}`;
-}
+const formatNight = formatBusinessNight;
 
 function yen(amount: number) {
     return `¥${amount.toLocaleString()}`;
@@ -488,9 +482,9 @@ function staffDrinkShifts(
 
 export default function Analytics() {
     const { t, locale } = useI18n();
-    const [shifts, setShifts] = useState<AnalyticsShiftReport[] | null>(null);
+    const [shiftIndex, setShiftIndex] = useState<AnalyticsShiftIndex[] | null>(null);
     const [openShift, setOpenShift] = useState<ShiftReport | null>(null);
-    const [tickets, setTickets] = useState<Ticket[]>([]);
+    const [staleShift, setStaleShift] = useState<StaleAnalyticsShift | null>(null);
     const [account, setAccount] = useState<Account | null>(null);
     const [team, setTeam] = useState<Account[] | null>(null);
     const [notices, setNotices] = useState<NoticeList | null>(null);
@@ -504,6 +498,9 @@ export default function Analytics() {
     const [dayId, setDayId] = useState<number | null>(null);
     const [pickedDate, setPickedDate] = useState("");
     const signedIn = getToken() !== null;
+    const periodKey = range === "day" ? pickedDate : range === "month" ? month : range === "year" ? year : "all";
+    const { tickets, ready: ticketsReady, error: ticketsError } = useAnalyticsTickets(range, periodKey, signedIn);
+    const { shifts, ready: reportsReady, error: reportsError } = useAnalyticsReports(range, periodKey, signedIn);
 
     useEffect(() => {
         const updateClock = () => setClockNow(Math.floor(Date.now() / 1000));
@@ -516,23 +513,33 @@ export default function Analytics() {
         if (!signedIn) return;
         let cancelled = false;
         let initiallySelected = false;
-        let timer: number | null = null;
+        let stopRefresh = () => {};
+        let stopNotices = () => {};
+        let indexSupported = true;
 
         async function loadLatest() {
             if (cancelled) return;
+            const token = getToken();
             try {
-                const [rows, current, ticketRows, stock] = await Promise.all([
-                    accountApi.analyticsShifts(),
-                    accountApi.currentShift(),
-                    ticketsApi.list(),
-                    listNotices().catch(() => null),
+                const [rows, current] = await Promise.all([
+                    indexSupported ? accountApi.analyticsShiftIndex().catch(async err => {
+                        if (!(err instanceof ApiError) || err.status !== 404) throw err;
+                        // Safe compatibility during API-first rollout; never treat a
+                        // denied or failed index read as an empty calendar.
+                        indexSupported = false;
+                        return accountApi.analyticsShifts();
+                    }) : accountApi.analyticsShifts(),
+                    accountApi.currentShift().then(shift => ({ shift, stale: null as StaleAnalyticsShift | null })).catch(err => {
+                        const stale = staleAnalyticsShift(err);
+                        if (!stale) throw err;
+                        return { shift: null, stale };
+                    }),
                 ]);
-                if (cancelled) return;
+                if (cancelled || token !== getToken()) return;
                 const ordered = [...rows].sort((a, b) => b.business_date.localeCompare(a.business_date));
-                setShifts(ordered);
-                setOpenShift(current);
-                setTickets(ticketRows.map(toTicket));
-                setNotices(stock);
+                setShiftIndex(ordered);
+                setOpenShift(current.shift);
+                setStaleShift(current.stale);
                 setLastUpdated(Math.floor(Date.now() / 1000));
                 setError("");
                 setLoading(false);
@@ -541,12 +548,17 @@ export default function Analytics() {
                 // Background refreshes must not interrupt the date the user is viewing.
                 if (!initiallySelected) {
                     initiallySelected = true;
-                    const initial = initialAnalyticsShift(current, ordered);
+                    const initial = current.shift ?? ordered[0];
                     if (initial) {
                         setMonth(monthKey(initial.business_date));
                         setYear(yearKey(initial.business_date));
                         setDayId(initial.id);
                         setPickedDate(initial.business_date);
+                    } else {
+                        const today = businessDateJst(Date.now());
+                        setMonth(monthKey(today));
+                        setYear(yearKey(today));
+                        setPickedDate(today);
                     }
                 }
             } catch (err: unknown) {
@@ -584,7 +596,7 @@ export default function Analytics() {
                 }
             }
         }
-        const onUsers = () => { void refreshIdentity(); void refresh(); };
+        const onUsers = () => { void refreshIdentity(); };
         window.addEventListener("barticket-users-updated", onUsers);
         window.addEventListener("barticket-auth", onUsers);
         async function start() {
@@ -593,13 +605,21 @@ export default function Analytics() {
                 if (cancelled) return;
                 // Refresh live totals, roster/punches and shift-close status
                 // without requiring the manager to leave the Analytics page.
-                window.addEventListener("focus", refresh);
-                window.addEventListener("barticket-analytics-updated", refresh);
-                window.addEventListener("barticket-push", refresh);
-                window.addEventListener("barticket-notices", refresh);
-                window.addEventListener("barticket-api-restored", refresh);
-                timer = window.setInterval(refresh, 20000);
-                await refresh();
+                stopRefresh = startBackgroundRefresh({
+                    refresh,
+                    shouldPoll,
+                    events: ["barticket-analytics-updated", "barticket-push", "barticket-shift-updated", "barticket-auth", "barticket-users-updated"],
+                });
+                // Notices do not invalidate the complete ticket/history dataset.
+                stopNotices = startBackgroundRefresh({
+                    refresh: async () => {
+                        const stock = await listNotices().catch(() => null);
+                        if (!cancelled) setNotices(stock);
+                    },
+                    shouldPoll,
+                    events: ["barticket-notices", "barticket-auth"],
+                    intervalMs: 60_000,
+                });
             } catch (err: unknown) {
                 if (cancelled) return;
                 setLoading(false);
@@ -619,12 +639,8 @@ export default function Analytics() {
             identityGeneration++;
             window.removeEventListener("barticket-users-updated", onUsers);
             window.removeEventListener("barticket-auth", onUsers);
-            if (timer !== null) window.clearInterval(timer);
-            window.removeEventListener("focus", refresh);
-            window.removeEventListener("barticket-analytics-updated", refresh);
-            window.removeEventListener("barticket-push", refresh);
-            window.removeEventListener("barticket-notices", refresh);
-            window.removeEventListener("barticket-api-restored", refresh);
+            stopRefresh();
+            stopNotices();
         };
     }, [signedIn]);
 
@@ -637,11 +653,11 @@ export default function Analytics() {
         [shifts, year],
     );
     const currentReport = useMemo<AnalyticsShiftReport | null>(() => {
-        const live = liveAnalyticsShift(openShift, tickets);
+        const live = liveAnalyticsShift(withLiveShiftHours(openShift, clockNow), tickets);
         if (!live) return null;
         const venue = (shifts ?? []).find((row) => row.id === live.id && row.business_date === live.business_date);
         return { ...(venue ?? {}), ...live };
-    }, [openShift, shifts, tickets]);
+    }, [openShift, shifts, tickets, clockNow]);
     const selected = useMemo(() => currentReport?.id === dayId && currentReport.business_date === pickedDate
         ? currentReport
         : (shifts ?? []).find((shift) => shift.id === dayId && shift.business_date === pickedDate) ?? null,
@@ -687,7 +703,7 @@ export default function Analytics() {
     function showMonth(next: string) {
         setMonth(next);
         setYear(next.slice(0, 4));
-        const inMonth = (shifts ?? []).filter((shift) => monthKey(shift.business_date) === next);
+        const inMonth = (shiftIndex ?? []).filter((shift) => monthKey(shift.business_date) === next);
         const first = openShift && monthKey(openShift.business_date) === next ? openShift : inMonth[0];
         setDayId(first?.id ?? null);
         setPickedDate(first?.business_date ?? `${next}-01`);
@@ -697,7 +713,7 @@ export default function Analytics() {
         setPickedDate(iso);
         setMonth(monthKey(iso));
         setYear(yearKey(iso));
-        const match = analyticsShiftOnDate(iso, openShift, shifts ?? []);
+        const match = openShift?.business_date === iso ? openShift : shiftIndex?.find(shift => shift.business_date === iso);
         setDayId(match?.id ?? null);
     }
 
@@ -722,10 +738,19 @@ export default function Analytics() {
         <Page>
             <h1>{t("analytics")}</h1>
             {!signedIn ? <p>{t("signInForShifts")}</p> : null}
-            {signedIn && loading && !shifts ? <RequestState kind="loading" detail={locale === "ja" ? "分析データを読み込み中…" : "Loading analytics…"} /> : null}
+            {signedIn && loading && !shiftIndex ? <RequestState kind="loading" detail={locale === "ja" ? "分析データを読み込み中…" : "Loading analytics…"} /> : null}
             {error ? <RequestState kind="error" detail={error} onRetry={() => window.location.reload()} /> : null}
-            {account && shifts ? (
+            {account && shiftIndex ? (
                 <>
+                    {staleShift ? <div role="status" className="shift-warning">
+                        <p>{locale === "ja"
+                            ? `${staleShift.businessDate} のシフト #${staleShift.shiftId} は未締めです。過去のレポートは引き続き表示できます。管理者が未解決残高を確認してください。`
+                            : `Shift #${staleShift.shiftId} (${staleShift.businessDate}) needs reconciliation. Historical reports remain available. A manager must review the unresolved balances.`}</p>
+                        <Link to="/profile">{locale === "ja" ? "シフトを確認する" : "Review shift"}</Link>
+                    </div> : null}
+                    {openShift ? <button type="button" className="secondary" onClick={() => { pickDate(openShift.business_date); setRange("day"); }}>
+                        {locale === "ja" ? "現在の営業日" : "Current night"} · {openShift.business_date}
+                    </button> : null}
                     <TabGroup
                         tabs={[
                             { id: "all", label: t("allTime") },
@@ -796,7 +821,7 @@ export default function Analytics() {
                             <AnalyticsDatePicker
                                 label={pickedDate ? formatNight(pickedDate, locale) : t("noNightsYet")}
                                 value={pickedDate}
-                                shiftDates={[...(shifts ?? []).map((shift) => shift.business_date), ...(openShift ? [openShift.business_date] : [])]}
+                                shiftDates={[...(shiftIndex ?? []).map((shift) => shift.business_date), ...(openShift ? [openShift.business_date] : [])]}
                                 onChange={pickDate}
                             />
                             <StepButton
@@ -811,12 +836,16 @@ export default function Analytics() {
                         </DayNavigator>
                     ) : null}
                     {range === "all" && account.role === "manager" ? <DataDownload locale={locale} /> : null}
+                    {!ticketsReady || !reportsReady ? <RequestState kind="loading" detail={locale === "ja" ? "レポートを読み込み中…" : "Loading reports for this period…"} /> : null}
+                    {ticketsError || reportsError ? <RequestState kind="error" detail={locale === "ja" ? "伝票を更新できませんでした。表示内容が古い可能性があります。" : "Could not refresh this period. Displayed data may be outdated."} /> : null}
+                    {ticketsReady && reportsReady && !ticketsError && !reportsError ? <>
                     <AnalyticsReportActions
                         key={[range, month, year, range === "day" ? dayId : null].join(":")}
                         textEn={reportText("en")}
                         textJa={reportText("ja")}
                         locale={locale}
                     />
+                    {range === "day" && selected?.status === "closed" && selected.id !== null && selected.id > 0 ? <NotificationActivityHistory key={selected.id} shiftId={selected.id} /> : null}
                     {range === "day" && selected?.status === "open" ? (
                         <>
                             <OpenShiftOverview
@@ -830,7 +859,7 @@ export default function Analytics() {
                             <GuestOccupancyChart
                                 shift={selected as ShiftReport}
                                 tickets={tickets}
-                                now={lastUpdated ?? clockNow ?? selected.opened_at ?? 0}
+                                now={clockNow ?? lastUpdated ?? selected.opened_at ?? 0}
                                 dateLabel={formatNight(selected.business_date, locale)}
                             />
                         </>
@@ -845,7 +874,7 @@ export default function Analytics() {
                                         <GuestOccupancyChart
                                             shift={selected as ShiftReport}
                                             tickets={tickets}
-                                            now={lastUpdated ?? clockNow ?? selected.opened_at ?? 0}
+                                            now={clockNow ?? lastUpdated ?? selected.opened_at ?? 0}
                                             dateLabel={formatNight(selected.business_date, locale)}
                                         />
                                     ) : null}
@@ -871,9 +900,10 @@ export default function Analytics() {
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
                     {visible.length > 0 ? <TopSellingPanel items={soldItems} context={copyPeriod(range, month, year, selected, locale)} /> : null}
-                    {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} /> : null}
+                    {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} canCorrect={account.role === "manager"} /> : null}
                         </>
                     )}
+                    </> : null}
                 </>
             ) : null}
         </Page>
@@ -963,7 +993,7 @@ function Stockouts({ shifts }: { shifts: AnalyticsShiftReport[] }) {
     );
 }
 
-function ShiftTickets({ shifts, tickets }: { shifts: AnalyticsShiftReport[]; tickets: Ticket[] }) {
+function ShiftTickets({ shifts, tickets, canCorrect }: { shifts: AnalyticsShiftReport[]; tickets: Ticket[]; canCorrect: boolean }) {
     const { t, locale } = useI18n();
     const [openId, setOpenId] = useState<number | null>(null);
     const dates = useMemo(
@@ -1037,7 +1067,7 @@ function ShiftTickets({ shifts, tickets }: { shifts: AnalyticsShiftReport[]; tic
                                     />
                                 </TicketCardHeader>
                                 {open ? (
-                                    <ItemList>
+                                    <><ItemList>
                                         {ticket.items.map((item) => (
                                             <li key={item.id}>
                                                 <span>{item.type === "cover" ? t("coverCharge") : menuLabel(locale, item.name)}</span>
@@ -1045,7 +1075,7 @@ function ShiftTickets({ shifts, tickets }: { shifts: AnalyticsShiftReport[]; tic
                                                 <strong>{yen(item.subtotal)}</strong>
                                             </li>
                                         ))}
-                                    </ItemList>
+                                    </ItemList><PaymentDateHistory ticket={ticket} canCorrect={canCorrect} /></>
                                 ) : null}
                             </TicketCard>
                         );
@@ -1446,4 +1476,5 @@ const Card = styled.section`
         font-weight: 500;
     }
 `;
+
 

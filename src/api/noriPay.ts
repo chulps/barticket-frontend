@@ -6,10 +6,19 @@ export type NoriMonthlyPay = {
     month: string;
     preview_only: true;
     own_income: {
-        amount_yen: null;
-        status: "unavailable";
+        amount_yen: number | null;
+        status: "estimate" | "incomplete" | "unavailable";
         blockers: string[];
-        source: null;
+        source: "monthly_revenue_less_recorded_staff_earnings" | null;
+        basis?: "before_other_expenses";
+        note?: string;
+        complete?: boolean;
+        revenue_yen?: number | null;
+        staff_earnings_yen?: number | null;
+        chuck_net_earnings_yen?: number | null;
+        hourly_staff_earnings_yen?: number | null;
+        recorded_staff_tips_commissions_yen?: number | null;
+        other_manager_deductions_excluded_yen?: number;
     };
     staff_owed: {
         payee: NoriPayee;

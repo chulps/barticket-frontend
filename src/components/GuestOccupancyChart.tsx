@@ -18,6 +18,7 @@ function timeLabel(timestamp: number, locale: "en" | "ja") {
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
+        timeZone: "Asia/Tokyo",
     });
 }
 
@@ -338,3 +339,4 @@ const NoHistory = styled.p`
     margin: var(--space-2) 0 0;
     color: var(--neutral-300);
 `;
+

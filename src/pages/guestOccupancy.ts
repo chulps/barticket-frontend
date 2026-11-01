@@ -30,11 +30,22 @@ function count(value: number | null | undefined): number {
 }
 
 function closeTime(ticket: Ticket, shift: ShiftWindow, shiftEnd: number): number | null {
+    // Service completion is departure; settlement may happen days later.
+    // Keep active/reopened service inside even if a stale payment is attached.
+    if (ticket.serviceStatus === "active") return shift.status === "open" ? null : shiftEnd;
+    if (ticket.serviceStatus === "completed") {
+        return seconds(ticket.serviceCompletedAt)
+            ?? seconds(ticket.deferredAt);
+    }
     if (ticket.status === "open") return shift.status === "open" ? null : shiftEnd;
     if (ticket.status === "cancelled") {
         return seconds(ticket.cancelled_at) ?? seconds(ticket.updated_at) ?? shiftEnd;
     }
 
+    return legacyCloseTime(ticket, shiftEnd);
+}
+
+function legacyCloseTime(ticket: Ticket, shiftEnd: number): number {
     const activePayments = ticket.payments?.filter((payment) => payment.voided_at == null) ?? [];
     const latestActivePayment = activePayments.reduce<number | null>(
         (latest, payment) => {
@@ -67,6 +78,13 @@ export function guestOccupancyTimeline(
     const end = Math.max(start + 60, requestedEnd ?? start + 60);
     const matching = tickets.filter((ticket) => ticket.shiftId === shift.id);
 
+    // A modern completed service without its completion timestamp is not a
+    // reliable interval. A later collection/update must not invent departure.
+    if (matching.some(ticket => ticket.status !== "cancelled"
+        && ticket.serviceStatus === "completed"
+        && seconds(ticket.serviceCompletedAt) == null
+        && seconds(ticket.deferredAt) == null)) return null;
+
     // Imported historical nights can have guest totals without individual ticket timestamps.
     if (
         shift.status === "closed"
@@ -85,7 +103,7 @@ export function guestOccupancyTimeline(
     };
 
     for (const ticket of matching) {
-        if (ticket.status === "cancelled") continue;
+        if (ticket.status === "cancelled" || ticket.serviceStatus === "cancelled") continue;
 
         const rawStart = seconds(ticket.created_at);
         if (rawStart == null || rawStart > end) continue;
@@ -126,3 +144,4 @@ export function guestOccupancyTimeline(
         peak,
     };
 }
+
