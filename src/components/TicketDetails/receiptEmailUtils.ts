@@ -1,3 +1,4 @@
+import { paymentMethodLabel } from "../paymentMethods";
 import type { Ticket } from "../../types/Ticket";
 import { localeTag } from "../../i18n";
 
@@ -22,7 +23,7 @@ export function receiptPreviewText(ticket: Ticket, locale: "en" | "ja"): string 
         ja ? "領収明細プレビュー（未送信）" : "Receipt preview (not sent)",
         "Ticket #" + ticket.id,
         (ja ? "会計日時" : "Paid at") + ": " + paidAt,
-        (ja ? "決済方法" : "Payment method") + ": " + (ticket.payment?.type ?? (ja ? "不明" : "Unknown")),
+        (ja ? "決済方法" : "Payment method") + ": " + (ticket.payment ? paymentMethodLabel(ticket.payment.type, locale) : (ja ? "不明" : "Unknown")),
         "", items, "",
         (ja ? "明細合計（参考）" : "Recorded line total (reference)") + ": ¥" + total.toLocaleString("ja-JP"),
         ja ? "正式な決済金額と領収書はバックエンドの送信API提供後に確定します。" :

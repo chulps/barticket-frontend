@@ -150,8 +150,8 @@ export function createAnalyticsTextReport(input: AnalyticsTextReportInput): stri
     result.push(...section(tr("Payments", "支払方法")));
     const noBreakdown = totals.unknownPayment > 0 && totals.cash + totals.card + totals.other === 0;
     result.push(line(tr("Cash", "現金"), noBreakdown ? "—" : yen(totals.cash)));
-    result.push(line(tr("Card", "カード"), noBreakdown ? "—" : yen(totals.card)));
-    result.push(line(tr("Other", "その他"), noBreakdown ? "—" : yen(totals.other)));
+    result.push(line(tr("Credit card", "クレジットカード"), noBreakdown ? "—" : yen(totals.card)));
+    result.push(line(tr("PayPay / other", "PayPay・その他"), noBreakdown ? "—" : yen(totals.other)));
     if (totals.unknownPayment > 0) {
         result.push(line(tr("Payment type not recorded", "支払方法未記録"), yen(totals.unknownPayment)));
     }

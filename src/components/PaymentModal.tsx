@@ -7,12 +7,12 @@ import { nextSelectorIndex } from "./selectorNavigation";
 import styled from "styled-components";
 
 import { useModal } from "../hooks/useModal";
-import type { CollectionDateConfirmation, Ticket } from "../types/Ticket";
+import type { CollectionDateConfirmation, PaymentType, Ticket } from "../types/Ticket";
 
 import Icon from "../components/Icon"
 import { useI18n, type MessageKey } from "../i18n";
 
-type IconName = React.ComponentProps<typeof Icon>["name"];type PaymentType = "cash" | "card" | "other";
+type IconName = React.ComponentProps<typeof Icon>["name"];
 
 type PaymentModalProps = {
     ticket: Ticket;
@@ -31,6 +31,11 @@ const paymentMethods = [
     type: "card",
     label: "card",
     icon: "CreditCard",
+  },
+  {
+    type: "paypay",
+    label: "paypay",
+    icon: "Wallet",
   },
   {
     type: "other",
@@ -228,14 +233,14 @@ const TotalContainer = styled.div`
 `
 
 const Methods = styled.div`
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-1);
     min-width: 0;
 
     button {
         padding: var(--space-1);
-        aspect-ratio: 1/1;
-        flex: 1;
+        min-height: 80px;
         min-width: 0;
     }
 `

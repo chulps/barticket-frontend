@@ -354,7 +354,7 @@ export default function ShiftControls({ account, locale }: { account: Account; l
                                 <p className="shift-muted">{ja ? "前回の閉店合計" : "Previous close totals"}: {yen(closedToday.paid_total)}
                                     {" · "}{ja ? "現金" : "Cash"} {yen(closedToday.cash_total)}
                                     {" · "}{ja ? "カード" : "Card"} {yen(closedToday.card_total)}
-                                    {" · "}{ja ? "その他" : "Other"} {yen(closedToday.other_total)}</p>
+                                    {" · "}{ja ? "PayPay・その他" : "PayPay / other"} {yen(closedToday.other_total)}</p>
                                 <label className="shift-reopen-reason"><span>{ja ? "再開理由" : "Reason for reopening"}</span>
                                     <textarea value={reopenReason} maxLength={255} rows={3} required onChange={event => setReopenReason(event.target.value)}
                                         placeholder={ja ? "理由を入力してください" : "Enter a reason"} />

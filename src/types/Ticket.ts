@@ -3,7 +3,7 @@ export type CollectionDateConfirmation = {
   collection_date_reason: string;
 };
 
-export type PaymentType = "cash" | "card" | "other";
+export type PaymentType = "cash" | "card" | "paypay" | "other";
 
 export type Payment = {
   type: PaymentType;

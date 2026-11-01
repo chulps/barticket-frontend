@@ -239,7 +239,7 @@ export default function ShiftCloseReview({ shiftId, locale, onClosed, allowStale
                 : "Carry balances and close eligibility are unavailable until this shift’s readiness is verified. Refresh and recheck."}</p> : null}
             <p className="shift-muted">{ja ? "現金" : "Cash"} {yen(live?.cash ?? 0)}
                 {" · "}{ja ? "カード" : "Card"} {yen(live?.card ?? 0)}
-                {" · "}{ja ? "その他" : "Other"} {yen(live?.other ?? 0)}</p>
+                {" · "}{ja ? "PayPay・その他" : "PayPay / other"} {yen(live?.other ?? 0)}</p>
             {blockers.length ? <div className="shift-alert" role="alert">
                 <strong>{ja ? "未会計伝票があるため閉店できません" : "Open tickets must be resolved first"}</strong>
                 <ul>{blockers.slice(0, 12).map(ticket => <li key={ticket.id}>{ticket.name || "#" + ticket.id} (#{ticket.id}){ticket.shift_id !== shiftId ? " — " + (ja ? "別の営業日または未割当" : "Other night or unassigned") : ""}</li>)}</ul>

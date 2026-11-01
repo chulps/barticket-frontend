@@ -91,7 +91,7 @@ function Values({ title, values, locale }: { title: string; values: Record<strin
         manager_name: ["マネージャー", "Manager"], source: ["出典", "Source"],
         closed_at: ["閉店時刻", "Closed at"], paid_total_yen: ["支払済み合計", "Paid total (JPY)"],
         cash_total_yen: ["現金合計", "Cash total (JPY)"], card_total_yen: ["カード合計", "Card total (JPY)"],
-        other_total_yen: ["その他合計", "Other total (JPY)"], cover_total_yen: ["カバーチャージ", "Cover total (JPY)"],
+        other_total_yen: ["PayPay・その他合計", "PayPay / other total (JPY)"], cover_total_yen: ["カバーチャージ", "Cover total (JPY)"],
         guest_count: ["来店人数", "Guest count"], paid_count: ["支払件数", "Paid count"],
         cancelled_count: ["キャンセル件数", "Cancelled count"], status: ["状態", "Status"],
     };

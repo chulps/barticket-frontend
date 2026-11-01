@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { ApiError, apiRequest, getToken } from "../api/client";
 import { paymentSetupAccess } from "../api/paymentSetupAccess";
-type Setup = { provider: string; channel: string; methods: string[]; revision: number };
+import PaymentDecisionGuide from "./PaymentDecisionGuide";
+import { knownPaymentPlan, type PaymentPlan } from "./paymentPlans";
+import TerminalIdentificationGuide from "./TerminalIdentificationGuide";
+import { terminalModels, terminalConnections, knownTerminalModel, knownTerminalConnection, type TerminalModel, type TerminalConnection } from "./terminalModels";
+type Setup = { payment_plan?: string | null; terminal_model?: string | null; terminal_connection?: string | null; provider: string; channel: string; methods: string[]; revision: number };
 
 const providers = [
   { id: "unknown", name: "Other / Unknown · その他・不明", url: "", en: "Check the name on your terminal or settlement statement first.", ja: "まず端末または入金明細で決済会社名を確認してください。" },
@@ -18,13 +22,16 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
   const [providerId, setProviderId] = useState("unknown");
   const [setup, setSetup] = useState<Setup | null>(null);
   const [channel, setChannel] = useState("online");
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan | null>(null);
+  const [terminalModel, setTerminalModel] = useState<TerminalModel>("unknown");
+  const [terminalConnection, setTerminalConnection] = useState<TerminalConnection>("unknown");
   const [methods, setMethods] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [needsReload, setNeedsReload] = useState(false);
   const [loadError, setLoadError] = useState<"denied" | "unavailable" | "">("");
-  const [message, setMessage] = useState<"saved" | "uncertain" | "">("");
+  const [message, setMessage] = useState<"saved" | "terminalSaved" | "planSaved" | "uncertain" | "">("");
   const generation = useRef(0);
   const writePending = useRef(false);
   useEffect(() => {
@@ -48,6 +55,8 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
         const data = await apiRequest<Setup>("/admin/payment-setup");
         if (cancelled || request !== generation.current || getToken() !== token) return;
         setSetup(data); setProviderId(data.provider); setChannel(data.channel); setMethods(data.methods);
+        setPaymentPlan(knownPaymentPlan(data.payment_plan));
+        setTerminalModel(knownTerminalModel(data.terminal_model)); setTerminalConnection(knownTerminalConnection(data.terminal_connection));
       } catch (error) {
         if (cancelled || request !== generation.current || getToken() !== token) return;
         const denied = error instanceof ApiError && (error.status === 401 || error.status === 403);
@@ -69,16 +78,21 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
       window.removeEventListener("barticket-auth", reload);
     };
   }, [reloadKey, accessDenied, onAccessChecked]);
-  async function save() {
+  async function save(terminalOnly = false, planOnly = false) {
     const token = getToken();
     if (accessDenied || accessUnavailable || !setup || loading || busy || writePending.current || needsReload || !token) return;
+    if (planOnly && !paymentPlan) return;
     const request = generation.current;
     writePending.current = true;
     setBusy(true); setMessage("");
     try {
-      const data = await apiRequest<Setup>("/admin/payment-setup", {method: "PUT", body: {provider: providerId, channel, methods, revision: setup.revision}});
+      const data = await apiRequest<Setup>("/admin/payment-setup", {method: "PUT", body: planOnly
+        ? {provider: setup.provider, channel: setup.channel, methods: setup.methods, revision: setup.revision, payment_plan: paymentPlan}
+        : terminalOnly
+        ? {provider: setup.provider, channel: setup.channel, methods: setup.methods, revision: setup.revision, terminal_model: terminalModel, terminal_connection: terminalConnection}
+        : {provider: providerId, channel, methods, revision: setup.revision}});
       if (request !== generation.current || getToken() !== token) return;
-      setSetup(data); setMessage("saved");
+      setSetup(data); setMessage(planOnly ? "planSaved" : terminalOnly ? "terminalSaved" : "saved");
     } catch (error) {
       if (request !== generation.current || getToken() !== token) return;
       if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
@@ -103,6 +117,8 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
   const t = (en: string, jp: string) => ja ? jp : en;
   if (accessDenied || accessUnavailable || loading || !setup) return <Panel>
     <h2>{t("Payment setup", "決済設定")}</h2>
+    <PaymentDecisionGuide ja={ja} />
+    <details><summary>{t("Identify the current terminal", "今の端末の機種を確認")}</summary><TerminalIdentificationGuide ja={ja} /></details>
     {loading && !accessDenied && !accessUnavailable ? <p role="status">{t("Checking payment setup access…", "決済設定の権限を確認中…")}</p> : <>
       <p role="alert">{accessDenied || loadError === "denied"
         ? t("Only the payment account owner can view or change saved payment settings.", "保存した決済設定は決済アカウントの所有者のみが確認・変更できます。")
@@ -113,8 +129,28 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
   const disabled = busy || needsReload;
   return <Panel>
     <header><h2>{t("Payment setup", "決済設定")}</h2>
-      <p>{t("Choose a provider for customer phone payments", "お客様のスマホ決済の会社を選択")}</p></header>
+      <p>{t("Compare the options, then save your preference.", "方法を比べて、希望を保存してください。")}</p></header>
+    <PaymentDecisionGuide ja={ja} selected={paymentPlan} onSelect={setPaymentPlan} disabled={disabled} />
+    <button type="button" disabled={disabled || !paymentPlan} onClick={() => void save(false, true)}>{busy ? t("Saving…", "保存中…") : t("Save preferred option", "希望する方法を保存")}</button>
     <Status role="status">{t("Payment processing: not connected", "決済処理：未接続")}</Status>
+    {message && <p role={message === "uncertain" ? "alert" : "status"}>{message === "planSaved"
+      ? t("Preference saved. No provider or payment settings were changed; nothing is connected.", "希望を保存しました。決済会社や決済設定は変更していません。まだ接続されていません。")
+      : message === "terminalSaved"
+      ? t("Terminal notes saved. Nothing was connected or enabled.", "端末メモを保存しました。接続や決済の有効化は行っていません。")
+      : message === "saved"
+      ? t("Preferences saved. Payments are not enabled.", "希望を保存しました。決済はまだ有効ではありません。")
+      : t("Save could not be confirmed. Reload the saved setup before making another change. Your unsaved selections will be replaced.", "保存を確認できません。次の変更前に保存した設定を再読み込みしてください。未保存の選択内容は置き換わります。")}</p>}
+    {needsReload ? <button type="button" onClick={() => setReloadKey(key => key + 1)}>{t("Reload saved setup", "保存した設定を再読み込み")}</button> : null}
+    <details><summary>{t("Identify the current terminal", "今の端末の機種を確認")}</summary>
+    <TerminalIdentificationGuide ja={ja} />
+    <fieldset disabled={disabled}><legend>{t("Owner’s terminal identification notes", "所有者の端末識別メモ")}</legend>
+      <label>{t("Terminal model", "端末の機種")}<select value={terminalModel} onChange={event => setTerminalModel(knownTerminalModel(event.target.value))}>{terminalModels.map(model => <option key={model.id} value={model.id}>{ja ? model.ja : model.label}</option>)}</select></label>
+      <label>{t("Connection type noted on the device or paperwork (optional)", "端末・書類で確認した通信方式（任意）")}<select value={terminalConnection} onChange={event => setTerminalConnection(knownTerminalConnection(event.target.value))}>{terminalConnections.map(connection => <option key={connection.id} value={connection.id}>{ja ? connection.ja : connection.label}</option>)}</select></label>
+      <small>{t("This records what you found, not a change to the terminal. Leave unknown details as Not sure. Only the payment account owner can view or save these private notes.", "確認できた情報を記録するだけで、端末の設定は変更しません。不明な項目は「わからない」のままにしてください。この非公開メモを確認・保存できるのは決済アカウントの所有者だけです。")}</small>
+      <button type="button" disabled={disabled} onClick={() => void save(true)}>{busy ? t("Saving…", "保存中…") : t("Save terminal notes", "端末メモを保存")}</button>
+    </fieldset>
+    </details>
+    <details><summary>{t("Advanced provider preferences", "詳しい決済会社の設定")}</summary>
     <p>{t("Save setup preferences only. Confirm the bar’s existing merchant account before registering. Online processing remains unavailable; manual payment recording is unchanged.", "ここでは設定の希望のみを保存します。登録前にお店の既存の加盟店アカウントを確認してください。オンライン決済は未接続です。手動の支払記録は引き続き利用できます。")}</p>
     <p>{t("Stripe is an online checkout option, not a confirmed provider. Choosing it here only edits this draft; it does not connect or change an existing terminal.", "Stripeはオンライン決済の候補であり、確定した決済会社ではありません。ここで選択しても未保存の希望が変わるだけで、接続や既存端末の変更は行われません。")}</p>
     {(providerId !== "stripe" || channel !== "online") && <button type="button" className="hollow secondary" disabled={disabled} onClick={() => { setProviderId("stripe"); setChannel("online"); }}>{t("Choose Stripe online setup", "Stripeのオンライン設定を選択")}</button>}
@@ -127,10 +163,6 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
     <fieldset disabled={disabled}><legend>{t("Requested payment methods", "希望する支払方法")}</legend>{["card", "apple_pay", "google_pay", "paypay", "rakuten_pay"].map(method => <label key={method}><span><input style={{width:"auto"}} type="checkbox" checked={methods.includes(method)} onChange={e => setMethods(current => e.target.checked ? [...current, method] : current.filter(m => m !== method))} /> {{card: ja ? "カード" : "Cards", apple_pay: "Apple Pay", google_pay:"Google Pay", paypay:"PayPay", rakuten_pay:"楽天ペイ"}[method]}</span></label>)}</fieldset>
     <p>{t("Availability depends on your provider, payment channel and merchant approval.", "利用可否は決済会社、決済方式、加盟店審査によります。")}</p>
     <button type="button" disabled={disabled} onClick={() => void save()}>{busy ? t("Saving…", "保存中…") : t("Save setup preferences", "設定の希望を保存")}</button>
-    {message && <p role={message === "uncertain" ? "alert" : "status"}>{message === "saved"
-      ? t("Preferences saved. Payments are not enabled.", "希望を保存しました。決済はまだ有効ではありません。")
-      : t("Save could not be confirmed. Reload the saved setup before making another change. Your unsaved selections will be replaced.", "保存を確認できません。次の変更前に保存した設定を再読み込みしてください。未保存の選択内容は置き換わります。")}</p>}
-    {needsReload ? <button type="button" onClick={() => setReloadKey(key => key + 1)}>{t("Reload saved setup", "保存した設定を再読み込み")}</button> : null}
     {providerId === "stripe" && channel === "online" && <StripeGuide ja={ja} />}
     {onboardingUrl && providerId !== "stripe" && <a href={onboardingUrl} target="_blank" rel="noopener noreferrer">{t("Continue setup with provider ↗", "決済会社で登録を進める ↗")}</a>}
     <details><summary>{t("Compare fees", "手数料を比較")}</summary>
@@ -153,6 +185,7 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
     </ol>
     </details>
     <p>{t("Do not enter bank details, passwords or secret API keys here. Secure account connection is not available yet.", "銀行情報、パスワード、秘密APIキーはここに入力しないでください。安全なアカウント接続機能は準備中です。")}</p>
+    </details>
   </Panel>;
 }
 
@@ -177,9 +210,13 @@ const Panel = styled.section`
   padding: var(--space-3); background: var(--neutral-900); border-radius: var(--space-2);
   h2, h3, p { margin: 0; } h3 { margin-top: var(--space-2); }
   fieldset { min-width:0; margin:0; padding: var(--space-2); display:grid; gap:var(--space-2); }
+  fieldset button { min-width:0; width:100%; white-space:normal; }
+  @media(max-width: 570px) { padding: var(--space-2); }
   fieldset label span { display:flex; align-items:center; gap:var(--space-2); }
   fieldset input { flex:none; min-width:18px; min-height:18px; }
   a, p, button, summary { overflow-wrap:anywhere; }
+  button { min-width:0; max-width:100%; white-space:normal; }
+  button:disabled { filter:none; }
   && label { display: grid; gap: var(--space-1); min-width: 0; color: var(--font-color); }
   html.light & { background: var(--neutral-050); }
   html.light & a { color: #1d4ed8; }

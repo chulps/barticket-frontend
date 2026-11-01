@@ -1,0 +1,3 @@
+# Manual payment methods
+
+Take Payment records Cash (`cash`), Credit card (`card`), PayPay (`paypay`), or Other (`other`). It does not process a payment. Existing cash/card/other records remain unchanged; unknown historical values remain stored and safely display as Other. The existing other_total summary includes PayPay and other non-cash/non-card methods once, labeled PayPay / other by the UI. Raw records retain distinct methods. No database migration, provider connection, customer fee, price, revenue-share or payroll change. Release API acceptance before the frontend under separately approved deployment.
