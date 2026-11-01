@@ -13,6 +13,7 @@ import { canViewChuckPersonalPay } from "./chuckProfileAccess";
 import { buildChuckProfileStats, type ChuckProfileStats } from "./chuckProfileStats";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
 import { shiftMonth } from "./analyticsNavigation";
+import { chuckPayDisplay } from "./chuckPayDisplay";
 
 type Category = "all" | "hourly_wages" | "staff_drink_bonus";
 type SortOrder = "date" | "category";
@@ -170,6 +171,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
     const chuckStats = statsResult?.stats ?? null;
     const chuckStatsLoading = isChuckProfile && statsResult === null;
     const chuckStatsError = statsResult?.error ?? "";
+    const payDisplay = chuckReport ? chuckPayDisplay(chuckReport) : null;
 
     const wage = report?.categories.find((item): item is WageCategory => item.category === "hourly_wages");
     const bonus = report?.categories.find((item): item is DrinkCategory => item.category === "staff_drink_bonus");
@@ -350,7 +352,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                         <Summary>
                             <Metric>
                                 <span>{ja ? "Chuckへの支払予定額" : "Amount owed to Chuck"}</span>
-                                <strong>{money(chuckReport.net_amount_owed_yen, locale)}</strong>
+                                <strong>{money(payDisplay?.netAmount ?? null, locale)}</strong>
                                 {!chuckReport.complete ? <small>{ja ? "一部の記録が不足しているため確定できません" : "Unavailable until required records are complete"}</small> : null}
                             </Metric>
                         </Summary>
@@ -359,9 +361,10 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                             ? "これはChuck担当シフトに基づく月次の支払見積もりです。勤務時間・時給・対象スタッフドリンク・控除がすべて確認できるまで、支払予定額は表示されません。これは支払記録ではなく、不明な項目を0円とは扱いません。"
                             : chuckReport.note}</Notice></Details>
                         {!chuckReport.complete && chuckReport.blockers.length ? (
-                            <ErrorArea role="status">
+                            <PayWarning role="status" aria-label={ja ? "給与見積もりの確認事項" : "Pay estimate warnings"}>
+                                <strong><span aria-hidden="true"><Icon name="Warning" /></span>{ja ? "確認が必要です" : "Needs review"}</strong>
                                 <ul>{chuckReport.blockers.map(code => <li key={code}>{payBlockerLabel(code, ja)}</li>)}</ul>
-                            </ErrorArea>
+                            </PayWarning>
                         ) : null}
                         <Details><summary>{ja ? "給与の内訳・明細" : "Pay breakdown and details"}</summary>
                         <Summary>
@@ -370,8 +373,13 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                                 <strong>{money(chuckReport.gross_salary_yen, locale)}</strong>
                             </Metric>
                             <Metric>
-                                <span>{ja ? "スタッフに支払う金額" : "Staff pay owed"}</span>
+                                <span>{payDisplay?.staffSubtotalPartial
+                                    ? (ja ? "記録済みスタッフ給与の小計（一部）" : "Recorded staff pay subtotal (partial)")
+                                    : (ja ? "スタッフに支払う金額" : "Staff pay owed")}</span>
                                 <strong>{money(chuckReport.staff_cost_total_yen, locale)}</strong>
+                                {payDisplay?.staffSubtotalPartial ? <small>{ja
+                                    ? "未確認の勤務時間などは含まれません。最終的な支払額ではありません。"
+                                    : "Missing or unverified inputs are not included. This is not the final amount owed."}</small> : null}
                             </Metric>
                             <Metric>
                                 <span>{ja ? "その他の控除" : "Other deductions"}</span>
@@ -567,6 +575,16 @@ const Metric = styled.div`
     strong { font-family: var(--font-family-data); }
 `;
 const Notice = styled.p`color: var(--neutral-300);`;
+const PayWarning = styled.div`
+    color: var(--warning-500);
+    border: 1px solid var(--warning-500);
+    border-radius: 8px;
+    padding: var(--space-2);
+    strong { display: flex; align-items: center; gap: var(--space-1); }
+    strong span { display: inline-flex; flex-shrink: 0; }
+    ul { margin: var(--space-1) 0 0; padding-left: 1.25rem; }
+    li + li { margin-top: var(--space-0); }
+`;
 const ChartNote = styled.p`color: var(--neutral-300); font-size: var(--font-size-small);`;
 const HistoryList = styled.ul`
     list-style: none;

@@ -1,7 +1,7 @@
 import {test, expect} from "@playwright/test";
 const API = "http://127.0.0.1:8765";
 
-async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
+async function fixture(page, {locale = "en", id = 7, incomplete = false, legacyPartial = false} = {}) {
   const calls = [];
   const role = id === 901 || id === 902 ? "manager" : "staff";
   await page.addInitScript(({locale}) => {
@@ -29,8 +29,8 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
       {category:"staff_drink_bonus",amount_yen:0,complete:true,entries:[]},
     ]};
     else if(url.pathname === "/profile/chuck-monthly-pay") body = {user_id:id,month,preview_only:true,complete:!incomplete,
-      gross_salary_yen:40000,staff_cost_total_yen:incomplete ? null : 13000,deduction_total_yen:0,
-      net_amount_owed_yen:incomplete ? null : 27000,staff_owed:[],deductions:[],
+      gross_salary_yen:40000,staff_cost_total_yen:legacyPartial ? 13000 : incomplete ? null : 13000,deduction_total_yen:0,
+      net_amount_owed_yen:legacyPartial ? 27000 : incomplete ? null : 27000,staff_owed:[],deductions:[],
       blockers:incomplete ? ["staff_hourly_rate_missing"] : [],note:"This is a pay estimate, not a payment record."};
     else if(url.pathname === "/analytics/shifts") body=[];
     else if(url.pathname === "/analytics/service-sales") body={basis:"original_service_business_date",days:[]};
@@ -79,4 +79,22 @@ for(const id of [7,901,902])for(const locale of ["en","ja"])for(const width of [
   await page.screenshot({path:testInfo.outputPath(section+".png"),fullPage:true});
  }
  expect(calls.filter(x=>!x.startsWith("GET "))).toEqual([]);
+});
+
+for (const locale of ["en", "ja"]) for (const width of [320, 1280]) test(`incomplete legacy manager pay stays unavailable ${locale} ${width}`, async ({page}) => {
+  await page.setViewportSize({width, height:900});
+  const calls = await fixture(page, {locale, id:901, incomplete:true, legacyPartial:true});
+  const ja = locale === "ja";
+  await expect(page.getByText(ja ? "Chuckへの支払予定額" : "Amount owed to Chuck", {exact:true}).locator("..").locator("strong")).toHaveText("—");
+  await page.getByText(ja ? "給与の内訳・明細" : "Pay breakdown and details", {exact:true}).click();
+  const warning = page.getByRole("status", {name:ja ? "給与見積もりの確認事項" : "Pay estimate warnings"});
+  await expect(warning).toContainText(ja ? "確認が必要です" : "Needs review");
+  await expect(warning).toContainText(ja ? "スタッフの時給が未設定です。" : "A staff hourly rate is missing.");
+  await expect(warning).toHaveCSS("color", "rgb(255, 229, 101)");
+  await expect(warning.locator("svg")).toBeVisible();
+  const subtotal = page.getByText(ja ? "記録済みスタッフ給与の小計（一部）" : "Recorded staff pay subtotal (partial)", {exact:true}).locator("..");
+  await expect(subtotal).toContainText(/[¥￥]13,000/);
+  await expect(subtotal).toContainText(ja ? "最終的な支払額ではありません" : "not the final amount owed");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  expect(calls.filter(x => !x.startsWith("GET "))).toEqual([]);
 });
