@@ -135,14 +135,14 @@ for(const locale of ['en','ja'])for(const width of [320,1280])test(`partial drin
  const ja=locale==='ja';await page.setViewportSize({width,height:900});
  const calls=await fixture(page,{locale,id:901,breakdownReport:{complete:true,staff_drink_data_status:'incomplete',blockers:[],gross_salary_yen:10000,eligible_revenue_yen:25000,tier_rate_percent:40,net_amount_owed_yen:width===320?6500:null,staff_cost_total_yen:width===320?3000:null,recorded_staff_cost_total_yen:3000,deduction_total_yen:500,
  staff_owed:[{user_id:11,name:'Staff A',wages_yen:800,staff_drink_bonus_yen:200,total_owed_yen:width===320?1000:null,recorded_total_yen:1000},{user_id:12,name:'Staff B',wages_yen:1800,staff_drink_bonus_yen:200,total_owed_yen:width===320?2000:null,recorded_total_yen:2000}],deductions:[{id:1,category:'manager_pay_deduction',amount_yen:500,business_date:'2026-10-01',reason:'Recorded ledger',reversal_of_id:null}]}});
- await expect(page.getByText(ja?'Chuckの差引後見積もり（記録済みデータ）':'Chuck’s remaining estimate (recorded data)',{exact:true}).locator('..').locator('strong')).toHaveText('—');
+ await expect(page.getByText(ja?'Chuckの差引後見積もり（記録済みデータ）':'Chuck’s remaining estimate (recorded data)',{exact:true}).locator('..').locator('strong')).toHaveText(/[¥￥]6,500/);
  await expect(page.getByRole('status',{name:ja?'ドリンク記録の確認状況':'Drink-data coverage'})).toContainText(ja?'ドリンク記録が不足しています':'Drink records are incomplete');
  await expect(page.getByRole("heading",{name:ja?'給与の内訳・明細':'Pay breakdown and details',exact:true})).toBeVisible();
  const region=page.getByRole('region',{name:ja?'売上から給与までの内訳':'Revenue to pay breakdown'});
- await expect(region.getByRole('heading',{name:ja?'記録済み費用差引後の残額（暫定）':'Remaining after recorded costs (provisional)',exact:true})).toBeVisible();
+ await expect(region.getByRole('heading',{name:ja?'総取り分の配分（記録済みデータ）':'Gross share allocation (recorded data)',exact:true})).toBeVisible();
  for(const name of ['Staff A','Staff B'])for(const part of [ja?'賃金':'Wages',ja?'記録済みドリンク手当':'Recorded drink bonus'])await expect(region.getByText(`${name} · ${part}`,{exact:true})).toBeVisible();
  await expect(region.getByText(ja?'差引後の自分の取り分（見積もり）':'Your remaining share (estimate)',{exact:true}).locator('..')).toContainText('—');
- await expect(region.getByRole('complementary',{name:ja?'取り分の配分グラフ':'Share allocation chart'})).toContainText(/[¥￥]6,500/);
+ await expect(region.locator('[data-pay-gross-center]')).toHaveText(/[¥￥]10,000/);
  const details=region.getByRole('region',{name:ja?'給与と控除の明細':'Pay and deduction details'}), chart=region.getByRole('complementary',{name:ja?'取り分の配分グラフ':'Share allocation chart'});
  await expect(details.getByRole('list',{name:ja?'控除の明細':'Deduction entries'})).toContainText('Recorded ledger');
  const a=await details.boundingBox(),b=await chart.boundingBox();

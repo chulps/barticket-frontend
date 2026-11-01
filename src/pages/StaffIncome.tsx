@@ -13,8 +13,8 @@ import { canViewChuckPersonalPay } from "./chuckProfileAccess";
 import ManagedShiftStats from "./ManagedShiftStats";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
 import { shiftMonth } from "./analyticsNavigation";
-import { chuckPayDisplay } from "./chuckPayDisplay";
 import ChuckPayBreakdown from "./ChuckPayBreakdown";
+import { buildChuckPayBreakdown } from "./chuckPayBreakdown";
 
 type Category = "all" | "hourly_wages" | "staff_drink_bonus";
 type SortOrder = "date" | "category";
@@ -61,7 +61,7 @@ function payBlockerLabel(code: string, ja: boolean) {
         working_manager_shift_open: "A Chuck-managed shift is still open.",
         staff_hours_unverified: "Staff hours are incomplete for at least one Chuck-managed shift.",
         staff_hourly_rate_missing: "A staff hourly rate is missing.",
-        staff_drink_data_incomplete: "Staff-drink records are known to be incomplete. Recorded bonuses are partial; the remaining estimate is unavailable.",
+        staff_drink_data_incomplete: "Staff-drink records are known to be incomplete. Recorded bonuses are partial; the final remaining amount is unavailable.",
         unattributed_staff_drink: "A paid staff drink has no linked staff member.",
         unassigned_staff_history: "Verified historical hours include a staff member not linked to an account.",
         staff_payroll_costs_incomplete: "Staff pay is incomplete, so the net amount owed cannot be calculated.",
@@ -73,7 +73,7 @@ function payBlockerLabel(code: string, ja: boolean) {
         working_manager_shift_open: "Chuck担当のシフトがまだ営業中です。",
         staff_hours_unverified: "Chuck担当のシフトのスタッフ勤務時間が未確認です。",
         staff_hourly_rate_missing: "スタッフの時給が未設定です。",
-        staff_drink_data_incomplete: "スタッフドリンク記録が不足しています。記録済み手当は一部のみのため、差引後の見積もりは表示できません。",
+        staff_drink_data_incomplete: "スタッフドリンク記録が不足しています。記録済み手当は一部のみのため、差引後の最終額は確定できません。",
         unattributed_staff_drink: "スタッフが紐づいていない支払済みドリンクがあります。",
         unassigned_staff_history: "アカウントに紐づいていないスタッフの履歴があります。",
         staff_payroll_costs_incomplete: "スタッフ給与が不完全なため、差引後の金額を計算できません。",
@@ -145,7 +145,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
     }, [role, userId, month, refreshKey, ja, isChuckProfile]);
 
 
-    const payDisplay = chuckReport ? chuckPayDisplay(chuckReport) : null;
+    const recordedRemaining = chuckReport ? buildChuckPayBreakdown(chuckReport).recordedRemaining : null;
 
     const wage = report?.categories.find((item): item is WageCategory => item.category === "hourly_wages");
     const bonus = report?.categories.find((item): item is DrinkCategory => item.category === "staff_drink_bonus");
@@ -281,8 +281,9 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                         <Summary>
                             <Metric>
                                 <span>{ja ? "Chuckの差引後見積もり（記録済みデータ）" : "Chuck’s remaining estimate (recorded data)"}</span>
-                                <strong>{money(payDisplay?.netAmount ?? null, locale)}</strong>
-                                {payDisplay?.netAmount == null ? <small>{ja ? "一部の記録が不足しているため確定できません" : "Unavailable until required records are complete"}</small> : null}
+                                <strong>{money(recordedRemaining, locale)}</strong>
+                                <small>{ja ? "記録済み費用差引後の暫定額です。未記録分は含まず、最終支払額ではありません。" : "Provisional after recorded costs. Missing records are not included; this is not final pay."}</small>
+                                {recordedRemaining == null ? <small>{ja ? "記録済み金額の整合性を確認できるまで表示できません" : "Unavailable until recorded amounts can be reconciled"}</small> : null}
                             </Metric>
                         </Summary>
                         <p>{ja ? "これは給与見積もりであり、支払記録ではありません。" : "This is a pay estimate, not a payment record."}</p>
@@ -293,7 +294,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                             <p>{ja ? "表示される手当は記録済み分のみです。未記録分は0円とは扱わず、この見積もりは最終支払額ではありません。" : "Bonuses shown include recorded drinks only. Missing drinks are not assumed to be zero; this is not a final amount owed."}</p>
                         </PayWarning> : null}
                         <OpenSection><h3>{ja ? "見積もりについて" : "About this estimate"}</h3><Notice role="note">{ja
-                            ? "これはChuck担当シフトの記録済みデータに基づく月次見積もりです。ドリンク記録の網羅性が未確認の場合、最終支払額ではありません。記録不足が確認された場合は差引後の見積もりを表示しません。支払記録ではなく、不明な項目を0円とは扱いません。"
+                            ? "これはChuck担当シフトの記録済みデータに基づく月次見積もりです。ドリンク記録の網羅性が未確認の場合、最終支払額ではありません。記録不足がある場合、整合する記録済み金額だけの暫定残額を表示しますが、最終額は未確定です。支払記録ではなく、不明な項目を0円とは扱いません。"
                             : chuckReport.note}</Notice></OpenSection>
                         {!chuckReport.complete && chuckReport.blockers.length ? (
                             <PayWarning role="status" aria-label={ja ? "給与見積もりの確認事項" : "Pay estimate warnings"}>
