@@ -93,7 +93,6 @@ export default function StaffIncome(props: IncomeProps) {
 
 function PersonalIncome({ userId, locale, role }: IncomeProps) {
     const ja = locale === "ja";
-    const [showStats, setShowStats] = useState(false);
     const [month, setMonth] = useState(thisMonth);
     const [category, setCategory] = useState<Category>("all");
     const [sort, setSort] = useState<SortOrder>("date");
@@ -293,18 +292,18 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                                 : (ja ? "ドリンク記録の網羅性は未確認です" : "Drink-record coverage is unreviewed")}</strong>
                             <p>{ja ? "表示される手当は記録済み分のみです。未記録分は0円とは扱わず、この見積もりは最終支払額ではありません。" : "Bonuses shown include recorded drinks only. Missing drinks are not assumed to be zero; this is not a final amount owed."}</p>
                         </PayWarning> : null}
-                        <Details><summary>{ja ? "見積もりについて" : "About this estimate"}</summary><Notice role="note">{ja
+                        <OpenSection><h3>{ja ? "見積もりについて" : "About this estimate"}</h3><Notice role="note">{ja
                             ? "これはChuck担当シフトの記録済みデータに基づく月次見積もりです。ドリンク記録の網羅性が未確認の場合、最終支払額ではありません。記録不足が確認された場合は差引後の見積もりを表示しません。支払記録ではなく、不明な項目を0円とは扱いません。"
-                            : chuckReport.note}</Notice></Details>
+                            : chuckReport.note}</Notice></OpenSection>
                         {!chuckReport.complete && chuckReport.blockers.length ? (
                             <PayWarning role="status" aria-label={ja ? "給与見積もりの確認事項" : "Pay estimate warnings"}>
                                 <strong><span aria-hidden="true"><Icon name="Warning" /></span>{ja ? "確認が必要です" : "Needs review"}</strong>
                                 <ul>{chuckReport.blockers.map(code => <li key={code}>{payBlockerLabel(code, ja)}</li>)}</ul>
                             </PayWarning>
                         ) : null}
-                        <Details><summary>{ja ? "給与の内訳・明細" : "Pay breakdown and details"}</summary>
+                        <OpenSection><h3>{ja ? "給与の内訳・明細" : "Pay breakdown and details"}</h3>
                             <ChuckPayBreakdown report={chuckReport} locale={locale} />
-                        </Details>
+                        </OpenSection>
                     </>
                 ) : report ? (
                     <>
@@ -354,10 +353,10 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                         </HistoryList> : <Muted>{ja ? "この月の収入記録はありません。" : "No income records for this month."}</Muted>}
                     </>
                 ) : null}
-            {isChuckProfile ? <Details onToggle={event => setShowStats(event.currentTarget.open)}>
-                <summary>{ja ? "担当シフトの売上・来客数" : "Managed-shift sales and guests"}</summary>
-                <ManagedShiftStats userId={userId} month={month} locale={locale} active={showStats} />
-            </Details> : null}
+            {isChuckProfile ? <OpenSection aria-label={ja ? "担当シフトの売上・来客数" : "Managed-shift sales and guests"}>
+                <h3>{ja ? "担当シフトの売上・来客数" : "Managed-shift sales and guests"}</h3>
+                <ManagedShiftStats userId={userId} month={month} locale={locale} active={true} />
+            </OpenSection> : null}
 
         </Wrapper>
     );
@@ -370,6 +369,13 @@ const Wrapper = styled.section`
     padding: var(--space-2);
     border-radius: 12px;
     background: var(--neutral-900);
+`;
+const OpenSection = styled.section`
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+    h3 { font-size: var(--font-size-h4); font-weight: 500; }
 `;
 const Details = styled.details`
     summary { cursor: pointer; padding: var(--space-1) 0; font-weight: 500; }

@@ -32,6 +32,7 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false, legacyP
       gross_salary_yen:40000,staff_cost_total_yen:legacyPartial ? 13000 : incomplete ? null : 13000,deduction_total_yen:0,
       net_amount_owed_yen:legacyPartial ? 27000 : incomplete ? null : 27000,staff_owed:[],deductions:[],
       blockers:incomplete ? ["staff_hourly_rate_missing"] : [],note:"This is a pay estimate, not a payment record."};
+    else if(url.pathname === "/profile/managed-shift-stats") body = {user_id:id,month,period:url.searchParams.get("period"),basis:"original_service_business_date",date_from:null,date_to:null,nights:[],weekdays:Array.from({length:7},(_,weekday)=>({weekday,shift_count:0,sales_total_yen:0,average_sales_yen:null})),summary_shift_count:0,summary_sales_yen:0,summary_guests:0,excluded_open_shift_count:0,excluded_incomplete_shift_count:0,excluded_ambiguous_day_count:0};
     else if(url.pathname === "/analytics/shifts") body=[];
     else if(url.pathname === "/analytics/service-sales") body={basis:"original_service_business_date",days:[]};
     else if(url.pathname === "/realtime/events") body={events:[],cursor:0};
@@ -89,7 +90,7 @@ for (const locale of ["en", "ja"]) for (const width of [320, 1280]) test(`incomp
   const calls = await fixture(page, {locale, id:901, incomplete:true, legacyPartial:true});
   const ja = locale === "ja";
   await expect(page.getByText(ja ? "Chuckの差引後見積もり（記録済みデータ）" : "Chuck’s remaining estimate (recorded data)", {exact:true}).locator("..").locator("strong")).toHaveText("—");
-  await page.getByText(ja ? "給与の内訳・明細" : "Pay breakdown and details", {exact:true}).click();
+  await expect(page.getByRole("heading",{name:ja ? "給与の内訳・明細" : "Pay breakdown and details",exact:true})).toBeVisible();
   const warning = page.getByRole("status", {name:ja ? "給与見積もりの確認事項" : "Pay estimate warnings"});
   await expect(warning).toContainText(ja ? "確認が必要です" : "Needs review");
   await expect(warning).toContainText(ja ? "スタッフの時給が未設定です。" : "A staff hourly rate is missing.");
@@ -113,7 +114,7 @@ for (const locale of ["en", "ja"]) for (const width of [320, 1280]) test(`revenu
     deductions:[{id:1,category:"manager_pay_deduction",business_date:"2026-10-01",amount_yen:1000,payee_name:"Recorded recipient",reason:"Recorded withdrawal",reversal_of_id:null},
       {id:2,category:"manager_pay_deduction",business_date:"2026-10-02",amount_yen:-500,payee_name:"Recorded recipient",reason:"Recorded correction",reversal_of_id:1}]
   }});
-  await page.getByText(ja ? "給与の内訳・明細" : "Pay breakdown and details", {exact:true}).click();
+  await expect(page.getByRole("heading",{name:ja ? "給与の内訳・明細" : "Pay breakdown and details",exact:true})).toBeVisible();
   const breakdown=page.getByRole("region", {name:ja ? "売上から給与までの内訳" : "Revenue to pay breakdown"});
   await expect(breakdown).toContainText(/[¥￥]25,000/);
   await expect(breakdown).toContainText("40%");
@@ -136,7 +137,7 @@ for(const locale of ['en','ja'])for(const width of [320,1280])test(`partial drin
  staff_owed:[{user_id:11,name:'Staff A',wages_yen:800,staff_drink_bonus_yen:200,total_owed_yen:width===320?1000:null,recorded_total_yen:1000},{user_id:12,name:'Staff B',wages_yen:1800,staff_drink_bonus_yen:200,total_owed_yen:width===320?2000:null,recorded_total_yen:2000}],deductions:[{id:1,category:'manager_pay_deduction',amount_yen:500,business_date:'2026-10-01',reason:'Recorded ledger',reversal_of_id:null}]}});
  await expect(page.getByText(ja?'Chuckの差引後見積もり（記録済みデータ）':'Chuck’s remaining estimate (recorded data)',{exact:true}).locator('..').locator('strong')).toHaveText('—');
  await expect(page.getByRole('status',{name:ja?'ドリンク記録の確認状況':'Drink-data coverage'})).toContainText(ja?'ドリンク記録が不足しています':'Drink records are incomplete');
- await page.getByText(ja?'給与の内訳・明細':'Pay breakdown and details',{exact:true}).click();
+ await expect(page.getByRole("heading",{name:ja?'給与の内訳・明細':'Pay breakdown and details',exact:true})).toBeVisible();
  const region=page.getByRole('region',{name:ja?'売上から給与までの内訳':'Revenue to pay breakdown'});
  await expect(region.getByRole('heading',{name:ja?'記録済み費用差引後の残額（暫定）':'Remaining after recorded costs (provisional)',exact:true})).toBeVisible();
  for(const name of ['Staff A','Staff B'])for(const part of [ja?'賃金':'Wages',ja?'記録済みドリンク手当':'Recorded drink bonus'])await expect(region.getByText(`${name} · ${part}`,{exact:true})).toBeVisible();
