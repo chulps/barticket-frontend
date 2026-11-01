@@ -1,8 +1,8 @@
-import type { CollectionDateConfirmation } from "../types/Ticket";
+import type { CollectionDateConfirmation, PaymentType } from "../types/Ticket";
 
 export type PaymentAttempt = Readonly<{
     key: string;
-    method: "cash" | "card" | "other";
+    method: PaymentType;
     amount: number;
     collection?: CollectionDateConfirmation;
 }>;

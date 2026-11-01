@@ -1,3 +1,4 @@
+import { paymentMethodLabel } from "../paymentMethods";
 import { useRef, useState } from "react";
 import type { Ticket } from "../../types/Ticket";
 import { localeTag, useI18n } from "../../i18n";
@@ -88,7 +89,7 @@ export default function ReceiptPreview({ ticket }: { ticket: Ticket }) {
                     hour: "2-digit", minute: "2-digit",
                 }) + " JST"
                 : (ja ? "支払日時未確認" : "Payment time not verified")}</p>
-            <p>{ja ? "決済方法" : "Payment method"}: {ticket.payment?.type ?? (ja ? "不明" : "Unknown")}</p>
+            <p>{ja ? "決済方法" : "Payment method"}: {ticket.payment ? paymentMethodLabel(ticket.payment.type, locale) : (ja ? "不明" : "Unknown")}</p>
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
                 {ticket.items.map((item, index) =>
                     <li key={item.id + ":" + index} style={{

@@ -66,6 +66,7 @@ for(const locale of ["en","ja"])for(const width of [320,390,1280])test(`consiste
  await role.focus();await expect(role).toBeFocused();await role.press("End");await role.press("Enter");await expect(role).toHaveValue("manager");
  if(width<700){
   await picker.selectOption("payments");
+  await page.getByText(locale==="ja"?"詳しい決済会社の設定":"Advanced provider preferences",{exact:true}).click();
   // Section navigation and the permission/setup reads are asynchronous. Wait for
   // the destination control, not the old Accounts select being unmounted.
   await expect(page.getByRole("combobox",{name:locale==="ja"?"現在または検討中の決済会社":"Current or proposed provider",exact:true})).toBeVisible();

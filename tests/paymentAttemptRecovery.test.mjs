@@ -6,6 +6,15 @@ const source = readFileSync(new URL('../src/components/paymentAttemptRecovery.ts
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } });
 const { createPaymentAttemptRecovery, matchesPaymentAttempt, verifiedRemainingBalance } = await import('data:text/javascript,' + encodeURIComponent(outputText));
 const intent = {key:'fixture-key', method:'cash', amount:300, collection:{collection_business_date:'2026-10-31', collection_date_reason:'Fixture receipt'}};
+for (const method of ['cash', 'card', 'paypay', 'other']) test(`recovery preserves exact ${method} manual method across uncertainty`, () => {
+ const store=createPaymentAttemptRecovery();
+ const first=store.remember(11,{...intent,method});store.markUncertain(first);
+ assert.equal(store.remember(11,{...intent,method:method==='cash'?'paypay':'cash',key:'replacement'}),first);
+ assert.equal(store.wasUncertain(first),true);
+ assert.equal(matchesPaymentAttempt(first,intent.key,method,300,intent.collection),true);
+ assert.equal(matchesPaymentAttempt(first,intent.key,method==='cash'?'paypay':'cash',300,intent.collection),false);
+ assert.equal(first.method,method);store.complete(11,first);assert.equal(store.get(11),undefined);
+});
 test('close/reopen retains immutable exact intent; neither changed amount nor another ticket reuses it', () => {
  const store=createPaymentAttemptRecovery();
  const first=store.remember(11,intent);

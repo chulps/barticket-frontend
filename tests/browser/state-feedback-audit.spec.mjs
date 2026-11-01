@@ -26,6 +26,8 @@ for(const locale of ['en','ja']) for(const failure of ['missing','rejected']) te
  await page.getByRole('button',{name:ja?'両方コピー':'Copy both',exact:true}).click();
  await expect(dialog.getByRole('textbox')).toHaveValue('Oct 31\t¥1,200');
  await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
+ expect(await page.evaluate(()=>document.body.style.overflow)).toBe('');
+ await expect(page.getByRole('button',{name:ja?'両方コピー':'Copy both',exact:true})).toBeFocused();
 });
 for(const locale of ['en','ja']) for(const width of [390,1280]) test(`account delayed autosave and failure retain edits ${locale} ${width}`,async({page},testInfo)=>{
  await page.setViewportSize({width,height:900});
@@ -138,4 +140,17 @@ test('late clipboard failures cannot replace newer success or a different select
  await page.evaluate(()=>window.fixtureCopies[2].reject(new Error('Old selection')));await expect(page.getByRole('dialog')).toHaveCount(0);
  await panel.click();await page.evaluate(()=>window.dispatchEvent(new Event('fixture-unmount')));
  await page.evaluate(()=>window.fixtureCopies[3].reject(new Error('Unmounted')));await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+for(const locale of ['en','ja']) test(`manual copy unmount restores previous body overflow ${locale}`,async({page})=>{
+ await isolate(page,locale);
+ await page.addInitScript(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:undefined}));
+ await page.goto(`/tests/browser/fixtures/state-feedback.html?locale=${locale}`);
+ await page.evaluate(()=>{document.body.style.overflow='auto';});
+ await page.getByRole('button',{name:locale==='ja'?'パネルをコピー':'Copy panel',exact:true}).click();
+ await expect(page.getByRole('dialog')).toBeVisible();
+ expect(await page.evaluate(()=>document.body.style.overflow)).toBe('hidden');
+ await page.evaluate(()=>window.dispatchEvent(new Event('fixture-unmount')));
+ await expect(page.getByRole('dialog')).toHaveCount(0);
+ expect(await page.evaluate(()=>document.body.style.overflow)).toBe('auto');
 });

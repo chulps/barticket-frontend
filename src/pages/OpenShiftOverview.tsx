@@ -128,7 +128,7 @@ export default function OpenShiftOverview({
                     <PaymentList>
                         <li><Swatch $color="var(--success-400)" /><span>{t("cash")}</span><strong>{formatYen(shift.cash_total)}</strong></li>
                         <li><Swatch $color="var(--royal-400)" /><span>{t("card")}</span><strong>{formatYen(shift.card_total)}</strong></li>
-                        <li><Swatch $color="var(--neutral-300)" /><span>{t("other")}</span><strong>{formatYen(shift.other_total)}</strong></li>
+                        <li><Swatch $color="var(--neutral-300)" /><span>{t("paypayAndOther")}</span><strong>{formatYen(shift.other_total)}</strong></li>
                     </PaymentList>
                 </LivePanel>
 

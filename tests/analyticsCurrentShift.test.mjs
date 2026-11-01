@@ -185,3 +185,25 @@ test("collections follow payment collection shift, never original service owners
     assert.equal(actual.other_total,0);
     assert.equal(actual.paid_count,1);
 });
+
+test("PayPay stays distinct in the ledger but contributes once to other, excluding voids and other collection shifts", () => {
+    const current = shift(42, "2026-11-01", "open");
+    const row = ticket(1, 42, "open", "paypay", [["menu", 1, 2000]]);
+    row.payments = [
+        { type: "cash", amount: 100, collection_shift_id: 42 },
+        { type: "card", amount: 200, collection_shift_id: 42 },
+        { type: "paypay", amount: 300, collection_shift_id: 42 },
+        { type: "other", amount: 400, collection_shift_id: 42 },
+        { type: "old_terminal", amount: 50, collection_shift_id: 42 },
+        { type: "paypay", amount: 900, collection_shift_id: 42, voided_at: 1 },
+        { type: "paypay", amount: 800, collection_shift_id: 43 },
+    ];
+    const report = liveAnalyticsShift(current, [row]);
+    assert.equal(report.cash_total, 100);
+    assert.equal(report.card_total, 200);
+    assert.equal(report.other_total, 750);
+    assert.equal(report.paid_total, 1050);
+    assert.equal(report.paid_total, report.cash_total + report.card_total + report.other_total);
+    assert.equal(row.payments[2].type, "paypay");
+    assert.equal(row.payments[4].type, "old_terminal");
+});

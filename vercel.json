@@ -5,5 +5,10 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "feat/manual-payment-methods": false
+    }
+  }
 }

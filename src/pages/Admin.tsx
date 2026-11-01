@@ -62,12 +62,12 @@ export default function Admin() {
     const requestedSection = sectionParams.get("section");
     const activeSection: AdminSection = staffId !== undefined || sectionParams.has("teamView")
         ? "team" : adminSectionTabs.find(tab => tab.id === requestedSection)?.id ?? "accounts";
-    const canConfigurePayments = me?.role === "manager" && paymentAccess?.token === getToken() && paymentAccess?.allowed === true;
     const updatePaymentAccess = useCallback((allowed: boolean | null) => {
         const token = getToken();
         if (token) setPaymentAccess({token, allowed});
     }, []);
-    const visibleSectionTabs = useMemo(() => adminSectionTabs.filter(tab => tab.id !== "payments" || canConfigurePayments), [canConfigurePayments]);
+    // Generic guide is available to managers; private saved setup remains owner-only.
+    const visibleSectionTabs = adminSectionTabs;
     const localizedSectionTabs = useMemo(() => visibleSectionTabs.map(tab => ({
         id: tab.id, label: locale === "ja" ? tab.label.ja : tab.label.en,
     })), [visibleSectionTabs, locale]);
@@ -275,7 +275,6 @@ export default function Admin() {
             <MobileSectionPicker>
                 <span>{locale === "ja" ? "管理メニュー" : "Admin section"}</span>
                 <select value={activeSection} onChange={event => chooseSection(event.target.value as AdminSection)}>
-                    {activeSection === "payments" && !canConfigurePayments ? <option value="payments" disabled>{locale === "ja" ? "決済設定（利用不可）" : "Payment setup (unavailable)"}</option> : null}
                     {visibleSectionTabs.map(tab => <option key={tab.id} value={tab.id}>
                         {locale === "ja" ? tab.label.ja : tab.label.en}
                     </option>)}

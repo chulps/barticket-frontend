@@ -9,7 +9,7 @@ menu data, tickets, payments, and shift reports.
 
 - **Ticket dashboard:** create and rename tickets, add drinks, change quantities
   and line prices, manage per-person cover charges, and view open, paid, or
-  cancelled tickets. Record cash, card, or other payments and reopen eligible
+  cancelled tickets. Record Cash, Credit card, PayPay, or Other payments and reopen eligible
   paid tickets.
 - **Drink menu:** search by item details or price, add drinks, edit existing
   prices, and mark items in or out of stock.

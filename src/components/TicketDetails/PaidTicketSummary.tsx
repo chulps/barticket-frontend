@@ -1,3 +1,4 @@
+import { paymentMethodLabel } from "../paymentMethods";
 // PaidTicketSummary.tsx
 import styled from "styled-components";
 
@@ -41,7 +42,7 @@ export default function PaidTicketSummary({ ticket }: Props) {
                 </ValueLabel>
                 <Value>
                     {ticket.payment
-                        ? t(ticket.payment.type)
+                        ? paymentMethodLabel(ticket.payment.type, locale)
                         : "-"}
                 </Value>
             </Row>

@@ -28,6 +28,25 @@ async function fixture(page,locale='en',balance=700,width=390) {
  return state;
 }
 const open=async(page,ja=false)=>{await page.getByRole('button',{name:ja?'支払いを記録':'Record payment',exact:true}).click();return page.getByRole('dialog');};
+for(const width of [390,768,1280]) for(const locale of ['en','ja']) test(`PayPay uncertain retry retains method and partial balance: ${locale} ${width}px`,async({page})=>{
+ const ja=locale==='ja';const state=await fixture(page,locale,700,width);state.fail=503;
+ let dialog=await open(page,ja);
+ await dialog.getByRole('button',{name:'PayPay',exact:true}).click();
+ await dialog.getByRole('spinbutton').fill('300');
+ await dialog.locator('button').last().click();await expect(dialog.getByRole('alert')).toBeVisible();
+ expect(state.posts).toHaveLength(1);expect(state.posts[0].body.method).toBe('paypay');
+ page.once('dialog',d=>d.accept());
+ await dialog.getByRole('button',{name:ja?'閉じて伝票を確認':'Close and check ticket',exact:true}).click();
+ dialog=await open(page,ja);
+ await expect(dialog.getByRole('button',{name:'PayPay',exact:true})).toHaveAttribute('aria-pressed','true');
+ await expect(dialog.getByRole('button',{name:'PayPay',exact:true})).toBeDisabled();
+ state.fail=false;await dialog.locator('button').last().click();
+ await expect(dialog.getByRole('heading',{name:ja?'入金を記録しました':'Payment recorded'})).toBeVisible();
+ await expect(dialog.getByRole('status')).toContainText('¥400');
+ await expect(dialog.getByText(ja?'全額お支払い済み':'Fully settled',{exact:true})).toHaveCount(0);
+ expect(state.posts).toHaveLength(2);expect(state.posts[1]).toEqual(state.posts[0]);
+ expect(state.ticket.payment.type).toBe('paypay');expect(state.ticket.amount_paid).toBe(300);
+});
 for(const width of [390,768,1280]) for(const locale of ['en','ja']){
  const ja=locale==='ja';
  for(const [balance,amount,remaining] of [[700,300,400],[400,400,0],[500,200,300]])test(`authoritative partial receipt ${balance}/${amount}: ${locale} ${width}px`,async({page},testInfo)=>{

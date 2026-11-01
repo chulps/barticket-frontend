@@ -1,3 +1,4 @@
+import { paymentMethodLabel } from "./paymentMethods";
 import { useEffect, useRef, useState } from "react";
 import { accountApi } from "../api/account";
 import { ApiError, getToken } from "../api/client";
@@ -18,7 +19,7 @@ export default function PaymentDateHistory({ ticket, canCorrect }: { ticket: Tic
     return <section aria-label={ja ? "回収日と監査履歴" : "Collection dates and audit history"}>
         <p>{ja ? "サービス営業日" : "Service business date"}: {ticket.serviceBusinessDate ?? "—"}</p>
         <ul>{ticket.payments.map((payment, index) => <li key={payment.id ?? index}>
-            <p>#{payment.id ?? "—"} · {payment.type} · ¥{payment.amount.toLocaleString("ja-JP")}</p>
+            <p>#{payment.id ?? "—"} · {paymentMethodLabel(payment.type, locale)} · ¥{payment.amount.toLocaleString("ja-JP")}</p>
             <p>{ja ? "実際の回収営業日" : "Actual collection business date"}: {payment.collection_business_date ?? "—"}</p>
             <p>{ja ? "記録日時" : "Recorded"}: {recorded(payment.recorded_at ?? payment.paid_at, ja)}{payment.collected_by ? ` · ${payment.collected_by}` : ""}</p>
             {payment.voided_at != null ? <p>{ja ? "POS記録取消済（返金ではありません）" : "POS-voided (not a refund)"} · {payment.voided_by ?? "—"} · {payment.void_reason}</p> : null}

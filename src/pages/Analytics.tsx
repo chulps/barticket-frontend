@@ -339,7 +339,7 @@ function RangeCharts({
                     legend={[
                         { label: t("cash"), color: CASH, value: totals.cash },
                         { label: t("card"), color: CARD, value: totals.card },
-                        { label: t("other"), color: OTHER, value: totals.other },
+                        { label: t("paypayAndOther"), color: OTHER, value: totals.other },
                         { label: locale === "ja" ? "支払方法未記録" : "Payment type not recorded", color: UNKNOWN, value: totals.unknownPayment },
                     ]}
                 />
@@ -370,7 +370,7 @@ function RangeCharts({
                     slices={[
                         { id: "cash", label: t("cash"), value: totals.cash, display: yen(totals.cash), color: CASH },
                         { id: "card", label: t("card"), value: totals.card, display: yen(totals.card), color: CARD },
-                        { id: "other", label: t("other"), value: totals.other, display: yen(totals.other), color: OTHER },
+                        { id: "other", label: t("paypayAndOther"), value: totals.other, display: yen(totals.other), color: OTHER },
                         { id: "unknown", label: locale === "ja" ? "未記録" : "Not recorded", value: totals.unknownPayment, display: yen(totals.unknownPayment), color: UNKNOWN },
                     ]}
                 />
@@ -1140,9 +1140,9 @@ function Summary({ totals, context, children }: { totals: Totals; context: strin
             <Stat>
                 <StatHeader>
 
-                    <label>{t("other")}</label>
+                    <label>{t("paypayAndOther")}</label>
 
-                    <CopyPanelButton locale={locale} text={`${context} → ${t("other")}: ${knownPayment(totals.other)}`} />
+                    <CopyPanelButton locale={locale} text={`${context} → ${t("paypayAndOther")}: ${knownPayment(totals.other)}`} />
 
                 </StatHeader>
                 <strong>{knownPayment(totals.other)}</strong>
