@@ -18,6 +18,15 @@ for (const locale of ['en', 'ja']) {
     expect(await button.evaluate(el => getComputedStyle(el).filter)).not.toBe(idle);
     await expect(page.locator('html')).toHaveCSS('scroll-behavior', 'auto');
     await expect(page.locator('body')).toHaveCSS('transition-duration', '0s');
+    await expect(page.locator('[data-blink]')).toHaveCSS('animation-iteration-count', '1');
+    for (const cue of ['created', 'paid', 'reopened', 'cancelled']) {
+      await page.locator(`[data-cue=${cue}]`).click();
+      const feedback = page.locator(`[data-ticket-action=${cue}]`);
+      await expect(feedback).toBeVisible();
+      await expect(feedback).toHaveCSS('transform', 'none');
+      await expect(feedback).toHaveCSS('animation-name', 'none');
+      await expect(page.getByRole('status')).toContainText('#1');
+    }
     const tabs = page.locator('aside [role=group] button');
     await tabs.first().focus();
     await page.keyboard.press('ArrowRight');
@@ -63,6 +72,22 @@ for (const locale of ['en', 'ja']) {
       await page.keyboard.press('Enter');
       await expect(page.locator('[data-selection]')).toHaveText(String(index * 100 + 8));
     }
+    const interactions = [];
+    const statusButtons = page.locator('aside [role=group] button');
+    for (const input of ['keyboard', 'pointer']) {
+      await statusButtons.first().click();
+      const started = await page.evaluate(() => performance.now());
+      await statusButtons.nth(2).click();
+      const eighth = page.getByRole('button', { name: /cancelled fixture 8/ });
+      if (input === 'keyboard') {
+        await eighth.focus();
+        await page.keyboard.press('Enter');
+      } else await eighth.click();
+      await expect(page.locator('[data-selection]')).toHaveText('208');
+      interactions.push({ input, selectionMs: await page.evaluate(start => performance.now() - start, started) });
+    }
+    console.log('TICKET_INTERACTION_TIMINGS', locale, JSON.stringify(interactions));
+    await testInfo.attach(`ticket-interaction-${locale}.json`, { body: JSON.stringify(interactions, null, 2), contentType: 'application/json' });
     console.log('TICKET_ENTRANCE_TIMINGS', locale, JSON.stringify(measurements));
     await testInfo.attach(`ticket-entrance-${locale}.json`, { body: JSON.stringify(measurements, null, 2), contentType: 'application/json' });
     for (const result of measurements) {

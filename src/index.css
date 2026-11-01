@@ -891,3 +891,24 @@ html.light select:not([multiple]):not([size]), html.light select[size="1"]:not([
     background-image: none !important;
   }
 }
+
+/* Component motion preferences cover their own decoration. This fallback also
+   covers shared controls and scrolling, without removing focus/color feedback
+   or layout transforms (for example centered tooltips). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  button:hover,
+  button:active,
+  input[type="submit"]:hover,
+  input:focus {
+    transform: none;
+  }
+}
