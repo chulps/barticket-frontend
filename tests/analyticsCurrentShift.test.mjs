@@ -7,7 +7,7 @@ const source = readFileSync(new URL("../src/pages/analyticsCurrentShift.ts", imp
 const { outputText } = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 });
-const { initialAnalyticsShift, analyticsShiftOnDate, liveAnalyticsShift, clockedInTeam } =
+const { initialAnalyticsShift, analyticsShiftOnDate, liveAnalyticsShift, clockedInTeam, openTicketUnpaidAmount } =
     await import("data:text/javascript," + encodeURIComponent(outputText));
 
 function shift(id, date, status = "closed", fields = {}) {
@@ -206,4 +206,26 @@ test("PayPay stays distinct in the ledger but contributes once to other, excludi
     assert.equal(report.paid_total, report.cash_total + report.card_total + report.other_total);
     assert.equal(row.payments[2].type, "paypay");
     assert.equal(row.payments[4].type, "old_terminal");
+});
+
+test("Open ticket unpaid display mirrors authoritative remaining balance, including zero", () => {
+    const row = ticket(1, 42, "open", null, [["menu", 1, 3900]]);
+    assert.equal(openTicketUnpaidAmount(row), 3900);
+    assert.equal(openTicketUnpaidAmount({...row, balanceDue: 0}), 0);
+    assert.equal(openTicketUnpaidAmount({...row, balanceDue: 1300, amountPaid: 2600}), 1300);
+    assert.equal(openTicketUnpaidAmount({...row, serverTotal: 4000, amountPaid: 1500}), 2500);
+    assert.equal(openTicketUnpaidAmount({...row, amountPaid: 3900}), 0);
+    assert.equal(openTicketUnpaidAmount({...row, items: []}), 0);
+});
+test("Unknown or malformed unpaid amounts are not silently counted as zero", () => {
+    const row = ticket(1, 42, "open", null, [["menu", 1, 3900]]);
+    for (const value of [NaN, Infinity, -1, 1.5]) {
+        assert.equal(openTicketUnpaidAmount({...row, balanceDue: value}), null);
+        assert.equal(openTicketUnpaidAmount({...row, serverTotal: value}), null);
+        assert.equal(openTicketUnpaidAmount({...row, amountPaid: value}), null);
+    }
+    assert.equal(openTicketUnpaidAmount({...row, items: [{subtotal: undefined}]}), null);
+    assert.equal(openTicketUnpaidAmount({...row, settlementStatus: "partially_paid"}), null);
+    assert.equal(openTicketUnpaidAmount({...row, payments: [{amount: 500}]}), null);
+    assert.equal(openTicketUnpaidAmount({...row, payment: {type: "cash"}}), null);
 });
