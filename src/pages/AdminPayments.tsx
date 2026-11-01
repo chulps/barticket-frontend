@@ -111,20 +111,22 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
     </>}
   </Panel>;
   const disabled = busy || needsReload;
+  // Draft edits invalidate only confirmed-save feedback, never uncertain-write recovery.
+  const editDraft = () => setMessage(current => current === "saved" ? "" : current);
   return <Panel>
     <header><h2>{t("Payment setup", "決済設定")}</h2>
       <p>{t("Choose a provider for customer phone payments", "お客様のスマホ決済の会社を選択")}</p></header>
     <Status role="status">{t("Payment processing: not connected", "決済処理：未接続")}</Status>
     <p>{t("Save setup preferences only. Confirm the bar’s existing merchant account before registering. Online processing remains unavailable; manual payment recording is unchanged.", "ここでは設定の希望のみを保存します。登録前にお店の既存の加盟店アカウントを確認してください。オンライン決済は未接続です。手動の支払記録は引き続き利用できます。")}</p>
     <p>{t("Stripe is an online checkout option, not a confirmed provider. Choosing it here only edits this draft; it does not connect or change an existing terminal.", "Stripeはオンライン決済の候補であり、確定した決済会社ではありません。ここで選択しても未保存の希望が変わるだけで、接続や既存端末の変更は行われません。")}</p>
-    {(providerId !== "stripe" || channel !== "online") && <button type="button" className="hollow secondary" disabled={disabled} onClick={() => { setProviderId("stripe"); setChannel("online"); }}>{t("Choose Stripe online setup", "Stripeのオンライン設定を選択")}</button>}
+    {(providerId !== "stripe" || channel !== "online") && <button type="button" className="hollow secondary" disabled={disabled} onClick={() => { editDraft(); setProviderId("stripe"); setChannel("online"); }}>{t("Choose Stripe online setup", "Stripeのオンライン設定を選択")}</button>}
     <label>{t("Current or proposed provider", "現在または検討中の決済会社")}
-      <select disabled={disabled} value={providerId} onChange={e => setProviderId(e.target.value)}>{providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+      <select disabled={disabled} value={providerId} onChange={e => { editDraft(); setProviderId(e.target.value); }}>{providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
     </label>
     {providerId !== "stripe" && <p>{ja ? provider.ja : provider.en}</p>}
     {provider.url && <a href={provider.url} target="_blank" rel="noopener noreferrer">{t("View official options and fees ↗", "公式のサービス・料金を見る ↗")}</a>}
-    <label>{t("Payment channel", "決済方式")}<select disabled={disabled} value={channel} onChange={e => setChannel(e.target.value)}><option value="online">{t("Customer phone / online checkout", "お客様のスマホ・オンライン決済")}</option><option value="terminal">{t("In-person terminal", "対面端末")}</option></select></label>
-    <fieldset disabled={disabled}><legend>{t("Requested payment methods", "希望する支払方法")}</legend>{["card", "apple_pay", "google_pay", "paypay", "rakuten_pay"].map(method => <label key={method}><span><input style={{width:"auto"}} type="checkbox" checked={methods.includes(method)} onChange={e => setMethods(current => e.target.checked ? [...current, method] : current.filter(m => m !== method))} /> {{card: ja ? "カード" : "Cards", apple_pay: "Apple Pay", google_pay:"Google Pay", paypay:"PayPay", rakuten_pay:"楽天ペイ"}[method]}</span></label>)}</fieldset>
+    <label>{t("Payment channel", "決済方式")}<select disabled={disabled} value={channel} onChange={e => { editDraft(); setChannel(e.target.value); }}><option value="online">{t("Customer phone / online checkout", "お客様のスマホ・オンライン決済")}</option><option value="terminal">{t("In-person terminal", "対面端末")}</option></select></label>
+    <fieldset disabled={disabled}><legend>{t("Requested payment methods", "希望する支払方法")}</legend>{["card", "apple_pay", "google_pay", "paypay", "rakuten_pay"].map(method => <label key={method}><span><input style={{width:"auto"}} type="checkbox" checked={methods.includes(method)} onChange={e => { editDraft(); setMethods(current => e.target.checked ? [...current, method] : current.filter(m => m !== method)); }} /> {{card: ja ? "カード" : "Cards", apple_pay: "Apple Pay", google_pay:"Google Pay", paypay:"PayPay", rakuten_pay:"楽天ペイ"}[method]}</span></label>)}</fieldset>
     <p>{t("Availability depends on your provider, payment channel and merchant approval.", "利用可否は決済会社、決済方式、加盟店審査によります。")}</p>
     <button type="button" disabled={disabled} onClick={() => void save()}>{busy ? t("Saving…", "保存中…") : t("Save setup preferences", "設定の希望を保存")}</button>
     {message && <p role={message === "uncertain" ? "alert" : "status"}>{message === "saved"

@@ -29,7 +29,7 @@ type TicketActionsProps = {
         amount: number,
         idempotencyKey?: string,
         collection?: CollectionDateConfirmation,
-    ) => Promise<boolean>;
+    ) => Promise<Ticket | null>;
     onDeferTicket: (ticketId: number, body: { reason: string; confirmed_balance: number; note?: string; follow_up_date?: string }) => Promise<boolean>;
 
     onReopenTicket: (ticketId: number, reason: "customer_returned" | "closed_by_mistake") => Promise<boolean>;

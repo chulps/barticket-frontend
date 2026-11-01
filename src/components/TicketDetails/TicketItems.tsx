@@ -150,6 +150,7 @@ export default function TicketItems({
                                         item.name,
                                     )
                         }
+                        priceKey={item.price_key}
                         unitPrice={item.unit_price}
                         quantity={item.quantity}
                         lineSubtotal={item.subtotal}

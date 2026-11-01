@@ -1,3 +1,4 @@
+import { settlementLabel, unpaidReasonOptions, unpaidReasonLabel } from "../components/settlementLabels";
 import PaymentDateHistory from "../components/PaymentDateHistory";
 import { useCallback, useEffect, useRef, useState } from "react";
 import styled from "styled-components";
@@ -10,16 +11,6 @@ import { useModal } from "../hooks/useModal";
 
 const PAGE_SIZE = 50;
 const STATUSES = ["outstanding", "partially_paid", "settled", "written_off"] as const;
-
-function statusLabel(status: string, ja: boolean) {
-    const labels: Record<string, [string, string]> = {
-        outstanding: ["Needs collection", "未回収"],
-        partially_paid: ["Partially collected", "一部回収"],
-        settled: ["Settled", "回収済み"],
-        written_off: ["Written off", "免除済み"],
-    };
-    return labels[status]?.[ja ? 1 : 0] ?? status;
-}
 
 export default function Receivables() {
     const { locale } = useI18n();
@@ -70,15 +61,7 @@ export default function Receivables() {
 
     const reload = () => { window.dispatchEvent(new Event("barticket-receivables-updated")); };
     const yen = (value: number) => "¥" + value.toLocaleString("ja-JP");
-    const reasonOptions = [
-        ["walkout", ja ? "支払い前に退店" : "Left without paying"],
-        ["failed_payment", ja ? "決済失敗" : "Payment failed"],
-        ["terminal_outage", ja ? "端末・通信障害" : "Terminal or network outage"],
-        ["pay_later", ja ? "後払いの合意" : "Agreed to pay later"],
-        ["disputed_bill", ja ? "会計内容に異議" : "Payment dispute"],
-        ["staff_oversight", ja ? "スタッフの対応漏れ" : "Staff oversight"],
-        ["other", ja ? "その他" : "Other"],
-    ];
+    const reasonOptions = unpaidReasonOptions(ja);
 
     return <Page>
         <h1>{ja ? "未払い・繰越伝票" : "Outstanding / unpaid tickets"}</h1>
@@ -90,7 +73,7 @@ export default function Receivables() {
                 <select value={status} onChange={event => { setStatus(event.target.value); setOffset(0); }}>
                     <option value="unresolved">{ja ? "未回収・一部回収" : "Needs collection (unpaid or partial)"}</option>
                     <option value="all">{ja ? "すべて" : "All receivables"}</option>
-                    {STATUSES.map(value => <option key={value} value={value}>{statusLabel(value, ja)}</option>)}
+                    {STATUSES.map(value => <option key={value} value={value}>{settlementLabel(value, ja)}</option>)}
                 </select>
             </label>
             <label>{ja ? "理由" : "Reason"}
@@ -122,12 +105,12 @@ export default function Receivables() {
                         <p>{ja ? "サービス営業日" : "Service date"}: {ticket.service_business_date ?? "—"}
                             {ageDays !== null ? ` · ${ja ? "経過" : "Age"}: ${ageDays} ${ja ? "日" : "days"}` : ""}
                             {ticket.follow_up_date ? ` · ${ja ? "フォロー" : "Follow-up"}: ${ticket.follow_up_date}` : ""}</p>
-                    </div><StatusBadge>{statusLabel(ticket.settlement_status ?? "outstanding", ja)}</StatusBadge></header>
+                    </div><StatusBadge>{settlementLabel(ticket.settlement_status ?? "outstanding", ja)}</StatusBadge></header>
                     <dl>
                         <dt>{ja ? "請求額" : "Billed"}</dt><dd>{yen(ticket.total)}</dd>
                         <dt>{ja ? "回収済み" : "Collected"}</dt><dd>{yen(ticket.amount_paid ?? 0)}</dd>
                         <dt><strong>{ja ? "残高" : "Balance due"}</strong></dt><dd><strong>{yen(ticket.balance_due ?? 0)}</strong></dd>
-                        <dt>{ja ? "理由" : "Reason"}</dt><dd>{reasonOptions.find(([value]) => value === ticket.unpaid_reason)?.[1] ?? ticket.unpaid_reason ?? "—"}</dd>
+                        <dt>{ja ? "理由" : "Reason"}</dt><dd>{unpaidReasonLabel(ticket.unpaid_reason, ja)}</dd>
                         {ticket.unpaid_note ? <><dt>{ja ? "スタッフメモ" : "Staff note"}</dt><dd>{ticket.unpaid_note}</dd></> : null}
                         {ticket.deferred_by ? <><dt>{ja ? "記録者" : "Recorded by"}</dt><dd>{ticket.deferred_by}</dd></> : null}
                     </dl>
@@ -148,9 +131,9 @@ export default function Receivables() {
                             maxWidth: "560px",
                             content: <PaymentModal ticket={converted} canConfirmCollectionDate={account?.role === "manager"} onConfirm={async (method, amount, key, collection) => {
                                 if (!key) throw new Error("A retry-safe collection key is missing.");
-                                await ticketsApi.pay(ticket.id, method, amount, key, collection);
+                                const saved = await ticketsApi.pay(ticket.id, method, amount, key, collection);
                                 window.dispatchEvent(new Event("barticket-receivables-updated"));
-                                return true;
+                                return toTicket(saved);
                             }} />,
                         })}>{ja ? "支払いを記録" : "Record payment"}</button> : null}
                         {account?.role === "manager" && isUnresolved ? <WriteOffForm ticket={ticket} locale={locale} onSaved={reload} /> : null}

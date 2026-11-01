@@ -102,9 +102,9 @@ for (const width of [390, 1280]) test(`tall ticket, dialog and normal route cont
   const lastDrink = dialog.getByText('Fixture drink 50', { exact: true });
   await lastDrink.scrollIntoViewIfNeeded(); await inViewport(lastDrink);
   // The batch footer appears only after choosing a drink (no save/write).
-  await dialog.getByRole('button', { name: '¥700', exact: true }).last().click();
+  await dialog.getByRole('button', { name: /¥700/ }).last().click();
   const cancel = dialog.getByRole('button', { name: 'Cancel', exact: true });
-  await cancel.scrollIntoViewIfNeeded(); await inViewport(cancel); await cancel.click();
+  await cancel.scrollIntoViewIfNeeded(); await inViewport(cancel); page.once("dialog", dialog => dialog.accept()); await cancel.click();
   await expect(dialog).toHaveCount(0);
   await page.goto('/menu');
   const lastMenuDrink = page.getByText('Fixture drink 50', { exact: true });

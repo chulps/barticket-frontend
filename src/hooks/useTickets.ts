@@ -1,3 +1,4 @@
+import { matchesPaymentAttempt, paymentAttemptRecovery } from "../components/paymentAttemptRecovery";
 import { ApiError, getToken } from "../api/client";
 import { ticketInvalidationId, mergeTicketDelta } from "./ticketDelta";
 import { shouldPoll } from "../api/realtime";
@@ -101,6 +102,8 @@ export function useTickets(shiftId: number | null = null) {
     request: (current: Ticket | undefined) => Promise<ApiTicket> | null,
     transform?: (ticket: Ticket) => Ticket,
     terminalWrite = false,
+    isCurrent: () => boolean = () => true,
+    propagateError = false,
   ): Promise<Ticket | null> => {
     if (terminalPending.current.has(ticketId) && !terminalWrite) {
       return Promise.resolve(null);
@@ -111,18 +114,25 @@ export function useTickets(shiftId: number | null = null) {
     const previous = queues.current.get(ticketId) ?? Promise.resolve();
     const next = previous.then(async () => {
       try {
+        if (!isCurrent()) return null;
         const pending = request(confirmed.current.get(ticketId));
         if (pending === null) return null;
         const response = await pending;
+        if (!isCurrent()) return null;
         dropOverlay(ticketId, key);
         return applyServerTicket(response);
       } catch (error) {
+        if (!isCurrent()) return null;
         dropOverlay(ticketId, key);
         display(ticketId);
         reportError(error);
         // A timeout can still have committed: re-read before subsequent queued writes.
-        try { applyServerTicket(await ticketsApi.get(ticketId)); }
+        try {
+          const reconciled = await ticketsApi.get(ticketId);
+          if (isCurrent()) applyServerTicket(reconciled);
+        }
         catch (readError) { console.warn("Ticket reconciliation failed", readError); }
+        if (isCurrent() && propagateError) throw error;
         return null;
       } finally {
         dropOverlay(ticketId, key);
@@ -132,7 +142,9 @@ export function useTickets(shiftId: number | null = null) {
     const settled = next.finally(() => {
       pendingWrites.current -= 1;
     });
-    queues.current.set(ticketId, settled);
+    // The caller may need a typed payment rejection, but a rejected link must
+    // never poison the next explicit retry or ordered item edit.
+    queues.current.set(ticketId, settled.catch(() => null));
     return settled;
   };
 
@@ -465,12 +477,12 @@ export function useTickets(shiftId: number | null = null) {
   // A transport timeout may still have committed; never replay automatically.
   const terminalMutation = (
     ticketId: number,
-    expected: "open" | "closed",
+    expected: "open" | "closed" | "retry",
     request: () => Promise<Ticket | null>,
   ): Promise<Ticket | null> => {
     const status = confirmed.current.get(ticketId)?.status;
     if (!Number.isSafeInteger(ticketId) || terminalPending.current.has(ticketId) ||
-        (expected === "open" ? status !== "open" : status === undefined || status === "open")) {
+        (expected === "open" ? status !== "open" : expected === "retry" ? status === undefined : status === undefined || status === "open")) {
       return Promise.resolve(null);
     }
     // Flush the existing name first, before blocking all new edits. The
@@ -484,9 +496,16 @@ export function useTickets(shiftId: number | null = null) {
     terminalMutation(ticketId, "open", () => enqueue(ticketId, () => ticketsApi.cancel(ticketId), undefined, true))
       .then(saved => { if (saved) notifyMutation("success", locale === "ja" ? "伝票をキャンセルしました" : "Ticket cancelled"); return saved; });
 
-  const payTicket = (ticketId: number, paymentType: PaymentType, amount?: number, idempotencyKey?: string, collection?: CollectionDateConfirmation) =>
-    terminalMutation(ticketId, "open", () => enqueue(ticketId, () =>
-      ticketsApi.pay(ticketId, paymentType, amount, idempotencyKey, collection), undefined, true));
+  const payTicket = (ticketId: number, paymentType: PaymentType, amount?: number, idempotencyKey?: string, collection?: CollectionDateConfirmation) => {
+    const attempt = paymentAttemptRecovery.get(ticketId);
+    const session = paymentAttemptRecovery.session();
+    const exactAttempt = matchesPaymentAttempt(attempt, idempotencyKey, paymentType, amount, collection);
+    // A rename may be ahead of this write. Do not send or reconcile the old
+    // account's collection after auth invalidates its recovery identity.
+    const isCurrent = () => paymentAttemptRecovery.session() === session && (!attempt || (exactAttempt && paymentAttemptRecovery.isCurrent(ticketId, attempt)));
+    return terminalMutation(ticketId, exactAttempt && attempt && paymentAttemptRecovery.wasUncertain(attempt) ? "retry" : "open", () => enqueue(ticketId, () =>
+      ticketsApi.pay(ticketId, paymentType, amount, idempotencyKey, collection), undefined, true, isCurrent, true));
+  };
 
   const deferTicket = (ticketId: number, body: {
     reason: string; confirmed_balance: number; note?: string; follow_up_date?: string;

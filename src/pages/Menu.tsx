@@ -50,6 +50,7 @@ export default function Menu({
   const { t, locale } = useI18n();
   const retryMenu = () => window.dispatchEvent(new Event("barticket-retry-menu"));
   const { openModal } = useModal();
+  const [stockErrors, setStockErrors] = useState<MenuItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [archivedMode, setArchivedMode] = useState(false);
   const [archivedItems, setArchivedItems] = useState<MenuItem[]>([]);
@@ -109,11 +110,14 @@ export default function Menu({
     try {
       const saved = await onToggleStock(item);
       if (saved) {
+        setStockErrors(items => items.filter(row => row.id !== item.id));
         window.dispatchEvent(new Event("barticket-notices"));
         notifyMutation("success", locale === "ja" ? "在庫状況を更新しました" : "Stock status updated");
       }
     } catch {
-      notifyMutation("error", locale === "ja" ? "在庫状況を更新できませんでした" : t("stockUpdateFailed"));
+      // A failed response can leave the server outcome unknown. Do not replay a toggle.
+      setStockErrors(items => [...items.filter(row => row.id !== item.id), item]);
+      notifyMutation("error", locale === "ja" ? "在庫の更新を確認できませんでした。メニュー上部の案内を確認してください。" : "Stock update could not be confirmed. See the recovery notice above the menu.");
     }
   }
 
@@ -195,6 +199,14 @@ export default function Menu({
           <button type="button" className="small hollow secondary" onClick={retryMenu}>{locale === "ja" ? "再試行" : "Retry"}</button>
         </LoadWarning>
       ) : null}
+      {authenticated && stockErrors.length > 0 ? <LoadWarning role="alert">
+        <div>
+          <p>{locale === "ja" ? "在庫の更新を確認できませんでした。メニューを再読み込みし、在庫状況を確認してから再試行してください。" : "Could not confirm the stock update. Refresh the menu and check stock before trying again."}</p>
+          <ul>{stockErrors.map(item => <li key={item.id}>{menuLabel(locale, item.name)}</li>)}</ul>
+        </div>
+        <button type="button" className="small hollow secondary" onClick={retryMenu}>{locale === "ja" ? "メニューを再読み込み" : "Refresh menu"}</button>
+        <button type="button" className="small hollow secondary" onClick={() => setStockErrors([])}>{locale === "ja" ? "閉じる" : "Dismiss"}</button>
+      </LoadWarning> : null}
       <MenuHeader>
         <h2>{t("drinkMenu")}</h2>
         {authenticated ? <HeaderActions>
@@ -361,7 +373,9 @@ const LoadWarning = styled.div`
   padding: var(--space-2);
   border: 1px solid var(--danger-500);
   border-radius: var(--space-1);
-  button { width: auto; }
+  min-width: 0;
+  overflow-wrap: anywhere;
+  button { width: auto; min-height: 44px; }
 `;
 
 
