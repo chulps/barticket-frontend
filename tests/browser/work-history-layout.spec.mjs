@@ -38,7 +38,7 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false} = {}) {
     else {status=404;body={detail:"Unmocked read"};}
     await route.fulfill({status,json:body,headers:{"Access-Control-Allow-Origin":"*"}});
   });
-  await page.goto("/profile");
+  await page.goto("/profile?section=history");
   return calls;
 }
 

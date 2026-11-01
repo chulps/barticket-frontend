@@ -44,6 +44,7 @@ test("profile stats use authorized aggregates on demand with bounded session-loc
     assert.doesNotMatch(income, /accountApi.analyticsShifts|accountApi.serviceSales/);
     assert.match(component, /No data/);
     assert.match(component, /Tied highest average/);
-    assert.match(component, /aria-hidden="true"/);
+    assert.match(component, /HorizontalBarRows/);
+    assert.match(readFileSync(new URL("../src/components/AnalyticsCharts.tsx", import.meta.url), "utf8"), /aria-hidden="true"/);
     assert.match(component, /Weekday averages and shift counts/);
 });

@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { accountApi, type ManagedSalesPeriod, type ManagedShiftStatsReport } from "../api/account";
 import { getToken } from "../api/client";
-import { HorizontalBarChart } from "../components/AnalyticsCharts";
-import { bestWeekdays, businessDateLabel, signedBar, weekdayLabel } from "./managedShiftStatsDisplay";
+import { HorizontalBarChart, HorizontalBarRows } from "../components/AnalyticsCharts";
+import { bestWeekdays, businessDateLabel, weekdayLabel } from "./managedShiftStatsDisplay";
 
 export default function ManagedShiftStats({ userId, month, locale, active }: {
     userId: number; month: string; locale: "en" | "ja"; active: boolean;
@@ -60,9 +60,6 @@ export default function ManagedShiftStats({ userId, month, locale, active }: {
         style: "currency", currency: "JPY", maximumFractionDigits: 2,
     }).format(value);
     const winners = bestWeekdays(selected?.weekdays ?? []);
-    const values = selected?.weekdays.map(row => row.average_sales_yen ?? 0) ?? [];
-    const min = Math.min(0, ...values);
-    const max = Math.max(0, ...values);
     return <Panel aria-label={ja ? "Chuck担当シフトの統計" : "Stats for Chuck-managed shifts"}>
         <Header><h3>{ja ? "Chuck担当シフトの統計" : "Chuck-managed shift stats"}</h3>
             <button type="button" onClick={() => setRevision(value => value + 1)}>{ja ? "再読み込み" : "Refresh stats"}</button>
@@ -89,20 +86,14 @@ export default function ManagedShiftStats({ userId, month, locale, active }: {
         {selected ? <>
             <p>{winners.length ? `${ja ? (winners.length > 1 ? "最高平均（同率）" : "最高平均") : (winners.length > 1 ? "Tied highest average" : "Highest average")}: ${winners.map(day => weekdayLabel(day, locale)).join(ja ? "・" : ", ")}`
                 : (ja ? "比較できるシフトがありません。" : "No eligible shifts to compare.")}</p>
-            <Bars aria-label={ja ? "曜日別の平均売上とシフト数" : "Weekday averages and shift counts"}>
-                {selected.weekdays.map(row => {
-                    const geometry = signedBar(row.average_sales_yen ?? 0, min, max);
-                    return <li key={row.weekday}>
-                        <BarLabel><strong>{weekdayLabel(row.weekday, locale)}{winners.includes(row.weekday) ? " ★" : ""}</strong>
-                            <span>{row.average_sales_yen === null ? (ja ? "データなし" : "No data") : money(row.average_sales_yen)} · {row.shift_count} {ja ? "シフト" : row.shift_count === 1 ? "shift" : "shifts"}</span>
-                        </BarLabel>
-                        <Track aria-hidden="true"><i style={{ left: `${geometry.zero}%` }} /><b style={{
-                            left: `${geometry.left}%`, width: `${geometry.width}%`,
-                            background: winners.includes(row.weekday) ? "var(--success-400)" : "var(--royal-300)",
-                        }} /></Track>
-                    </li>;
-                })}
-            </Bars>
+            <HorizontalBarRows label={ja ? "曜日別の平均売上とシフト数" : "Weekday averages and shift counts"}
+                bars={selected.weekdays.map(row => ({
+                    id: String(row.weekday),
+                    label: weekdayLabel(row.weekday, locale) + (winners.includes(row.weekday) ? " ★" : ""),
+                    value: row.average_sales_yen ?? 0,
+                    display: `${row.average_sales_yen === null ? (ja ? "データなし" : "No data") : money(row.average_sales_yen)} · ${row.shift_count} ${ja ? "シフト" : row.shift_count === 1 ? "shift" : "shifts"}`,
+                    color: winners.includes(row.weekday) ? "var(--success-400)" : "var(--royal-300)",
+                }))} />
             <p>{ja ? "少ないシフト数の平均は変動しやすいため、各曜日の件数も確認してください。" : "Small samples can vary widely; compare the shift counts as well as the averages."}</p>
             <p>{ja
                 ? `除外: 営業中 ${selected.excluded_open_shift_count}、記録未完了 ${selected.excluded_incomplete_shift_count}（うち営業日重複 ${selected.excluded_ambiguous_day_count}）。`
@@ -122,17 +113,4 @@ const Header = styled.div`
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1);
     h3 { font-size: var(--font-size-h4); }
     select { max-width: 100%; }
-`;
-const Bars = styled.ul`
-    list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2);
-    li { min-width: 0; }
-`;
-const BarLabel = styled.div`
-    display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-1); margin-bottom: 4px;
-    span { overflow-wrap: anywhere; font-family: var(--font-family-data); }
-`;
-const Track = styled.div`
-    height: 16px; position: relative;
-    i { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--neutral-500); }
-    b { position: absolute; top: 0; height: 16px; border-radius: 2px; }
 `;

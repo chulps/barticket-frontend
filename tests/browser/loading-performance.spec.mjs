@@ -110,8 +110,9 @@ test("warm Profile and Admin transitions do not fan out authentication reads",as
   await page.getByRole("button",{name:"More navigation options"}).click();
   await page.locator('#desktop-more-menu a[href="/profile"]').click();
   await expect(page).toHaveURL(/\/profile$/);
-  await expect(page.getByRole("group",{name:"Profile sections"}).getByRole("button",{name:"My pay",exact:true})).toHaveAttribute("aria-pressed","true");
-  await expect(page.getByText("Monthly pay estimate",{exact:true})).toBeVisible();
+  await expect(page.getByRole("group",{name:"Profile sections"}).getByRole("button",{name:"Shift",exact:true})).toHaveAttribute("aria-pressed","true");
+  await expect(page.getByRole("region",{name:"My time clock"})).toBeVisible();
+  expect(state.calls.filter(x=>x.path==="/profile/earnings")).toHaveLength(0);
   // Profile deliberately defers work history until that destination is chosen.
   expect(state.calls.filter(x=>x.path==="/profile/work-history")).toHaveLength(0);
   const profileMs=Date.now()-started;

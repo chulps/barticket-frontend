@@ -352,6 +352,46 @@ export function DonutChart({
     );
 }
 
+/** Compact Analytics-style comparison rows; text stays readable at narrow widths. */
+export function HorizontalBarRows({ label, bars }: { label: string; bars: NamedBar[] }) {
+    const min = Math.min(0, ...bars.map(bar => bar.value));
+    const max = Math.max(0, ...bars.map(bar => bar.value));
+    const span = max - min || 1;
+    return <ComparisonRows aria-label={label}>
+        {bars.map(bar => <li key={bar.id}>
+            <span data-chart-label>{bar.label}</span>
+            <ComparisonTrack aria-hidden="true">
+                <i style={{ left: `${-min / span * 100}%` }} />
+                <b style={{
+                    left: `${(Math.min(0, bar.value) - min) / span * 100}%`,
+                    width: `${Math.abs(bar.value) / span * 100}%`,
+                    background: bar.color ?? "var(--royal-300)",
+                }} />
+            </ComparisonTrack>
+            <span data-chart-value>{bar.display}</span>
+        </li>)}
+    </ComparisonRows>;
+}
+
+const ComparisonRows = styled.ul`
+    list-style: none; margin: 0; padding: 0;
+    display: grid; gap: 12px; min-width: 0;
+    li {
+        display: grid; grid-template-columns: minmax(48px, 4rem) minmax(24px, 1fr) minmax(0, 12rem);
+        align-items: center; gap: 8px; min-width: 0; min-height: 28px;
+    }
+    [data-chart-label] { color: var(--neutral-200); font-size: 13px; overflow-wrap: anywhere; }
+    [data-chart-value] { color: var(--neutral-300); font: 12px var(--font-family-data); overflow-wrap: anywhere; }
+    @media (max-width: 480px) {
+        li { grid-template-columns: 48px minmax(24px, 1fr) minmax(0, 84px); gap: 6px; }
+    }
+`;
+const ComparisonTrack = styled.div`
+    height: 16px; position: relative; min-width: 0;
+    i { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--neutral-600); }
+    b { position: absolute; top: 0; height: 16px; border-radius: 2px; }
+`;
+
 export function HorizontalBarChart({ title, bars, copyContext, locale = "en" }: { title: string; bars: NamedBar[]; copyContext?: string; locale?: "en" | "ja" }) {
     const { ref, width: container } = useWidth();
     const max = niceMax(Math.max(...bars.map((bar) => bar.value), 0));
