@@ -36,7 +36,7 @@ export default function ChuckPayBreakdown({ report, locale }: { report: ChuckMon
             <Line><dt>{ja ? "Chuck担当シフトの対象売上" : "Eligible revenue on your managed shifts"}</dt><dd>{money(report.eligible_revenue_yen)}</dd></Line>
             <Line><dt>{ja ? "給与配分率" : "Your revenue-share rate"}</dt><dd>{report.tier_rate_percent == null ? "—" : `${report.tier_rate_percent}%`}</dd></Line>
             <Line><dt>{ja ? "スタッフ給与・控除前の自分の取り分" : "Your gross share before staff pay and deductions"}</dt><dd>{money(report.gross_salary_yen)}</dd></Line>
-            <Line><dt>{partial ? (ja ? "記録済みスタッフ給与の小計（一部）" : "Recorded staff pay subtotal (partial)") : (ja ? "スタッフ給与" : "Staff pay")}</dt><dd>{money(report.staff_cost_total_yen)}</dd></Line>
+            <Line><dt>{partial ? (ja ? "記録済みスタッフ給与の小計（一部）" : "Recorded staff pay subtotal (partial)") : (ja ? "スタッフ給与" : "Staff pay")}</dt><dd>{money(data.recordedStaffCost)}</dd></Line>
             <Line><dt>{ja ? "記録済み控除（取消を含む）" : "Recorded deductions, net of reversals"}</dt><dd>{money(report.deduction_total_yen)}</dd></Line>
             <Line $total><dt>{ja ? "差引後の自分の取り分（見積もり）" : "Your remaining share (estimate)"}</dt><dd>{money(data.retained)}</dd></Line>
         </Flow>

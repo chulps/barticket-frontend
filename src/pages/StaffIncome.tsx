@@ -322,6 +322,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                             <Metric>
                                 <span>{ja ? "スタッフドリンク手当" : "Staff-drink bonus"}</span>
                                 <strong>{money(bonus?.complete ? bonus.amount_yen : null, locale)}</strong>
+                                {bonus && !bonus.complete ? <small>{ja ? "記録済み小計（一部）" : "Recorded subtotal (partial)"}: {money(bonus.amount_yen, locale)}</small> : null}
                             </Metric>
                         </Summary>
                         <p>{ja ? "これは給与見積もりであり、支払記録ではありません。" : "This is a pay estimate, not a payment record."}</p>

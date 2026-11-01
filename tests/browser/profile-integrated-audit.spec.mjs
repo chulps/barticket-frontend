@@ -1,7 +1,7 @@
 import {test, expect} from "@playwright/test";
 const API = "http://127.0.0.1:8765";
 
-async function fixture(page, {locale = "en", id = 7, incomplete = false, legacyPartial = false, breakdownReport = null} = {}) {
+async function fixture(page, {locale = "en", id = 7, incomplete = false, legacyPartial = false, breakdownReport = null, earningsReport = null, noriReport = null} = {}) {
   const calls = [];
   const role = id === 901 || id === 902 ? "manager" : "staff";
   await page.addInitScript(({locale}) => {
@@ -37,6 +37,8 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false, legacyP
     else if(url.pathname === "/realtime/events") body={events:[],cursor:0};
     else {status=404;body={detail:"Unmocked read"};}
     if(url.pathname === "/profile/chuck-monthly-pay" && breakdownReport) Object.assign(body, breakdownReport);
+    if(url.pathname === "/profile/earnings" && earningsReport) Object.assign(body, earningsReport);
+    if(url.pathname === "/profile/nori-monthly-pay" && noriReport) Object.assign(body, noriReport);
     await route.fulfill({status,json:body,headers:{"Access-Control-Allow-Origin":"*"}});
   });
   await page.goto("/profile");
@@ -130,8 +132,8 @@ for (const locale of ["en", "ja"]) for (const width of [320, 1280]) test(`revenu
 
 for(const locale of ['en','ja'])for(const width of [320,1280])test(`partial drink data never displays final allocation ${locale} ${width}`,async({page},testInfo)=>{
  const ja=locale==='ja';await page.setViewportSize({width,height:900});
- const calls=await fixture(page,{locale,id:901,breakdownReport:{complete:true,staff_drink_data_status:'incomplete',blockers:[],gross_salary_yen:10000,eligible_revenue_yen:25000,tier_rate_percent:40,net_amount_owed_yen:6500,staff_cost_total_yen:3000,deduction_total_yen:500,
- staff_owed:[{user_id:11,name:'Staff A',wages_yen:800,staff_drink_bonus_yen:200,total_owed_yen:1000},{user_id:12,name:'Staff B',wages_yen:1800,staff_drink_bonus_yen:200,total_owed_yen:2000}],deductions:[{id:1,category:'manager_pay_deduction',amount_yen:500,business_date:'2026-10-01',reason:'Recorded ledger',reversal_of_id:null}]}});
+ const calls=await fixture(page,{locale,id:901,breakdownReport:{complete:true,staff_drink_data_status:'incomplete',blockers:[],gross_salary_yen:10000,eligible_revenue_yen:25000,tier_rate_percent:40,net_amount_owed_yen:width===320?6500:null,staff_cost_total_yen:width===320?3000:null,recorded_staff_cost_total_yen:3000,deduction_total_yen:500,
+ staff_owed:[{user_id:11,name:'Staff A',wages_yen:800,staff_drink_bonus_yen:200,total_owed_yen:width===320?1000:null,recorded_total_yen:1000},{user_id:12,name:'Staff B',wages_yen:1800,staff_drink_bonus_yen:200,total_owed_yen:width===320?2000:null,recorded_total_yen:2000}],deductions:[{id:1,category:'manager_pay_deduction',amount_yen:500,business_date:'2026-10-01',reason:'Recorded ledger',reversal_of_id:null}]}});
  await expect(page.getByText(ja?'Chuckの差引後見積もり（記録済みデータ）':'Chuck’s remaining estimate (recorded data)',{exact:true}).locator('..').locator('strong')).toHaveText('—');
  await expect(page.getByRole('status',{name:ja?'ドリンク記録の確認状況':'Drink-data coverage'})).toContainText(ja?'ドリンク記録が不足しています':'Drink records are incomplete');
  await page.getByText(ja?'給与の内訳・明細':'Pay breakdown and details',{exact:true}).click();
@@ -143,4 +145,17 @@ for(const locale of ['en','ja'])for(const width of [320,1280])test(`partial drin
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath('pay-breakdown.png'),fullPage:true});
  expect(calls.filter(x=>!x.startsWith('GET '))).toEqual([]);
+});
+
+for(const locale of ['en','ja'])test(`staff and owner keep incomplete drink pay nonfinal ${locale}`,async({page})=>{
+ const ja=locale==='ja';const calls=await fixture(page,{locale,id:7,earningsReport:{categories:[{category:'hourly_wages',amount_yen_unrounded:'1000',complete:true,entries:[]},{category:'staff_drink_bonus',amount_yen:200,complete:false,entries:[]}]}});
+ await expect(page.getByText(ja?'月間給与の見積もり':'Monthly pay estimate',{exact:true}).locator('..').locator('strong')).toHaveText('—');
+ await expect(page.getByText(ja?'スタッフドリンク手当':'Staff-drink bonus',{exact:true}).locator('..')).toContainText(ja?'記録済み小計（一部）':'Recorded subtotal (partial)');
+ await expect(page.getByText(ja?'スタッフドリンク手当':'Staff-drink bonus',{exact:true}).locator('..')).toContainText(/[¥￥]200/);
+ expect(calls.filter(x=>!x.startsWith('GET '))).toEqual([]);
+ await page.unrouteAll({behavior:'wait'});
+ const ownerCalls=await fixture(page,{locale,id:902,noriReport:{own_income:{amount_yen:null,status:'incomplete',complete:false,blockers:['staff_drink_data_incomplete'],source:'monthly_revenue_less_recorded_staff_earnings',basis:'before_other_expenses'},staff_owed:[{payee:'chuck',user_id:901,name:'Chuck',amount_yen:null,status:'incomplete',blockers:['staff_drink_data_incomplete'],source:'chuck_monthly_pay_preview'}]}});
+ await expect(page.getByText(ja?'スタッフ給与差引後の残額':'Remaining after staff earnings',{exact:true}).locator('..').locator('strong')).toHaveText('—');
+ await expect(page.getByText(ja?'スタッフドリンク記録が不足しています。':'Staff-drink records are incomplete.').first()).toBeVisible();
+ expect(ownerCalls.filter(x=>!x.startsWith('GET '))).toEqual([]);
 });

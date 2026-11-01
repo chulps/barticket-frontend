@@ -50,3 +50,8 @@ test('signed or unknown components never distort a donut; mismatched sums fail c
  const r=buildChuckPayBreakdown({...fixture(),staff_owed:[{...fixture().staff_owed[0],...row},fixture().staff_owed[1]]});assert.deepEqual(r.staffSlices,[]);
  }
 });
+test('explicit recorded subtotals survive nulled final totals without becoming final',()=>{
+ const f=fixture();const r=buildChuckPayBreakdown({...f,staff_drink_data_status:'incomplete',staff_cost_total_yen:null,recorded_staff_cost_total_yen:3000,net_amount_owed_yen:null,complete:false,staff_owed:f.staff_owed.map(x=>({...x,recorded_total_yen:x.total_owed_yen,total_owed_yen:null}))});
+ assert.equal(r.retained,null);assert.equal(r.recordedStaffCost,3000);assert.equal(r.staffSlices.length,4);
+ assert.equal(buildChuckPayBreakdown({...f,staff_drink_data_status:'incomplete',recorded_staff_cost_total_yen:null}).recordedStaffCost,null);
+});
