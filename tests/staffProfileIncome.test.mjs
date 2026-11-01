@@ -30,7 +30,7 @@ test("Profile income is personal for staff and managers and shows wages and drin
     assert.match(income, /hourly_wages/);
     assert.match(income, /staff_drink_bonus/);
     assert.match(income, /Monthly income breakdown/);
-    assert.match(breakdown, /Gross share allocation/);
+    assert.match(breakdown, /Remaining after recorded costs \(provisional\)/);
     assert.match(income, /DonutChart/);
     assert.match(income, /Estimated income by day/);
     assert.match(stats, /Chuck-managed shift stats/);

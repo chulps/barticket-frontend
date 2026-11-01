@@ -48,3 +48,12 @@ test("profile stats use authorized aggregates on demand with bounded session-loc
     assert.match(readFileSync(new URL("../src/components/AnalyticsCharts.tsx", import.meta.url), "utf8"), /aria-hidden="true"/);
     assert.match(component, /Weekday averages and shift counts/);
 });
+
+test("Chuck pay information is always open while historical stats remain opt-in", () => {
+    const income = readFileSync(new URL("../src/pages/StaffIncome.tsx", import.meta.url), "utf8");
+    const profile = readFileSync(new URL("../src/pages/Profile.tsx", import.meta.url), "utf8");
+    assert.doesNotMatch(income, /showStats|setShowStats/);
+    assert.match(income, /<ManagedShiftStats[^>]+active=\{true\}/);
+    assert.match(income, /<OpenSection><h3>\{ja \? "給与の内訳・明細"/);
+    assert.match(profile, /view === "pay" \? <StaffIncome/);
+});
