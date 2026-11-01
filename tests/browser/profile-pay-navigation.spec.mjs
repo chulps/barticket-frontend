@@ -47,8 +47,7 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false, live = 
     if (url.pathname === "/profile/earnings" && live.fail) {status=503;body={detail:"Fixture pay temporarily unavailable"};}
     await route.fulfill({status,json:body,headers:{"Access-Control-Allow-Origin":"*"}});
   });
-  await page.goto("/profile");
-  await page.getByRole("group", {name:locale==="ja" ? "プロフィール表示" : "Profile sections"}).getByRole("button", {name:locale==="ja" ? "給与" : "My pay",exact:true}).click();
+  await page.goto("/profile?section=pay");
   return calls;
 }
 

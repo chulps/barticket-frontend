@@ -41,8 +41,7 @@ async function fixture(page, {locale = "en", id = 7, incomplete = false, legacyP
     if(url.pathname === "/profile/nori-monthly-pay" && noriReport) Object.assign(body, noriReport);
     await route.fulfill({status,json:body,headers:{"Access-Control-Allow-Origin":"*"}});
   });
-  await page.goto("/profile");
-  await page.getByRole("group", {name:locale==="ja" ? "プロフィール表示" : "Profile sections"}).getByRole("button", {name:locale==="ja" ? "給与" : "My pay",exact:true}).click();
+  await page.goto("/profile?section=pay");
   return calls;
 }
 
@@ -73,7 +72,7 @@ for(const id of [7,901,902])for(const locale of ["en","ja"])for(const width of [
  await page.screenshot({path:testInfo.outputPath("pay.png"),fullPage:true});
  for(const [section,label]of [["history",ja?"勤務履歴":"Work history"],["shift",ja?"勤務":"Shift"],["account",ja?"アカウント設定":"Account settings"]]){
   await sections.getByRole("button",{name:label,exact:true}).click();
-  await expect(page).toHaveURL(new RegExp("section="+section));
+  await expect(page).toHaveURL(section === "shift" ? /\/profile$/ : new RegExp("section="+section));
   if(section==="history"){
    await expect(page.getByRole("tab",{name:ja?"勤務時間":"Hours",exact:true})).toBeVisible();
    await expect(page.getByText(ja?"記録された勤務時間":"Recorded hours",{exact:true}).locator("..").locator("strong")).toHaveText("—");
