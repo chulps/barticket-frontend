@@ -145,8 +145,8 @@ test('phone focus, feed scroll and desktop resize preserve the same settings sub
   const options=page.getByRole('button',{name:'Notification settings',exact:true});
   const prefs=page.locator('[aria-labelledby="push-type-ticket_created"]');await expect(prefs).toHaveAttribute('aria-checked','true');
   const reads=[];page.on('request',req=>{if(req.method()==='GET'&&/\/push\//.test(req.url()))reads.push(req.url());});
-  await page.evaluate(()=>{document.querySelector('main').style.minHeight='2000px';window.scrollTo(0,180);});
-  const scrollBefore=await page.evaluate(()=>scrollY);
+  await page.evaluate(()=>{document.querySelector('main').style.minHeight='2000px';window.scrollTo({top:180,left:0,behavior:'instant'});});
+  const scrollBefore=await page.evaluate(()=>scrollY);expect(scrollBefore).toBe(180);
   await options.evaluate(el=>el.click());
   const panel=page.locator('#notification-settings-panel');
   await expect(panel).toBeVisible();expect(await page.evaluate(()=>document.body.style.position)).toBe('fixed');

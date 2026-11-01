@@ -27,13 +27,14 @@ test('shared disclosure supports keyboard dismissal and bounded internal scrolli
 
 test('phone presentation uses a native modal with a fixed header and one content scroller',()=>{
  assert.match(settings,/dialog.showModal\(\)/);
+ assert.match(settings,/if \(!phone\) window.scrollTo\(\{ left: x, top: y, behavior: 'instant' \}\)/);
  assert.match(settings,/else dialog.show\(\)/);
  assert.match(settings,/max-width: 767px/);
  assert.match(settings,/position: fixed; inset: 0; width: 100%; height: 100vh; height: 100dvh/);
  assert.match(settings,/const PanelHeading = styled.div`[\s\S]*flex: none/);
  assert.match(settings,/const SettingsContent = styled.div`[\s\S]*min-height: 0; overflow-y: auto/);
  for(const edge of ['top','left','right','bottom'])assert.match(settings,new RegExp('safe-area-inset-'+edge));
- assert.match(settings,/Object.assign\(body.style, previous\); window.scrollTo\(x, y\)/);
+ assert.match(settings,/Object.assign\(body.style, previous\); window.scrollTo\(\{ left: x, top: y, behavior: 'instant' \}\)/);
  assert.doesNotMatch(settings,/document.body.innerHTML|createPortal|setTimeout/);
 });
 test('settings history preserves linked-ticket context and direct links close in place',()=>{

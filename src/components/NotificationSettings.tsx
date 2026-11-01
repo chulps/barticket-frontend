@@ -53,7 +53,7 @@ export default function NotificationSettings() {
     const previous = { position: body.style.position, top: body.style.top, left: body.style.left, width: body.style.width, overflow: body.style.overflow };
     // Fixed-body locking also prevents touch scrolling behind a modal on iOS.
     Object.assign(body.style, { position: 'fixed', top: `${-y}px`, left: `${-x}px`, width: '100%', overflow: 'hidden' });
-    return () => { Object.assign(body.style, previous); window.scrollTo(x, y); };
+    return () => { Object.assign(body.style, previous); window.scrollTo({ left: x, top: y, behavior: 'instant' }); };
   }, [open, phone]);
 
   useLayoutEffect(() => {
@@ -71,9 +71,12 @@ export default function NotificationSettings() {
     // Native modal presentation traps focus and makes the rest of the document
     // inert. The same DOM subtree remains mounted in the desktop popover.
     const focused = lastFocused.current;
+    const x = window.scrollX, y = window.scrollY;
     if (dialog.open) dialog.close();
     if (phone) dialog.showModal(); else dialog.show();
     (focused ?? closeButton.current)?.focus({ preventScroll: true });
+    // Native show() may autofocus before our preventScroll focus call.
+    if (!phone) window.scrollTo({ left: x, top: y, behavior: 'instant' });
     return () => {
       lastFocused.current = dialog.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
       dialog.close();
