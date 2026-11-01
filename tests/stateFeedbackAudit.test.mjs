@@ -44,6 +44,7 @@ test('clipboard request generations and account changes reject stale feedback',(
  assert.match(charts,/request !== copyRequest.current/);
  assert.equal((charts.match(/request === copyRequest.current/g)||[]).length,3);
  assert.match(charts,/document.body.style.overflow = overflow/);
+ assert.match(charts,/useLayoutEffect\(\(\) => \{\s*const element = dialog.current/);
  const profile=source('pages/Profile.tsx');
  assert.match(profile,/addEventListener\("barticket-auth", authChanged\)/);
  assert.match(profile,/function authChanged\(\) \{\s*setNameDraft\(null\);\s*setNameSaveState\("idle"\);\s*setPassword\(""\);\s*setAccount\(null\);/);

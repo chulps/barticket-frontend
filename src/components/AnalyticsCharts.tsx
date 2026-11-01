@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import styled from "styled-components";
 import Icon from "./Icon";
@@ -47,7 +47,7 @@ function ManualCopyDialog({ text, locale, onClose }: { text: string; locale: "en
     const textarea = useRef<HTMLTextAreaElement>(null);
     const titleId = useId();
     const ja = locale === "ja";
-    useEffect(() => {
+    useLayoutEffect(() => {
         const element = dialog.current;
         const overflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
