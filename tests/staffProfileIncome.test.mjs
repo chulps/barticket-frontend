@@ -68,3 +68,11 @@ test("staff income never presents an estimate as a paid amount or treats unknown
     assert.match(income, /: chuckReport\.note/);
     assert.match(income, /bonus\?\.complete \? bonus\.amount_yen : null/);
 });
+
+test("recorded-pay headline uses reconciled provisional arithmetic without substituting final pay", () => {
+    assert.match(income, /buildChuckPayBreakdown\(chuckReport\)\.recordedRemaining/);
+    assert.match(income, /money\(recordedRemaining, locale\)/);
+    assert.match(income, /Provisional after recorded costs/);
+    assert.match(breakdown, /money\(data\.retained\)/);
+    assert.match(breakdown, /center=\{money\(report\.gross_salary_yen\)\}/);
+});

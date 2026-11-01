@@ -6,7 +6,7 @@ for(const locale of ['en','ja'])for(const width of [320,1280])test(`pay donut gr
  import React from '/node_modules/.vite/deps/react.js';import ReactDOM from '/node_modules/.vite/deps/react-dom_client.js';
  import RefreshRuntime from '/@react-refresh';RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>type=>type;window.__vite_plugin_react_preamble_installed__=true;
  const {default:Donut}=await import('/src/pages/PayAllocationDonut.tsx');import '/src/index.css';
- const slices=[{id:'remaining',label:'Remaining (provisional)',value:8998,display:'¥8,998',color:'var(--royal-400)'},{id:'wages',label:'Staff wages',value:1000,display:'¥1,000',color:'var(--success-400)'},{id:'bonus',label:'Recorded bonus',value:1,display:'¥1',color:'var(--warning-400)'},{id:'deductions',label:'Recorded deductions',value:1,display:'¥1',color:'var(--danger-400)'},{id:'zero',label:'Recorded zero',value:0,display:'¥0',color:'var(--neutral-400)'}];
+ const slices=[{id:'remaining',label:'Remaining after recorded costs (provisional)',value:8998,display:'¥8,998',color:'var(--royal-400)'},{id:'wages',label:'Staff wages',value:1000,display:'¥1,000',color:'var(--success-400)'},{id:'bonus',label:'Recorded bonus',value:1,display:'¥1',color:'var(--warning-400)'},{id:'deductions',label:'Recorded deductions',value:1,display:'¥1',color:'var(--danger-400)'},{id:'zero',label:'Recorded zero',value:0,display:'¥0',color:'var(--neutral-400)'}];
  ReactDOM.createRoot(document.getElementById('root')).render(React.createElement('div',{style:{maxWidth:'500px',padding:'12px'}},[1,2].map(i=>React.createElement(Donut,{key:i,title:'Gross share '+i,slices,center:'¥10,000',locale:'${locale}',note:'Recorded allocation, not final pay.'}))));
  </script></html>`}));
  await page.goto('/donut-fixture');
@@ -24,8 +24,10 @@ for(const locale of ['en','ja'])for(const width of [320,1280])test(`pay donut gr
  await chart.locator('svg').scrollIntoViewIfNeeded();
  const ring=await chart.locator('svg').boundingBox();const angle=(.8998*Math.PI)-Math.PI/2;
  await page.mouse.move(ring.x+ring.width/2+Math.cos(angle)*ring.width*42/120,ring.y+ring.height/2+Math.sin(angle)*ring.height*42/120);
- await expect(chart.getByRole('status')).toHaveText('Remaining (provisional): ¥8,998');
- await page.mouse.move(0,0);await expect(chart.getByRole('status')).not.toContainText('Remaining (provisional):');
+ await expect(chart.getByRole('status')).toHaveText('Remaining after recorded costs (provisional): ¥8,998');
+ await page.mouse.move(0,0);await expect(chart.getByRole('status')).not.toContainText('Remaining after recorded costs (provisional):');
+ const labelBounds=await chart.locator('li button').evaluateAll(buttons=>buttons.map(button=>({label:button.querySelector('span').getBoundingClientRect().right,amount:button.querySelector('b').getBoundingClientRect().left})));
+ expect(labelBounds.every(box=>box.label<=box.amount)).toBe(true);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:info.outputPath('pay-breakdown.png'),fullPage:true});
 });
