@@ -5,7 +5,7 @@ import { historicalHoursApi, type HistoricalHoursExceptions as Exceptions, type 
 
 export function StoredHoursEvidence({ record, ja }: { record: StoredHistoricalHours; ja: boolean }) {
     const hours = new Intl.NumberFormat(ja ? "ja-JP" : "en", { maximumFractionDigits: 4 }).format(record.duration_seconds / 3600);
-    return <Evidence>
+    return <Evidence data-testid="stored-hours-evidence">
         <div><dt>{ja ? "保存済みの氏名・日付" : "Stored identity / date"}</dt><dd><bdi>{record.staff_name}</bdi> · {record.business_date}</dd></div>
         <div><dt>{ja ? "保存済みの時間" : "Stored hours"}</dt><dd>{hours} h · {record.verification_state === "verified" ? (ja ? "確認済み" : "Verified") : (ja ? "未確認" : "Not verified")}</dd></div>
         <div><dt>{ja ? "出典" : "Source"}</dt><dd>{record.source_file} · {ja ? "行" : "row"} {record.source_row} · {record.source_column}</dd></div>

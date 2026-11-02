@@ -23,3 +23,9 @@ test("exception component parses without mutation calls",()=>{
  assert.deepEqual(parsed.parseDiagnostics.map(d=>d.messageText),[]);
  assert.doesNotMatch(code,/historicalHoursApi\.(import|reconcile)/);
 });
+test("mobile stored evidence is outside the narrow result column and table headers are scoped",()=>{
+ assert.match(reconciliation,/evidence \? <div className="stored-evidence">\{evidence\}<\/div>/);
+ assert.match(reconciliation,/> dl > div > dd/);
+ assert.doesNotMatch(reconciliation,/value: <>[^\n]*StoredHoursEvidence/);
+ assert.match(reconciliation,/<th scope="col">\{ja \? "現在の有効時間"/);
+});

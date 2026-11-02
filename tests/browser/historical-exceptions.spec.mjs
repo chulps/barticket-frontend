@@ -74,19 +74,31 @@ test("session changes clear evidence and discard delayed reads",async({page})=>{
   expect(state.writes).toEqual([]);
 });
 
-for (const width of [390,768]) test("CSV imported unlinked evidence keeps stored identity " + width,async({page},info)=>{
+for (const ja of [false,true]) for (const width of [320,390,768]) test(`CSV imported unlinked evidence keeps stored identity ${ja} ${width}`,async({page},info)=>{
   await page.setViewportSize({width,height:900});
-  const state=await fixture(page,false,"preview");
+  const state=await fixture(page,ja,"preview");
   await page.locator('input[type="file"]').setInputFiles({name:"Synthetic.csv",mimeType:"text/csv",buffer:Buffer.from("Date,Staff,Hours,Manager,Revenue,Guests\n2025-06-12,Changed uploaded identity,9,Synthetic manager,0,0")});
-  await page.getByRole("button",{name:"Reconcile staff hours",exact:true}).click();
-  const results=width<700?page.getByRole("list",{name:"Staff-hours reconciliation results"}):page.locator("table").filter({has:page.locator("th",{hasText:"Current effective hours"})});
+  await page.getByRole("button",{name:ja?"勤務時間を照合":"Reconcile staff hours",exact:true}).click();
+  const results=width<700?page.getByRole("list",{name:ja?"勤務時間の照合結果":"Staff-hours reconciliation results"}):page.locator("table").filter({has:page.getByRole("columnheader",{name:ja?"現在の有効時間":"Current effective hours"})});
   await expect(results).toContainText("Changed uploaded identity");
-  await expect(results).toContainText("Imported · Account unlinked");
+  await expect(results).toContainText(ja?"取り込み済み · アカウント未紐付け":"Imported · Account unlinked");
   await expect(results).toContainText("Former staff");
   await expect(results).toContainText("2025-05-01");
-  await expect(results).toContainText("Unknown");
+  await expect(results).toContainText(ja?"不明":"Unknown");
   await expect(results.getByRole("checkbox")).toBeDisabled();
-  await expect(page.getByRole("button",{name:"Save selected hours (0)",exact:true})).toBeDisabled();
+  await expect(page.getByRole("button",{name:ja?"選択した時間を保存 (0)":"Save selected hours (0)",exact:true})).toBeDisabled();
+  if(width<700) {
+    const article=await results.locator("article").boundingBox();
+    const evidence=results.getByTestId("stored-hours-evidence");
+    const box=await evidence.boundingBox();
+    expect(box.width).toBeGreaterThan(article.width * 0.7);
+    expect((await evidence.locator("dd").first().boundingBox()).width).toBeGreaterThan(box.width * 0.9);
+  } else {
+    const table=await results.boundingBox();
+    const evidence=await results.getByTestId("stored-hours-evidence").boundingBox();
+    expect(evidence.width).toBeGreaterThan(table.width * 0.85);
+  }
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   expect(state.writes).toEqual(["/historical-hours/reconcile"]);
   await page.screenshot({path:info.outputPath("audit-historical-reconciliation.png"),fullPage:true});
 });
