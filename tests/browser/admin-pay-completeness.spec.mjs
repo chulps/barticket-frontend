@@ -87,7 +87,9 @@ for(const locale of ['en','ja']){
  test(`Admin pay newer month wins over stale complete response ${locale}`,async({page})=>{
   const state=await fixture(page,locale,'delayed');await expect(page.getByRole('status')).toBeVisible();
   await page.getByRole('button',{name:'Next fixture month'}).click();const card=page.getByRole('article',{name:'Fixture staff A'});await expect(card).toBeVisible();
-  state.resolve();await expect(card.getByLabel(locale==='ja'?'給与総額は未確定':'Full pay unavailable')).toContainText('—');
+  const oldResponse=page.waitForResponse(response=>response.url().includes('month=2026-10'));state.resolve();await (await oldResponse).finished();
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  await expect(card.getByLabel(locale==='ja'?'給与総額は未確定':'Full pay unavailable')).toContainText('—');
   await expect(card).toContainText(locale==='ja'?'ドリンク記録が未確認':'Drink records are unverified');
  });
  test(`Admin pay failed refresh does not retain verified amount ${locale}`,async({page})=>{
