@@ -56,7 +56,7 @@ export default function Schedules() {
         } finally { if (request === serial.current && getToken() === session) setLoading(false); }
     }, [month, session, authEpoch]);
     const loadRef = useRef(load);
-    loadRef.current = load;
+    useEffect(() => { loadRef.current = load; }, [load]);
     useEffect(() => {
         const initial = window.setTimeout(() => { setLoading(true); setRows([]); void load(); }, 0);
         return () => clearTimeout(initial);
@@ -97,11 +97,11 @@ export default function Schedules() {
             const flight = { session, serial: request, rerun: false };
             contextFlight.current = flight;
             void scheduledShiftsApi.context().then(context => {
-                if (flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken() && !document.hidden && navigator.onLine) {
+                if (contextFlight.current === flight && flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken() && !document.hidden && navigator.onLine) {
                     setScheduleContext(context);
                 }
             }).catch(() => {
-                if (flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken()) setScheduleContext(null);
+                if (contextFlight.current === flight && flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken()) setScheduleContext(null);
             }).finally(() => {
                 if (contextFlight.current !== flight) return;
                 contextFlight.current = null;
@@ -120,7 +120,6 @@ export default function Schedules() {
         document.addEventListener("visibilitychange", refresh); window.addEventListener("barticket-schedules-updated", changed); window.addEventListener("barticket-shift-updated", changed);
         return () => {
             retire();
-            contextSerial.current++;
             if (contextFlight.current?.session === session) contextFlight.current = null;
             clearInterval(interval);
             window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); document.removeEventListener("visibilitychange", refresh); window.removeEventListener("barticket-schedules-updated", changed); window.removeEventListener("barticket-shift-updated", changed);
