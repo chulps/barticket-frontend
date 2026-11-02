@@ -1170,3 +1170,48 @@ for(const width of [390,1280]) for(const locale of ['en','ja']) test(`checkout p
  expect(requests[1]).toEqual(requests[0]);expect(requests[2]).toEqual(requests[0]);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+
+// #394: original list entrance stays intact; live changes touch only affected rows.
+for (const reducedMotion of ['no-preference','reduce']) {
+ test(`ticket list live lifecycle motion and quiet resync (${reducedMotion})`,async({page},testInfo)=>{
+  await page.emulateMedia({reducedMotion});
+  const state=await mockedPOS(page);let socket,cursor=100;
+  await page.routeWebSocket('**/realtime/ws',peer=>{socket=peer;peer.onMessage(raw=>{
+   if(JSON.parse(raw).type==='authenticate') peer.send(JSON.stringify({type:'ready',version:1,cursor}));
+  });});
+  await page.goto('/tickets');
+  await expect(page.locator('[data-ticket-row="11"]')).toBeVisible();
+  await expect.poll(()=>Boolean(socket)).toBe(true);
+  await page.waitForTimeout(600);
+  await page.evaluate(()=>{
+   window.__originalTicketRow=document.querySelector('[data-ticket-row="11"]');
+   window.__motionObservations=[];
+   const observe=()=>document.querySelectorAll('[data-ticket-row]').forEach(row=>{
+    if(row.hasAttribute('data-ticket-arrival')||row.inert) window.__motionObservations.push({id:row.dataset.ticketRow,arrival:row.hasAttribute('data-ticket-arrival'),inert:row.inert});
+   });
+   new MutationObserver(observe).observe(document.querySelector('aside'),{subtree:true,childList:true,attributes:true});
+  });
+  const send=()=>socket.send(JSON.stringify({type:'invalidate',version:1,cursor:++cursor,scopes:['tickets']}));
+  state.tickets.push({...ticket(12),name:'Remote fixture'});send();
+  const incoming=page.locator('[data-ticket-row="12"]');await expect(incoming).toBeVisible();
+  expect(await page.evaluate(()=>window.__originalTicketRow===document.querySelector('[data-ticket-row="11"]'))).toBe(true);
+  if(reducedMotion==='no-preference') await expect.poll(()=>page.evaluate(()=>window.__motionObservations.some(x=>x.id==='12'&&x.arrival))).toBe(true);
+  else expect(await page.evaluate(()=>window.__motionObservations.some(x=>x.arrival))).toBe(false);
+  await testInfo.attach(`ticket-live-${reducedMotion}`,{body:await page.screenshot(),contentType:'image/png'});
+  // Known active ticket moves out; exiting row is inert, never a stale action target.
+  Object.assign(state.tickets.find(t=>t.id===12),{status:'paid',paid_at:now(),payment:{type:'cash',amount:700}});send();
+  await expect(incoming).toHaveCount(0);
+  if(reducedMotion==='no-preference') expect(await page.evaluate(()=>window.__motionObservations.some(x=>x.id==='12'&&x.inert))).toBe(true);
+  Object.assign(state.tickets.find(t=>t.id===12),{status:'open',paid_at:null,payment:null});send();
+  await expect(incoming).toBeVisible();
+  Object.assign(state.tickets.find(t=>t.id===12),{status:'cancelled',cancelled_at:now()});send();
+  await expect(incoming).toHaveCount(0);
+  // A ready/reconnect resync can discover a new row, but never marks it live.
+  await page.evaluate(()=>{window.__motionObservations=[];});
+  state.tickets.push({...ticket(13),name:'Reconnect fixture'});
+  socket.send(JSON.stringify({type:'ready',version:1,cursor:++cursor}));
+  await expect(page.locator('[data-ticket-row="13"]')).toBeVisible();
+  expect(await page.evaluate(()=>window.__motionObservations.some(x=>x.id==='13'&&x.arrival))).toBe(false);
+  expect(state.newTicketPosts).toBe(0);expect(state.paymentPosts).toBe(0);
+ });
+}

@@ -10,7 +10,7 @@ export function createRealtimeConnection(options: {
   schedule: (callback: () => void, delay: number) => () => void;
   now: () => number;
   random: () => number;
-  invalidate: (scopes: readonly RealtimeScope[]) => void;
+  invalidate: (scopes: readonly RealtimeScope[], live?: boolean) => void;
   expired: () => void;
   activity?: (frame: unknown) => void;
   health?: (ready: boolean) => void;
@@ -91,7 +91,7 @@ export function createRealtimeConnection(options: {
         if (!Array.isArray(data.scopes) ||
             data.scopes.some((scope: unknown) => !REALTIME_SCOPES.includes(scope as RealtimeScope))) return;
         lastMessageAt = options.now();
-        if (data.type === "invalidate" && data.scopes.length) options.invalidate(data.scopes);
+        if (data.type === "invalidate" && data.scopes.length) options.invalidate(data.scopes, true);
       } catch {
         // Ignore malformed frames; polling remains active as the fallback.
       }
