@@ -21,6 +21,8 @@ export type ScheduledShift = {
     manager: ScheduledPerson | null;
     staff: ScheduledPerson[];
     event_value: string | null;
+    schedule_type?: "open" | "event" | "closed";
+    event_notes?: string | null;
     hours: null;
     provenance: ScheduledShiftSource[];
 };
@@ -70,6 +72,8 @@ export type ScheduleDraft = {
     business_date: string;
     manager: ScheduledPerson | null;
     staff: ScheduledPerson[];
+    schedule_type: "open" | "event" | "closed";
+    event_notes: string | null;
     event_value: string | null;
 };
 export const scheduleEditorApi = {

@@ -40,6 +40,7 @@ export default function Schedules() {
     const authSerial = useRef(0);
     const contextSerial = useRef(0);
     const contextFlight = useRef<{ session: string; serial: number; rerun: boolean } | null>(null);
+    const contextEffectActive = useRef(false);
     const dateButtons = useRef(new Map<string, HTMLButtonElement>());
     const load = useCallback(async (force = false) => {
         if (authEpoch !== authSerial.current || !session || session !== getToken() || document.hidden || !navigator.onLine) return;
@@ -88,20 +89,24 @@ export default function Schedules() {
         if (detail && window.matchMedia("(max-width: 900px)").matches) { detailPanel.current?.scrollIntoView({ block: "nearest" }); detailPanel.current?.focus({ preventScroll: true }); }
     }, [detail, selected]);
     useEffect(() => {
+        // StrictMode replays effects after cleanup while preserving refs. Keep
+        // the shared flight through that replay so the second setup coalesces
+        // with the first request instead of issuing a duplicate.
+        contextEffectActive.current = true;
         const retire = () => { serial.current++; };
-        const requestContext = () => {
-            if (authEpoch !== authSerial.current || !session || session !== getToken() || document.hidden || !navigator.onLine) return;
+        const requestContext = (rerunInFlight = true) => {
+            if (!contextEffectActive.current || authEpoch !== authSerial.current || !session || session !== getToken() || document.hidden || !navigator.onLine) return;
             const inFlight = contextFlight.current;
-            if (inFlight?.session === session) { inFlight.rerun = true; return; }
+            if (inFlight?.session === session) { if (rerunInFlight) inFlight.rerun = true; return; }
             const request = ++contextSerial.current;
             const flight = { session, serial: request, rerun: false };
             contextFlight.current = flight;
             void scheduledShiftsApi.context().then(context => {
-                if (contextFlight.current === flight && flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken() && !document.hidden && navigator.onLine) {
+                if (contextEffectActive.current && contextFlight.current === flight && flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken() && !document.hidden && navigator.onLine) {
                     setScheduleContext(context);
                 }
             }).catch(() => {
-                if (contextFlight.current === flight && flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken()) setScheduleContext(null);
+                if (contextEffectActive.current && contextFlight.current === flight && flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken()) setScheduleContext(null);
             }).finally(() => {
                 if (contextFlight.current !== flight) return;
                 contextFlight.current = null;
@@ -114,13 +119,13 @@ export default function Schedules() {
             void loadRef.current(true);
         };
         const changed = () => { serial.current++; store.invalidate(); requestContext(); void loadRef.current(true); };
-        requestContext();
+        requestContext(false);
         const interval = window.setInterval(refresh, 60000);
         window.addEventListener("focus", refresh); window.addEventListener("online", refresh);
         document.addEventListener("visibilitychange", refresh); window.addEventListener("barticket-schedules-updated", changed); window.addEventListener("barticket-shift-updated", changed);
         return () => {
+            contextEffectActive.current = false;
             retire();
-            if (contextFlight.current?.session === session) contextFlight.current = null;
             clearInterval(interval);
             window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); document.removeEventListener("visibilitychange", refresh); window.removeEventListener("barticket-schedules-updated", changed); window.removeEventListener("barticket-shift-updated", changed);
         };
@@ -150,9 +155,11 @@ export default function Schedules() {
         if (row.actual_shift_status === "open") return "active";
         if (row.actual_shift_status === "closed") return "finished";
         if (row.venue_status === "closed") return "closed";
-        if (row.schedule_state === "past" || row.business_date < calendarDate) return "past";
         const normalizedEvent = row.event_value?.trim().toLocaleLowerCase() ?? "";
-        if (row.venue_event || (normalizedEvent && !["open", "shift plan", "予定", "勤務予定"].includes(normalizedEvent))) return "event";
+        const scheduleType = row.schedule_type ?? (normalizedEvent === "closed" ? "closed" : normalizedEvent === "open" || !normalizedEvent ? "open" : "event");
+        if (row.schedule_state === "past" || row.business_date < calendarDate) return "past";
+        if (scheduleType === "closed") return "closed";
+        if (row.venue_event || scheduleType === "event") return "event";
         return "planned";
     };
     const cellLabel = (row: ScheduledShift) => {
@@ -161,8 +168,17 @@ export default function Schedules() {
         if (state === "finished") return t("Finished shift", "終了したシフト");
         if (state === "closed") return row.venue_event ? `${t("Closed", "休業")} · ${row.venue_event}` : t("Closed", "休業");
         if (state === "event") return t("Special event", "特別イベント");
-        if (state === "past") return t("Past", "過去");
+        if (state === "past") {
+            const isClosed = row.venue_status === "closed" || row.schedule_type === "closed" || row.event_value?.trim().toLocaleLowerCase() === "closed";
+            return isClosed ? `${t("Past", "過去")} · ${t("Closed", "休業")}` : t("Past", "過去");
+        }
         return t("Planned shift", "シフト予定");
+    };
+    const cellTitle = (row: ScheduledShift) => {
+        const value = row.event_value?.trim() ?? "";
+        const routine = !value || ["open", "shift plan", "予定", "勤務予定"].includes(value.toLocaleLowerCase());
+        if (row.schedule_type === "closed") return t("Closed", "休業");
+        return row.venue_status === "closed" && routine ? t("Closed", "休業") : value || t("Shift plan", "勤務予定");
     };
     return <Page>
         <Toolbar>
@@ -203,17 +219,17 @@ export default function Schedules() {
                         const delta = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 } as Record<string, number>)[event.key];
                         if (delta) { event.preventDefault(); const next = addDays(day, delta); setSelected(next); dateButtons.current.get(next)?.focus(); }
                     }}><span>{Number(day.slice(-2))}</span></DayButton>
-                    {row ? <EventBlock $state={cellState(row)} onClick={event => choose(day, event.currentTarget)} aria-label={`${day}: ${row.event_value ?? t("Shift plan", "勤務予定")}, ${cellLabel(row)}, ${names(row)}`}><strong>{row.event_value || t("Shift plan", "勤務予定")}</strong><span>{cellLabel(row)}</span><small>{row.manager?.name || t("No manager", "担当未定")}</small><small>{row.staff.map(person => person.name).join(" · ") || t("No staff", "スタッフなし")}</small></EventBlock> : null}
+                    {row ? <EventBlock $state={cellState(row)} onClick={event => choose(day, event.currentTarget)} aria-label={`${day}: ${cellTitle(row)}, ${cellLabel(row)}, ${names(row)}`}><strong>{cellTitle(row)}</strong><span>{cellLabel(row)}</span><small>{row.manager?.name || t("No manager", "担当未定")}</small><small>{row.staff.map(person => person.name).join(" · ") || t("No staff", "スタッフなし")}</small></EventBlock> : null}
                 </Day>; })}
             </Calendar> : <Agenda id="schedule-view-panel-agenda" role="tabpanel" aria-labelledby="schedule-view-tab-agenda" tabIndex={0} aria-label={t("Scheduled shifts", "シフト予定一覧")}>
                 {!loading && !rows.length ? <Empty>{t("No scheduled shifts this month.", "今月の予定はありません。")}</Empty> : rows.map(row => <AgendaRow key={row.id}>
                     <DateRail $today={row.business_date === today}><span>{format(row.business_date, { weekday: "short" })}</span><strong>{Number(row.business_date.slice(-2))}</strong></DateRail>
-                    <AgendaEvent $state={cellState(row)} onClick={event => choose(row.business_date, event.currentTarget)}><small>{cellLabel(row)}</small><strong>{row.event_value || t("Shift plan", "勤務予定")}</strong><span>{t("Manager", "マネージャー")}: {row.manager?.name || t("Not assigned", "未定")}</span><span>{t("Staff", "スタッフ")}: {row.staff.map(person => person.name).join(" · ") || t("None", "なし")}</span></AgendaEvent>
+                    <AgendaEvent $state={cellState(row)} onClick={event => choose(row.business_date, event.currentTarget)}><small>{cellLabel(row)}</small><strong>{cellTitle(row)}</strong><span>{t("Manager", "マネージャー")}: {row.manager?.name || t("Not assigned", "未定")}</span><span>{t("Staff", "スタッフ")}: {row.staff.map(person => person.name).join(" · ") || t("None", "なし")}</span></AgendaEvent>
                 </AgendaRow>)}
             </Agenda>}
             {detail ? <Details ref={detailPanel} tabIndex={-1} aria-label={t("Selected day", "選択した日")}>
                 <DetailHeader><h2>{format(selected, { month: "long", day: "numeric", weekday: "short" })}</h2><CloseDetailsButton type="button" aria-label={t("Close day details", "詳細を閉じる")} onClick={closeDetails}><Icon name="X" size="var(--font-size-h4)" /></CloseDetailsButton></DetailHeader>
-                <h3>{selectedRow?.event_value || t("Shift plan", "勤務予定")}</h3>
+                <h3>{selectedRow ? cellTitle(selectedRow) : t("Shift plan", "勤務予定")}</h3>
                 {selectedRow ? <StatusLabel $state={cellState(selectedRow)}>{cellLabel(selectedRow)}</StatusLabel> : null}
                 <Subtitle>{t("Date-only plan · hours not recorded", "日付のみの予定・勤務時間の記録なし")}</Subtitle>
                 <dl><dt>{t("Manager", "マネージャー")}</dt><dd>{selectedRow?.manager?.name || t("Not assigned", "未定")}</dd><dt>{t("Staff", "スタッフ")}</dt><dd>{selectedRow?.staff.map(person => person.name).join(" · ") || t("None", "なし")}</dd></dl>
@@ -228,13 +244,13 @@ export default function Schedules() {
     </Page>;
 }
 const Page = styled.main`width:100%;max-width:1440px;margin:0 auto;padding:16px 0 calc(112px + env(safe-area-inset-bottom, 0px));button{width:auto;min-height:44px;}button:focus-visible{outline:3px solid var(--royal-300);outline-offset:2px;}`;
-const Toolbar = styled.header`display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;h1{font-size:21.6px;margin:0}h2{font-size:20px;margin:0} @media(max-width:600px){gap:8px; >div:first-child{flex:1;min-width:0} h1{font-size:19.2px}}`;
+const Toolbar = styled.header`display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;h1{font-size:21.6px;margin:0}h2{font-size:20px;margin:0} @media(max-width:600px){flex-direction:column;align-items:stretch;gap:8px;>div:first-child{width:100%;min-width:0;flex:0 0 auto}h1{font-size:19.2px}}`;
 const Subtitle = styled.p`color:var(--neutral-300);font-size:13.6px;margin:4px 0;`;
-const ScheduleControls = styled.div`display:flex;align-items:center;gap:2px;max-width:100%;padding:2px;border:1px solid var(--neutral-700);border-radius:var(--space-1);> [role=tablist]{width:176px;max-width:calc(100% - 68px)}@media(max-width:600px){> [role=tablist]{width:164px;}}`;
+const ScheduleControls = styled.div`display:flex;align-items:center;gap:2px;max-width:100%;padding:2px;border:1px solid var(--neutral-700);border-radius:var(--space-1);> [role=tablist]{width:176px;max-width:calc(100% - 68px)}@media(max-width:600px){width:100%;box-sizing:border-box;justify-content:flex-start;> [role=tablist]{width:164px;}}`;
 const TodayButton = styled.button`min-width:62px;padding-inline:var(--space-1)!important;white-space:nowrap;`;
-const MonthNav = styled.nav`display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:var(--space-1);min-height:48px;width:min(100%,300px);margin:0 auto 16px;h2{min-width:0;text-align:center;}@media(max-width:600px){width:min(100%,300px);}`;
+const MonthNav = styled.nav`display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:var(--space-1);min-height:48px;width:min(100%,300px);margin:0 auto 16px;h2{display:flex;justify-content:center;min-width:0;text-align:center;}@media(max-width:600px){width:min(100%,300px);}`;
 const MonthStep = styled.button`width:44px!important;min-width:44px;padding:0!important;border-radius:50%;`;
-const MonthLabel = styled.button`max-width:100%;padding:var(--space-1) var(--space-2)!important;background:var(--neutral-800)!important;border:1px solid var(--neutral-700)!important;border-radius:999px!important;color:var(--neutral-050)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:var(--font-size-body);`;
+const MonthLabel = styled.button`width:max-content!important;min-width:0;max-width:100%;flex:0 1 auto;padding:var(--space-1) var(--space-2)!important;background:var(--neutral-800)!important;border:1px solid var(--neutral-700)!important;border-radius:999px!important;color:var(--neutral-050)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:var(--font-size-body);`;
 const ReadOnlyNotice = styled.p`margin:8px 0;padding:var(--space-1) var(--space-2);border:1px solid var(--neutral-700);border-radius:var(--space-1);background:var(--neutral-900);color:var(--neutral-200);font-size:var(--font-size-small);`;
 const CreateButton = styled.button`position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:80;min-width:112px;padding:var(--space-1) var(--space-2);box-shadow:0 4px 18px rgb(0 0 0 / 38%);border-radius:999px;@media(min-width:769px){right:max(calc((100vw - 1440px)/2),24px);}`;
 const Canvas = styled.div`display:flex;align-items:stretch;background:var(--neutral-900);border:1px solid var(--neutral-700);border-radius:16px;overflow:hidden;@media(max-width:900px){flex-direction:column;}`;

@@ -6,6 +6,17 @@ import { ApiError, getToken } from "../api/client";
 import { scheduleEditorApi, type ScheduleDraft, type ScheduledShift, type ScheduledPerson } from "../api/scheduledShifts";
 
 type Props = { knownManagers: ScheduledPerson[]; day: string; row?: ScheduledShift; ja: boolean; today: string; canWrite: boolean; onClose: () => void; onSaved: (day: string) => void };
+type ScheduleType = "open" | "event" | "closed";
+function planTypeFor(row?: ScheduledShift): ScheduleType {
+    if (row?.schedule_type) return row.schedule_type;
+    const legacy = row?.event_value?.trim().toLocaleLowerCase();
+    if (legacy === "closed") return "closed";
+    if (legacy === "open" || !legacy) return "open";
+    return "event";
+}
+function planNotesFor(row?: ScheduledShift, type = planTypeFor(row)): string {
+    return row?.event_notes ?? (type === "event" ? row?.event_value ?? "" : "");
+}
 export default function ScheduleEditor({ knownManagers, day, row: incomingRow, ja, today, canWrite, onClose, onSaved }: Props) {
     // Freeze both values and revision at open; background refresh must not authorize an old draft.
     const [row] = useState(incomingRow);
@@ -14,7 +25,10 @@ export default function ScheduleEditor({ knownManagers, day, row: incomingRow, j
     const token = useRef(getToken());
     const alive = useRef(true);
     const [date, setDate] = useState(day);
-    const [event, setEvent] = useState(row?.event_value ?? "");
+    const [scheduleType, setScheduleType] = useState<ScheduleType>(() => planTypeFor(row));
+    // Keep notes mounted in state when the type changes, so toggling away from
+    // Event and back does not erase a draft description.
+    const [eventNotes, setEventNotes] = useState(() => planNotesFor(row));
     const [manager, setManager] = useState<ScheduledPerson | null>(row?.manager ?? null);
     const [staff, setStaff] = useState<ScheduledPerson[]>(row?.staff ?? []);
     const [users, setUsers] = useState<Account[]>([]);
@@ -23,7 +37,9 @@ export default function ScheduleEditor({ knownManagers, day, row: incomingRow, j
     const [usersError, setUsersError] = useState(false);
     const dateIsPast = date < today;
     const sourceDateIsPast = !!row && row.business_date < today;
-    const dirty = date !== day || event !== (row?.event_value ?? "") || JSON.stringify(manager) !== JSON.stringify(row?.manager ?? null) || JSON.stringify(staff) !== JSON.stringify(row?.staff ?? []);
+    const initialScheduleType = planTypeFor(row);
+    const initialEventNotes = planNotesFor(row, initialScheduleType);
+    const dirty = date !== day || scheduleType !== initialScheduleType || eventNotes !== initialEventNotes || JSON.stringify(manager) !== JSON.stringify(row?.manager ?? null) || JSON.stringify(staff) !== JSON.stringify(row?.staff ?? []);
     const close = () => { if (!busy && (!dirty || window.confirm(t("Discard your unsaved plan changes?", "保存していない変更を破棄しますか？")))) onClose(); };
     useEffect(() => {
         const previous = document.activeElement as HTMLElement | null;
@@ -61,7 +77,10 @@ export default function ScheduleEditor({ knownManagers, day, row: incomingRow, j
         setError("");
         if (!canWrite) { setError(t("Schedule date could not be verified. Editing is temporarily unavailable.", "予定日を確認できません。確認できるまで編集できません。")); return; }
         if (dateIsPast || sourceDateIsPast) { setError(t("Past schedule dates are read-only. Choose today or a future date.", "過去の予定は閲覧のみです。今日または未来の日付を選んでください。")); return; }
-        const body: ScheduleDraft = { business_date: date, event_value: event.trim() || null, manager, staff };
+        const cleanNotes = scheduleType === "event" ? eventNotes.trim() || null : null;
+        if (scheduleType === "event" && !cleanNotes) { setError(t("Add notes describing the event.", "イベントの内容を入力してください。")); return; }
+        const compatibilityValue = scheduleType === "open" ? "Open" : scheduleType === "closed" ? "Closed" : cleanNotes;
+        const body: ScheduleDraft = { business_date: date, schedule_type: scheduleType, event_notes: cleanNotes, event_value: compatibilityValue, manager, staff };
         if (!body.event_value && !manager && !staff.length) { setError(t("Add an event or an assigned person.", "イベントまたは担当者を追加してください。")); return; }
         if (row && !row.revision) { setError(t("Editing is not available yet. Refresh after the server update.", "編集機能は準備中です。サーバー更新後に再読み込みしてください。")); return; }
         setBusy(true);
@@ -80,7 +99,13 @@ export default function ScheduleEditor({ knownManagers, day, row: incomingRow, j
             <Header><h2 id="schedule-editor-title">{row ? t("Edit plan", "予定を編集") : t("New plan", "予定を作成")}</h2><button type="button" className="secondary" disabled={busy} aria-label={t("Close editor", "編集を閉じる")} onClick={close}>×</button></Header>
             <p>{t("Date-only schedule. Attendance and pay stay unchanged.", "日付のみの予定です。出勤記録や給与は変更されません。")}</p>
             {!canWrite ? <ErrorBox role="status">{t("Schedule date could not be verified. Editing is temporarily unavailable.", "予定日を確認できません。確認できるまで編集できません。")}</ErrorBox> : null}
-            <label>{t("Event", "イベント")}<input disabled={!canWrite || busy} maxLength={1000} value={event} onChange={e => setEvent(e.target.value)} placeholder={t("Event or shift name", "イベント名・勤務名")} /></label>
+            <label htmlFor="schedule-type">{t("Schedule type", "予定の種類")}</label>
+            <Select id="schedule-type" disabled={!canWrite || busy} value={scheduleType} onChange={e => setScheduleType(e.target.value as ScheduleType)}>
+                <option value="open">{t("Open", "営業")}</option>
+                <option value="event">{t("Event", "イベント")}</option>
+                <option value="closed">{t("Closed", "休業")}</option>
+            </Select>
+            {scheduleType === "event" ? <label htmlFor="schedule-event-notes">{t("Event notes", "イベントのメモ")}<textarea id="schedule-event-notes" disabled={!canWrite || busy} maxLength={1000} required value={eventNotes} onChange={e => setEventNotes(e.target.value)} placeholder={t("Describe the event", "イベントの内容を入力")} /></label> : null}
             <label>{t("Business date", "営業日")}<input disabled={!canWrite || busy} type="date" min={today} required value={date} onChange={e => setDate(e.target.value)} /></label>
             {dateIsPast || sourceDateIsPast ? <ErrorBox role="status">{t("Past schedule dates are read-only. Choose today or a future date.", "過去の予定は閲覧のみです。今日または未来の日付を選んでください。")}</ErrorBox> : null}
             <label htmlFor="schedule-manager">{t("Manager", "マネージャー")}</label><Select id="schedule-manager" disabled={!canWrite || busy} value={manager ? key(manager) : ""} onChange={e => { const person = managerOptions.find(person => key(person) === e.target.value) ?? null; setManager(person); if (person) setStaff(current => current.filter(item => key(item) !== key(person))); }}><option value="">{t("Not assigned", "未定")}</option>{managerOptions.map(person => <option key={key(person)} value={key(person)}>{person.name}</option>)}</Select>
@@ -91,7 +116,7 @@ export default function ScheduleEditor({ knownManagers, day, row: incomingRow, j
         </form>
     </Dialog>;
 }
-const Dialog = styled.dialog`margin:auto;width:min(500px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow:auto;border:1px solid var(--neutral-600);border-radius:18px;padding:22.4px;background:var(--neutral-900);color:var(--neutral-100);box-shadow:0 20px 80px #0008;::backdrop{background:#0009;}form{display:flex;flex-direction:column;gap:12.8px;}h2{font-size:19.2px;margin:0;}p,small{font-size:12.8px;color:var(--neutral-300);margin:0;}label{display:flex;flex-direction:column;gap:6.4px;font-size:14.4px;}input:not([type=checkbox]){width:100%;min-height:44px;}button{min-height:44px;width:auto;}fieldset{border:0;border-top:1px solid var(--neutral-700);padding:12.8px 0;display:flex;flex-direction:column;gap:3.2px;}@media(max-width:600px){width:100%;max-width:none;height:100dvh;max-height:none;margin:0;border-radius:0;padding:19.2px;} `;
+const Dialog = styled.dialog`margin:auto;width:min(500px,calc(100% - 32px));max-height:calc(100dvh - 32px);overflow:auto;border:1px solid var(--neutral-600);border-radius:18px;padding:22.4px;background:var(--neutral-900);color:var(--neutral-100);box-shadow:0 20px 80px #0008;::backdrop{background:#0009;}form{display:flex;flex-direction:column;gap:12.8px;}h2{font-size:19.2px;margin:0;}p,small{font-size:12.8px;color:var(--neutral-300);margin:0;}label{display:flex;flex-direction:column;gap:6.4px;font-size:14.4px;}input:not([type=checkbox]),textarea{width:100%;min-height:44px;}textarea{min-height:104px;resize:vertical;}button{min-height:44px;width:auto;}fieldset{border:0;border-top:1px solid var(--neutral-700);padding:12.8px 0;display:flex;flex-direction:column;gap:3.2px;}@media(max-width:600px){width:100%;max-width:none;height:100dvh;max-height:none;margin:0;border-radius:0;padding:19.2px;} `;
 const Header = styled.div`display:flex;align-items:center;justify-content:space-between;`;
 const Footer = styled.div`display:flex;justify-content:flex-end;gap:8px;padding-top:8px;`;
 const Choice = styled.label`flex-direction:row!important;align-items:center;min-height:44px;input{width:20px;height:20px;margin-right:8px;}`;

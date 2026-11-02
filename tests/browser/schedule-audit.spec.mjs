@@ -46,7 +46,7 @@ for (const locale of ["en", "ja"]) for (const width of [320, 768, 1280]) {
   test(`long schedule provenance reflows ${locale} ${width}`, async ({ page }, testInfo) => {
     const state = await fixture(page, locale, "staff"); state.longSource = true;
     await page.setViewportSize({ width, height: 900 }); await page.goto("/schedules");
-    await page.getByRole("button", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
+    await page.getByRole("tab", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
     await expect(page.locator("main article")).toHaveCount(3);
     await page.locator("main article button").first().click();
     await page.locator("main details summary").click();
@@ -58,7 +58,7 @@ for (const locale of ["en", "ja"]) for (const width of [320, 768, 1280]) {
     const state = await fixture(page, locale, "staff");
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/schedules");
-    await page.getByRole("button", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
+    await page.getByRole("tab", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
     await expect(page.locator("main article")).toHaveCount(3);
     await expect(page.locator("main")).toContainText(locale === "ja" ? "日付のみの予定" : "Date-only plan");
     await capture(page, testInfo, "rows");
@@ -75,7 +75,7 @@ for (const locale of ["en", "ja"]) for (const width of [320, 768, 1280]) {
     await capture(page, testInfo, "error");
     state.mode = "rows";
     await retry.press("Enter");
-    await page.getByRole("button", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
+    await page.getByRole("tab", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
     await expect(page.locator("main article")).toHaveCount(3);
     await expect(retry).toHaveCount(0);
     expect(state.writes).toEqual([]);
