@@ -26,12 +26,12 @@ async function mockTeam(page, locale="en") {
     else if(path==="/menu")data={items:[],coverCharge:500};
     else if(path==="/notices")data={notices:[]};
     else if(path==="/admin/staff-compensation/chuck-monthly-pay")data={
-      user_id:901,complete:true,blockers:[],gross_salary_yen:40000,staff_cost_total_yen:10000,
+      user_id:901,complete:true,blockers:[],staff_drink_data_status:"complete",final_pay_complete:true,recorded_inputs_only:false,gross_salary_yen:40000,staff_cost_total_yen:10000,
       deduction_total_yen:0,net_amount_owed_yen:30000,staff_owed:[],deductions:[],
     };
-    else if(/\/earnings$/.test(path))data={user_id:Number(path.split("/")[4]),categories:[
+    else if(/\/earnings$/.test(path))data={user_id:Number(path.split("/")[4]),staff_drink_data_status:"complete",final_pay_complete:true,recorded_inputs_only:false,categories:[
       {category:"hourly_wages",complete:true,amount_yen_unrounded:"10000",amount_yen:10000},
-      {category:"staff_drink_bonus",complete:true,amount_yen:400},
+      {category:"staff_drink_bonus",complete:true,staff_drink_data_status:"complete",final_pay_complete:true,recorded_inputs_only:false,amount_yen:400},
     ]};
     else if(path==="/admin/audit")data={person_user_id:903,events:[],has_more:false};
     else if(!["/analytics/shifts","/tickets"].includes(path)){status=404;data={detail:"Unused fixture path"};}
