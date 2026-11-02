@@ -1,60 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 
-import { accountApi, type Account, type ChuckMonthlyPayPreview, type PersonalEarningsPreview } from "../api/account";
+import { accountApi, type Account } from "../api/account";
 import { localeTag, type Locale } from "../i18n";
 import PayBreakdownChart, { type PayChartRow } from "../components/PayBreakdownChart";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
-
-type PayRow = {
-    person: Account;
-    wages: number | null;
-    bonus: number | null;
-    total: number | null;
-    gross: number | null;
-    staffCost: number | null;
-    deductions: number | null;
-    owed: number | null;
-    complete: boolean;
-    message?: string;
-    chuck?: ChuckMonthlyPayPreview;
-};
+import { staffPayRow, managerPayRow, totalStaffPay as sumStaffPay, type PayRow } from "./adminMonthlyPayDisplay";
 
 function yen(value: number | null, locale: Locale) {
     if (value === null) return "—";
     return new Intl.NumberFormat(localeTag(locale), {
         style: "currency", currency: "JPY", maximumFractionDigits: 2,
     }).format(value);
-}
-
-function staffRow(person: Account, data: PersonalEarningsPreview): PayRow {
-    const wages = data.categories.find(item => item.category === "hourly_wages");
-    const drinks = data.categories.find(item => item.category === "staff_drink_bonus");
-    const wageValue = wages?.amount_yen_unrounded === null || wages?.amount_yen_unrounded === undefined
-        ? null : Number(wages.amount_yen_unrounded);
-    const bonusValue = drinks?.complete ? drinks.amount_yen : null;
-    const complete = Boolean(wages?.complete && wageValue !== null && drinks?.complete && bonusValue !== null);
-    return {
-        person, wages: wageValue, bonus: bonusValue,
-        total: complete ? wageValue! + bonusValue! : null,
-        gross: null, staffCost: null, deductions: null,
-        owed: complete ? wageValue! + bonusValue! : null,
-        complete,
-        message: complete ? undefined : "pay_inputs_incomplete",
-    };
-}
-
-function chuckRow(person: Account, data: ChuckMonthlyPayPreview): PayRow {
-    return {
-        person, wages: null, bonus: null, total: null,
-        gross: data.gross_salary_yen,
-        staffCost: data.staff_cost_total_yen,
-        deductions: data.deduction_total_yen,
-        owed: data.net_amount_owed_yen,
-        complete: data.complete,
-        message: data.complete ? undefined : data.blockers.join(", "),
-        chuck: data,
-    };
 }
 
 /** Manager-only comparison for confirmed monthly pay inputs; unknown manager rules remain unavailable. */
@@ -87,12 +44,12 @@ export default function AdminMonthlyPayOverview({
                     if (person.role === "staff") {
                         const data = await accountApi.adminPersonalEarnings(person.id, month);
                         if (data.user_id !== person.id) throw new Error("Profile identity mismatch");
-                        return staffRow(person, data);
+                        return staffPayRow(person, data);
                     }
                     if (person.id === viewers.chuckUserId) {
                         const data = await accountApi.adminChuckMonthlyPay(month);
                         if (data.user_id !== person.id) throw new Error("Profile identity mismatch");
-                        return chuckRow(person, data);
+                        return managerPayRow(person, data);
                     }
                     return {
                         person, wages: null, bonus: null, total: null, gross: null,
@@ -116,12 +73,7 @@ export default function AdminMonthlyPayOverview({
         return () => { cancelled = true; };
     }, [designated, viewer, people, month, refreshVersion, viewers.chuckUserId]);
 
-    const totalStaffPay = useMemo(() => {
-        const staffRows = rows.filter(row => row.person.role === "staff");
-        return staffRows.length && staffRows.every(row => row.owed !== null)
-            ? staffRows.reduce((sum, row) => sum + (row.owed ?? 0), 0)
-            : null;
-    }, [rows]);
+    const totalStaffPay = useMemo(() => sumStaffPay(rows), [rows]);
     const staffRows = rows.filter(row => row.person.role === "staff");
     const staffChartRows: PayChartRow[] = staffRows
         .filter(row => row.complete && row.wages !== null && row.bonus !== null && (row.total ?? 0) > 0)
@@ -155,9 +107,16 @@ export default function AdminMonthlyPayOverview({
         ? "このアカウントでは給与見積もりを表示できません。"
         : "Pay estimates are not available to this account."}</p>;
 
-    const label = (code: string | undefined) => {
+    const label = (code: string | undefined): string => {
         if (!code) return "";
-        if (code === "pay_inputs_incomplete") return ja ? "勤務時間または時給が未確認です" : "Hours or rates are incomplete";
+        if (code.includes(", ")) return code.split(", ").map(item => label(item)).join(ja ? "。" : "; ");
+        if (code === "staff_drink_data_incomplete") return ja ? "ドリンク記録が不足しています" : "Drink records are incomplete";
+        if (code === "staff_payroll_costs_incomplete") return ja ? "スタッフ給与の確認が完了していません" : "Staff pay coverage is unverified";
+        if (code === "wages_unverified") return ja ? "勤務時間または時給が未確認です" : "Hours or rates are unverified";
+        if (code === "drinks_unknown") return ja ? "ドリンク記録が未確認のため、給与総額は未確定です" : "Drink records are unverified; full pay is unavailable";
+        if (code === "drinks_incomplete") return ja ? "ドリンク記録が不足しているため、給与総額は未確定です" : "Drink records are incomplete; full pay is unavailable";
+        if (code === "wages_and_drinks_unverified") return ja ? "勤務時間・時給とドリンク記録に確認が必要です" : "Hours/rates and drink records need review";
+        if (code === "pay_coverage_unverified") return ja ? "給与記録の確認が完了していません" : "Full pay coverage is unverified";
         if (code === "manager_pay_policy_unconfirmed") return ja ? "給与ルールが未設定です" : "Pay rule is not configured";
         return code.split(", ").map(item => item.replaceAll("_", " ")).join(", ");
     };
@@ -177,20 +136,20 @@ export default function AdminMonthlyPayOverview({
                     {teamScope ? <PayTotal>
                         <span>{ja ? "スタッフ給与合計" : "Total staff pay"}</span>
                         <strong>{totalStaffPay === null ? (ja ? "未確認" : "Incomplete") : yen(totalStaffPay, locale)}</strong>
-                        {totalStaffPay === null ? <small>{ja ? "時給または勤務時間が未確認のメンバーがいます。下の各メンバー欄をご確認ください。" : "Some hours or rates are missing. See the individual records below."}</small> : null}
+                        {totalStaffPay === null ? <small>{ja ? "未確認の給与記録があります。各メンバー欄の確認状況をご確認ください。" : "Some pay records are unverified. See each member’s coverage below."}</small> : null}
                     </PayTotal> : null}
                     <People aria-label={ja ? "メンバー別の給与" : "Pay by team member"}>
-                        {rows.map(row => <Person key={row.person.id}>
+                        {rows.map(row => <Person key={row.person.id} aria-label={row.person.name}>
                             <PersonHeader>
                                 <div><strong>{row.person.name}</strong><small>{row.person.role === "manager" ? (ja ? "マネージャー" : "Manager") : (ja ? "スタッフ" : "Staff")}</small></div>
-                                <Owed aria-label={ja ? "支払予定額" : "Amount owed"}>{yen(row.owed, locale)}<small>{row.complete ? (ja ? "見積もり" : "estimated") : label(row.message)}</small></Owed>
+                                <Owed aria-label={row.complete ? (ja ? "支払予定額" : "Amount owed") : (ja ? "給与総額は未確定" : "Full pay unavailable")}>{yen(row.owed, locale)}<small>{row.complete ? (ja ? "見積もり" : "estimated") : label(row.message)}</small></Owed>
                             </PersonHeader>
                             {row.person.role === "staff" ? <Breakdown>
-                                <span>{ja ? "賃金" : "Wages"}<strong>{yen(row.wages, locale)}</strong></span>
-                                <span>{ja ? "ドリンク手当" : "Drink bonus"}<strong>{yen(row.bonus, locale)}</strong></span>
+                                <span>{ja ? "記録済みの賃金" : "Recorded wages"}<strong>{yen(row.wages, locale)}</strong></span>
+                                <span>{ja ? "記録済みのドリンク手当" : "Recorded drink bonus"}<strong>{yen(row.bonus, locale)}</strong></span>
                             </Breakdown> : <Breakdown>
                                 <span>{ja ? "総給与" : "Gross pay"}<strong>{yen(row.gross, locale)}</strong></span>
-                                <span>{ja ? "スタッフ給与" : "Staff pay"}<strong>{yen(row.staffCost, locale)}</strong></span>
+                                <span>{ja ? "記録済みのスタッフ給与" : "Recorded staff pay"}<strong>{yen(row.staffCost, locale)}</strong></span>
                                 <span>{ja ? "控除" : "Deductions"}<strong>{yen(row.deductions, locale)}</strong></span>
                             </Breakdown>}
                             {row.chuck ? <details aria-label={ja ? "Chuck担当シフトのスタッフ給与と控除の詳細" : "Details: staff owed on Chuck-managed shifts and deductions"}>
@@ -212,11 +171,11 @@ export default function AdminMonthlyPayOverview({
                     {teamScope && staffChartRows.length ? <PayBreakdownChart
                         title={ja ? "スタッフ別の月間給与" : "Monthly staff pay by person"}
                         rows={staffChartRows} locale={locale}
-                        note={ja ? `記録が揃っている${staffChartRows.length}名のみ表示。給与見積もりであり支払記録ではありません。`
-                            : `Showing ${staffChartRows.length} member(s) with complete records. These are pay estimates, not payment records.`} /> : null}
+                        note={ja ? `勤務時間・時給とドリンク記録を確認済みの${staffChartRows.length}名のみ表示。給与見積もりであり支払記録ではありません。`
+                            : `Showing ${staffChartRows.length} member(s) with verified hours/rates and drink coverage. These are pay estimates, not payment records.`} /> : null}
                     {teamScope && incompleteStaffCount ? <p role="note">{ja
-                        ? `${incompleteStaffCount}名分は勤務時間または時給が未確認のためグラフに含めていません。表の「—」は0円ではなく未確認です。`
-                        : `${incompleteStaffCount} member(s) are omitted from the chart because hours or rates are incomplete. “—” means unavailable, not ¥0.`}</p> : null}
+                        ? `${incompleteStaffCount}名分は給与記録の確認が完了していないためグラフに含めていません。表の「—」は0円ではなく未確認です。`
+                        : `${incompleteStaffCount} member(s) are omitted from the chart because full pay coverage is unverified. “—” means unavailable, not ¥0.`}</p> : null}
                     {teamScope && staffRows.length && !staffChartRows.length && !incompleteStaffCount ? <p role="note">{ja
                         ? "確認済みのスタッフ給与がまだありません。"
                         : "No confirmed staff pay amounts are available to chart yet."}</p> : null}
@@ -259,11 +218,13 @@ const Person = styled.article`
     details summary{cursor:pointer;}
 `;
 const PersonHeader = styled.div`
-    display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-1);
+    display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-1);flex-wrap:wrap;
+    >div{min-width:0;overflow-wrap:anywhere;}
     small{display:block;color:var(--neutral-300);}
 `;
 const Owed = styled.strong`
-    text-align:right;font-size:var(--font-size-h5);
+    text-align:right;font-size:var(--font-size-h5);min-width:0;max-width:100%;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;
+    margin-inline-start:auto;
     small{font-size:var(--font-size-small);font-weight:400;}
 `;
 const Breakdown = styled.div`

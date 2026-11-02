@@ -270,7 +270,14 @@ export type PersonalWorkHistory = {
     }[];
 };
 
-export type PersonalEarningsPreview = {
+/** Coverage metadata is explicit; missing fields on older servers are unverified. */
+export type PayCoverage = {
+    staff_drink_data_status?: "unknown" | "incomplete" | "complete";
+    final_pay_complete?: boolean;
+    recorded_inputs_only?: boolean;
+};
+
+export type PersonalEarningsPreview = PayCoverage & {
     user_id: number;
     month: string;
     preview_only: true;
@@ -287,7 +294,7 @@ export type PersonalEarningsPreview = {
                 hours_basis: string;
             }[];
         }
-        | {
+        | (PayCoverage & {
             category: "staff_drink_bonus";
             amount_yen: number;
             complete: boolean;
@@ -299,7 +306,7 @@ export type PersonalEarningsPreview = {
                 rate_percent: number;
                 amount_yen: number;
             }[];
-        }
+        })
     )[];
     note: string;
 };

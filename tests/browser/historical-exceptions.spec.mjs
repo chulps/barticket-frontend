@@ -12,9 +12,12 @@ async function fixture(page, ja, mode = "records") {
     if(req.method()==="OPTIONS") return route.fulfill({status:204,headers});
     if(req.method()!=="GET") {
       writes.push(new URL(req.url()).pathname);
-      if(mode==="preview" && req.url().endsWith("/reconcile")) return route.fulfill({headers,json:{mode:"READ_ONLY_RECONCILIATION",source_file:"Synthetic.csv",row_count:1,
+      if(mode.startsWith("preview") && req.url().endsWith("/reconcile")) {
+        if(mode==="previewdelay") await new Promise(r=>{resolve=r;});
+        return route.fulfill({headers,json:{mode:"READ_ONLY_RECONCILIATION",source_file:"Synthetic.csv",row_count:1,
         counts:{match:0,new:0,conflict:0,duplicate_candidate:0,unmapped:0,already_imported:1,rejected:0},
         rows:[{...req.postDataJSON().rows[0],source_seconds:32400,clock_seconds:null,historical_seconds:null,effective_seconds:null,state:"already_imported",reason:"This source row has already been imported.",account_unlinked:true,stored_record:row(1)}]}});
+      }
     }
     if(mode==="delayed") await new Promise(r=>{resolve=r;});
     if(fail) { fail=false; return route.fulfill({status:503,headers,json:{detail:"Synthetic failure"}}); }
@@ -28,7 +31,7 @@ async function fixture(page, ja, mode = "records") {
     import RefreshRuntime from '/@react-refresh';
     RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>type=>type;window.__vite_plugin_react_preamble_installed__=true;
     import '/src/index.css';
-    const {default:Component}=await import('/src/pages/${mode==="preview"?"Reconciliation":"HistoricalHoursExceptions"}.tsx');
+    const {default:Component}=await import('/src/pages/${mode.startsWith("preview")?"Reconciliation":"HistoricalHoursExceptions"}.tsx');
     ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Component,{ja:${ja},locale:${JSON.stringify(ja?"ja":"en")},shifts:[],users:[],error:""}));
   </script></body></html>`}));
   await page.goto("/historical-fixture");
@@ -71,10 +74,10 @@ test("session changes clear evidence and discard delayed reads",async({page})=>{
   expect(state.writes).toEqual([]);
 });
 
-for (const width of [390,768]) test("CSV imported unlinked evidence keeps stored identity " + width,async({page})=>{
+for (const width of [390,768]) test("CSV imported unlinked evidence keeps stored identity " + width,async({page},info)=>{
   await page.setViewportSize({width,height:900});
   const state=await fixture(page,false,"preview");
-  await page.locator('input[type="file"]').setInputFiles({name:"Synthetic.csv",mimeType:"text/csv",buffer:Buffer.from("Date,Staff,Hours\n2025-06-12,Changed uploaded identity,9")});
+  await page.locator('input[type="file"]').setInputFiles({name:"Synthetic.csv",mimeType:"text/csv",buffer:Buffer.from("Date,Staff,Hours,Manager,Revenue,Guests\n2025-06-12,Changed uploaded identity,9,Synthetic manager,0,0")});
   await page.getByRole("button",{name:"Reconcile staff hours",exact:true}).click();
   const results=width<700?page.getByRole("list",{name:"Staff-hours reconciliation results"}):page.locator("table").filter({has:page.getByRole("columnheader",{name:"Current effective hours"})});
   await expect(results).toContainText("Changed uploaded identity");
@@ -85,6 +88,7 @@ for (const width of [390,768]) test("CSV imported unlinked evidence keeps stored
   await expect(results.getByRole("checkbox")).toBeDisabled();
   await expect(page.getByRole("button",{name:"Save selected hours (0)",exact:true})).toBeDisabled();
   expect(state.writes).toEqual(["/historical-hours/reconcile"]);
+  await page.screenshot({path:info.outputPath("audit-historical-reconciliation.png"),fullPage:true});
 });
 
 test("pagination retry retains the first page and resumes the same cursor",async({page})=>{
@@ -96,4 +100,19 @@ test("pagination retry retains the first page and resumes the same cursor",async
   await page.getByRole("button",{name:"Retry"}).click();
   await expect(page.locator("li")).toHaveCount(2);
   await expect(page.getByRole("button",{name:"Load more records"})).toHaveCount(0);
+});
+
+test("late CSV preview cannot restore evidence after session changes",async({page})=>{
+  await page.setViewportSize({width:390,height:900});
+  const state=await fixture(page,false,"previewdelay");
+  await page.locator('input[type="file"]').setInputFiles({name:"Synthetic.csv",mimeType:"text/csv",buffer:Buffer.from("Date,Staff,Hours,Manager,Revenue,Guests\n2025-06-12,Changed uploaded identity,9,Synthetic manager,0,0")});
+  await page.getByRole("button",{name:"Reconcile staff hours",exact:true}).click();
+  await expect.poll(state.ready).toBe(true);
+  const response=page.waitForResponse(r=>r.url().endsWith("/historical-hours/reconcile"));
+  await page.evaluate(()=>{localStorage.removeItem("barticket_token");window.dispatchEvent(new Event("barticket-auth"));});
+  state.release();
+  await response;
+  await expect(page.getByRole("list",{name:"Staff-hours reconciliation results"})).toHaveCount(0);
+  await expect(page.getByText("Former staff",{exact:true})).toHaveCount(0);
+  expect(state.writes).toEqual(["/historical-hours/reconcile"]);
 });

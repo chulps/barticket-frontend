@@ -23,18 +23,21 @@ test("Admin monthly pay comparison is limited to designated managers and uses ma
     assert.match(overview, /Details: staff owed on Chuck-managed shifts and deductions/);
     assert.match(overview, /Monthly staff pay by person/);
     assert.match(overview, /staffRows\s*\.filter\(row => row\.complete/);
-    assert.match(overview, /omitted from the chart because hours or rates are incomplete/);
+    assert.match(overview, /omitted from the chart because full pay coverage is unverified/);
     assert.match(overview, /Chuck’s monthly pay allocation/);
     assert.match(chart, /role="meter"/);
     assert.doesNotMatch(overview, /accountApi\.listUsers\(/);
     assert.equal(ts.createSourceFile("AdminMonthlyPayOverview.tsx", overview, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX).parseDiagnostics.length, 0);
 });
 
-test("Admin pay comparison keeps incomplete staff inputs unavailable", () => {
-    assert.match(overview, /wages\?\.complete && wageValue !== null/);
-    assert.match(overview, /drinks\?\.complete \? drinks\.amount_yen : null/);
-    assert.match(overview, /drinks\?\.complete && bonusValue !== null/);
-    assert.match(overview, /complete \? wageValue! \+ bonusValue! : null/);
+test("Admin overview uses tested final-coverage display helpers and labels recorded values", () => {
+    assert.match(overview, /return staffPayRow\(person, data\)/);
+    assert.match(overview, /return managerPayRow\(person, data\)/);
+    assert.match(overview, /sumStaffPay\(rows\)/);
+    assert.match(overview, /Recorded wages/);
+    assert.match(overview, /Recorded drink bonus/);
+    assert.match(overview, /Full pay unavailable/);
+    assert.match(overview, /Drink records are incomplete/);
     assert.match(overview, /not payment records/);
-    assert.match(overview, /salary preview|estimate/i);
+    assert.doesNotMatch(overview, /with complete records/);
 });
