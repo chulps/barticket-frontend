@@ -53,6 +53,11 @@ for(const locale of ['en','ja'])for(const width of [320,390,768])test(`consisten
  await role.focus();await role.press('End');await role.press('Enter');await expect(role).toHaveAttribute('data-select-value','manager');
  async function inspect(){
   const controls=page.locator('[data-select-trigger]:visible');
+  // The 18px square's axis-aligned bounding box grows during caret rotation.
+  // Wait for the real transition to finish, then retain the exact size check.
+  await expect.poll(()=>controls.evaluateAll(nodes=>nodes.every(el=>
+   [...el.querySelectorAll('svg')].every(svg=>svg.parentElement.getAnimations().every(animation=>animation.playState!=='running'))
+  ))).toBe(true);
   const styles=await controls.evaluateAll(nodes=>nodes.map(el=>{const s=getComputedStyle(el);return {color:s.color,bg:s.backgroundColor,height:el.getBoundingClientRect().height,overflow:el.scrollWidth>el.clientWidth,caret:el.querySelector('svg')?.getBoundingClientRect().width};}));
   const luminance=value=>{const rgb=value.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;});return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;};
   for(const s of styles){expect(s.height).toBeGreaterThanOrEqual(44);expect(s.overflow).toBe(false);expect(s.caret).toBe(18);const a=luminance(s.color),b=luminance(s.bg);expect((Math.max(a,b)+.05)/(Math.min(a,b)+.05)).toBeGreaterThanOrEqual(4.5);}

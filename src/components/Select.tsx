@@ -118,19 +118,31 @@ export default function Select({ children, value, defaultValue, disabled, requir
         setActive(index);
         if (index < 0) setOpen(false);
     }, [current, options, expanded]);
+    const resetData = useRef({ value, defaultValue, firstValue: options[0]?.value });
+    useLayoutEffect(() => { resetData.current = { value, defaultValue, firstValue: options[0]?.value }; }, [value, defaultValue, options]);
     useEffect(() => {
         const form = native.current?.form;
-        const reset = (event: Event) => queueMicrotask(() => {
-            if (event.defaultPrevented) return;
-            const resetValue = String(value ?? defaultValue ?? options[0]?.value ?? "");
-            setUncontrolled(resetValue);
-            setValidation("");
-            if (native.current) native.current.value = resetValue;
-            setOpen(false);
-        });
+        let resetTimer: ReturnType<typeof setTimeout> | undefined;
+        const reset = (event: Event) => {
+            clearTimeout(resetTimer);
+            // React's delegated onReset runs after this native form listener.
+            // A microtask may run between those listeners for a user event;
+            // wait until dispatch has completed before honoring cancellation.
+            resetTimer = setTimeout(() => {
+                if (event.defaultPrevented) return;
+                const latest = resetData.current;
+                const resetValue = String(latest.value ?? latest.defaultValue ?? latest.firstValue ?? "");
+                setUncontrolled(resetValue);
+                setValidation("");
+                if (native.current) native.current.value = resetValue;
+                setOpen(false);
+            }, 0);
+        };
         form?.addEventListener("reset", reset);
-        return () => form?.removeEventListener("reset", reset);
-    }, [value, defaultValue, options]);
+        return () => { clearTimeout(resetTimer); form?.removeEventListener("reset", reset); };
+        // Keep a queued reset alive through parent onReset rerenders; only
+        // unmounting or moving to another form cancels this listener/task.
+    }, [props.form]);
 
     useLayoutEffect(() => {
         if (!expanded) return;

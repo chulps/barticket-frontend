@@ -110,7 +110,7 @@ for(const locale of ['en','ja'])for(const size of [{width:320,height:640},{width
   const close=dialog.getByRole('button',{name:closeName,exact:true});
   const closeBox=await close.boundingBox();expect(closeBox.y).toBeGreaterThanOrEqual(0);expect(closeBox.y+closeBox.height).toBeLessThan(100);expect(closeBox.width).toBe(44);
   const preview=dialog.getByRole('button',{name:locale==='ja'?'支払完了の音を試聴':'Preview cha-ching',exact:true});
-  await preview.scrollIntoViewIfNeeded();await expect(preview).toBeInViewport();
+  await preview.scrollIntoViewIfNeeded();await expect(preview).toBeInViewport({ratio:1});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:testInfo.outputPath('audit-phone-settings.png')});
   await close.click();await expect(dialog).toBeHidden();
@@ -208,12 +208,13 @@ for(const locale of ['en','ja']) for(const width of [320,390,768]) for(const mod
  if(mode==='error')await expect(sound.getByRole('alert')).toBeVisible();
  await page.mouse.move(0,0);
  const previews=sound.getByRole('button',{name:locale==='ja'?/音を試聴/:/^Preview /});await expect(previews).toHaveCount(3);
- for(const button of await previews.all()){const box=await button.boundingBox();expect(box.height).toBeGreaterThanOrEqual(44);expect(box.width).toBeGreaterThanOrEqual(44);expect(await button.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(59, 62, 68)');}
- await sound.locator('h3').scrollIntoViewIfNeeded();
+ for(const button of await previews.all()){const box=await button.boundingBox();expect(box.height).toBeGreaterThanOrEqual(44);expect(box.width).toBeGreaterThanOrEqual(44);await expect(button).toHaveCSS('background-color','rgb(59, 62, 68)');}
+ await sound.evaluate(el=>{const scroller=el.parentElement;scroller.scrollTop+=el.getBoundingClientRect().top-scroller.getBoundingClientRect().top-9;});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${width}-${mode}.png`)});
  const summary=sound.locator('summary');await summary.focus();await page.keyboard.press('Enter');await expect(sound.locator('details')).toHaveAttribute('open','');
  await expect(sound.getByText(locale==='ja'?'サインアウトやアカウント変更時はオフになります。':'Signing out or switching accounts turns sounds off.',{exact:true})).toBeVisible();
+ await sound.locator('details').evaluate(el=>el.scrollIntoView({block:'end'}));await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${width}-${mode}-guidance.png`)});
  if(width<768){await summary.focus();await page.keyboard.press('Tab');await expect(page.getByRole('button',{name:locale==='ja'?'通知設定を閉じる':'Close notification settings',exact:true})).toBeFocused();}
  expect(writes).toEqual([]);
 });
@@ -229,8 +230,12 @@ for(const locale of ['en','ja'])for(const mode of ['off','resume','error'])test(
  const sound=page.getByRole('region',{name:locale==='ja'?'アプリ内のサウンド':'In-app sounds',exact:true});await expect(sound).toBeVisible();
  if(mode==='resume')await expect(sound.getByRole('button',{name:locale==='ja'?'サウンドを再開':'Resume sounds',exact:true})).toBeVisible();
  if(mode==='error'){await sound.getByRole('button',{name:locale==='ja'?'新しい伝票の音を試聴':'Preview new ticket',exact:true}).click();await expect(sound.getByRole('alert')).toBeVisible();}
- await sound.locator('h3').scrollIntoViewIfNeeded();
+ await sound.evaluate(el=>{const scroller=el.parentElement;scroller.scrollTop+=el.getBoundingClientRect().top-scroller.getBoundingClientRect().top-9;});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  expect(await sound.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
- await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom.png`)});expect(writes).toEqual([]);
+ await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom.png`)});
+ if(mode!=='off'){const status=mode==='resume'?sound.getByRole('button',{name:locale==='ja'?'サウンドを再開':'Resume sounds',exact:true}):sound.getByRole('alert');await status.scrollIntoViewIfNeeded();await expect(status).toBeInViewport({ratio:1});await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-status.png`)});}
+ for(const [index,button] of (await sound.getByRole('button',{name:locale==='ja'?/音を試聴/:/^Preview /}).all()).entries()){await button.scrollIntoViewIfNeeded();await expect(button).toBeInViewport({ratio:1});await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-preview-${index}.png`)});}
+ const summary=sound.locator('summary');await summary.scrollIntoViewIfNeeded();await summary.click();await expect(sound.locator('details')).toHaveAttribute('open','');
+ const caveat=sound.getByText(locale==='ja'?'サインアウトやアカウント変更時はオフになります。':'Signing out or switching accounts turns sounds off.',{exact:true});await caveat.scrollIntoViewIfNeeded();await expect(caveat).toBeInViewport({ratio:1});await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-guidance.png`)});expect(writes).toEqual([]);
 });

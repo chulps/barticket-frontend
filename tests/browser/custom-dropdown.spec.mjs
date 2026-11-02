@@ -38,7 +38,7 @@ test('disabled options, typeahead, required form and rapid repeat dismissal',asy
 test('long lists reset, dynamic updates and disabled groups',async({page})=>{
  await page.setViewportSize({width:320,height:640});await page.goto('/tests/browser/fixtures/dropdown.html?extended');
  const reset=page.getByRole('combobox',{name:'Reset example'}),dynamic=page.getByRole('combobox',{name:'Dynamic choices'});
- await selectOption(reset,'item-20');await page.getByRole('button',{name:'Reset form'}).click();await expect(reset).toHaveAttribute('data-select-value','item-2');await page.getByRole('button',{name:'Cancel resets'}).click();await selectOption(reset,'item-3');await page.getByRole('button',{name:'Reset form'}).click();await expect(reset).toHaveAttribute('data-select-value','item-3');
+ await selectOption(reset,'item-20');await page.getByRole('button',{name:'Reset form'}).click();await expect(reset).toHaveAttribute('data-select-value','item-2');await expect(page.getByTestId('reset-count')).toHaveText('1');await page.getByRole('button',{name:'Cancel resets'}).click();await selectOption(reset,'item-3');await page.getByRole('button',{name:'Reset form'}).click();await expect(reset).toHaveAttribute('data-select-value','item-3');await expect(page.getByTestId('reset-count')).toHaveText('1');
  await reset.press('Space');await expect(reset).toHaveAttribute('aria-expanded','true');await reset.press('End');await expect(page.getByRole('option',{name:'Locked choice'})).toHaveAttribute('aria-disabled','true');
  await expect(page.getByRole('group',{name:'Unavailable group'})).toBeVisible();
  const activeId=await reset.getAttribute('aria-activedescendant');expect(activeId).toBeTruthy();await expect(page.locator(`[id=${JSON.stringify(activeId)}]`)).toBeInViewport();

@@ -170,7 +170,7 @@ const SettingsPanel = styled.dialog`
 const PanelHeading = styled.div`
   flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--space-1);
   padding: var(--space-2); padding-bottom: var(--space-1);
-  h3 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+  h3 { margin: 0; min-width: 0; font-size: var(--font-size-h4); line-height: 1.3; overflow-wrap: anywhere; }
   @media (max-width: 767px) {
     padding-top: max(var(--space-2), env(safe-area-inset-top, 0px));
     padding-left: max(var(--space-2), env(safe-area-inset-left, 0px));
