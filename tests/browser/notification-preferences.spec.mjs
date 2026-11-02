@@ -219,6 +219,15 @@ for(const locale of ['en','ja']) for(const width of [320,390,768]) for(const mod
  expect(writes).toEqual([]);
 });
 
+// IntersectionObserver can report 0.9999998808 for a fully visible fractional-pixel
+// box. Keep full containment with a half-CSS-pixel rounding allowance and inspect
+// the actual scrollport as well as the outer viewport, not just any intersection.
+async function expectFullyVisible(target){
+ await expect(target).toBeInViewport({ratio:0.999999});
+ const b=await target.evaluate(el=>{const r=el.getBoundingClientRect(),p=el.closest('section').parentElement.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,minX:Math.max(0,p.left),minY:Math.max(0,p.top),maxX:Math.min(innerWidth,p.right),maxY:Math.min(innerHeight,p.bottom)};});
+ expect(b.left).toBeGreaterThanOrEqual(b.minX-.5);expect(b.top).toBeGreaterThanOrEqual(b.minY-.5);expect(b.right).toBeLessThanOrEqual(b.maxX+.5);expect(b.bottom).toBeLessThanOrEqual(b.maxY+.5);
+}
+
 for(const locale of ['en','ja'])for(const mode of ['off','resume','error'])test(`sound settings reflow at 200 percent ${locale} ${mode}`,async({page},testInfo)=>{
  await page.setViewportSize({width:390,height:900});const writes=await fixture(page,locale);
  await page.addInitScript(mode=>{
@@ -234,8 +243,8 @@ for(const locale of ['en','ja'])for(const mode of ['off','resume','error'])test(
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  expect(await sound.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
  await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom.png`)});
- if(mode!=='off'){const status=mode==='resume'?sound.getByRole('button',{name:locale==='ja'?'サウンドを再開':'Resume sounds',exact:true}):sound.getByRole('alert');await status.scrollIntoViewIfNeeded();await expect(status).toBeInViewport({ratio:1});await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-status.png`)});}
- for(const [index,button] of (await sound.getByRole('button',{name:locale==='ja'?/音を試聴/:/^Preview /}).all()).entries()){await button.scrollIntoViewIfNeeded();await expect(button).toBeInViewport({ratio:1});await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-preview-${index}.png`)});}
+ if(mode!=='off'){const status=mode==='resume'?sound.getByRole('button',{name:locale==='ja'?'サウンドを再開':'Resume sounds',exact:true}):sound.getByRole('alert');await status.scrollIntoViewIfNeeded();await expectFullyVisible(status);await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-status.png`)});}
+ for(const [index,button] of (await sound.getByRole('button',{name:locale==='ja'?/音を試聴/:/^Preview /}).all()).entries()){await button.scrollIntoViewIfNeeded();await expectFullyVisible(button);await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-preview-${index}.png`)});}
  const summary=sound.locator('summary');await summary.scrollIntoViewIfNeeded();await summary.click();await expect(sound.locator('details')).toHaveAttribute('open','');
- const caveat=sound.getByText(locale==='ja'?'サインアウトやアカウント変更時はオフになります。':'Signing out or switching accounts turns sounds off.',{exact:true});await caveat.scrollIntoViewIfNeeded();await expect(caveat).toBeInViewport({ratio:1});await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-guidance.png`)});expect(writes).toEqual([]);
+ const caveat=sound.getByText(locale==='ja'?'サインアウトやアカウント変更時はオフになります。':'Signing out or switching accounts turns sounds off.',{exact:true});await caveat.scrollIntoViewIfNeeded();await expectFullyVisible(caveat);await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-guidance.png`)});expect(writes).toEqual([]);
 });

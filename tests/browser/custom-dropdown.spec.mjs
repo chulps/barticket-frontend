@@ -38,13 +38,14 @@ test('disabled options, typeahead, required form and rapid repeat dismissal',asy
 test('long lists reset, dynamic updates and disabled groups',async({page})=>{
  await page.setViewportSize({width:320,height:640});await page.goto('/tests/browser/fixtures/dropdown.html?extended');
  const reset=page.getByRole('combobox',{name:'Reset example'}),dynamic=page.getByRole('combobox',{name:'Dynamic choices'});
+ const externalUpdate=command=>page.evaluate(detail=>window.dispatchEvent(new CustomEvent('fixture-dropdown-update',{detail})),command);
  await selectOption(reset,'item-20');await page.getByRole('button',{name:'Reset form'}).click();await expect(reset).toHaveAttribute('data-select-value','item-2');await expect(page.getByTestId('reset-count')).toHaveText('1');await page.getByRole('button',{name:'Cancel resets'}).click();await selectOption(reset,'item-3');await page.getByRole('button',{name:'Reset form'}).click();await expect(reset).toHaveAttribute('data-select-value','item-3');await expect(page.getByTestId('reset-count')).toHaveText('1');
  await reset.press('Space');await expect(reset).toHaveAttribute('aria-expanded','true');await reset.press('End');await expect(page.getByRole('option',{name:'Locked choice'})).toHaveAttribute('aria-disabled','true');
  await expect(page.getByRole('group',{name:'Unavailable group'})).toBeVisible();
  const activeId=await reset.getAttribute('aria-activedescendant');expect(activeId).toBeTruthy();await expect(page.locator(`[id=${JSON.stringify(activeId)}]`)).toBeInViewport();
  await reset.press('Space');await expect(reset).toHaveAttribute('data-select-value','item-29');
- await page.getByRole('button',{name:'Schedule disable'}).click();await dynamic.click();await expect(dynamic).toBeDisabled();await expect(dynamic).toBeEnabled();await expect(dynamic).toHaveAttribute('aria-expanded','false');
- await page.getByRole('button',{name:'Schedule value'}).click();await dynamic.click();await expect(dynamic).toHaveAttribute('data-select-value','item-20');await dynamic.press('Enter');await expect(dynamic).toHaveAttribute('data-select-value','item-20');
- await page.getByRole('button',{name:'Schedule options'}).click();await dynamic.press('Home');await expect(page.getByRole('option',{name:'Long staff option 0 with a fully readable name',exact:true})).toHaveCount(0);await dynamic.press('Escape');
- await page.getByRole('button',{name:'Schedule fieldset disable'}).click();await dynamic.click();await expect(dynamic).toBeDisabled();await expect(dynamic).toHaveAttribute('aria-expanded','false');
+ await dynamic.click();await expect(dynamic).toHaveAttribute('aria-expanded','true');await externalUpdate('disable');await expect(dynamic).toBeDisabled();await expect(dynamic).toHaveAttribute('aria-expanded','false');await expect(page.getByRole('listbox')).toHaveCount(0);await externalUpdate('enable');await expect(dynamic).toBeEnabled();await expect(dynamic).toHaveAttribute('aria-expanded','false');
+ await dynamic.click();await expect(dynamic).toHaveAttribute('aria-expanded','true');await externalUpdate('value');await expect(dynamic).toHaveAttribute('data-select-value','item-20');await dynamic.press('Enter');await expect(dynamic).toHaveAttribute('data-select-value','item-20');
+ await dynamic.press('Home');await expect(dynamic).toHaveAttribute('aria-expanded','true');await externalUpdate('options');await expect(page.getByRole('option',{name:'Long staff option 0 with a fully readable name',exact:true})).toHaveCount(0);await dynamic.press('Escape');
+ await dynamic.click();await expect(dynamic).toHaveAttribute('aria-expanded','true');await externalUpdate('fieldset-disable');await expect(dynamic).toBeDisabled();await expect(dynamic).toHaveAttribute('aria-expanded','false');
 });
