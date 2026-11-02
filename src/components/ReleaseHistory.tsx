@@ -44,7 +44,7 @@ export default function ReleaseHistory() {
         {failed ? <p role="status">{ja ? "更新履歴を確認できませんでした。" : "Could not refresh app updates."} {releases ? (ja ? "前回取得した記録を表示しています。" : "Showing the last loaded records.") : ""} <button type="button" className="small hollow secondary" onClick={() => setRetry(value => value + 1)}>{ja ? "再試行" : "Retry"}</button></p> : null}
         {releases?.length === 0 ? <p>{ja ? "更新記録はまだありません。" : "No app updates recorded yet."}</p> : null}
         {releases && releases.length > 0 ? <List role="list">{releases.slice(0, visible).map(release => {
-            const note = getReleaseNote(release.sha);
+            const note = release.note ?? getReleaseNote(release.sha);
             const language = ja ? "ja" : "en";
             return <li key={release.id}>
                 <Title>{note?.title[language] ?? (ja ? "BarTicket を更新しました" : "BarTicket updated")}</Title>

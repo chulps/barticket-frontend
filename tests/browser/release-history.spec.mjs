@@ -62,3 +62,13 @@ test('a future release with an unreviewed SHA receives no feature claims',async(
  await expect(release).toContainText('d48c8f9');
  await page.screenshot({path:testInfo.outputPath('audit-release-history-future-unknown.png'),fullPage:true});
 });
+test('a release note attached to the current build describes that exact release',async({page},testInfo)=>{
+ await page.setViewportSize({width:390,height:900});await fixture(page,'en');
+ const note={title:{en:'Clearer app updates',ja:'アプリ更新内容を分かりやすく'},features:{en:['App updates now explain the features launched in each reviewed release in English and Japanese.'],ja:['アプリ更新履歴に、確認済みリリースで公開された機能を日本語と英語で表示します。']}};
+ await page.route('**/release-history.json',r=>r.fulfill({json:{schema:1,releases:[{id:'1000:1',sha:'c'.repeat(40),builtAt:'2026-12-02T13:00:00Z',note}]}}));
+ await page.goto('/notifications');const section=page.getByRole('region',{name:'App updates'});const release=section.locator('ol > li').first();
+ await expect(release).toContainText('Clearer app updates');
+ await expect(release).toContainText('App updates now explain the features launched in each reviewed release');
+ await expect(release).toContainText('Version ccccccc');
+ await page.screenshot({path:testInfo.outputPath('audit-release-history-current-release-note.png'),fullPage:true});
+});

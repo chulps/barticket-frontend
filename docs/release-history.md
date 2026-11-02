@@ -9,13 +9,16 @@ It does not send Web Push, play sound, or send email.
 This records frontend production app builds published by the Pages pipeline.
 Independent API-only deployments are not included. A version is the short public
 frontend commit SHA. **Built** is the build timestamp in JST, not the exact time
-Pages completed deployment. Feature notes are reviewed bilingual summaries
-authored in `src/api/releaseNotes.ts` and keyed to the exact production commit
-SHA. They do not alter the append-only public ledger. When a new frontend release
-ships, add a concise English/Japanese title and feature bullets for that exact
-commit in the same change; use the generic label only when a release has no
-reviewed note. Do not infer features from an arbitrary commit message. Existing
-releases are described only when their merged changes have been verified.
+Pages completed deployment. Historical bilingual notes for the already-shipped
+releases are reviewed in `src/api/releaseNotes.ts`, keyed to their exact
+production SHAs. For a new feature release, update
+`scripts/release-note.json` in the same change with a concise English/Japanese
+title and matching feature bullets. The deployment workflow attaches that note
+only if the manifest changed in the exact main commit being published, and binds
+it to that release's actual SHA in the append-only ledger. An unchanged or absent
+manifest adds no note, so an older summary cannot leak onto a later release.
+Never infer features from an arbitrary commit message. Older and unreviewed
+releases retain the generic label.
 
 A candidate entry is only visible when its artifact is actually served by Pages.
 Failed/unpublished candidates are never a history source. Workflow run + attempt

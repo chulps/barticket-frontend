@@ -67,6 +67,25 @@ test('untrusted release metadata is stripped and malformed entries remain reject
   {schema:1,releases:[{...entry(),id:'release:1'}]},
  ]) assert.throws(()=>parseReleaseHistory(bad));
 });
+test('a validated build-attached note is preserved and malformed notes fail closed',()=>{
+ const {parseReleaseHistory}=module();
+ const note={title:{en:'Clearer app updates',ja:'アプリ更新内容'},features:{en:['App updates explain this release.'],ja:['このリリースの内容を表示します。']}};
+ const row={...entry(),note};
+ assert.deepEqual(JSON.parse(JSON.stringify(parseReleaseHistory({schema:1,releases:[row]}).releases)),[row]);
+ for(const badNote of [
+  {title:'bad',features:{en:['x'],ja:['y']}},
+  {title:{en:'ok',ja:'良い'},features:{en:[],ja:[]}},
+  {title:{en:'ok',ja:'良い'},features:{en:['x'],ja:['一','二']}},
+  {title:{en:'ok',ja:'良い'},features:{en:['x'.repeat(181)],ja:['短い']}},
+ ]) assert.throws(()=>parseReleaseHistory({schema:1,releases:[{...entry(),note:badNote}]}));
+});
+test('current release note manifest is bilingual, reviewed, and contains only feature copy',()=>{
+ const current=JSON.parse(readFileSync(new URL('../scripts/release-note.json',import.meta.url),'utf8'));
+ assert.deepEqual(Object.keys(current).sort(),['features','title']);
+ assert.ok(current.title.en.length&&current.title.ja.length);
+ assert.ok(current.features.en.length>0&&current.features.en.length<=5);
+ assert.equal(current.features.en.length,current.features.ja.length);
+});
 test('fetch is same-origin metadata, uncached, abortable and carries no API token',async()=>{
  const calls=[],signal=new AbortController().signal;
  const api=module(async(...args)=>{calls.push(args);return {ok:true,headers:{get:()=> 'application/json'},text:async()=>JSON.stringify({schema:1,releases:[entry()]})};});
@@ -86,6 +105,9 @@ test('workflow history uses only successful main deploys and preserves current a
  assert.match(workflow,/run.run_attempt === 1/);
  assert.match(workflow,/cancel-in-progress: false/);
  assert.match(workflow,/live = await fetch/);
+ assert.match(workflow,/fetch-depth: 2/);
+ assert.match(workflow,/scripts\/release-note\.json/);
+ assert.match(workflow,/current-note\.json/);
  assert.match(workflow,/python3 scripts\/retain-pages-assets.py previous-pages dist/);
  assert.ok(workflow.indexOf('prepare-release-history.py')<workflow.indexOf('actions/upload-pages-artifact'));
  assert.match(workflow,/contents: read/);assert.doesNotMatch(workflow,/contents: write|secrets\./);
