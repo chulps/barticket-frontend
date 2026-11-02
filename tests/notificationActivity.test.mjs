@@ -63,3 +63,8 @@ test('recent-only disclosure retains server truncation and local eviction, not d
  store.receiveNotificationActivity(frame([item(3)],{cursor:1,has_more:true}),'one');
  store.resetActivityAccount('two');assert.equal(store.getActivitySnapshot().hasMore,false);
 });
+
+test('ticket names are optional, bounded Unicode text; malformed payloads fail closed',()=>{
+ for(const name of [undefined,null,'','  ','Haruka','札幌のお客様','😀'.repeat(255)]) {const result=policy.applyActivityFrame(empty,frame([{...item(1),ticket_name:name}]));assert.equal(result.items[0].ticket_name,name);}
+ for(const name of [false,123,{},'a'.repeat(256),'😀'.repeat(256)]) assert.equal(policy.applyActivityFrame(empty,frame([{...item(1),ticket_name:name}])),null);
+});
