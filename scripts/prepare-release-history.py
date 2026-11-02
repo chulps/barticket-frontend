@@ -16,6 +16,30 @@ MAX_BYTES = 2 * 1024 * 1024
 MAX_RECORDS = 10000
 BOOTSTRAP_SHA = "6381501fce8c9b9f2ec41976598f67eea2733457"
 
+def validate_note(value):
+    if not isinstance(value, dict) or set(value) != {'title', 'features'}:
+        raise ValueError('Invalid release note fields')
+    title = value['title']
+    features = value['features']
+    if not isinstance(title, dict) or set(title) != {'en', 'ja'}:
+        raise ValueError('Invalid release note title languages')
+    if not isinstance(features, dict) or set(features) != {'en', 'ja'}:
+        raise ValueError('Invalid release note feature languages')
+    def text(item, maximum):
+        if not isinstance(item, str) or not item.strip() or len(item) > maximum or any(ord(char) < 32 or ord(char) == 127 for char in item):
+            raise ValueError('Invalid release note text')
+        return item
+    parsed_title = {language: text(title[language], 120) for language in ('en', 'ja')}
+    parsed_features = {}
+    for language in ('en', 'ja'):
+        items = features[language]
+        if not isinstance(items, list) or not 1 <= len(items) <= 5:
+            raise ValueError('Invalid release note feature list')
+        parsed_features[language] = [text(item, 180) for item in items]
+    if len(parsed_features['en']) != len(parsed_features['ja']):
+        raise ValueError('Release note languages must have matching feature counts')
+    return {'title': parsed_title, 'features': parsed_features}
+
 def validate(value):
     if not isinstance(value, dict) or set(value) != {'schema', 'releases'} or value['schema'] != 1 or not isinstance(value['releases'], list):
         raise ValueError('Invalid release history schema; recover a verified production ledger')
@@ -23,7 +47,7 @@ def validate(value):
         raise ValueError('Release history limit reached; archive with an explicit migration, never truncate')
     result = {}
     for entry in value['releases']:
-        if not isinstance(entry, dict) or set(entry) != {'id', 'sha', 'builtAt'}:
+        if not isinstance(entry, dict) or set(entry) not in ({'id', 'sha', 'builtAt'}, {'id', 'sha', 'builtAt', 'note'}):
             raise ValueError('Invalid release record fields')
         if not isinstance(entry['id'], str) or not re.fullmatch(r'[1-9][0-9]*:[1-9][0-9]*', entry['id']):
             raise ValueError('Invalid release identity')
@@ -32,9 +56,12 @@ def validate(value):
         if not isinstance(entry['builtAt'], str) or not re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', entry['builtAt']):
             raise ValueError('Invalid build date')
         datetime.strptime(entry['builtAt'], '%Y-%m-%dT%H:%M:%SZ')
-        if entry['id'] in result and result[entry['id']] != entry:
+        normalized = {'id': entry['id'], 'sha': entry['sha'], 'builtAt': entry['builtAt']}
+        if 'note' in entry:
+            normalized['note'] = validate_note(entry['note'])
+        if entry['id'] in result and result[entry['id']] != normalized:
             raise ValueError('Conflicting release identity; recover verified history')
-        result[entry['id']] = entry
+        result[entry['id']] = normalized
     return result
 
 def read_archive(path):
@@ -69,6 +96,9 @@ def prepare(source, destination, run_id, attempt, sha, built_at):
             raise ValueError('Missing published release history after rollout; recover before deploying')
         records = {}
     candidate = {'id': f'{run_id}:{attempt}', 'sha': sha, 'builtAt': built_at}
+    note_path = source / 'current-note.json'
+    if note_path.exists():
+        candidate['note'] = validate_note(json.loads(note_path.read_text()))
     validate({'schema': 1, 'releases': [candidate]})
     # Reprocessing the same immutable build must not rewrite its first timestamp.
     if candidate['id'] in records:

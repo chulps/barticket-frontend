@@ -12,18 +12,22 @@ spec.loader.exec_module(history)
 
 def row(run='1:1', sha='a'*40, date='2026-11-02T13:00:00Z'):
     return {'id':run,'sha':sha,'builtAt':date}
+def release_note(en='New feature',ja='新機能'):
+    return {'title':{'en':'Clearer app updates','ja':'アプリ更新内容'},'features':{'en':[en],'ja':[ja]}}
 def archive(path, entries=None, name='release-history.json'):
     tarbytes=io.BytesIO()
     with tarfile.open(fileobj=tarbytes,mode='w') as tar:
         data=json.dumps({'schema':1,'releases':entries or []}).encode()
         item=tarfile.TarInfo(name);item.size=len(data);tar.addfile(item,io.BytesIO(data))
     with zipfile.ZipFile(path,'w') as z:z.writestr('artifact.tar',tarbytes.getvalue())
-def sources(d, verified, live, sha='a'*40):
+def sources(d, verified, live, sha='a'*40, current_note=None):
     d=Path(d)
     archive(d/'verified.zip',verified,name='release-history.json' if verified is not None else 'unrelated.json')
     (d/'source.json').write_text(json.dumps({'sha':sha}))
     if live is not None:(d/'live.json').write_text(json.dumps({'schema':1,'releases':live}))
     else:(d/'live-status.json').write_text('{"status":404}')
+    if current_note is not None:(d/'current-note.json').write_text(json.dumps(current_note))
+    else:(d/'current-note.json').unlink(missing_ok=True)
 class HistoryTests(unittest.TestCase):
     def test_bootstrap_does_not_fabricate_old_releases(self):
         with tempfile.TemporaryDirectory() as d:
@@ -35,6 +39,20 @@ class HistoryTests(unittest.TestCase):
             sources(d,[row()],[row()])
             result=history.prepare(d,Path(d)/'out.json','1','1','a'*40,'2026-11-02T14:00:00Z')
             self.assertEqual(result['releases'],[row()])
+    def test_current_release_note_binds_to_candidate_sha_and_does_not_leak_forward(self):
+        with tempfile.TemporaryDirectory() as d:
+            note=release_note()
+            sources(d,[row()],[row()],current_note=note)
+            first=history.prepare(d,Path(d)/'first.json','2','1','b'*40,'2026-11-02T14:00:00Z')
+            shipped=first['releases'][0]
+            self.assertEqual(shipped['sha'],'b'*40)
+            self.assertEqual(shipped['note'],note)
+            self.assertEqual(first['releases'][1],row())
+            sources(d,first['releases'],first['releases'])
+            second=history.prepare(d,Path(d)/'second.json','3','1','c'*40,'2026-11-02T15:00:00Z')
+            self.assertNotIn('note',second['releases'][0])
+            self.assertEqual(second['releases'][1],shipped)
+            self.assertEqual(second['releases'][2],row())
     def test_revert_new_build_keeps_history(self):
         with tempfile.TemporaryDirectory() as d:
             sources(d,[row()],[row(),row('2:1','b'*40)])
@@ -59,6 +77,13 @@ class HistoryTests(unittest.TestCase):
         with self.assertRaises(ValueError):history.validate({'schema':1,'releases':[row(date='2026-02-31T00:00:00Z')]})
         with self.assertRaises(ValueError):history.validate({'schema':1,'releases':[row()]*10001})
         with self.assertRaises(ValueError):history.validate({'schema':1,'releases':[row(),row(sha='b'*40)]})
+        for note in [
+            {'title':{'en':'ok','ja':'良い'},'features':{'en':[],'ja':[]}},
+            {'title':{'en':'ok','ja':'良い'},'features':{'en':['one'],'ja':['一','二']}},
+            {'title':{'en':'ok','ja':'良い'},'features':{'en':['x'*181],'ja':['短い']}},
+            {'title':{'en':'ok','ja':'良い'},'features':{'en':['ok'],'ja':['良い']},'extra':'not allowed'},
+        ]:
+            with self.assertRaises(ValueError):history.validate({'schema':1,'releases':[{**row(),'note':note}]})
     def test_archive_path_does_not_extract_arbitrary_files(self):
         with tempfile.TemporaryDirectory() as d:
             archive(Path(d)/'old.zip',name='../release-history.json')
