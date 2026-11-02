@@ -34,8 +34,8 @@ for(const locale of ['en','ja'])for(const width of [320,390,768,1280])test(`cale
 });
 for(const locale of ['en','ja'])test(`schedule type options and event notes survive switching (${locale})`,async({page})=>{
  const state=await setup(page,locale);await page.goto('/schedules');await page.getByRole('button',{name:locale==='ja'?'+ 作成':'+ Create',exact:true}).click();
- const type=page.getByLabel(locale==='ja'?'予定の種類':'Schedule type',{exact:true}),notesLabel=locale==='ja'?'イベントのメモ':'Event notes';
- await expect(type.locator('option')).toHaveText(locale==='ja'?['営業','イベント','休業']:['Open','Event','Closed']);await expect(type).toHaveAttribute('data-select-value','open');await expect(page.getByLabel(notesLabel,{exact:true})).toHaveCount(0);
+ const type=page.getByRole('combobox',{name:locale==='ja'?'予定の種類':'Schedule type',exact:true}),notesLabel=locale==='ja'?'イベントのメモ':'Event notes';
+ await type.click();await expect(page.getByRole('option')).toHaveText(locale==='ja'?['営業','イベント','休業']:['Open','Event','Closed']);await type.press('Escape');await expect(type).toHaveAttribute('data-select-value','open');await expect(page.getByLabel(notesLabel,{exact:true})).toHaveCount(0);
  await selectScheduleType(page,'event',locale);const notes=page.getByLabel(notesLabel,{exact:true});await expect(notes).toBeVisible();await notes.fill(locale==='ja'?'Nori ライブ':'Nori live set');
  await selectScheduleType(page,'closed',locale);await expect(notes).toHaveCount(0);await expect(type).toHaveAttribute('data-select-value','closed');
  await selectScheduleType(page,'event',locale);await expect(notes).toHaveValue(locale==='ja'?'Nori ライブ':'Nori live set');
