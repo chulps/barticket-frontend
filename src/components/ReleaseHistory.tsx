@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
-import { accountApi } from "../api/account";
-import { getToken } from "../api/client";
 import { loadDismissedReleaseIds, saveDismissedReleaseIds } from "../api/releaseDismissals";
 import { loadReleaseHistory, type AppRelease } from "../api/releaseHistory";
 import { getReleaseNote } from "../api/releaseNotes";
@@ -9,16 +7,13 @@ import { useI18n } from "../i18n";
 
 type ViewerStatus = "checking" | "ready" | "anonymous" | "unavailable";
 
-export default function ReleaseHistory() {
+export default function ReleaseHistory({ viewerId, viewerStatus }: { viewerId: number | null; viewerStatus: ViewerStatus }) {
     const { locale } = useI18n();
     const ja = locale === "ja";
     const [releases, setReleases] = useState<AppRelease[] | null>(null);
     const [failed, setFailed] = useState(false);
     const [retry, setRetry] = useState(0);
     const [visible, setVisible] = useState(5);
-    const [viewerStatus, setViewerStatus] = useState<ViewerStatus>("checking");
-    const [viewerRevision, setViewerRevision] = useState(0);
-    const [accountId, setAccountId] = useState<number | null>(null);
     const [dismissedIds, setDismissedIds] = useState<string[]>([]);
     const [dismissalReady, setDismissalReady] = useState(false);
     const [dismissalScope, setDismissalScope] = useState("");
@@ -54,50 +49,15 @@ export default function ReleaseHistory() {
         };
     }, [retry]);
 
-    useEffect(() => {
-        let generation = 0;
-        const resolveViewer = async () => {
-            const current = ++generation;
-            setViewerRevision(current);
-            const token = getToken();
-            setAccountId(null);
-            setDismissedIds([]);
-            setDismissalReady(false);
-            setDismissalScope("");
-            setDismissalError(false);
-            setDismissalWarning(false);
-            setShowDismissed(false);
-            setVisible(5);
-            if (!token) { setViewerStatus("anonymous"); return; }
-            setViewerStatus("checking");
-            try {
-                const account = await accountApi.me();
-                if (current !== generation || getToken() !== token) return;
-                if (!Number.isSafeInteger(account.id) || account.id <= 0) throw new Error("Invalid verified account identity");
-                setAccountId(account.id);
-                setViewerStatus("ready");
-            } catch {
-                if (current !== generation || getToken() !== token) return;
-                setViewerStatus("unavailable");
-            }
-        };
-        void resolveViewer();
-        window.addEventListener("barticket-auth", resolveViewer);
-        return () => {
-            generation++;
-            window.removeEventListener("barticket-auth", resolveViewer);
-        };
-    }, []);
-
     const releaseIdKey = useMemo(() => releases?.map(release => release.id).join("|") ?? "", [releases]);
     useEffect(() => {
         let current = true;
-        const scope = accountId === null ? "" : `${accountId}:${releaseIdKey}:${viewerRevision}`;
+        const scope = viewerId === null ? "" : `${viewerId}:${releaseIdKey}`;
         async function loadDismissals() {
             // Defer local-storage state updates until after render has committed.
             await Promise.resolve();
             if (!current) return;
-            if (releaseIdKey === "" || accountId === null) {
+            if (releaseIdKey === "" || viewerId === null) {
                 setDismissedIds([]);
                 setDismissalReady(true);
                 setDismissalScope(scope);
@@ -106,7 +66,7 @@ export default function ReleaseHistory() {
                 return;
             }
             try {
-                const loaded = loadDismissedReleaseIds(accountId, releaseIdKey.split("|"), window.localStorage);
+                const loaded = loadDismissedReleaseIds(viewerId, releaseIdKey.split("|"), window.localStorage);
                 setDismissedIds(loaded.dismissedIds);
                 setDismissalScope(scope);
                 setDismissalWarning(loaded.repaired);
@@ -121,22 +81,22 @@ export default function ReleaseHistory() {
         }
         void loadDismissals();
         return () => { current = false; };
-    }, [accountId, dismissalRetry, releaseIdKey, viewerRevision]);
+    }, [dismissalRetry, releaseIdKey, viewerId]);
 
     // The count is based on the full ledger, not just the currently rendered page.
-    const currentDismissalScope = accountId === null ? "" : `${accountId}:${releaseIdKey}:${viewerRevision}`;
+    const currentDismissalScope = viewerId === null ? "" : `${viewerId}:${releaseIdKey}`;
     const dismissalStateMatches = dismissalReady && dismissalScope === currentDismissalScope;
-    const effectiveDismissals = accountId !== null && dismissalStateMatches ? dismissedIds : [];
+    const effectiveDismissals = viewerId !== null && dismissalStateMatches ? dismissedIds : [];
     const dismissedSet = new Set(effectiveDismissals);
     const activeReleases = releases?.filter(release => !dismissedSet.has(release.id)) ?? [];
     const dismissedReleases = releases?.filter(release => dismissedSet.has(release.id)) ?? [];
     const shownReleases = (showDismissed ? dismissedReleases : activeReleases).slice(0, visible);
-    const canManage = viewerStatus === "ready" && accountId !== null && dismissalStateMatches && !dismissalError;
+    const canManage = viewerStatus === "ready" && viewerId !== null && dismissalStateMatches && !dismissalError;
 
     function persistDismissals(nextIds: string[]) {
-        if (!canManage || accountId === null || releases === null) return;
+        if (!canManage || viewerId === null || releases === null) return;
         try {
-            saveDismissedReleaseIds(accountId, nextIds, releases.map(release => release.id), window.localStorage);
+            saveDismissedReleaseIds(viewerId, nextIds, releases.map(release => release.id), window.localStorage);
             setDismissedIds(nextIds);
             setDismissalError(false);
             setDismissalWarning(false);
