@@ -56,15 +56,22 @@ test("Schedule associates its month and agenda panels with the selected tab and 
   assert.match(schedule, /<TodayButton[^>]+onClick=/);
   assert.doesNotMatch(schedule, /TodayButton[^>]+aria-pressed/);
   assert.match(schedule, /detailReturnFocus\.current\?\.focus\(\)/);
-  assert.match(schedule, /const selectedIsPast = selected < today/);
-  assert.match(schedule, /const createTargetIsPast = createTarget < today/);
+  assert.match(schedule, /const selectedIsPast = \(selected < calendarDate && !isActiveShiftDate\(selected\)\)/);
+  assert.match(schedule, /const createTargetIsPast = \(createTarget < calendarDate && !isActiveShiftDate\(createTarget\)\)/);
   assert.match(schedule, /const Page = styled\.main`width:100%;/);
   assert.match(schedule, /Past schedule dates are read-only/);
-  assert.match(editor, /<input type="date" min=\{today\}/);
+  assert.match(editor, /<input disabled=\{!canWrite \|\| busy\} type="date" min=\{today\}/);
   assert.match(editor, /dateIsPast \|\| sourceDateIsPast/);
   assert.match(schedule, /operational_business_date/);
   assert.match(schedule, /actual_shift_status === "open"/);
   assert.match(schedule, /actual_shift_status === "closed"/);
+  assert.match(schedule, /const requestContext = \(\) =>/);
+  assert.match(schedule, /document\.hidden \|\| !navigator\.onLine/);
+  assert.match(schedule, /setScheduleContext\(null\)/);
+  assert.match(schedule, /contextFlight\.current !== flight/);
+  assert.match(schedule, /operational_business_date/);
+  assert.match(schedule, /calendar_business_date/);
+  assert.match(schedule, /normalizedEvent && !\["open", "shift plan", "予定", "勤務予定"\]/);
   assert.match(schedule, /var\(--success-400\)/);
   assert.match(schedule, /var\(--danger-400\)/);
   assert.match(schedule, /var\(--event-400\)/);
@@ -76,7 +83,9 @@ test("Schedule associates its month and agenda panels with the selected tab and 
   assert.doesNotMatch(schedule, /max-width:370px\)\{min-width:36px/);
 });
 test("all updated typescript parses", () => {
-  for (const [path, source] of [["TabGroup.tsx",tab],["PaymentModal.tsx",payment]]) {
+  const schedule = readFileSync(new URL("../src/pages/Schedules.tsx", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../src/pages/ScheduleEditor.tsx", import.meta.url), "utf8");
+  for (const [path, source] of [["TabGroup.tsx",tab],["PaymentModal.tsx",payment],["Schedules.tsx",schedule],["ScheduleEditor.tsx",editor]]) {
     const parsed = ts.createSourceFile(path,source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
     assert.deepEqual(parsed.parseDiagnostics.map(d=>d.messageText),[]);
   }

@@ -5,8 +5,8 @@ import { accountApi, type Account } from "../api/account";
 import { ApiError, getToken } from "../api/client";
 import { scheduleEditorApi, type ScheduleDraft, type ScheduledShift, type ScheduledPerson } from "../api/scheduledShifts";
 
-type Props = { knownManagers: ScheduledPerson[]; day: string; row?: ScheduledShift; ja: boolean; today: string; onClose: () => void; onSaved: (day: string) => void };
-export default function ScheduleEditor({ knownManagers, day, row: incomingRow, ja, today, onClose, onSaved }: Props) {
+type Props = { knownManagers: ScheduledPerson[]; day: string; row?: ScheduledShift; ja: boolean; today: string; canWrite: boolean; onClose: () => void; onSaved: (day: string) => void };
+export default function ScheduleEditor({ knownManagers, day, row: incomingRow, ja, today, canWrite, onClose, onSaved }: Props) {
     // Freeze both values and revision at open; background refresh must not authorize an old draft.
     const [row] = useState(incomingRow);
     const t = (en: string, jp: string) => ja ? jp : en;
@@ -59,6 +59,7 @@ export default function ScheduleEditor({ knownManagers, day, row: incomingRow, j
     async function save(e: FormEvent) {
         e.preventDefault(); if (busy || token.current !== getToken()) return;
         setError("");
+        if (!canWrite) { setError(t("Schedule date could not be verified. Editing is temporarily unavailable.", "予定日を確認できません。確認できるまで編集できません。")); return; }
         if (dateIsPast || sourceDateIsPast) { setError(t("Past schedule dates are read-only. Choose today or a future date.", "過去の予定は閲覧のみです。今日または未来の日付を選んでください。")); return; }
         const body: ScheduleDraft = { business_date: date, event_value: event.trim() || null, manager, staff };
         if (!body.event_value && !manager && !staff.length) { setError(t("Add an event or an assigned person.", "イベントまたは担当者を追加してください。")); return; }
@@ -78,14 +79,15 @@ export default function ScheduleEditor({ knownManagers, day, row: incomingRow, j
         <form onSubmit={save}>
             <Header><h2 id="schedule-editor-title">{row ? t("Edit plan", "予定を編集") : t("New plan", "予定を作成")}</h2><button type="button" className="secondary" disabled={busy} aria-label={t("Close editor", "編集を閉じる")} onClick={close}>×</button></Header>
             <p>{t("Date-only schedule. Attendance and pay stay unchanged.", "日付のみの予定です。出勤記録や給与は変更されません。")}</p>
-            <label>{t("Event", "イベント")}<input maxLength={1000} value={event} onChange={e => setEvent(e.target.value)} placeholder={t("Event or shift name", "イベント名・勤務名")} /></label>
-            <label>{t("Business date", "営業日")}<input type="date" min={today} required value={date} onChange={e => setDate(e.target.value)} /></label>
+            {!canWrite ? <ErrorBox role="status">{t("Schedule date could not be verified. Editing is temporarily unavailable.", "予定日を確認できません。確認できるまで編集できません。")}</ErrorBox> : null}
+            <label>{t("Event", "イベント")}<input disabled={!canWrite || busy} maxLength={1000} value={event} onChange={e => setEvent(e.target.value)} placeholder={t("Event or shift name", "イベント名・勤務名")} /></label>
+            <label>{t("Business date", "営業日")}<input disabled={!canWrite || busy} type="date" min={today} required value={date} onChange={e => setDate(e.target.value)} /></label>
             {dateIsPast || sourceDateIsPast ? <ErrorBox role="status">{t("Past schedule dates are read-only. Choose today or a future date.", "過去の予定は閲覧のみです。今日または未来の日付を選んでください。")}</ErrorBox> : null}
-            <label htmlFor="schedule-manager">{t("Manager", "マネージャー")}</label><Select id="schedule-manager" value={manager ? key(manager) : ""} onChange={e => { const person = managerOptions.find(person => key(person) === e.target.value) ?? null; setManager(person); if (person) setStaff(current => current.filter(item => key(item) !== key(person))); }}><option value="">{t("Not assigned", "未定")}</option>{managerOptions.map(person => <option key={key(person)} value={key(person)}>{person.name}</option>)}</Select>
+            <label htmlFor="schedule-manager">{t("Manager", "マネージャー")}</label><Select id="schedule-manager" disabled={!canWrite || busy} value={manager ? key(manager) : ""} onChange={e => { const person = managerOptions.find(person => key(person) === e.target.value) ?? null; setManager(person); if (person) setStaff(current => current.filter(item => key(item) !== key(person))); }}><option value="">{t("Not assigned", "未定")}</option>{managerOptions.map(person => <option key={key(person)} value={key(person)}>{person.name}</option>)}</Select>
             {usersError ? <p role="alert">{t("Account choices could not load. Existing assignments are preserved.", "アカウントを読み込めませんでした。現在の担当者は保持されます。")}</p> : null}
-            <fieldset><legend>{t("Staff", "スタッフ")}</legend>{staffOptions.filter(person => !manager || key(person) !== key(manager)).map(person => <Choice key={key(person)}><input type="checkbox" checked={staff.some(item => key(item) === key(person))} onChange={e => setStaff(current => e.target.checked ? [...current, person] : current.filter(item => key(item) !== key(person)))} />{person.name}</Choice>)}{!staff.length ? <small>{t("No staff assigned", "スタッフなし")}</small> : null}</fieldset>
+            <fieldset disabled={!canWrite || busy}><legend>{t("Staff", "スタッフ")}</legend>{staffOptions.filter(person => !manager || key(person) !== key(manager)).map(person => <Choice key={key(person)}><input type="checkbox" checked={staff.some(item => key(item) === key(person))} onChange={e => setStaff(current => e.target.checked ? [...current, person] : current.filter(item => key(item) !== key(person)))} />{person.name}</Choice>)}{!staff.length ? <small>{t("No staff assigned", "スタッフなし")}</small> : null}</fieldset>
             {error ? <ErrorBox role="alert">{error}</ErrorBox> : null}
-            <Footer><button type="button" className="secondary" disabled={busy} onClick={close}>{t("Cancel", "キャンセル")}</button><button type="submit" disabled={busy || dateIsPast || sourceDateIsPast || (!!row && !row.revision)}>{busy ? t("Saving…", "保存中…") : t("Save plan", "予定を保存")}</button></Footer>
+            <Footer><button type="button" className="secondary" disabled={busy} onClick={close}>{t("Cancel", "キャンセル")}</button><button type="submit" disabled={!canWrite || busy || dateIsPast || sourceDateIsPast || (!!row && !row.revision)}>{busy ? t("Saving…", "保存中…") : t("Save plan", "予定を保存")}</button></Footer>
         </form>
     </Dialog>;
 }

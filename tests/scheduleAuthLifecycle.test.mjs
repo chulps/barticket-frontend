@@ -16,19 +16,23 @@ function fixture() {
     const queue = [], resets = [], clears = [];
     const serial = { current: 0 };
     const authSerial = { current: 0 };
-    const reset = new Function('StorageEvent', 'getToken', 'serial', 'authSerial', 'store', 'setAuthState', 'setRows', 'setKnownManagers', 'setViewer', 'setEditing', 'setDetail', handler)(StorageEvent, () => token, serial, authSerial, { reset: next => resets.push(next) }, update => queue.push(update), value => clears.push(['rows', value]), value => clears.push(['names', value]), value => clears.push(['viewer', value]), value => clears.push(['editing', value]), value => clears.push(['detail', value]));
-    return { reset, serial, authSerial, resets, clears, token: next => { token = next; }, flush: () => { for (const update of queue.splice(0)) state = update(state); return state; } };
+    const contextSerial = { current: 0 }, contextFlight = { current: { session: 'A', serial: 0, rerun: false } };
+    const reset = new Function('StorageEvent', 'getToken', 'serial', 'authSerial', 'contextSerial', 'contextFlight', 'store', 'setAuthState', 'setRows', 'setKnownManagers', 'setViewer', 'setScheduleContext', 'setEditing', 'setDetail', handler)(StorageEvent, () => token, serial, authSerial, contextSerial, contextFlight, { reset: next => resets.push(next) }, update => queue.push(update), value => clears.push(['rows', value]), value => clears.push(['names', value]), value => clears.push(['viewer', value]), value => clears.push(['context', value]), value => clears.push(['editing', value]), value => clears.push(['detail', value]));
+    return { reset, serial, authSerial, contextSerial, contextFlight, resets, clears, token: next => { token = next; }, flush: () => { for (const update of queue.splice(0)) state = update(state); return state; } };
 }
 test('batched A→B→A auth captures latest token and retires every epoch', () => {
     const f = fixture(); f.token('B'); f.reset({}); f.token('A'); f.reset({});
     assert.deepEqual(f.flush(), { token: 'A', epoch: 2 });
     assert.deepEqual(f.resets, ['B', 'A']); assert.equal(f.serial.current, 2); assert.equal(f.authSerial.current, 2);
+    assert.equal(f.contextSerial.current, 2); assert.equal(f.contextFlight.current, null);
     assert.equal(f.clears.filter(([field]) => field === 'rows').length, 2);
+    assert.equal(f.clears.filter(([field]) => field === 'context').length, 2);
 });
 test('same-token authorization refresh retires cached reads and reloads viewer and month', () => {
     const f = fixture(); f.reset({});
     assert.deepEqual(f.flush(), { token: 'A', epoch: 1 });
     assert.deepEqual(f.resets, ['A']); assert.equal(f.serial.current, 1);
+    assert.equal(f.contextSerial.current, 1); assert.equal(f.contextFlight.current, null);
     assert.match(source, /\[month, session, authEpoch\]/);
     assert.match(source, /authEpoch !== authSerial.current \|\| !session/);
     assert.match(source, /requestAuth === authSerial.current && session === getToken\(\)/);
@@ -41,6 +45,7 @@ test('unrelated storage ignored; clear/logout captured even before render', () =
     assert.deepEqual(f.flush(), { token: null, epoch: 1 });
     assert.deepEqual(f.resets, [null]);
     assert.deepEqual(f.clears.find(([field]) => field === 'viewer'), ['viewer', null]);
+    assert.deepEqual(f.clears.find(([field]) => field === 'context'), ['context', null]);
 });
 test('old me success and failure cannot restore viewer after same-token auth epoch', async () => {
     const begin = source.indexOf('let active = true;');

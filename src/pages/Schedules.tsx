@@ -23,6 +23,7 @@ export default function Schedules() {
     const [mode, setMode] = useState<"month" | "agenda">(() => window.matchMedia("(max-width: 600px)").matches ? "agenda" : "month");
     const [rows, setRows] = useState<ScheduledShift[]>([]);
     const today = scheduleContext?.operational_business_date ?? calendarToday;
+    const calendarDate = scheduleContext?.calendar_business_date ?? calendarToday;
     const [knownManagers, setKnownManagers] = useState<ScheduledPerson[]>([]);
     const detailPanel = useRef<HTMLElement>(null);
     const [viewer, setViewer] = useState<Account | null>(null);
@@ -37,6 +38,8 @@ export default function Schedules() {
     const authEpoch = authState.epoch;
     const serial = useRef(0);
     const authSerial = useRef(0);
+    const contextSerial = useRef(0);
+    const contextFlight = useRef<{ session: string; serial: number; rerun: boolean } | null>(null);
     const dateButtons = useRef(new Map<string, HTMLButtonElement>());
     const load = useCallback(async (force = false) => {
         if (authEpoch !== authSerial.current || !session || session !== getToken() || document.hidden || !navigator.onLine) return;
@@ -52,6 +55,12 @@ export default function Schedules() {
             setError(err instanceof Error ? err.message : String(err));
         } finally { if (request === serial.current && getToken() === session) setLoading(false); }
     }, [month, session, authEpoch]);
+    const loadRef = useRef(load);
+    loadRef.current = load;
+    useEffect(() => {
+        const initial = window.setTimeout(() => { setLoading(true); setRows([]); void load(); }, 0);
+        return () => clearTimeout(initial);
+    }, [load]);
     useEffect(() => {
         let active = true;
         const requestAuth = authSerial.current;
@@ -66,9 +75,11 @@ export default function Schedules() {
             const nextToken = getToken();
             authSerial.current++;
             serial.current++;
+            contextSerial.current++;
+            contextFlight.current = null;
             store.reset(nextToken);
             setAuthState(current => ({ token: nextToken, epoch: current.epoch + 1 }));
-            setRows([]); setKnownManagers([]); setViewer(null); setEditing(false); setDetail(false);
+            setRows([]); setKnownManagers([]); setViewer(null); setScheduleContext(null); setEditing(false); setDetail(false);
         };
         window.addEventListener("barticket-auth", reset); window.addEventListener("storage", reset);
         return () => { window.removeEventListener("barticket-auth", reset); window.removeEventListener("storage", reset); };
@@ -78,19 +89,43 @@ export default function Schedules() {
     }, [detail, selected]);
     useEffect(() => {
         const retire = () => { serial.current++; };
-        const initial = window.setTimeout(() => { setLoading(true); setRows([]); void load(); }, 0);
+        const requestContext = () => {
+            if (authEpoch !== authSerial.current || !session || session !== getToken() || document.hidden || !navigator.onLine) return;
+            const inFlight = contextFlight.current;
+            if (inFlight?.session === session) { inFlight.rerun = true; return; }
+            const request = ++contextSerial.current;
+            const flight = { session, serial: request, rerun: false };
+            contextFlight.current = flight;
+            void scheduledShiftsApi.context().then(context => {
+                if (flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken() && !document.hidden && navigator.onLine) {
+                    setScheduleContext(context);
+                }
+            }).catch(() => {
+                if (flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken()) setScheduleContext(null);
+            }).finally(() => {
+                if (contextFlight.current !== flight) return;
+                contextFlight.current = null;
+                if (flight.rerun) requestContext();
+            });
+        };
         const refresh = () => {
             setCalendarToday(businessDateJst(Date.now()));
-            void scheduledShiftsApi.context().then(setScheduleContext).catch(() => setScheduleContext(null));
-            void load(true);
+            requestContext();
+            void loadRef.current(true);
         };
-        const changed = () => { serial.current++; store.invalidate(); void scheduledShiftsApi.context().then(setScheduleContext).catch(() => setScheduleContext(null)); void load(true); };
-        void scheduledShiftsApi.context().then(setScheduleContext).catch(() => setScheduleContext(null));
+        const changed = () => { serial.current++; store.invalidate(); requestContext(); void loadRef.current(true); };
+        requestContext();
         const interval = window.setInterval(refresh, 60000);
         window.addEventListener("focus", refresh); window.addEventListener("online", refresh);
         document.addEventListener("visibilitychange", refresh); window.addEventListener("barticket-schedules-updated", changed); window.addEventListener("barticket-shift-updated", changed);
-        return () => { retire(); clearTimeout(initial); clearInterval(interval); window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); document.removeEventListener("visibilitychange", refresh); window.removeEventListener("barticket-schedules-updated", changed); window.removeEventListener("barticket-shift-updated", changed); };
-    }, [load]);
+        return () => {
+            retire();
+            contextSerial.current++;
+            if (contextFlight.current?.session === session) contextFlight.current = null;
+            clearInterval(interval);
+            window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); document.removeEventListener("visibilitychange", refresh); window.removeEventListener("barticket-schedules-updated", changed); window.removeEventListener("barticket-shift-updated", changed);
+        };
+    }, [authEpoch, session]);
     const format = (date: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(ja ? "ja-JP" : "en-US", { ...options, timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
     const navigate = (amount: number) => { const next = changeMonth(month, amount); setMonth(next); setSelected(`${next}-01`); setDetail(false); };
     const choose = (day: string, trigger?: HTMLElement) => {
@@ -102,9 +137,10 @@ export default function Schedules() {
         detailReturnFocus.current?.focus();
     };
     const selectedRow = rows.find(row => row.business_date === selected);
-    const selectedIsPast = selected < today || selectedRow?.actual_shift_status === "closed" || (scheduleContext?.actual_shift_status === "closed" && scheduleContext.actual_shift_business_date === selected);
+    const isActiveShiftDate = (day: string) => scheduleContext?.actual_shift_status === "open" && scheduleContext.actual_shift_business_date === day;
+    const selectedIsPast = (selected < calendarDate && !isActiveShiftDate(selected)) || selectedRow?.actual_shift_status === "closed" || (scheduleContext?.actual_shift_status === "closed" && scheduleContext.actual_shift_business_date === selected);
     const createTarget = selected.startsWith(month) ? selected : `${month}-01`;
-    const createTargetIsPast = createTarget < today || (scheduleContext?.actual_shift_status === "closed" && scheduleContext.actual_shift_business_date === createTarget);
+    const createTargetIsPast = (createTarget < calendarDate && !isActiveShiftDate(createTarget)) || (scheduleContext?.actual_shift_status === "closed" && scheduleContext.actual_shift_business_date === createTarget);
     const days = calendarDays(month);
     const viewTabs = [
         { id: "month" as const, label: t("Month", "月") },
@@ -114,16 +150,17 @@ export default function Schedules() {
     const cellState = (row: ScheduledShift): "active" | "finished" | "closed" | "event" | "past" | "planned" => {
         if (row.actual_shift_status === "open") return "active";
         if (row.actual_shift_status === "closed") return "finished";
-        if (row.schedule_state === "past" || row.business_date < today) return "past";
         if (row.venue_status === "closed") return "closed";
-        if (row.event_value || row.venue_event) return "event";
+        if (row.schedule_state === "past" || row.business_date < calendarDate) return "past";
+        const normalizedEvent = row.event_value?.trim().toLocaleLowerCase() ?? "";
+        if (row.venue_event || (normalizedEvent && !["open", "shift plan", "予定", "勤務予定"].includes(normalizedEvent))) return "event";
         return "planned";
     };
     const cellLabel = (row: ScheduledShift) => {
         const state = cellState(row);
         if (state === "active") return t("Active shift", "営業中のシフト");
         if (state === "finished") return t("Finished shift", "終了したシフト");
-        if (state === "closed") return row.venue_event || t("Closed", "休業");
+        if (state === "closed") return row.venue_event ? `${t("Closed", "休業")} · ${row.venue_event}` : t("Closed", "休業");
         if (state === "event") return t("Special event", "特別イベント");
         if (state === "past") return t("Past", "過去");
         return t("Planned shift", "シフト予定");
@@ -156,13 +193,14 @@ export default function Schedules() {
             </MonthStep>
         </MonthNav>
         {viewer?.role === "manager" && !detail && selectedIsPast ? <ReadOnlyNotice role="status">{t("Past schedule dates are read-only. Choose today or a future date to create a plan.", "過去の予定は閲覧のみです。今日または未来の日付を選んでください。")}</ReadOnlyNotice> : null}
+        {viewer?.role === "manager" && !scheduleContext ? <ReadOnlyNotice role="status">{t("Schedule date could not be verified. Editing is temporarily unavailable.", "予定日を確認できません。確認できるまで編集できません。")}</ReadOnlyNotice> : null}
         {error ? <Notice role="alert">{t("Could not refresh schedules. Displayed plans may be out of date.", "予定を更新できませんでした。表示内容が古い場合があります。") } <span>{error}</span><button className="secondary" onClick={() => void load(true)}>{t("Retry", "再試行")}</button></Notice> : null}
         {loading ? <Subtitle role="status">{t("Loading schedules…", "予定を読み込んでいます…")}</Subtitle> : null}
         <Canvas>
             {mode === "month" ? <Calendar id="schedule-view-panel-month" role="tabpanel" aria-labelledby="schedule-view-tab-month" tabIndex={0} aria-label={t("Monthly schedule", "月間予定")}>
                 {Array.from({ length: 7 }, (_, i) => <Weekday key={i}>{format(addDays("2026-11-01", i), { weekday: "short" })}</Weekday>)}
-                {days.map(day => { const row = rows.find(item => item.business_date === day); return <Day key={day} $outside={!day.startsWith(month)} $selected={day === selected} $past={day < today}>
-                    <DayButton $past={day < today} ref={node => { if (node) dateButtons.current.set(day, node); else dateButtons.current.delete(day); }} aria-label={format(day, { dateStyle: "full" })} aria-current={day === today ? "date" : undefined} aria-pressed={day === selected} onClick={event => choose(day, event.currentTarget)} onKeyDown={event => {
+                {days.map(day => { const row = rows.find(item => item.business_date === day); const isPast = day < calendarDate && !isActiveShiftDate(day); return <Day key={day} $outside={!day.startsWith(month)} $selected={day === selected} $past={isPast}>
+                    <DayButton $past={isPast} ref={node => { if (node) dateButtons.current.set(day, node); else dateButtons.current.delete(day); }} aria-label={format(day, { dateStyle: "full" })} aria-current={day === today ? "date" : undefined} aria-pressed={day === selected} onClick={event => choose(day, event.currentTarget)} onKeyDown={event => {
                         const delta = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 } as Record<string, number>)[event.key];
                         if (delta) { event.preventDefault(); const next = addDays(day, delta); setSelected(next); dateButtons.current.get(next)?.focus(); }
                     }}><span>{Number(day.slice(-2))}</span></DayButton>
@@ -181,13 +219,13 @@ export default function Schedules() {
                 <Subtitle>{t("Date-only plan · hours not recorded", "日付のみの予定・勤務時間の記録なし")}</Subtitle>
                 <dl><dt>{t("Manager", "マネージャー")}</dt><dd>{selectedRow?.manager?.name || t("Not assigned", "未定")}</dd><dt>{t("Staff", "スタッフ")}</dt><dd>{selectedRow?.staff.map(person => person.name).join(" · ") || t("None", "なし")}</dd></dl>
                 {selectedRow?.actual_shift_exists ? <p>{t("An actual shift is also recorded. Editing this plan does not change it.", "実際のシフト記録があります。予定を変更しても実績は変わりません。")}</p> : null}
-                {viewer?.role === "manager" && !selectedIsPast ? <button onClick={() => { setCreating(!selectedRow); setEditing(true); }}>{selectedRow ? t("Edit plan", "予定を編集") : t("Add plan", "予定を追加")}</button> : null}
+                {viewer?.role === "manager" && scheduleContext && !selectedIsPast ? <button onClick={() => { setCreating(!selectedRow); setEditing(true); }}>{selectedRow ? t("Edit plan", "予定を編集") : t("Add plan", "予定を追加")}</button> : null}
                 {viewer?.role === "manager" && selectedIsPast ? <ReadOnlyNotice role="status">{t("Past schedule dates are read-only. Historical plans and assignments cannot be changed.", "過去の予定は閲覧のみです。過去の予定や担当者は変更できません。")}</ReadOnlyNotice> : null}
                 {selectedRow?.provenance.length ? <details><summary>{t("Spreadsheet source", "勤務表の出典")}</summary>{selectedRow.provenance.map((source, i) => <p key={i}>{source.source_file} · {t("row", "行")} {source.source_row}<br />{source.imported_by}{source.uncertainty ? ` · ${source.uncertainty}` : ""}</p>)}</details> : null}
             </Details> : null}
         </Canvas>
-        {viewer?.role === "manager" && !editing && !createTargetIsPast ? <CreateButton type="button" onClick={() => { setSelected(createTarget); setCreating(true); setEditing(true); }}>{t("+ Create", "＋ 作成")}</CreateButton> : null}
-        {editing && viewer?.role === "manager" && !selectedIsPast ? <ScheduleEditor knownManagers={knownManagers} day={selected} row={creating ? undefined : selectedRow} ja={ja} today={today} onClose={() => setEditing(false)} onSaved={day => { setEditing(false); setSelected(day); setMonth(day.slice(0, 7)); setDetail(true); window.dispatchEvent(new Event("barticket-schedules-updated")); }} /> : null}
+        {viewer?.role === "manager" && scheduleContext && !editing && !createTargetIsPast ? <CreateButton type="button" onClick={() => { setSelected(createTarget); setCreating(true); setEditing(true); }}>{t("+ Create", "＋ 作成")}</CreateButton> : null}
+        {editing && viewer?.role === "manager" && !selectedIsPast ? <ScheduleEditor knownManagers={knownManagers} day={selected} row={creating ? undefined : selectedRow} ja={ja} today={isActiveShiftDate(selected) ? selected : calendarDate} canWrite={!!scheduleContext} onClose={() => setEditing(false)} onSaved={day => { setEditing(false); setSelected(day); setMonth(day.slice(0, 7)); setDetail(true); window.dispatchEvent(new Event("barticket-schedules-updated")); }} /> : null}
     </Page>;
 }
 const Page = styled.main`width:100%;max-width:1440px;margin:0 auto;padding:16px 0 calc(112px + env(safe-area-inset-bottom, 0px));button{width:auto;min-height:44px;}button:focus-visible{outline:3px solid var(--royal-300);outline-offset:2px;}`;
