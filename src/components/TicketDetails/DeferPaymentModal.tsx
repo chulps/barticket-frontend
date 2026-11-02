@@ -1,3 +1,4 @@
+import Dropdown from "../Select";
 import { useState } from "react";
 import { useModal } from "../../hooks/useModal";
 import { useI18n } from "../../i18n";
@@ -58,9 +59,9 @@ export default function DeferPaymentModal({ ticket, onDefer }: {
             <dt><strong>{ja ? "残高" : "Remaining balance"}</strong></dt><dd><strong>¥{balance.toLocaleString("ja-JP")}</strong></dd>
         </dl>
         <label>{ja ? "未払い理由" : "Reason"}
-            <select value={reason} onChange={event => setReason(event.target.value as (typeof reasons)[number])} disabled={working}>
+            <Dropdown aria-label={ja ? "未払い理由" : "Reason"} value={reason} onChange={event => setReason(event.target.value as (typeof reasons)[number])} disabled={working}>
                 {reasons.map(value => <option key={value} value={value}>{reasonLabels[value]}</option>)}
-            </select>
+            </Dropdown>
         </label>
         <label>{ja ? "確認した残高（円）" : "Confirm balance (yen)"}
             <input type="number" min={1} step={1} value={confirmedBalance} onChange={event => setConfirmedBalance(event.target.value)} disabled={working} />

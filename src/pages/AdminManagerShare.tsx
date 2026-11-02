@@ -1,3 +1,4 @@
+import Dropdown from "../components/Select";
 import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import AdminRevenueSharePolicy from "./AdminRevenueSharePolicy";
@@ -235,7 +236,7 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                                     </button>
                                     {editingShiftId === shift.id ? <AssignmentFields>
                                         <label>{ja ? "担当マネージャー" : "Designated working manager"}
-                                            <select disabled={savingManagerId !== null}
+                                            <Dropdown disabled={savingManagerId !== null}
                                                 aria-label={(ja ? "担当マネージャーを選択 " : "Choose working manager for ") + dateLabel(shift.business_date, locale)}
                                                 value={managerDrafts[shift.id]?.managerId ?? (shift.working_manager_user_id ? String(shift.working_manager_user_id) : "")}
                                                 onChange={event => setManagerDrafts(previous => ({
@@ -247,7 +248,7 @@ export default function AdminManagerShare({ person, month, locale, shifts, manag
                                                 }))}>
                                                 <option value="">{ja ? "未割当" : "Unassigned"}</option>
                                                 {managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}
-                                            </select>
+                                            </Dropdown>
                                         </label>
                                         <label>{ja ? "変更理由" : "Reason for assignment or correction"}
                                             <input disabled={savingManagerId !== null}

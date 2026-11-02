@@ -1,3 +1,4 @@
+import { selectOption, expectValue } from './helpers/select.mjs';
 import {test,expect} from "@playwright/test";
 async function expandLegacyControls(page) {
  const advanced = page.getByText(/^(Advanced provider preferences|詳しい決済会社の設定)$/, { exact: true });
@@ -42,7 +43,7 @@ async function fixture(page,{showAdvanced=true,readStatus=200,canConfigure=true,
   });
   await page.goto(direct?"/admin?section=payments":"/admin");
   if(direct)return state;
-  if(page.viewportSize().width<570)await page.getByRole("combobox",{name:"Admin section",exact:true}).selectOption("payments");
+  if(page.viewportSize().width<570)await selectOption(page.getByRole("combobox",{name:"Admin section",exact:true}), "payments");
   else await page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true}).click();
   if (showAdvanced && canConfigure && accessStatus === 200 && readStatus === 200) await expandLegacyControls(page);
   return state;
@@ -60,24 +61,24 @@ test("language changes preserve unsaved payment setup selections",async({page})=
   const state=await fixture(page);
   const provider=page.getByRole("combobox",{name:"Current or proposed provider",exact:true});
   await expect(page.getByRole("button",{name:"Save setup preferences",exact:true})).toBeEnabled();
-  await provider.selectOption("square");
+  await selectOption(provider, "square");
   const before=state.reads;
   await page.getByRole("switch").click();
-  await expect(page.getByRole("combobox",{name:"現在または検討中の決済会社",exact:true})).toHaveValue("square");
+  await expectValue(page.getByRole("combobox",{name:"現在または検討中の決済会社",exact:true}), "square");
   expect(state.reads).toBe(before);
   expect(state.writes).toEqual([]);
 });
 test("uncertain writes require explicit reload and never replay automatically",async({page})=>{
   const state=await fixture(page);
   await expect(page.getByRole("button",{name:"Save setup preferences",exact:true})).toBeEnabled();
-  await page.getByRole("combobox",{name:"Current or proposed provider",exact:true}).selectOption("stripe");
+  await selectOption(page.getByRole("combobox",{name:"Current or proposed provider",exact:true}), "stripe");
   state.writeStatus=409;
   await page.getByRole("button",{name:"Save setup preferences",exact:true}).click();
   await expect(page.getByRole("button",{name:"Reload saved setup",exact:true})).toBeVisible();
   expect(state.writes).toHaveLength(1);
   state.saved.provider="square";state.revision=7;
   await page.getByRole("button",{name:"Reload saved setup",exact:true}).click(); await expandLegacyControls(page);
-  await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveValue("square");
+  await expectValue(page.getByRole("combobox",{name:"Current or proposed provider",exact:true}), "square");
   expect(state.writes).toHaveLength(1);
   state.writeStatus=200;
   await page.getByRole("button",{name:"Save setup preferences",exact:true}).click();
@@ -90,7 +91,7 @@ test("failed reads can recover without exposing a stale editable form",async({pa
   await expect(page.getByRole("combobox")).toHaveCount(0);
   state.readStatus=200;state.saved.provider="square";
   await page.getByRole("button",{name:"Reload saved setup",exact:true}).click(); await expandLegacyControls(page);
-  await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveValue("square");
+  await expectValue(page.getByRole("combobox",{name:"Current or proposed provider",exact:true}), "square");
   expect(state.writes).toEqual([]);
 });
 test("owner setup fits a narrow phone in both languages",async({page})=>{
@@ -112,7 +113,7 @@ for(const width of [390,1280])test(`nonowner can read the generic guide without 
  await page.setViewportSize({width,height:844});const state=await fixture(page,{canConfigure:false,accountId:901,direct:true});
  await expect(page.getByRole("alert")).toContainText("Only the payment account owner");
  await expect(page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Payment setup",exact:true})).toHaveCount(width < 570 ? 0 : 1);
- await expect(page.locator('option[value="payments"]:not([disabled])')).toHaveCount(1);
+ if(width<570){const section=page.getByRole('combobox',{name:'Admin section',exact:true}); await section.click(); await expect(page.getByRole('listbox').locator('[data-option-value="payments"]')).not.toHaveAttribute('aria-disabled','true'); await section.press('Escape');}
  await expect(page.getByRole("button",{name:"Reload saved setup",exact:true})).toHaveCount(0);
  expect(state.reads).toBe(0);expect(state.writes).toEqual([]);
 });
@@ -162,10 +163,10 @@ test("failed capability revalidation hides owner settings until explicit access 
 
 test("Stripe setup is an explicit preference choice with provider-hosted registration",async({page})=>{
   const state=await fixture(page);
-  await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveValue("unknown");
+  await expectValue(page.getByRole("combobox",{name:"Current or proposed provider",exact:true}), "unknown");
   await page.getByRole("button",{name:"Choose Stripe online setup",exact:true}).click();
-  await expect(page.getByRole("combobox",{name:"Current or proposed provider",exact:true})).toHaveValue("stripe");
-  await expect(page.getByRole("combobox",{name:"Payment channel",exact:true})).toHaveValue("online");
+  await expectValue(page.getByRole("combobox",{name:"Current or proposed provider",exact:true}), "stripe");
+  await expectValue(page.getByRole("combobox",{name:"Payment channel",exact:true}), "online");
   const guide=page.getByRole("region",{name:"Stripe online setup",exact:true});
   await guide.getByText("Prepare your Stripe account",{exact:true}).click();
   await expect(guide).toContainText("Account registration alone does not enable ticket payments");
@@ -176,7 +177,7 @@ test("Stripe setup is an explicit preference choice with provider-hosted registr
   await expect.poll(()=>state.writes.length).toBe(1);
   expect(state.writes[0]).toMatchObject({provider:"stripe",channel:"online",methods:[]});
   await expect(page.getByText("Payment processing: not connected",{exact:true})).toBeVisible();
-  await page.getByRole("combobox",{name:"Payment channel",exact:true}).selectOption("terminal");
+  await selectOption(page.getByRole("combobox",{name:"Payment channel",exact:true}), "terminal");
   await expect(guide).toHaveCount(0);
 });
 
@@ -212,12 +213,12 @@ test('saved terminal provider remains unchanged until an explicit save and draft
   await page.reload(); await expandLegacyControls(page);
   const provider=page.getByRole('combobox',{name:'Current or proposed provider',exact:true});
   const channel=page.getByRole('combobox',{name:'Payment channel',exact:true});
-  await expect(provider).toHaveValue('square'); await expect(channel).toHaveValue('terminal');
+  await expectValue(provider, 'square'); await expectValue(channel, 'terminal');
   await page.getByRole('button',{name:'Choose Stripe online setup',exact:true}).click();
-  await expect(provider).toHaveValue('stripe'); await expect(channel).toHaveValue('online');
+  await expectValue(provider, 'stripe'); await expectValue(channel, 'online');
   expect(state.saved.provider).toBe('square'); expect(state.writes).toEqual([]);
   await page.reload(); await expandLegacyControls(page);
-  await expect(provider).toHaveValue('square'); await expect(channel).toHaveValue('terminal');
+  await expectValue(provider, 'square'); await expectValue(channel, 'terminal');
   await expect(page.getByRole('region',{name:'Stripe online setup',exact:true})).toHaveCount(0);
   expect(state.writes).toEqual([]);
 });
@@ -235,8 +236,8 @@ for(const locale of ["en","ja"]) for(const width of [320,768]) test(`editing pay
  const save=page.getByRole('button',{name:ja?'設定の希望を保存':'Save setup preferences',exact:true});
  const saved=page.getByText(ja?'希望を保存しました。決済はまだ有効ではありません。':'Preferences saved. Payments are not enabled.',{exact:true});
  const edits=[
-  ()=>page.getByRole('combobox',{name:ja?'現在または検討中の決済会社':'Current or proposed provider',exact:true}).selectOption('square'),
-  ()=>page.getByRole('combobox',{name:ja?'決済方式':'Payment channel',exact:true}).selectOption('terminal'),
+  ()=>selectOption(page.getByRole('combobox',{name:ja?'現在または検討中の決済会社':'Current or proposed provider',exact:true}), 'square'),
+  ()=>selectOption(page.getByRole('combobox',{name:ja?'決済方式':'Payment channel',exact:true}), 'terminal'),
   ()=>page.getByRole('checkbox',{name:ja?'カード':'Cards',exact:true}).check(),
   ()=>page.getByRole('button',{name:ja?'Stripeのオンライン設定を選択':'Choose Stripe online setup',exact:true}).click(),
  ];
@@ -256,12 +257,12 @@ for (const locale of ['en', 'ja']) test(`owner saves terminal identification onl
  const state = await fixture(page);
  const model = page.getByRole('combobox', { name: 'Terminal model', exact: true });
  const connection = page.getByRole('combobox', { name: 'Connection type noted on the device or paperwork (optional)', exact: true });
- await expect(model).toHaveValue('unknown'); await expect(connection).toHaveValue('unknown');
- await expect(model.locator('option')).toHaveText(['Not sure', 'VEGA3000 MX', 'VEGA3000 Countertop', 'VEGA3000 Mobile2', 'SATURN1000F2', 'Other model']);
- await model.selectOption('vega3000_mx'); await expect(connection).toHaveValue('unknown');
+ await expectValue(model, 'unknown'); await expectValue(connection, 'unknown');
+ await model.click(); await expect(page.getByRole('listbox').getByRole('option')).toHaveText(['Not sure', 'VEGA3000 MX', 'VEGA3000 Countertop', 'VEGA3000 Mobile2', 'SATURN1000F2', 'Other model']); await model.press('Escape');
+ await selectOption(model, 'vega3000_mx'); await expectValue(connection, 'unknown');
  // A terminal-note save must not save unrelated unsaved provider drafts.
- await page.getByRole('combobox', { name: 'Current or proposed provider', exact: true }).selectOption('square');
- await connection.selectOption('wifi');
+ await selectOption(page.getByRole('combobox', { name: 'Current or proposed provider', exact: true }), 'square');
+ await selectOption(connection, 'wifi');
  if (locale === 'ja') await page.evaluate(() => { localStorage.setItem('barticket_locale', 'ja'); dispatchEvent(new Event('barticket-locale')); });
  const save = page.getByRole('button', { name: locale === 'ja' ? '端末メモを保存' : 'Save terminal notes', exact: true });
  await save.evaluate(el => { el.click(); el.click(); });
@@ -270,10 +271,10 @@ for (const locale of ['en', 'ja']) test(`owner saves terminal identification onl
  await expect(page.getByText(locale === 'ja' ? '端末メモを保存しました。接続や決済の有効化は行っていません。' : 'Terminal notes saved. Nothing was connected or enabled.', { exact: true })).toBeVisible();
  const savedNotice = page.getByText(locale === 'ja' ? '端末メモを保存しました。接続や決済の有効化は行っていません。' : 'Terminal notes saved. Nothing was connected or enabled.', { exact: true });
  const localizedModel = page.getByRole('combobox', { name: locale === 'ja' ? '端末の機種' : 'Terminal model', exact: true });
- await localizedModel.selectOption('vega3000_mx'); await expect(savedNotice).toBeVisible();
- await localizedModel.selectOption('unknown'); await expect(savedNotice).toHaveCount(0); expect(state.writes).toHaveLength(1);
+ await selectOption(localizedModel, 'vega3000_mx'); await expect(savedNotice).toBeVisible();
+ await selectOption(localizedModel, 'unknown'); await expect(savedNotice).toHaveCount(0); expect(state.writes).toHaveLength(1);
  await page.reload(); await expandLegacyControls(page);
- await expect(page.getByRole('combobox', { name: locale === 'ja' ? '端末の機種' : 'Terminal model', exact: true })).toHaveValue('vega3000_mx');
+ await expectValue(page.getByRole('combobox', { name: locale === 'ja' ? '端末の機種' : 'Terminal model', exact: true }), 'vega3000_mx');
  expect(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth + 1)).toBe(true);
  const noteFields = page.getByRole('group', { name: locale === 'ja' ? '所有者の端末識別メモ' : 'Owner’s terminal identification notes', exact: true });
  expect(await noteFields.evaluate(el => [...el.querySelectorAll('select,button')].every(control => control.getBoundingClientRect().right <= el.getBoundingClientRect().right))).toBe(true);

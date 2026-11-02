@@ -1,3 +1,4 @@
+import Dropdown from "../components/Select";
 import { getToken } from "../api/client";
 import HistoricalHoursExceptions, { StoredHoursEvidence } from "./HistoricalHoursExceptions";
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -165,10 +166,10 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
     const mapField = (key: string, header: string) => setMapping(previous => ({ ...previous, [key]: header }));
     const historyCellKey = (sourceRow: number, sourceColumn: string) => `${sourceRow}\u0000${sourceColumn}`;
     const mapOption = (key: string, name: string) => <label key={key}>{name}
-        <SelectBox><select value={mapping[key] ?? ""} onChange={event => mapField(key, event.target.value)}>
+        <SelectBox><Dropdown aria-label={name} value={mapping[key] ?? ""} onChange={event => mapField(key, event.target.value)}>
             <option value="">{ja ? "選択なし" : "Not mapped"}</option>
             {csv?.headers.map(header => <option key={header} value={header}>{header}</option>)}
-        </select></SelectBox>
+        </Dropdown></SelectBox>
     </label>;
 
     async function readCsv(file?: File) {
@@ -308,34 +309,34 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                         <input type="number" min="0" step="1" value={draft[key]} onChange={e => update(key, e.target.value)} />
                     </label>)}
                     <label>{ja ? "スタッフ" : "Staff"}
-                        <SelectBox><select value={draft.staff} onChange={e => setDraft(current => current ? { ...current, staff: e.target.value, guestName: "", guestPayType: "", guestPayAmount: "", guestDrinkback: "" } : current)}>
+                        <SelectBox><Dropdown aria-label={ja ? "スタッフ" : "Staff"} value={draft.staff} onChange={e => setDraft(current => current ? { ...current, staff: e.target.value, guestName: "", guestPayType: "", guestPayAmount: "", guestDrinkback: "" } : current)}>
                             <option value="none">{ja ? "なし" : "None"}</option>
                             <option value="Kanata">{ja ? "カナタ" : "Kanata"}</option>
                             <option value="Haruka">{ja ? "ハルカ" : "Haruka"}</option>
                             <option value="guest">{ja ? "ゲスト・その他" : "Guest / Other"}</option>
-                        </select></SelectBox>
+                        </Dropdown></SelectBox>
                     </label>
                     {draft.staff === "guest" ? <>
                         <label>{ja ? "ゲスト名" : "Guest bartender"}
-                            <SelectBox><select value={["Yuchan", "Mii-chan"].includes(draft.guestName) ? draft.guestName : "other"}
+                            <SelectBox><Dropdown aria-label={ja ? "ゲスト名" : "Guest bartender"} value={["Yuchan", "Mii-chan"].includes(draft.guestName) ? draft.guestName : "other"}
                                 onChange={e => setDraft(current => current ? { ...current, guestName: e.target.value === "other" ? "" : e.target.value } : current)}>
                                 <option value="other">{ja ? "その他・新規" : "Other / new guest"}</option>
                                 <option value="Yuchan">Yuchan</option>
                                 <option value="Mii-chan">Mii-chan</option>
-                            </select></SelectBox>
+                            </Dropdown></SelectBox>
                         </label>
                         <label>{ja ? "名前（確認・編集）" : "Guest name (confirm / edit)"}
                             <input value={draft.guestName} placeholder={ja ? "ゲストの名前" : "Enter guest name"}
                                 onChange={e => setDraft(current => current ? { ...current, guestName: e.target.value } : current)} />
                         </label>
                         <label>{ja ? "契約タイプ（シフトごと）" : "Agreement type (this shift only)"}
-                            <SelectBox><select value={draft.guestPayType} onChange={e => setDraft(current => current ? { ...current, guestPayType: e.target.value, guestPayAmount: "" } : current)}>
+                            <SelectBox><Dropdown aria-label={ja ? "契約タイプ（シフトごと）" : "Agreement type (this shift only)"} value={draft.guestPayType} onChange={e => setDraft(current => current ? { ...current, guestPayType: e.target.value, guestPayAmount: "" } : current)}>
                                 <option value="">{ja ? "未設定・不明" : "Not specified / unknown"}</option>
                                 <option value="hourly">{ja ? "時給" : "Hourly"}</option>
                                 <option value="flat">{ja ? "固定報酬" : "Flat fee"}</option>
                                 <option value="revenue">{ja ? "売上歩合" : "Revenue percentage"}</option>
                                 <option value="custom">{ja ? "その他" : "Custom"}</option>
-                            </select></SelectBox>
+                            </Dropdown></SelectBox>
                         </label>
                         {draft.guestPayType && draft.guestPayType !== "custom" ? <label>{draft.guestPayType === "revenue" ? (ja ? "売上歩合 (%)" : "Revenue share (%)") : (ja ? "契約金額 (円)" : "Agreed amount (JPY)")}
                             <input type="number" min="0" max={draft.guestPayType === "revenue" ? 100 : undefined} step="any" value={draft.guestPayAmount}
@@ -348,12 +349,12 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                         <p>{ja ? "ゲストの契約条件はシフトごとに異なります。未入力は不明として扱い、給与を推測しません。すべて未保存です。" : "Guest contracts vary by appearance. Blank means unknown, not zero. No guest pay is assumed or saved."}</p>
                     </> : null}
                     <label>{text.event}
-                        <SelectBox><select value={draft.event} onChange={e => update("event", e.target.value)}>
+                        <SelectBox><Dropdown aria-label={text.event} value={draft.event} onChange={e => update("event", e.target.value)}>
                             <option value="">{ja ? "未設定" : "Not recorded"}</option>
                             <option value="open">{ja ? "営業" : "Open"}</option>
                             <option value="closed">{ja ? "休業" : "Closed"}</option>
                             <option value="event">{ja ? "イベント" : "Event"}</option>
-                        </select></SelectBox>
+                        </Dropdown></SelectBox>
                     </label>
                     <label>{text.notes}<input value={draft.notes} onChange={e => update("notes", e.target.value)} /></label>
                 </Fields>
@@ -362,10 +363,10 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                 {Object.entries(draft.staffHours).map(([name, value]) => <label key={name}>{name} <input type="number" min="0" max="24" step="0.25" value={value}
                     onChange={e => setDraft(current => current ? { ...current, staffHours: { ...current.staffHours, [name]: e.target.value } } : current)} /></label>)}
                 <label>{ja ? "勤務時間を追加するスタッフ" : "Add staff hours for"}
-                    <SelectBox><select value={extraHourKey} onChange={e => setExtraHourKey(e.target.value)}>
+                    <SelectBox><Dropdown aria-label={ja ? "勤務時間を追加するスタッフ" : "Add staff hours for"} value={extraHourKey} onChange={e => setExtraHourKey(e.target.value)}>
                         <option value="">{ja ? "選択してください" : "Select staff"}</option>
                         {["Kanata", "Haruka", "Yuchan", "Mii-chan", ...(draft.guestName.trim() ? [draft.guestName.trim()] : [])].filter(name => !Object.hasOwn(draft.staffHours, name)).map(name => <option key={name} value={name}>{name}</option>)}
-                    </select></SelectBox>
+                    </Dropdown></SelectBox>
                 </label>
                 <button type="button" className="small secondary" disabled={!extraHourKey} onClick={() => { if (!Object.hasOwn(draft.staffHours, extraHourKey)) setDraft({ ...draft, staffHours: { ...draft.staffHours, [extraHourKey]: "" } }); setExtraHourKey(""); }}>{ja ? "追加" : "Add staff"}</button>
                 {invalidDraft ? <p role="alert">{ja ? "担当者・売上・来客数・勤務時間を確認してください。" : "Check manager, revenue, guests and hours for invalid values."}</p> : null}

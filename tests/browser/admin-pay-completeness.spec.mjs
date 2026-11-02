@@ -27,7 +27,7 @@ async function fixture(page,locale,mode){
   let body=staffReport(url.pathname.includes('/904/')?904:903,status,mode==='zero');
   if(mode.startsWith('manager')){
    status=mode==='managerComplete'?'complete':mode==='managerIncomplete'?'incomplete':'unknown';
-   body={user_id:901,month,...coverage(status),preview_only:true,complete:true,gross_salary_yen:2000,staff_cost_total_yen:700,recorded_staff_cost_total_yen:700,deduction_total_yen:100,net_amount_owed_yen:1200,staff_owed:[],deductions:[],blockers:[],note:'Estimate'};
+   body={user_id:901,month,...coverage(status),preview_only:true,complete:true,gross_salary_yen:2000,staff_cost_total_yen:700,recorded_staff_cost_total_yen:700,deduction_total_yen:100,net_amount_owed_yen:1200,staff_owed:[{user_id:903,name:'Fixture staff with a long family name',wages_yen:600,staff_drink_bonus_yen:100}],deductions:[{id:1,business_date:'2026-10-01',payee_name:'Fixture recipient with a long family name',amount_yen:100,reason:'Synthetic deduction entry for layout review'}],blockers:[],note:'Estimate'};
    if(mode==='managerIncomplete')Object.assign(body,{complete:false,net_amount_owed_yen:null,staff_cost_total_yen:null,blockers:['staff_drink_data_incomplete','staff_payroll_costs_incomplete']});
   }
   await route.fulfill({status:fail?503:200,json:fail?{detail:'Fixture unavailable'}:body,headers:{'Access-Control-Allow-Origin':'*'}});
@@ -45,7 +45,7 @@ async function fixture(page,locale,mode){
  await page.goto('/admin-pay-coverage-fixture');
  return {calls,setFail:value=>{fail=value},resolve:()=>delayedResolve()};
 }
-for(const locale of ['en','ja'])for(const width of [390,768])for(const mode of ['unknown','incomplete','legacy','zero','complete','mixed']){
+for(const locale of ['en','ja'])for(const width of [320,390,768])for(const mode of ['unknown','incomplete','legacy','zero','complete','mixed']){
  test(`Admin monthly pay coverage ${mode} ${locale} ${width}`,async({page},testInfo)=>{
   await page.setViewportSize({width,height:1100});const state=await fixture(page,locale,mode);const ja=locale==='ja';
   const card=page.getByRole('article',{name:'Fixture staff A',exact:true});await expect(card).toBeVisible();
@@ -53,31 +53,34 @@ for(const locale of ['en','ja'])for(const width of [390,768])for(const mode of [
   const total=page.getByText(ja?'スタッフ給与合計':'Total staff pay',{exact:true}).locator('..');
   await expect(total.locator('strong')).toHaveText(complete?(mode==='zero'?/[¥￥]0/:/[¥￥]1,200/):(ja?'未確認':'Incomplete'));
   await expect(card.locator('[aria-label="'+(complete?(ja?'支払予定額':'Amount owed'):(ja?'給与総額は未確定':'Full pay unavailable'))+'"]')).toContainText(complete?(mode==='zero'?/[¥￥]0/:/[¥￥]1,200/):'—');
-  await expect(card.locator('span').filter({hasText:ja?'記録済みのドリンク手当':'Recorded drink bonus'}).locator('strong')).toHaveText(mode==='zero'?/[¥￥]0/:/[¥￥]200/);
+  await expect(card.locator('dt').filter({hasText:ja?'記録済みのドリンク手当':'Recorded drink bonus'}).locator('..').locator('dd')).toHaveText(mode==='zero'?/[¥￥]0/:/[¥￥]200/);
   if(!complete)await expect(card).not.toContainText(ja?'勤務時間または時給が未確認です':'Hours or rates are unverified');
   if(mode==='incomplete')await expect(card).toContainText(ja?'ドリンク記録が不足':'Drink records are incomplete');
   if(mode==='unknown'||mode==='legacy'||mode==='mixed')await expect(card).toContainText(ja?'ドリンク記録が未確認':'Drink records are unverified');
-  const disclosure=page.locator('summary').filter({hasText:ja?'給与の比較グラフ':'Pay comparison charts'});
+  const comparison=page.getByRole('heading',{name:ja?'給与の比較グラフ':'Pay comparison charts'});
   if(mode==='complete'||mode==='mixed'){
-   await disclosure.click();await expect(page.getByRole('meter')).toHaveCount(1);
+   await expect(comparison).toBeVisible();await expect(page.getByRole('meter')).toHaveCount(1);
    await expect(page.getByRole('meter')).toHaveAttribute('aria-label',mode==='mixed'?'Fixture staff B':'Fixture staff A');
    if(mode==='mixed')await expect(page.getByText(ja?/1名分は給与記録の確認/:/1 member\(s\) are omitted/)).toBeVisible();
-  }else await expect(disclosure).toHaveCount(0);
+  }else await expect(comparison).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   expect(state.calls.every(call=>call.startsWith('GET '))).toBe(true);
   await page.getByRole('region',{name:ja?'月次給与一覧':'Monthly team pay',exact:true}).screenshot({path:testInfo.outputPath('audit-admin-pay-coverage.png')});
  });
 }
-for(const locale of ['en','ja'])for(const mode of ['managerUnknown','managerIncomplete','managerComplete']){
- test(`Admin manager final pay coverage ${mode} ${locale}`,async({page},testInfo)=>{
-  await page.setViewportSize({width:320,height:1100});await fixture(page,locale,mode);const ja=locale==='ja';const card=page.getByRole('article',{name:'Fixture manager',exact:true});await expect(card).toBeVisible();
+for(const locale of ['en','ja'])for(const width of [320,390,768])for(const mode of ['managerUnknown','managerIncomplete','managerComplete']){
+ test(`Admin manager final pay coverage ${mode} ${locale} ${width}`,async({page},testInfo)=>{
+  await page.setViewportSize({width,height:1100});await fixture(page,locale,mode);const ja=locale==='ja';const card=page.getByRole('article',{name:'Fixture manager',exact:true});await expect(card).toBeVisible();
   if(mode!=='managerComplete'){
    await expect(card.getByLabel(ja?'給与総額は未確定':'Full pay unavailable')).toContainText('—');
-   await expect(page.locator('summary').filter({hasText:ja?'給与の比較グラフ':'Pay comparison charts'})).toHaveCount(0);
+   await expect(page.getByRole('heading',{name:ja?'給与の比較グラフ':'Pay comparison charts'})).toHaveCount(0);
   }else{
    await expect(card.getByLabel(ja?'支払予定額':'Amount owed')).toContainText(/[¥￥]1,200/);
-   await page.locator('summary').filter({hasText:ja?'給与の比較グラフ':'Pay comparison charts'}).click();await expect(page.getByRole('meter')).toHaveCount(1);
+   await expect(page.getByRole('heading',{name:ja?'給与の比較グラフ':'Pay comparison charts'})).toBeVisible();await expect(page.getByRole('meter')).toHaveCount(1);
   }
+  await expect(card.getByRole('heading',{name:ja?'スタッフ給与と控除の内訳':'Staff pay and deductions'})).toBeVisible();
+  await expect(card.getByText('Synthetic deduction entry for layout review',{exact:false})).toBeVisible();
+  await expect(card.locator('details')).toHaveCount(0);
   if(mode==='managerIncomplete'){await expect(card).toContainText(ja?'スタッフ給与の確認が完了':'Staff pay coverage is unverified');await expect(card).not.toContainText('staff_payroll_costs_incomplete');}
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await card.screenshot({path:testInfo.outputPath('audit-admin-manager-coverage.png')});

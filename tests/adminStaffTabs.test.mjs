@@ -44,7 +44,7 @@ test("Admin sections reuse Analytics' shared state and geometry contract", () =>
     assert.match(admin, /minWidth: 640, columns: 3/);
     assert.match(admin, /minWidth: 1000, columns: 6/);
     assert.match(admin, /@media \(max-width: 569px\) \{ display: none;/);
-    assert.match(admin, /select value=\{activeSection\}/);
+    assert.match(admin, /<Dropdown[^>]*value=\{activeSection\}/);
     assert.doesNotMatch(admin, /SectionIndicator|SectionButton|sectionNavRef|tabIndicator/);
     assert.doesNotMatch(admin, /background: var\(--royal|box-shadow: 0 0 0 1px var\(--royal/);
     assert.match(shared, /background: var\(--neutral-800\)/);

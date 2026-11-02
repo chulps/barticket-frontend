@@ -1,3 +1,4 @@
+import Dropdown from "../components/Select";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Navigate, useLocation, useMatch, useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
@@ -274,11 +275,11 @@ export default function Admin() {
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             <MobileSectionPicker>
                 <span>{locale === "ja" ? "管理メニュー" : "Admin section"}</span>
-                <select value={activeSection} onChange={event => chooseSection(event.target.value as AdminSection)}>
+                <Dropdown aria-label={locale === "ja" ? "管理メニュー" : "Admin section"} value={activeSection} onChange={event => chooseSection(event.target.value as AdminSection)}>
                     {visibleSectionTabs.map(tab => <option key={tab.id} value={tab.id}>
                         {locale === "ja" ? tab.label.ja : tab.label.en}
                     </option>)}
-                </select>
+                </Dropdown>
             </MobileSectionPicker>
             <SectionNav aria-label={locale === "ja" ? "管理セクション" : "Admin sections"}>
                 <TabGroup
@@ -332,10 +333,10 @@ export default function Admin() {
                             <label>{t("email")}<input required maxLength={255} type="email" value={email} onChange={event => setEmail(event.target.value)} /></label>
                             <label>{t("password")}<input type="password" value={password} onChange={event => setPassword(event.target.value)} /></label>
                             <label>{t("role")}
-                                <select value={role} onChange={event => setRole(event.target.value as "staff" | "manager")}>
+                                <Dropdown aria-label={t("role")} value={role} onChange={event => setRole(event.target.value as "staff" | "manager")}>
                                     <option value="staff">{t("staff")}</option>
                                     <option value="manager">{t("manager")}</option>
-                                </select>
+                                </Dropdown>
                             </label>
                             {role === "manager" ? (
                                 <Warning role="status">

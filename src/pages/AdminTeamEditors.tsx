@@ -1,3 +1,4 @@
+import Dropdown from "../components/Select";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { accountApi, type Account, type HourlyRatePreview, type HourlyRateRecord, type ShiftPunch, type StaffDrinkBonusReport } from "../api/account";
@@ -523,13 +524,13 @@ export default function AdminTeamEditors({ person, locale, rows, drinkLines, onR
                         <p>{ja ? "理由付きの調整を追加します。スタッフドリンクやチケットの販売記録は変更しません。" : "Append a reasoned adjustment. Original staff-drink and ticket sales records remain unchanged."}</p>
                         <Fields>
                             <label>{ja ? "対象シフト" : "Shift with recorded drinks"}
-                                <select disabled={savingBonus} value={bonus.shiftId} onChange={e => { bonusIdempotencyKey.current = crypto.randomUUID(); setBonus({ ...bonus, shiftId: e.target.value }); }}>
+                                <Dropdown aria-label={ja ? "対象シフト" : "Shift with recorded drinks"} disabled={savingBonus} value={bonus.shiftId} onChange={e => { bonusIdempotencyKey.current = crypto.randomUUID(); setBonus({ ...bonus, shiftId: e.target.value }); }}>
                                     <option value="">{ja ? "選択してください" : "Select shift"}</option>
                                     {drinkShifts.map(id => {
                                         const line = drinkLines.find(item => item.shiftId === id);
                                         return <option key={id} value={id}>{line ? dateLabel(line.businessDate, locale) : id}</option>;
                                     })}
-                                </select>
+                                </Dropdown>
                             </label>
                             <label>{ja ? "調整額（円、マイナス可）" : "Adjustment (JPY, negative allowed)"}
                                 <input disabled={savingBonus} type="number" step="1" value={bonus.adjustmentYen}

@@ -103,7 +103,7 @@ export default function NotificationSettings() {
       // either end. Keep the phone dialog's explicit keyboard loop inside it.
       if (!phone || event.key !== 'Tab' || !panel.current) return;
       const controls = Array.from(panel.current.querySelectorAll<HTMLElement>(
-        'button, a[href], input, select, textarea, [tabindex]'
+        'button, a[href], input, select, textarea, summary, [tabindex]'
       )).filter(element => element.tabIndex >= 0 && !element.matches(':disabled') &&
         element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden');
       const first = controls[0], last = controls[controls.length - 1];

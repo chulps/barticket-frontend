@@ -1,3 +1,4 @@
+import { selectOption, expectValue } from './helpers/select.mjs';
 import { test, expect } from "@playwright/test";
 
 const MOCK_ORIGIN = "http://127.0.0.1:8765";
@@ -446,7 +447,7 @@ test("returning guest links same-shift paid ticket without double charging cover
   await popup.getByRole("menuitem",{name:/Returning customer/i}).click();
   const dialog=page.getByRole("dialog");
   await expect(dialog.getByRole("spinbutton",{name:/Returning guests/i})).toHaveValue("1");
-  await dialog.getByRole("combobox",{name:/Original paid ticket/i}).selectOption("12");
+  await selectOption(dialog.getByRole("combobox",{name:/Original paid ticket/i}), "12");
   await dialog.getByRole("button",{name:/Save adjustment/i}).click();
   await expect.poll(()=>target.returning_guest_count).toBe(1);
   expect(target.returning_from_ticket_id).toBe(12);
@@ -757,10 +758,10 @@ test("historical-hours reconciliation reveals each step only when it is actionab
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin");
   const adminSection = page.getByRole("combobox", { name: "Admin section", exact: true });
-  await expect(adminSection).toHaveValue("accounts");
-  await expect(adminSection.locator('option[value="adjustments"]')).toHaveText("Pay deductions");
+  await expectValue(adminSection, "accounts");
+  await adminSection.click(); await expect(page.getByRole('listbox').locator('[data-option-value="adjustments"]')).toHaveText("Pay deductions"); await adminSection.press('Escape');
   expect(await adminSection.evaluate(element => element.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
-  await adminSection.selectOption("historicalHours");
+  await selectOption(adminSection, "historicalHours");
 
   const chooseCsv = page.getByRole("heading", { name: "Choose the staff-hours CSV" });
   const reconcile = page.getByRole("heading", { name: "Reconcile and review staff hours" });

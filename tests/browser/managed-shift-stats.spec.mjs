@@ -1,3 +1,4 @@
+import { selectOption, expectValue } from './helpers/select.mjs';
 import { test, expect } from "@playwright/test";
 for (const locale of ["en", "ja"]) for (const width of [320, 1280]) {
     test("personal weekday averages are accessible and cached " + locale + width, async ({ page }, testInfo) => {
@@ -36,11 +37,11 @@ for (const locale of ["en", "ja"]) for (const width of [320, 1280]) {
         await expect(list).toContainText(locale === "en" ? "No data" : "データなし");
         await expect(page.getByText(locale === "en" ? /Tied highest average/ : /最高平均（同率）/)).toBeVisible();
         expect(requests).toEqual(["month"]);
-        await page.getByRole("combobox").selectOption("year");
+        await selectOption(page.getByRole("combobox"), "year");
         await expect.poll(() => requests).toEqual(["month", "year"]);
-        await page.getByRole("combobox").selectOption("all_time");
+        await selectOption(page.getByRole("combobox"), "all_time");
         await expect.poll(() => requests).toEqual(["month", "year", "all_time"]);
-        await page.getByRole("combobox").selectOption("month");
+        await selectOption(page.getByRole("combobox"), "month");
         await expect(list.locator("li")).toHaveCount(7);
         expect(requests).toEqual(["month", "year", "all_time"]);
         // Abbreviated weekdays (including the tie star) must fit on one line
@@ -78,10 +79,12 @@ for (const locale of ["en", "ja"]) for (const width of [320, 1280]) {
         expect(Math.abs(rows[1].bar.x - rows[1].zero)).toBeLessThan(1);
         await page.getByRole("combobox").focus();
         await page.keyboard.press("ArrowDown");
-        await expect(page.getByRole("combobox")).toHaveValue("year");
+        await page.keyboard.press("ArrowDown");
+        await page.keyboard.press("Enter");
+        await expectValue(page.getByRole("combobox"), "year");
         await expect(page.getByRole("combobox")).toBeFocused();
         expect(requests).toEqual(["month", "year", "all_time"]);
-        await page.getByRole("combobox").selectOption("month");
+        await selectOption(page.getByRole("combobox"), "month");
         await page.screenshot({ path: testInfo.outputPath("pay.png"), fullPage: true });
 
         await page.getByRole("button", { name: locale === "en" ? "Refresh stats" : "再読み込み" }).click();

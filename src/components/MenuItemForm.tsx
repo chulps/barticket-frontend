@@ -1,3 +1,4 @@
+import Dropdown from "./Select";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import styled from "styled-components";
 
@@ -153,12 +154,12 @@ export default function MenuItemForm({
             <Field>
                 <Caption htmlFor={id + "-category"}>{t("category")} *</Caption>
                 <SelectWrap>
-                    <SelectInput id={id + "-category"} value={categoryChoice}
+                    <Dropdown aria-label={t("category")} id={id + "-category"} value={categoryChoice}
                         onChange={(e) => { setCategoryChoice(e.target.value); setSubcategoryChoice(""); setCustomSubcategory(""); }}>
                         <option value="">{help("Choose a category", "カテゴリーを選択")}</option>
                         {Array.from(new Set(categories)).filter(Boolean).map((option) => <option key={option} value={option}>{option}</option>)}
                         <option value="__new__">{help("+ New category…", "＋新しいカテゴリー…")}</option>
-                    </SelectInput>
+                    </Dropdown>
                 </SelectWrap>
                 {categoryChoice === "__new__" ? <TextInput aria-label={help("New category", "新しいカテゴリー")}
                     value={customCategory} onChange={(e) => setCustomCategory(e.target.value)}
@@ -168,12 +169,12 @@ export default function MenuItemForm({
             <Field>
                 <Caption htmlFor={id + "-subcategory"}>{t("subcategory")}</Caption>
                 <SelectWrap>
-                    <SelectInput id={id + "-subcategory"} value={subcategoryChoice}
+                    <Dropdown aria-label={t("subcategory")} id={id + "-subcategory"} value={subcategoryChoice}
                         onChange={(e) => setSubcategoryChoice(e.target.value)}>
                         <option value="">{help("None / Choose a subcategory", "なし／サブカテゴリーを選択")}</option>
                         {Array.from(new Set(subcategories)).filter(Boolean).map((option) => <option key={option} value={option}>{option}</option>)}
                         <option value="__new__">{help("+ New subcategory…", "＋新しいサブカテゴリー…")}</option>
-                    </SelectInput>
+                    </Dropdown>
                 </SelectWrap>
                 {subcategoryChoice === "__new__" ? <TextInput aria-label={help("New subcategory", "新しいサブカテゴリー")}
                     value={customSubcategory} onChange={(e) => setCustomSubcategory(e.target.value)}
@@ -297,16 +298,6 @@ const Area = styled.textarea`
     &:focus { outline: 2px solid var(--royal-400); outline-offset: 1px; }
 `;
 const SelectWrap = styled.div`position: relative; min-width: 0;`;
-const SelectInput = styled.select`
-    width: 100%; min-width: 0; min-height: 44px;
-    padding: var(--space-1) 44px var(--space-1) var(--space-1);
-    border: 1px solid var(--neutral-600); border-radius: var(--space-1);
-    background: var(--neutral-800); color: var(--white);
-    font-size: 16px; appearance: none; -webkit-appearance: none;
-    position: relative; z-index: 1; cursor: pointer;
-    pointer-events: auto; touch-action: manipulation;
-    &:focus { outline: 2px solid var(--royal-400); outline-offset: 1px; }
-`;
 const TagBox = styled.div`
     display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1);
     border: 1px solid var(--neutral-600); border-radius: var(--space-1);
