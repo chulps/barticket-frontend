@@ -1,11 +1,11 @@
 // src/components/TicketSidebar.tsx
 
 // import react stuff
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // import npm packages
 import styled from "styled-components";
-import { useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
 import { Link } from "react-router-dom";
 
 // import types
@@ -18,8 +18,19 @@ import Icon from "./Icon";
 import { useI18n } from "../i18n";
 import { resolveVisibleSelection } from "../pages/ticketBoardSelection";
 
+import type { HTMLMotionProps } from "motion/react";
+import type { TicketListMotion } from "../hooks/ticketListMotion";
+
+/** Exiting rows are decorative immediately; they cannot reopen a moved ticket. */
+function TicketRow({ children, ...props }: HTMLMotionProps<"div">) {
+  const present = useIsPresent();
+  return <motion.div {...props} inert={!present}>{children}</motion.div>;
+}
+
 // props
 type SidebarProps = {
+  ticketMotion?: TicketListMotion;
+  detailsOpen?: boolean;
   activeTab: "open" | "paid" | "cancelled";
   setActiveTab: (tab: "open" | "paid" | "cancelled") => void;
 
@@ -52,6 +63,8 @@ type SidebarProps = {
 };
 
 export default function TicketSidebar({
+  ticketMotion,
+  detailsOpen = false,
   activeTab,
   ticketsForTab,
   visibleTickets,
@@ -71,6 +84,18 @@ export default function TicketSidebar({
   const isEditable = activeTab === "open";
   const { t, locale } = useI18n();
   const prefersReducedMotion = useReducedMotion();
+  const [tabMotionSnapshot, setTabMotionSnapshot] = useState<TicketListMotion | undefined>(undefined);
+  const switchedTab = tabMotionSnapshot === ticketMotion;
+  const [expiredSequence, setExpiredSequence] = useState<number | null>(null);
+  useEffect(() => {
+    if (ticketMotion?.source !== "live") return;
+    const timer = window.setTimeout(() => setExpiredSequence(ticketMotion.sequence), 500);
+    return () => window.clearTimeout(timer);
+  }, [ticketMotion]);
+  const boardExposed = !detailsOpen || !window.matchMedia("(max-width: 768px)").matches;
+  const liveMoves = !switchedTab && ticketMotion?.sequence !== expiredSequence && boardExposed && !prefersReducedMotion && document.visibilityState === "visible" && ticketMotion?.source === "live"
+    ? ticketMotion.moves : [];
+  const leavingIds = liveMoves.filter(move => move.from === activeTab && move.to !== activeTab).map(move => move.id);
 
   // setup states
   const tabOrder = ["open", "paid", "cancelled"] as const;
@@ -103,6 +128,7 @@ export default function TicketSidebar({
 
               setDirection(nextIndex > currentIndex ? 1 : -1);
 
+              setTabMotionSnapshot(ticketMotion);
               setActiveTab(tab);
 
               const nextId = resolveVisibleSelection(ticketsForTab(tab), lastSelectedTicket[tab]);
@@ -131,36 +157,44 @@ export default function TicketSidebar({
       ) : null}
 
       <TicketList>
+        <AnimatePresence key={activeTab} custom={{ leavingIds, direction }}>
         {visibleTickets.length === 0 ? (
           <EmptyTicketDetails>
             {!nightOpen && activeTab !== "open" ? t("closedNightTickets") : emptyMessages[activeTab]}
           </EmptyTicketDetails>
         ) : (
           visibleTickets.map((ticket, index) => {
-            const animateEntrance = !prefersReducedMotion && index < 8;
+            const arriving = liveMoves.some(move => move.id === ticket.id && move.to === activeTab);
+            const originalEntrance = !ticketMotion || ticketMotion.source === "initial" || ticketMotion.source === "local" || switchedTab;
+            const animateEntrance = !prefersReducedMotion && (originalEntrance || arriving);
+            const delay = arriving ? 0 : index * 0.04;
 
             return (
-              <TicketListItem
+              <TicketRow
                 key={`${activeTab}-${ticket.id}`}
+                data-ticket-row={ticket.id}
+                data-ticket-arrival={arriving ? ticketMotion?.sequence : undefined}
+                variants={{ exit: ({ leavingIds: ids, direction: d }: { leavingIds: number[]; direction: number }) =>
+                  ids.includes(ticket.id)
+                    ? { opacity: 0, x: -d * 24, transition: { duration: 0.18 } }
+                    : { opacity: 1, x: 0, transition: { duration: 0 } } }}
+                exit="exit"
+                initial={animateEntrance ? { opacity: 0, x: direction * 24 } : false}
+                animate={{ opacity: 1, x: 0 }}
+                transition={prefersReducedMotion ? { duration: 0 } : { delay, duration: 0.18 }}
+              >
+              <TicketListItem
                 ticketId={ticket.id}
                 name={ticket.name}
                 total={getTicketTotal(ticket)}
                 createdAt={ticket.created_at}
                 createdBy={ticket.created_by}
                 selected={ticket.id === selectedTicketId}
-                {...(animateEntrance
-                  ? {
-                      initial: { opacity: 0, x: -direction * 24 },
-                      animate: { opacity: 1, x: 0 },
-                      transition: {
-                        delay: index * 0.04,
-                        type: "spring" as const,
-                        stiffness: 500,
-                        damping: 32,
-                        mass: 0.7,
-                      },
-                    }
-                  : {})}
+                initial={animateEntrance ? { opacity: 0, x: -direction * 24 } : false}
+                animate={{ opacity: 1, x: 0 }}
+                transition={prefersReducedMotion ? { duration: 0 } : {
+                  delay, type: "spring", stiffness: 500, damping: 32, mass: 0.7,
+                }}
                 onClick={() => {
                   setSelectedTicketId(ticket.id);
 
@@ -172,9 +206,11 @@ export default function TicketSidebar({
                   setShowTicketDetails(true);
                 }}
               />
+              </TicketRow>
             );
           })
         )}
+        </AnimatePresence>
       </TicketList>
     </SidebarContainer>
   );

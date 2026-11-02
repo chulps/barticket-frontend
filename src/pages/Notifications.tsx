@@ -37,6 +37,24 @@ export default function Notifications() {
     const pendingRestock = useRef(false);
     const revision = useRef(0);
     const [pendingNoticeId, setPendingNoticeId] = useState<number | null>(null);
+    const restockLifetime = useRef({ active: true, epoch: 0 });
+    useEffect(() => {
+        const lifetime = restockLifetime.current;
+        lifetime.active = true;
+        const retire = () => {
+            lifetime.epoch++;
+            revision.current++;
+            pendingRestock.current = false;
+            setPendingNoticeId(null);
+        };
+        window.addEventListener("barticket-auth", retire);
+        return () => {
+            lifetime.active = false;
+            lifetime.epoch++;
+            window.removeEventListener("barticket-auth", retire);
+        };
+    }, []);
+
 
     useEffect(() => {
         let cancelled = false;
@@ -110,7 +128,11 @@ export default function Notifications() {
     }, []);
 
     async function restock(noticeId: number) {
-        if (pendingRestock.current || !notices) return;
+        const lifetime = restockLifetime.current;
+        const epoch = lifetime.epoch;
+        const token = getToken();
+        const isCurrent = () => lifetime.active && lifetime.epoch === epoch && getToken() === token;
+        if (!token || !isCurrent() || pendingRestock.current || !notices) return;
         pendingRestock.current = true;
         revision.current++;
         setPendingNoticeId(noticeId);
@@ -119,25 +141,29 @@ export default function Notifications() {
         setNotices(dismissRestockNotice(previous, noticeId));
         try {
             const data = await restockNotice(noticeId);
+            if (!isCurrent()) return;
             revision.current++;
             setNotices(data);
             window.dispatchEvent(new Event("barticket-notices"));
         } catch (error) {
+            if (!isCurrent()) return;
             revision.current++;
             setNotices(previous);
             window.alert(error instanceof ApiError ? error.message : t("stockUpdateFailed"));
             // Reconcile after ambiguous network failures; do not retry the POST.
             try {
                 const latest = await listNotices();
-                setNotices(latest);
+                if (isCurrent()) setNotices(latest);
             } catch (readError) {
-                console.warn("Could not reconcile notifications", readError);
+                if (isCurrent()) console.warn("Could not reconcile notifications", readError);
             }
         } finally {
-            revision.current++;
-            pendingRestock.current = false;
-            setPendingNoticeId(null);
-            window.dispatchEvent(new Event("barticket-notices"));
+            if (isCurrent()) {
+                revision.current++;
+                pendingRestock.current = false;
+                setPendingNoticeId(null);
+                window.dispatchEvent(new Event("barticket-notices"));
+            }
         }
     }
 

@@ -9,11 +9,11 @@ export function shouldPoll(): boolean {
   return (!healthy || !restHealthy || !isApiAvailable()) && document.visibilityState !== "hidden" && navigator.onLine !== false;
 }
 
-function dispatchInvalidation(scopes: readonly RealtimeScope[]) {
+function dispatchInvalidation(scopes: readonly RealtimeScope[], live = false) {
   window.dispatchEvent(new CustomEvent("barticket-realtime", { detail: { scopes } }));
   if (scopes.includes("analytics")) window.dispatchEvent(new Event("barticket-analytics-updated"));
   if (scopes.includes("users") || scopes.includes("session")) window.dispatchEvent(new Event("barticket-users-updated"));
-  if (scopes.includes("tickets")) window.dispatchEvent(new Event("barticket-push"));
+  if (scopes.includes("tickets")) window.dispatchEvent(new CustomEvent("barticket-push", { detail: { live } }));
   if (scopes.includes("shift")) window.dispatchEvent(new Event("barticket-shift-updated"));
   if (scopes.includes("menu")) window.dispatchEvent(new Event("barticket-menu-updated"));
   if (scopes.includes("notices")) window.dispatchEvent(new Event("barticket-notices"));

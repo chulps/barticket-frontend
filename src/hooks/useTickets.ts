@@ -1,3 +1,4 @@
+import { freshTicketMotionEvent, ticketLifecycleMoves, type TicketListMotion } from "./ticketListMotion";
 import { matchesPaymentAttempt, paymentAttemptRecovery } from "../components/paymentAttemptRecovery";
 import { ApiError, getToken } from "../api/client";
 import { ticketInvalidationId, mergeTicketDelta } from "./ticketDelta";
@@ -32,6 +33,11 @@ export function useTickets(shiftId: number | null = null) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [ticketsError, setTicketsError] = useState(false);
+  const [ticketMotion, setTicketMotion] = useState<TicketListMotion>({ sequence: 0, source: "initial", moves: [] });
+  const motionSequence = useRef(0);
+  const hasSnapshot = useRef(false);
+  // Until the next accepted snapshot, an ambiguous local POST may own any new ID.
+  const suppressNextLive = useRef(false);
 
   // latest tickets for async callbacks, which would otherwise see stale state
   const ticketsRef = useRef<Ticket[]>([]);
@@ -86,6 +92,7 @@ export function useTickets(shiftId: number | null = null) {
 
   const commit = (next: Ticket[]) => {
     localRevision.current += 1;
+    setTicketMotion({ sequence: ++motionSequence.current, source: "local", moves: [] });
     ticketsRef.current = next;
     setTickets(next);
   };
@@ -158,13 +165,20 @@ export function useTickets(shiftId: number | null = null) {
     let lastRefreshAt = 0;
     let deferredRefresh: number | undefined;
     let pendingFull = true;
+    let pendingLive = false;
+    let pendingQuiet = true;
+    let visibilityEpoch = 0;
+    let motionArmedAt = Date.now();
+    const seenMotionEvents = new Set<string>();
     const pendingIds = new Set<number>();
     const retryRead = () => {
       if (cancelled || deferredRefresh !== undefined) return;
       deferredRefresh = window.setTimeout(() => { deferredRefresh = undefined; void refresh(false); }, 250);
     };
 
-    const refresh = async (full = true) => {
+    const refresh = async (full = true, reason?: "live" | "quiet") => {
+      if (reason === "live") pendingLive = true;
+      if (reason === "quiet") { pendingQuiet = true; pendingLive = false; }
       if (full) pendingFull = true;
       if (cancelled || document.visibilityState === "hidden") return;
       if (fetching || pendingWrites.current > 0) { retryRead(); return; }
@@ -173,6 +187,10 @@ export function useTickets(shiftId: number | null = null) {
       const revision = localRevision.current;
       const token = getToken();
       const fullRead = pendingFull;
+      const liveRead = pendingLive && !pendingQuiet;
+      const startedVisibilityEpoch = visibilityEpoch;
+      pendingLive = false;
+      pendingQuiet = false;
       const ids = [...pendingIds];
       pendingFull = false;
       pendingIds.clear();
@@ -193,17 +211,23 @@ export function useTickets(shiftId: number | null = null) {
           pendingWrite: pendingWrites.current > 0,
           cancelled: cancelled || token !== getToken(),
         });
-        if (loaded === null) { pendingFull = true; retryRead(); return; }
+        if (loaded === null) { pendingFull = true; pendingQuiet = true; retryRead(); return; }
         setTicketsError(false);
         // Never overwrite a name being edited or awaiting its debounced save.
         const next = loaded.map((ticket) => {
           const pendingName = pendingNames.current.get(ticket.id);
           return pendingName === undefined ? ticket : { ...ticket, name: pendingName };
         });
+        const source = !hasSnapshot.current ? "initial" : liveRead && !suppressNextLive.current && startedVisibilityEpoch === visibilityEpoch && document.visibilityState === "visible" ? "live" : "quiet";
+        setTicketMotion({ sequence: ++motionSequence.current, source,
+          moves: source === "live" ? ticketLifecycleMoves([...confirmed.current.values()], loaded) : [] });
+        hasSnapshot.current = true;
+        if (fullRead) suppressNextLive.current = false;
         confirmed.current = new Map(loaded.map(ticket => [ticket.id, ticket]));
         ticketsRef.current = next;
         setTickets(next);
       } catch (error) {
+        pendingQuiet = true;
         pendingFull = true; // An uncertain partial read requires authoritative scoped resync.
         if (!cancelled) {
           setTicketsError(true);
@@ -219,23 +243,38 @@ export function useTickets(shiftId: number | null = null) {
       }
     };
 
-    void refresh();
+    void refresh(true, "quiet");
     // A lightweight timer only checks whether a request is due. It does not
     // make a network request on every tick.
     const timer = window.setInterval(() => {
       const now = Date.now();
       if (shouldPoll() && isTicketRefreshDue(now, lastActivityAt, lastRefreshAt, document.visibilityState === "visible")) {
-        void refresh();
+        void refresh(true, "quiet");
       }
     }, ACTIVE_REFRESH_MS);
     const markActivity = () => { lastActivityAt = Date.now(); };
     const onFocus = () => {
+      visibilityEpoch += 1;
+      motionArmedAt = Date.now();
       markActivity();
-      void refresh();
+      void refresh(true, "quiet");
     };
     const onPush = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      const eventId = freshTicketMotionEvent(detail, Date.now(), motionArmedAt);
+      const fresh = eventId !== null && !seenMotionEvents.has(eventId) && document.visibilityState === "visible";
+      if (eventId) {
+        seenMotionEvents.add(eventId);
+        if (seenMotionEvents.size > 200) seenMotionEvents.delete(seenMotionEvents.values().next().value!);
+      }
       const id = ticketInvalidationId((event as CustomEvent).detail);
-      if (id === null) { onFocus(); return; }
+      if (id === null) {
+        if (detail?.live === true || fresh) { markActivity(); void refresh(true, "live"); }
+        else onFocus();
+        return;
+      }
+      if (fresh) pendingLive = true;
+      else pendingQuiet = true; // Mixed stale/live batches must not animate backfilled rows.
       pendingIds.add(id);
       if (pendingIds.size > 50) { pendingFull = true; pendingIds.clear(); }
       markActivity();
@@ -244,9 +283,13 @@ export function useTickets(shiftId: number | null = null) {
       retryRead();
     };
     const onVisibility = () => {
+      visibilityEpoch += 1;
+      motionArmedAt = Date.now();
+      pendingQuiet = true;
+      pendingLive = false;
       if (document.visibilityState === "visible") {
         markActivity();
-        void refresh();
+        void refresh(true, "quiet");
       }
     };
     window.addEventListener("pointerdown", markActivity, { passive: true });
@@ -443,6 +486,7 @@ export function useTickets(shiftId: number | null = null) {
   const createTicket = (): { temporaryId: number; completion: Promise<Ticket | null> } | null => {
     if (creating.current) return null; // Guard double clicks synchronously.
     creating.current = true;
+    suppressNextLive.current = true;
     const temporaryId = nextTempId.current--;
     const now = Date.now() / 1000;
     const placeholder = provisionalTicket(temporaryId, now);
@@ -528,6 +572,7 @@ export function useTickets(shiftId: number | null = null) {
     tickets,
     ticketsLoading,
     ticketsError,
+    ticketMotion,
     updateItemQuantity,
     adjustCover,
     updateItemPrice,

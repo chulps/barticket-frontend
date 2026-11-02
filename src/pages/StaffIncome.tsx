@@ -101,6 +101,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
     const [chuckReport, setChuckReport] = useState<ChuckMonthlyPayPreview | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const errorMessage = error === "income_load_failed" ? (ja ? "収入内訳を読み込めませんでした。" : "Could not load income breakdown.") : error;
     const [refreshKey, setRefreshKey] = useState(0);
     useEffect(() => subscribeRealtime(["shift", "tickets", "analytics"], () => setRefreshKey(value => value + 1)), []);
     const viewers = readRevenueShareViewers();
@@ -109,7 +110,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
     const loadedIdentity = useRef("");
     useEffect(() => {
         let cancelled = false;
-        const identity = `${userId}:${role}:${month}:${ja}`;
+        const identity = `${userId}:${role}:${month}`;
         async function load() {
             setLoading(loadedIdentity.current !== identity);
             if (loadedIdentity.current !== identity) setError("");
@@ -136,14 +137,14 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
             } catch (err) {
                 if (!cancelled) setError(err instanceof ApiError
                     ? err.message
-                    : (ja ? "収入内訳を読み込めませんでした。" : "Could not load income breakdown."));
+                    : "income_load_failed");
             } finally {
                 if (!cancelled) setLoading(false);
             }
         }
         void load();
         return () => { cancelled = true; };
-    }, [role, userId, month, refreshKey, ja, isChuckProfile]);
+    }, [role, userId, month, refreshKey, isChuckProfile]);
 
 
     const chuckBreakdown = chuckReport ? buildChuckPayBreakdown(chuckReport) : null;
@@ -274,7 +275,7 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
 
             {loading ? <RequestState kind="loading" detail={ja ? "読み込み中…" : "Loading…"} />
                 : error ? <ErrorArea role="alert">
-                    <p>{error}</p>
+                    <p>{errorMessage}</p>
                     <button type="button" className="small secondary" onClick={() => setRefreshKey(value => value + 1)}>
                         {ja ? "再試行" : "Retry"}
                     </button>

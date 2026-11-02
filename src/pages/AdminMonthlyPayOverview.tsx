@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 
 import { accountApi, type Account } from "../api/account";
+import { ApiError, getToken } from "../api/client";
+import { createPendingRead } from "../api/pendingRead";
 import { localeTag, type Locale } from "../i18n";
 import PayBreakdownChart, { type PayChartRow } from "../components/PayBreakdownChart";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
@@ -31,14 +33,44 @@ export default function AdminMonthlyPayOverview({
     const designated = viewers.chuckUserId !== null && viewers.noriUserId !== null &&
         viewers.chuckUserId !== viewers.noriUserId &&
         (viewer.id === viewers.chuckUserId || viewer.id === viewers.noriUserId);
-    const [rows, setRows] = useState<PayRow[]>([]);
+    const token = getToken();
+    const dataKey = JSON.stringify([token, viewer.id, viewer.role, month, people.map(person => [person.id, person.role, person.name])]);
+    const [snapshot, setSnapshot] = useState<{ key: string; rows: PayRow[] } | null>(null);
+    const rows = useMemo(() => snapshot?.key === dataKey ? snapshot.rows : [], [snapshot, dataKey]);
+    const hasSnapshot = snapshot?.key === dataKey;
     const [loading, setLoading] = useState(true);
+    const [refreshFailed, setRefreshFailed] = useState(false);
+    const [revision, setRevision] = useState(0);
+    const generation = useRef(0);
+    const pending = useRef(createPendingRead<{ rows: PayRow[]; failed: boolean; denied: boolean }>());
 
     useEffect(() => {
-        if (!designated || viewer.role !== "manager") return;
+        const reader = pending.current;
+        const invalidate = () => { generation.current++; reader.retire(); setRevision(value => value + 1); };
+        const clear = () => { generation.current++; reader.retire(); setSnapshot(null); setRefreshFailed(false); setRevision(value => value + 1); };
+        // Cross-device pay inputs can change even when the roster is identical.
+        window.addEventListener("barticket-analytics-updated", invalidate);
+        window.addEventListener("barticket-shift-updated", invalidate);
+        window.addEventListener("barticket-users-updated", invalidate);
+        window.addEventListener("barticket-auth", clear);
+        return () => {
+            window.removeEventListener("barticket-analytics-updated", invalidate);
+            window.removeEventListener("barticket-shift-updated", invalidate);
+            window.removeEventListener("barticket-users-updated", invalidate);
+            window.removeEventListener("barticket-auth", clear);
+            reader.retire();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!token || !designated || viewer.role !== "manager") return;
         let cancelled = false;
+        const requestGeneration = generation.current;
         async function load() {
             setLoading(true);
+            const result = await pending.current.read(JSON.stringify([dataKey, refreshVersion, revision]), async () => {
+            let failed = false;
+            let denied = false;
             const results = await Promise.all(people.map(async person => {
                 try {
                     if (person.role === "staff") {
@@ -57,6 +89,8 @@ export default function AdminMonthlyPayOverview({
                         message: person.id === viewers.noriUserId ? "owner_summary_in_profile" : "manager_pay_policy_unconfirmed",
                     } satisfies PayRow;
                 } catch (err) {
+                    failed = true;
+                    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) denied = true;
                     return {
                         person, wages: null, bonus: null, total: null, gross: null,
                         staffCost: null, deductions: null, owed: null, complete: false,
@@ -64,14 +98,17 @@ export default function AdminMonthlyPayOverview({
                     } satisfies PayRow;
                 }
             }));
-            if (!cancelled) {
-                setRows(results.sort((a, b) => a.person.name.localeCompare(b.person.name)));
+            return { rows: results.sort((a, b) => a.person.name.localeCompare(b.person.name)), failed, denied };
+            });
+            if (!cancelled && generation.current === requestGeneration && getToken() === token) {
+                setSnapshot(result.denied ? null : { key: dataKey, rows: result.rows });
+                setRefreshFailed(result.failed);
                 setLoading(false);
             }
         }
         void load();
         return () => { cancelled = true; };
-    }, [designated, viewer, people, month, refreshVersion, viewers.chuckUserId, viewers.noriUserId]);
+    }, [designated, viewer, people, month, refreshVersion, viewers.chuckUserId, viewers.noriUserId, token, dataKey, revision]);
 
     const totalStaffPay = useMemo(() => sumStaffPay(rows), [rows]);
     const staffRows = rows.filter(row => row.person.role === "staff");
@@ -132,7 +169,11 @@ export default function AdminMonthlyPayOverview({
                         : "Work and estimated pay for the selected month. This is not a payment record."}</p>
                 </div>
             </Header>
-            {loading ? <p role="status">{ja ? "給与情報を読み込み中…" : "Loading monthly pay…"}</p> : (
+            {loading && hasSnapshot ? <p role="status">{ja ? "給与情報を更新中…" : "Updating pay information…"}</p> : null}
+            {!loading && refreshFailed ? <p role="alert">{ja
+                ? "最新の給与情報を確認できませんでした。表示されている金額は最新ではない可能性があります。更新して再試行してください。"
+                : "Could not verify the latest pay information. Displayed amounts may be out of date. Refresh to try again."}</p> : null}
+            {loading && !hasSnapshot ? <p role="status">{ja ? "給与情報を読み込み中…" : "Loading monthly pay…"}</p> : (
                 <>
                     {teamScope ? <PayTotal>
                         <span>{ja ? "スタッフ給与合計" : "Total staff pay"}</span>

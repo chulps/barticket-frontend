@@ -90,9 +90,14 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
     const [loadError, setLoadError] = useState("");
     const [refreshKey, setRefreshKey] = useState(0);
 
+    const person = selectedId === null ? null : people.find(member => member.id === selectedId) ?? null;
+    const needsHistory = person !== null && (memberView === "activity" || person.role === "staff" ||
+        canSeeChuckRevenueShare(viewer, person.id, revenueShareViewers));
+
     useEffect(() => {
         let cancelled = false;
         async function load() {
+            if (!needsHistory) { setLoading(false); return; }
             setLoading(true);
             setLoadError("");
             try {
@@ -109,7 +114,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                     setClosed([]);
                     setCurrent(null);
                     setLoadError(err instanceof ApiError ? err.message
-                        : ja ? "勤務記録を読み込めませんでした。" : "Could not load staff shift records.");
+                        : "history-unavailable");
                 }
             } finally {
                 if (!cancelled) setLoading(false);
@@ -117,9 +122,10 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
         }
         void load();
         return () => { cancelled = true; };
-    }, [refreshKey, ja]);
+    }, [refreshKey, needsHistory]);
+    const historyError = loadError === "history-unavailable"
+        ? (ja ? "勤務記録を読み込めませんでした。" : "Could not load staff shift records.") : loadError;
 
-    const person = selectedId === null ? null : people.find(member => member.id === selectedId) ?? null;
     const profilePeople = useMemo(() => person ? [person] : [], [person]);
     // Generic hourly-pay, time-correction and drinkback drafts apply to staff, not managers.
     // Keep manager profiles (including Chuck and Nori) focused on history and their own policies.
@@ -304,7 +310,7 @@ export default function AdminTeam({ viewer, people, accountsError, locale, selec
                             {loading ? <Muted role="status">{ja ? "勤務記録を読み込み中…" : "Loading recorded activity…"}</Muted> : null}
                             {loadError ? (
                                 <Error role="alert">
-                                    {loadError}{" "}
+                                    {historyError}{" "}
                                     <button className="small secondary" type="button" onClick={() => setRefreshKey(key => key + 1)}>
                                         {ja ? "再試行" : "Retry"}
                                     </button>

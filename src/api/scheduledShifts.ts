@@ -9,6 +9,7 @@ export type ScheduledShiftSource = {
     uncertainty: string | null;
 };
 export type ScheduledShift = {
+    revision?: string;
     id: number;
     business_date: string;
     schedule_state: "upcoming" | "today" | "past";
@@ -52,4 +53,16 @@ export const scheduledShiftsApi = {
         apiRequest<{ imported_count: number; provenance_count: number; already_imported_count: number; matched_existing_count: number; schedules: ScheduledShift[] }>("/schedules/import", {
             method: "POST", body: { source_file, rows, approved_source_rows: approved_source_rows.map(source_row => ({ source_row })) },
         }),
+};
+
+export type ScheduleDraft = {
+    business_date: string;
+    manager: ScheduledPerson | null;
+    staff: ScheduledPerson[];
+    event_value: string | null;
+};
+export const scheduleEditorApi = {
+    create: (body: ScheduleDraft) => apiRequest<ScheduledShift>("/schedules", { method: "POST", body }),
+    update: (id: number, body: ScheduleDraft & { expected_revision: string }) =>
+        apiRequest<ScheduledShift>(`/schedules/${id}`, { method: "PUT", body }),
 };

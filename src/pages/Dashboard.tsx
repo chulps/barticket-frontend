@@ -76,6 +76,7 @@ export default function Dashboard({
     tickets,
     ticketsLoading,
     ticketsError,
+    ticketMotion,
     updateItemQuantity,
     adjustCover,
     updateItemPrice,
@@ -342,6 +343,8 @@ export default function Dashboard({
       </MenuLoadWarning> : null}
       <TicketBoard>
       <TicketSidebar
+        ticketMotion={ticketMotion}
+        detailsOpen={showCurrentDetails}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         ticketsForTab={ticketsForTab}
