@@ -1,0 +1,14 @@
+{
+  "title": {
+    "en": "Clearer app updates",
+    "ja": "アプリ更新内容を分かりやすく"
+  },
+  "features": {
+    "en": [
+      "App updates now explain the features launched in each reviewed release in English and Japanese."
+    ],
+    "ja": [
+      "アプリ更新履歴に、確認済みリリースで公開された機能を日本語と英語で表示します。"
+    ]
+  }
+}

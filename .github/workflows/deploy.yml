@@ -22,6 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          # The release-note manifest is attached only when it changed in this commit.
+          fetch-depth: 2
           persist-credentials: false
 
       - uses: actions/setup-node@v6
@@ -109,6 +111,13 @@ jobs:
             const historyResponse = await github.rest.actions.downloadArtifact({ ...context.repo, artifact_id: historyArtifact.id, archive_format: 'zip' });
             fs.writeFileSync('release-history-sources/verified.zip', Buffer.from(historyResponse.data));
             fs.writeFileSync('release-history-sources/source.json', JSON.stringify({ sha: historyRun.head_sha }));
+            // A reviewed note file is a one-release input. Associate it with
+            // this deployed SHA only when this exact main commit changed it.
+            const releaseNotePath = 'scripts/release-note.json';
+            const changedFiles = execFileSync('git', ['diff', '--name-only', `${context.sha}^1`, context.sha, '--', releaseNotePath], { encoding: 'utf8' });
+            if (changedFiles.split(/\r?\n/).includes(releaseNotePath) && fs.existsSync(releaseNotePath)) {
+              fs.copyFileSync(releaseNotePath, 'release-history-sources/current-note.json');
+            }
             // This is the already-public production ledger, never a PR/preview or
             // candidate artifact. Queueing deployments prevents overlapping reads.
             const live = await fetch('https://chulps.github.io/barticket-frontend/release-history.json?release_check=' + context.runId,
