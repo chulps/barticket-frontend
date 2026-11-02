@@ -9,8 +9,13 @@ It does not send Web Push, play sound, or send email.
 This records frontend production app builds published by the Pages pipeline.
 Independent API-only deployments are not included. A version is the short public
 frontend commit SHA. **Built** is the build timestamp in JST, not the exact time
-Pages completed deployment. A generic bilingual “BarTicket updated” label does
-not invent a feature changelog. Past releases are not backfilled.
+Pages completed deployment. Feature notes are reviewed bilingual summaries
+authored in `src/api/releaseNotes.ts` and keyed to the exact production commit
+SHA. They do not alter the append-only public ledger. When a new frontend release
+ships, add a concise English/Japanese title and feature bullets for that exact
+commit in the same change; use the generic label only when a release has no
+reviewed note. Do not infer features from an arbitrary commit message. Existing
+releases are described only when their merged changes have been verified.
 
 A candidate entry is only visible when its artifact is actually served by Pages.
 Failed/unpublished candidates are never a history source. Workflow run + attempt

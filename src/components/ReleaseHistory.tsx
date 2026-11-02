@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import styled from "styled-components";
 import { loadReleaseHistory, type AppRelease } from "../api/releaseHistory";
+import { getReleaseNote } from "../api/releaseNotes";
 import { useI18n } from "../i18n";
 
 export default function ReleaseHistory() {
@@ -42,10 +43,15 @@ export default function ReleaseHistory() {
         {releases === null && !failed ? <p role="status">{ja ? "更新履歴を読み込み中…" : "Loading app updates…"}</p> : null}
         {failed ? <p role="status">{ja ? "更新履歴を確認できませんでした。" : "Could not refresh app updates."} {releases ? (ja ? "前回取得した記録を表示しています。" : "Showing the last loaded records.") : ""} <button type="button" className="small hollow secondary" onClick={() => setRetry(value => value + 1)}>{ja ? "再試行" : "Retry"}</button></p> : null}
         {releases?.length === 0 ? <p>{ja ? "更新記録はまだありません。" : "No app updates recorded yet."}</p> : null}
-        {releases && releases.length > 0 ? <List role="list">{releases.slice(0, visible).map(release => <li key={release.id}>
-            <Title>{ja ? "BarTicket を更新しました" : "BarTicket updated"}</Title>
-            <Meta>{ja ? "バージョン" : "Version"} <code>{release.sha.slice(0, 7)}</code><span aria-hidden="true"> · </span>{ja ? "ビルド日時：" : "Built "}<time dateTime={release.builtAt}>{new Date(release.builtAt).toLocaleString(ja ? "ja-JP" : "en-US", { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Tokyo" })} JST</time></Meta>
-        </li>)}</List> : null}
+        {releases && releases.length > 0 ? <List role="list">{releases.slice(0, visible).map(release => {
+            const note = getReleaseNote(release.sha);
+            const language = ja ? "ja" : "en";
+            return <li key={release.id}>
+                <Title>{note?.title[language] ?? (ja ? "BarTicket を更新しました" : "BarTicket updated")}</Title>
+                {note ? <FeatureList>{note.features[language].map(feature => <li key={feature}>{feature}</li>)}</FeatureList> : null}
+                <Meta>{ja ? "バージョン" : "Version"} <code>{release.sha.slice(0, 7)}</code><span aria-hidden="true"> · </span>{ja ? "ビルド日時：" : "Built "}<time dateTime={release.builtAt}>{new Date(release.builtAt).toLocaleString(ja ? "ja-JP" : "en-US", { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Tokyo" })} JST</time></Meta>
+            </li>;
+        })}</List> : null}
         {releases && visible < releases.length ? <button type="button" className="small hollow secondary" onClick={() => setVisible(value => value + 10)}>{ja ? "以前の更新を表示" : "Show older updates"}</button> : null}
     </Section>;
 }
@@ -53,4 +59,5 @@ const Section = styled.section`margin-top: var(--space-4); padding-top: var(--sp
 const Intro = styled.p`color: var(--neutral-200); margin: 0 0 var(--space-2); font-size: var(--font-size-p);`;
 const List = styled.ol`list-style: none; margin: 0; padding: 0; li { padding: var(--space-2) 0; border-bottom: 1px solid var(--neutral-700); } li:last-child { border-bottom: 0; }`;
 const Title = styled.p`margin: 0 0 0.35rem; font-weight: 600; overflow-wrap: anywhere;`;
+const FeatureList = styled.ul`margin: 0 0 var(--space-1); padding-inline-start: 1.25rem; color: var(--neutral-100); font-size: var(--font-size-p); line-height: 1.5; overflow-wrap: anywhere; li { padding: 0; margin: 0 0 0.25rem; border: 0; } li:last-child { margin-bottom: 0; }`;
 const Meta = styled.p`margin: 0; color: var(--neutral-200); font-size: var(--font-size-p); line-height: 1.5; overflow-wrap: anywhere; code { color: inherit; }`;
