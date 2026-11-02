@@ -2,6 +2,7 @@ import { shouldPoll } from "../api/realtime";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useSearchParams } from "react-router-dom";
+import ReleaseHistory from "../components/ReleaseHistory";
 import NotificationActivity from "../components/NotificationActivity";
 import NotificationSettings from "../components/NotificationSettings";
 import NotificationTicket from "../components/NotificationTicket";
@@ -148,7 +149,7 @@ export default function Notifications() {
             {loading ? <p role="status">{locale === "ja" ? "通知を読み込み中…" : "Loading notifications…"}</p> : null}
             {denied ? <p>{locale === "ja" ? "通知を表示する権限を確認できませんでした。再度ログインしてください。" : "Notification access could not be verified. Please sign in again."}</p> : null}
             {loadFailed ? <p role="alert">{locale === "ja" ? "通知を更新できませんでした。" : "Could not refresh notifications."} <button className="small hollow secondary" type="button" onClick={() => window.dispatchEvent(new Event("barticket-notices"))}>{locale === "ja" ? "再試行" : "Retry"}</button></p> : null}
-            {!denied && notices && notices.notices.length === 0 ? <p>{t("noNotifications")}</p> : null}
+            {!denied && notices && notices.notices.length === 0 ? <QuietStatus>{t("noNotifications")}</QuietStatus> : null}
             {!denied && notices
                 ? notices.notices.map((notice) => (
                     <Alert key={notice.id}>
@@ -171,6 +172,7 @@ export default function Notifications() {
                 ))
                 : null}
             <NotificationActivity activeStockIds={!denied ? notices?.notices.map(notice => notice.id) ?? [] : []} />
+            <ReleaseHistory />
         </main>
     );
 }
@@ -179,11 +181,13 @@ const HeadingRow = styled.div`
   position: relative; display: flex; align-items: center; justify-content: space-between;
   gap: var(--space-1); padding-top: var(--space-2); margin-bottom: var(--space-2);
 `;
-const Heading = styled.h2`margin: 0; min-width: 0; overflow-wrap: anywhere;`;
+const Heading = styled.h2`margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: var(--font-size-h3); line-height: 1.3;`;
+const QuietStatus = styled.p`color: var(--neutral-200); margin-block: var(--space-2);`;
 
 const Alert = styled.div`
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: var(--space-1);
   margin-bottom: var(--space-2);

@@ -1,9 +1,9 @@
-export type ActivityItem = { id: number; type: string; at: number; ticket_id: number | null; stock_notice_id: number | null };
+export type ActivityItem = { id: number; type: string; at: number; ticket_id: number | null; ticket_name?: string | null; stock_notice_id: number | null };
 export type ActivityFrame = { type: 'activity'; version: 1; cursor: number; shift_id: number | null; reset: boolean; items: ActivityItem[]; has_more: boolean };
 export type ActivitySnapshot = { shiftId: number | null; items: ActivityItem[]; received: boolean; connected: boolean; hasMore: boolean };
 const positiveId = (value: unknown) => Number.isSafeInteger(value) && (value as number) > 0;
 export function validActivityItem(item: ActivityItem) {
-  return !!item && positiveId(item.id) && typeof item.type === 'string' && item.type.length <= 80 && Number.isFinite(item.at) && item.at > 0 && item.at <= 8640000000000 && (item.ticket_id === null || positiveId(item.ticket_id)) && (item.stock_notice_id === null || positiveId(item.stock_notice_id));
+  return !!item && positiveId(item.id) && (item.ticket_name === undefined || item.ticket_name === null || (typeof item.ticket_name === 'string' && Array.from(item.ticket_name).length <= 255)) && typeof item.type === 'string' && item.type.length <= 80 && Number.isFinite(item.at) && item.at > 0 && item.at <= 8640000000000 && (item.ticket_id === null || positiveId(item.ticket_id)) && (item.stock_notice_id === null || positiveId(item.stock_notice_id));
 }
 export function applyActivityFrame(current: ActivitySnapshot, value: unknown): ActivitySnapshot | null {
   if(!value || typeof value !== 'object') return null;

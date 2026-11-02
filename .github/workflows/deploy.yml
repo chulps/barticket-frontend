@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -57,6 +57,7 @@ jobs:
             const fs = require('node:fs');
             const { execFileSync } = require('node:child_process');
             fs.mkdirSync('previous-pages');
+            fs.mkdirSync('release-history-sources');
             // Sort by completion, not creation: an older run can be rerun as a rollback.
             // No server-side filters, avoiding the filtered-search 1000-result cap.
             const history = await github.paginate(github.rest.actions.listWorkflowRuns, {
@@ -97,8 +98,34 @@ jobs:
               }
             }
             fs.writeFileSync('previous-pages/archives.json', JSON.stringify(archives));
+            // Only a first-attempt successful run has an unambiguous artifact.
+            // Reruns may replace candidate artifacts, so they are NOT history proof.
+            const historyRun = runs.filter(run => run.run_attempt === 1).sort((a, b) => b.id - a.id)[0];
+            if (!historyRun) throw new Error('No unambiguous successful production history source');
+            const result = await github.rest.actions.listWorkflowRunArtifacts({ ...context.repo, run_id: historyRun.id });
+            const historyArtifact = result.data.artifacts.filter(item => item.name === 'github-pages' && !item.expired)
+              .sort((a, b) => b.id - a.id)[0];
+            if (!historyArtifact) throw new Error('Verified release artifact unavailable; recover history before deploying');
+            const historyResponse = await github.rest.actions.downloadArtifact({ ...context.repo, artifact_id: historyArtifact.id, archive_format: 'zip' });
+            fs.writeFileSync('release-history-sources/verified.zip', Buffer.from(historyResponse.data));
+            fs.writeFileSync('release-history-sources/source.json', JSON.stringify({ sha: historyRun.head_sha }));
+            // This is the already-public production ledger, never a PR/preview or
+            // candidate artifact. Queueing deployments prevents overlapping reads.
+            const live = await fetch('https://chulps.github.io/barticket-frontend/release-history.json?release_check=' + context.runId,
+              { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15000) });
+            if (live.status === 404) {
+              fs.writeFileSync('release-history-sources/live-status.json', JSON.stringify({ status: 404 }));
+            } else {
+              if (!live.ok || !live.headers.get('content-type')?.includes('application/json')) throw new Error('Cannot verify currently published release history');
+              const body = await live.text();
+              if (Buffer.byteLength(body) > 2 * 1024 * 1024) throw new Error('Published history exceeds release budget');
+              fs.writeFileSync('release-history-sources/live.json', body);
+            }
       - name: Retain public immutable assets for 30 days
         run: python3 scripts/retain-pages-assets.py previous-pages dist
+
+      - name: Carry forward production release history
+        run: python3 scripts/prepare-release-history.py release-history-sources dist/release-history.json
 
       - name: Reject unsafe build artifacts
         run: node scripts/audit-frontend-security.mjs --dist
