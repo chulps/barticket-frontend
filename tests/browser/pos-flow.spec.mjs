@@ -639,17 +639,40 @@ test("closure-only analytics day has zero sales while preserving maintenance hou
 
 test("schedule page separates assigned people from actual work records and preserves source details",async ({page})=>{
   const state=await mockedPOS(page);
+  // The shared clock is October 31: past plans are in October; tomorrow is November.
+  state.schedules.push(schedule(3,dateOffset(-2),"past",true));
   await page.goto("/schedules");
-  await expect(page.getByRole("heading",{name:"Shift schedule"})).toBeVisible();
-  await expect(page.getByText(/Showing schedule entries from/)).toBeVisible();
-  await expect(page.getByText("Scheduled",{exact:true})).toBeVisible();
-  await expect(page.getByText("Past plan · no actual shift recorded")).toBeVisible();
-  await expect(page.getByText("Haruka").first()).toBeVisible();
-  await expect(page.getByText("Maintenance").first()).toBeVisible();
-  await expect(page.getByText("November 2026 Daily Reports.csv · row 5").first()).toBeVisible();
-  await expect(page.getByText("Unknown · not imported").first()).toBeVisible();
-  await expect(page.getByText("Schedules never create worked time.")).toHaveCount(1);
+  await expect(page.getByRole("heading",{name:"Schedule",exact:true})).toBeVisible();
+  await expect(page.getByText("Plans, not clock-in records",{exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Show month calendar"})).toHaveText("October 2026");
+  await page.getByRole("button",{name:`${dateOffset(-1)}: Maintenance, Test Bartender · Haruka`,exact:true}).click();
+  const details=page.getByRole("complementary",{name:"Selected day"});
+  await expect(details.getByRole("heading",{name:"Fri, October 30",exact:true})).toBeVisible();
+  await expect(details.getByRole("heading",{name:"Maintenance",exact:true})).toBeVisible();
+  await expect(details.locator("dl")).toContainText("ManagerTest BartenderStaffHaruka");
+  await expect(details.getByText("Date-only plan · hours not recorded",{exact:true})).toBeVisible();
+  await expect(details.getByText("An actual shift is also recorded. Editing this plan does not change it.",{exact:true})).toHaveCount(0);
+  await details.getByText("Spreadsheet source",{exact:true}).click();
+  await expect(details.getByText(/November 2026 Daily Reports.csv · row 5/)).toBeVisible();
+  await expect(details.getByText(/Test Bartender · Hours are blank in source/)).toBeVisible();
   expect(state.requests.filter(key=>key.startsWith("GET /schedules"))).toHaveLength(1);
+  expect(state.requestUrls.some(url=>url.includes("/schedules?")&&url.includes("date_from=2026-10-01")&&url.includes("date_to=2026-10-31"))).toBe(true);
+
+  // An actual record is distinguished without treating planned names/hours as attendance.
+  await page.getByRole("button",{name:`${dateOffset(-2)}: Maintenance, Test Bartender · Haruka`,exact:true}).click();
+  await expect(details.getByText("An actual shift is also recorded. Editing this plan does not change it.",{exact:true})).toBeVisible();
+  await expect(details.getByText("Date-only plan · hours not recorded",{exact:true})).toBeVisible();
+
+  await page.getByRole("button",{name:"Next month",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Show month calendar"})).toHaveText("November 2026");
+  await page.getByRole("button",{name:`${dateOffset(1)}: Maintenance, Test Bartender · Haruka`,exact:true}).click();
+  await expect(details.getByRole("heading",{name:"Sun, November 1",exact:true})).toBeVisible();
+  await expect(details.locator("dl")).toContainText("ManagerTest BartenderStaffHaruka");
+  await expect(details.getByText("Date-only plan · hours not recorded",{exact:true})).toBeVisible();
+  await expect(details.getByText("An actual shift is also recorded. Editing this plan does not change it.",{exact:true})).toHaveCount(0);
+  expect(state.requests.filter(key=>key.startsWith("GET /schedules"))).toHaveLength(2);
+  expect(state.requestUrls.some(url=>url.includes("/schedules?")&&url.includes("date_from=2026-11-01")&&url.includes("date_to=2026-11-30"))).toBe(true);
+  expect(state.requests.filter(key=>/^(POST|PUT|PATCH|DELETE) \/(schedules|shifts)(?:[/?]|$)/.test(key))).toEqual([]);
 });
 
 test("clock controls stay unavailable when the current shift cannot be verified",async ({page})=>{
