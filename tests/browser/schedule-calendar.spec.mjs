@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test';
 const manager={id:901,name:'Fixture Manager',role:'manager',email:'manager@example.invalid'};
 const staff={id:903,name:'Fixture Staff',role:'staff',email:'staff@example.invalid'};
-async function setup(page,locale='en',role='manager') {
+async function setup(page,locale='en',role='manager',time='2026-11-02T12:00:00Z') {
  const state={reads:[],writes:[],conflict:false,revision:"a".repeat(64)};
- await page.clock.install({time:new Date('2026-11-02T12:00:00Z')});
+ await page.clock.install({time:new Date(time)});
  await page.addInitScript(({locale})=>{localStorage.setItem('barticket_token','SCHEDULE_TEST');localStorage.setItem('barticket_locale',locale);},{locale});
- const rows=Array.from({length:30},(_,i)=>({id:i+1,business_date:`2026-11-${String(i+1).padStart(2,'0')}`,manager:{name:'Nori',user_id:null},staff:i%7===0?[]:[{name:'Haruka',user_id:903}],event_value:i===11?'Live music':'Open',revision:'a'.repeat(64),schedule_state:'upcoming',actual_shift_exists:i<2,hours:null,provenance:[{source_file:'november-sheet.csv',source_row:i+2,imported_by:'Chuck',imported_at:'2026-11-02T00:00:00Z',uncertainty:null}]}));
+ const rows=Array.from({length:30},(_,i)=>({id:i+1,business_date:`2026-11-${String(i+1).padStart(2,'0')}`,manager:{name:'Nori',user_id:null},staff:i%7===0?[]:[{name:'Haruka',user_id:903}],event_value:i===11?'Live music':'Open',revision:'a'.repeat(64),schedule_state:'upcoming',actual_shift_exists:i<2,actual_shift_status:i===0?'closed':i===1?'open':null,actual_shift_closed_at:i===0?'2026-11-01T16:00:00Z':null,venue_status:null,venue_event:null,hours:null,provenance:[{source_file:'november-sheet.csv',source_row:i+2,imported_by:'Chuck',imported_at:'2026-11-02T00:00:00Z',uncertainty:null}]}));
  await page.route('**/*',r=>new URL(r.request().url()).hostname==='127.0.0.1'?r.continue():r.abort());
  await page.route('http://127.0.0.1:8765/**',async r=>{const q=r.request(),u=new URL(q.url());const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,PUT,OPTIONS'};if(q.method()==='OPTIONS')return r.fulfill({status:204,headers});let body=[],status=200;
  if(q.method()!=='GET'){state.writes.push({path:u.pathname,body:q.postDataJSON()});if(state.conflict){status=409;body={detail:'Concurrent change'};}else body={...rows[1],...q.postDataJSON()};}
- else if(u.pathname==='/auth/me')body=role==='manager'?manager:staff;else if(u.pathname==='/users')body=[manager,staff];else if(u.pathname==='/schedules'){state.reads.push(u.search);body=u.search.includes('2026-11')?rows.map(row=>({...row,revision:state.revision})):[];}else if(u.pathname==='/auth/status')body={has_accounts:true,google_enabled:false};else if(u.pathname==='/shifts/current')body=null;else if(u.pathname==='/menu')body={items:[],coverCharge:500};else if(u.pathname==='/notices')body={notices:[]};
+ else if(u.pathname==='/auth/me')body=role==='manager'?manager:staff;else if(u.pathname==='/users')body=[manager,staff];else if(u.pathname==='/schedules/context'){const now=new Date(await page.evaluate(()=>Date.now()));const tokyoDate=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Tokyo'}).format(now);const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tokyo',hour:'2-digit',hourCycle:'h23'}).format(now));const parts=tokyoDate.split('-').map(Number);const calendar=new Date(Date.UTC(parts[0],parts[1]-1,parts[2]-(hour<12?1:0))).toISOString().slice(0,10);body={operational_business_date:calendar,calendar_business_date:calendar,actual_shift_status:null,actual_shift_business_date:null};}else if(u.pathname==='/schedules'){state.reads.push(u.search);body=u.search.includes('2026-11')?rows.map(row=>({...row,revision:state.revision})):[];}else if(u.pathname==='/auth/status')body={has_accounts:true,google_enabled:false};else if(u.pathname==='/shifts/current')body=null;else if(u.pathname==='/menu')body={items:[],coverCharge:500};else if(u.pathname==='/notices')body={notices:[]};
  await r.fulfill({status,json:body,headers});});return state;
 }
 for(const locale of ['en','ja'])for(const width of [320,390,768,1280])test(`calendar pixels ${locale} ${width}`,async({page},info)=>{
@@ -21,6 +21,25 @@ for(const locale of ['en','ja'])for(const width of [320,390,768,1280])test(`cale
  await managerSelect.evaluate(el=>Promise.all(el.getAnimations({subtree:true}).map(animation=>animation.finished.catch(()=>{}))));
  expect(await listbox.evaluate(el=>{const background=getComputedStyle(el).backgroundColor;return {inDialog:!!el.closest('dialog'),opaque:!background.startsWith('rgba(')||background.endsWith(', 1)'),animating:el.getAnimations({subtree:true}).some(a=>a.playState==='running'||a.pending),uncovered:[...el.querySelectorAll('[role=option]')].every(option=>{const r=option.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));})};})).toEqual({inDialog:true,opaque:true,animating:false,uncovered:true});
  await page.screenshot({path:info.outputPath('editor-manager-menu.png'),fullPage:true});await managerSelect.press('Escape');await expect(page.getByRole('listbox')).toHaveCount(0);await expect(managerSelect).toBeFocused();
+});
+test('past dates are read-only; a Tokyo noon rollover closes an open editor',async({page})=>{
+ await setup(page,'en','manager','2026-11-02T02:50:00Z');await page.setViewportSize({width:390,height:844});await page.goto('/schedules');
+ await page.getByRole('button',{name:'Today',exact:true}).click();
+ await page.getByRole('button',{name:'Edit plan',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();
+ await page.clock.fastForward(11*60*1000);
+ await expect(page.getByRole('dialog')).toHaveCount(0);
+ await expect(page.getByText('Past schedule dates are read-only. Historical plans and assignments cannot be changed.',{exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'+ Create',exact:true})).toHaveCount(0);
+});
+test('new plans allow today and future but block a past business date',async({page})=>{
+ await setup(page,'en');await page.goto('/schedules');await page.getByRole('button',{name:'+ Create',exact:true}).click();
+ const date=page.getByLabel('Business date',{exact:true});
+ await expect(date).toHaveAttribute('min','2026-11-02');
+ await date.fill('2026-11-01');
+ await expect(page.getByRole('button',{name:'Save plan',exact:true})).toBeDisabled();
+ await expect(page.getByRole('status')).toContainText('Past schedule dates are read-only');
+ await date.fill('2026-11-02');await expect(page.getByRole('button',{name:'Save plan',exact:true})).toBeEnabled();
+ await date.fill('2026-11-03');await expect(page.getByRole('button',{name:'Save plan',exact:true})).toBeEnabled();
 });
 test('manager draft stays on conflict; cancel is guarded; reads limited to month; staff cannot edit',async({page})=>{
  const state=await setup(page);await page.goto('/schedules');await page.getByRole('button',{name:'Today',exact:true}).click();await page.getByRole('button',{name:'Edit plan',exact:true}).click();await page.getByLabel('Event',{exact:true}).fill('Changed event');state.revision='b'.repeat(64);await page.evaluate(()=>window.dispatchEvent(new Event('barticket-schedules-updated')));await expect.poll(()=>state.reads.length).toBeGreaterThan(1);state.conflict=true;await page.getByRole('button',{name:'Save plan',exact:true}).click();await expect(page.getByRole('alert')).toContainText('nothing was overwritten');await expect(page.getByLabel('Event',{exact:true})).toHaveValue('Changed event');page.once('dialog',d=>d.dismiss());await page.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();expect(state.writes).toHaveLength(1);expect(state.writes[0].body.expected_revision).toBe('a'.repeat(64));expect(state.reads[0]).toContain('date_from=2026-11-01');expect(state.reads[0]).toContain('date_to=2026-11-30');

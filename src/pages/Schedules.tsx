@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import styled from "styled-components";
-import { scheduledShiftsApi, type ScheduledShift, type ScheduledPerson } from "../api/scheduledShifts";
+import { scheduledShiftsApi, type ScheduledShift, type ScheduledPerson, type ScheduleContext } from "../api/scheduledShifts";
 import { accountApi, type Account } from "../api/account";
 import { getToken } from "../api/client";
 import { businessDateJst } from "./shiftControlPolicy";
@@ -8,17 +8,21 @@ import { useI18n } from "../i18n";
 import { addDays, calendarDays, changeMonth, monthRange } from "./scheduleCalendar";
 import { createScheduleReadStore } from "./scheduleReadStore";
 import ScheduleEditor from "./ScheduleEditor";
+import TabGroup from "../components/TabGroup";
+import Icon from "../components/Icon";
 
 const store = createScheduleReadStore(scheduledShiftsApi.list);
 export default function Schedules() {
     const { locale } = useI18n();
     const ja = locale === "ja";
     const t = (en: string, jp: string) => ja ? jp : en;
-    const [today, setToday] = useState(() => businessDateJst(Date.now()));
+    const [calendarToday, setCalendarToday] = useState(() => businessDateJst(Date.now()));
+    const [scheduleContext, setScheduleContext] = useState<ScheduleContext | null>(null);
     const [month, setMonth] = useState(() => businessDateJst(Date.now()).slice(0, 7));
     const [selected, setSelected] = useState(() => businessDateJst(Date.now()));
     const [mode, setMode] = useState<"month" | "agenda">(() => window.matchMedia("(max-width: 600px)").matches ? "agenda" : "month");
     const [rows, setRows] = useState<ScheduledShift[]>([]);
+    const today = scheduleContext?.operational_business_date ?? calendarToday;
     const [knownManagers, setKnownManagers] = useState<ScheduledPerson[]>([]);
     const detailPanel = useRef<HTMLElement>(null);
     const [viewer, setViewer] = useState<Account | null>(null);
@@ -27,6 +31,7 @@ export default function Schedules() {
     const [editing, setEditing] = useState(false);
     const [creating, setCreating] = useState(false);
     const [detail, setDetail] = useState(false);
+    const detailReturnFocus = useRef<HTMLElement | null>(null);
     const [authState, setAuthState] = useState(() => ({ token: getToken(), epoch: 0 }));
     const session = authState.token;
     const authEpoch = authState.epoch;
@@ -74,74 +79,140 @@ export default function Schedules() {
     useEffect(() => {
         const retire = () => { serial.current++; };
         const initial = window.setTimeout(() => { setLoading(true); setRows([]); void load(); }, 0);
-        const refresh = () => { setToday(businessDateJst(Date.now())); void load(); };
-        const changed = () => { serial.current++; store.invalidate(); void load(true); };
+        const refresh = () => {
+            setCalendarToday(businessDateJst(Date.now()));
+            void scheduledShiftsApi.context().then(setScheduleContext).catch(() => setScheduleContext(null));
+            void load(true);
+        };
+        const changed = () => { serial.current++; store.invalidate(); void scheduledShiftsApi.context().then(setScheduleContext).catch(() => setScheduleContext(null)); void load(true); };
+        void scheduledShiftsApi.context().then(setScheduleContext).catch(() => setScheduleContext(null));
         const interval = window.setInterval(refresh, 60000);
         window.addEventListener("focus", refresh); window.addEventListener("online", refresh);
-        document.addEventListener("visibilitychange", refresh); window.addEventListener("barticket-schedules-updated", changed);
-        return () => { retire(); clearTimeout(initial); clearInterval(interval); window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); document.removeEventListener("visibilitychange", refresh); window.removeEventListener("barticket-schedules-updated", changed); };
+        document.addEventListener("visibilitychange", refresh); window.addEventListener("barticket-schedules-updated", changed); window.addEventListener("barticket-shift-updated", changed);
+        return () => { retire(); clearTimeout(initial); clearInterval(interval); window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); document.removeEventListener("visibilitychange", refresh); window.removeEventListener("barticket-schedules-updated", changed); window.removeEventListener("barticket-shift-updated", changed); };
     }, [load]);
     const format = (date: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(ja ? "ja-JP" : "en-US", { ...options, timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
     const navigate = (amount: number) => { const next = changeMonth(month, amount); setMonth(next); setSelected(`${next}-01`); setDetail(false); };
-    const choose = (day: string) => { setSelected(day); setDetail(true); if (!day.startsWith(month)) setMonth(day.slice(0, 7)); };
+    const choose = (day: string, trigger?: HTMLElement) => {
+        if (trigger) detailReturnFocus.current = trigger;
+        setSelected(day); setDetail(true); if (!day.startsWith(month)) setMonth(day.slice(0, 7));
+    };
+    const closeDetails = () => {
+        setDetail(false);
+        detailReturnFocus.current?.focus();
+    };
     const selectedRow = rows.find(row => row.business_date === selected);
+    const selectedIsPast = selected < today || selectedRow?.actual_shift_status === "closed" || (scheduleContext?.actual_shift_status === "closed" && scheduleContext.actual_shift_business_date === selected);
+    const createTarget = selected.startsWith(month) ? selected : `${month}-01`;
+    const createTargetIsPast = createTarget < today || (scheduleContext?.actual_shift_status === "closed" && scheduleContext.actual_shift_business_date === createTarget);
     const days = calendarDays(month);
+    const viewTabs = [
+        { id: "month" as const, label: t("Month", "月") },
+        { id: "agenda" as const, label: t("Agenda", "予定一覧") },
+    ];
     const names = (row: ScheduledShift) => [row.manager?.name, ...row.staff.map(person => person.name)].filter(Boolean).join(" · ");
+    const cellState = (row: ScheduledShift): "active" | "finished" | "closed" | "event" | "past" | "planned" => {
+        if (row.actual_shift_status === "open") return "active";
+        if (row.actual_shift_status === "closed") return "finished";
+        if (row.schedule_state === "past" || row.business_date < today) return "past";
+        if (row.venue_status === "closed") return "closed";
+        if (row.event_value || row.venue_event) return "event";
+        return "planned";
+    };
+    const cellLabel = (row: ScheduledShift) => {
+        const state = cellState(row);
+        if (state === "active") return t("Active shift", "営業中のシフト");
+        if (state === "finished") return t("Finished shift", "終了したシフト");
+        if (state === "closed") return row.venue_event || t("Closed", "休業");
+        if (state === "event") return t("Special event", "特別イベント");
+        if (state === "past") return t("Past", "過去");
+        return t("Planned shift", "シフト予定");
+    };
     return <Page>
         <Toolbar>
             <div><h1>{t("Schedule", "シフト予定")}</h1><Subtitle>{t("Plans, not clock-in records", "勤務予定（打刻記録とは別）")}</Subtitle></div>
-            <button className="secondary" onClick={() => { setMonth(today.slice(0, 7)); setSelected(today); setDetail(true); }}>{t("Today", "今日")}</button>
-            <MonthNav><button className="secondary" aria-label={t("Previous month", "前月")} onClick={() => navigate(-1)}>‹</button><h2 aria-live="polite"><button className="secondary" aria-label={t("Show month calendar", "月間カレンダーを表示")} onClick={() => setMode("month")}>{format(`${month}-01`, { year: "numeric", month: "long" })}</button></h2><button className="secondary" aria-label={t("Next month", "翌月")} onClick={() => navigate(1)}>›</button></MonthNav>
-            <Views aria-label={t("Calendar view", "表示方法")}><button className="secondary" aria-pressed={mode === "month"} onClick={() => setMode("month")}>{t("Month", "月")}</button><button className="secondary" aria-pressed={mode === "agenda"} onClick={() => setMode("agenda")}>{t("Agenda", "予定一覧")}</button></Views>
-            {viewer?.role === "manager" ? <button onClick={() => { setSelected(selected.startsWith(month) ? selected : `${month}-01`); setCreating(true); setEditing(true); }}>{t("+ Create", "＋ 作成")}</button> : null}
+            <ScheduleControls role="group" aria-label={t("Schedule controls", "予定表示の操作")}>
+                <TodayButton type="button" className="secondary" onClick={event => { detailReturnFocus.current = event.currentTarget; setEditing(false); setCreating(false); setMonth(today.slice(0, 7)); setSelected(today); setDetail(true); }}>{t("Today", "今日")}</TodayButton>
+                <TabGroup
+                    tabs={viewTabs}
+                    activeTab={mode}
+                    onChange={setMode}
+                    label={t("Calendar view", "表示方法")}
+                    semantics="tabs"
+                    idPrefix="schedule-view"
+                    unframed
+                />
+            </ScheduleControls>
         </Toolbar>
+        <MonthNav aria-label={t("Schedule month", "予定の月")}>
+            <MonthStep type="button" className="hollow secondary" aria-label={t("Previous month", "前月")} onClick={() => navigate(-1)}>
+                <Icon name="CaretLeft" size="var(--font-size-h4)" />
+            </MonthStep>
+            <h2 aria-live="polite"><MonthLabel type="button" aria-label={t("Show month calendar", "月間カレンダーを表示")} onClick={() => setMode("month")}>
+                {format(`${month}-01`, { year: "numeric", month: "long" })}
+            </MonthLabel></h2>
+            <MonthStep type="button" className="hollow secondary" aria-label={t("Next month", "翌月")} onClick={() => navigate(1)}>
+                <Icon name="CaretRight" size="var(--font-size-h4)" />
+            </MonthStep>
+        </MonthNav>
+        {viewer?.role === "manager" && !detail && selectedIsPast ? <ReadOnlyNotice role="status">{t("Past schedule dates are read-only. Choose today or a future date to create a plan.", "過去の予定は閲覧のみです。今日または未来の日付を選んでください。")}</ReadOnlyNotice> : null}
         {error ? <Notice role="alert">{t("Could not refresh schedules. Displayed plans may be out of date.", "予定を更新できませんでした。表示内容が古い場合があります。") } <span>{error}</span><button className="secondary" onClick={() => void load(true)}>{t("Retry", "再試行")}</button></Notice> : null}
         {loading ? <Subtitle role="status">{t("Loading schedules…", "予定を読み込んでいます…")}</Subtitle> : null}
         <Canvas>
-            {mode === "month" ? <Calendar aria-label={t("Monthly schedule", "月間予定")}>
+            {mode === "month" ? <Calendar id="schedule-view-panel-month" role="tabpanel" aria-labelledby="schedule-view-tab-month" tabIndex={0} aria-label={t("Monthly schedule", "月間予定")}>
                 {Array.from({ length: 7 }, (_, i) => <Weekday key={i}>{format(addDays("2026-11-01", i), { weekday: "short" })}</Weekday>)}
-                {days.map(day => { const row = rows.find(item => item.business_date === day); return <Day key={day} $outside={!day.startsWith(month)} $selected={day === selected}>
-                    <DayButton ref={node => { if (node) dateButtons.current.set(day, node); else dateButtons.current.delete(day); }} aria-label={format(day, { dateStyle: "full" })} aria-current={day === today ? "date" : undefined} aria-pressed={day === selected} onClick={() => choose(day)} onKeyDown={event => {
+                {days.map(day => { const row = rows.find(item => item.business_date === day); return <Day key={day} $outside={!day.startsWith(month)} $selected={day === selected} $past={day < today}>
+                    <DayButton $past={day < today} ref={node => { if (node) dateButtons.current.set(day, node); else dateButtons.current.delete(day); }} aria-label={format(day, { dateStyle: "full" })} aria-current={day === today ? "date" : undefined} aria-pressed={day === selected} onClick={event => choose(day, event.currentTarget)} onKeyDown={event => {
                         const delta = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 } as Record<string, number>)[event.key];
                         if (delta) { event.preventDefault(); const next = addDays(day, delta); setSelected(next); dateButtons.current.get(next)?.focus(); }
                     }}><span>{Number(day.slice(-2))}</span></DayButton>
-                    {row ? <EventBlock onClick={() => choose(day)} aria-label={`${day}: ${row.event_value ?? t("Shift plan", "勤務予定")}, ${names(row)}`}><strong>{row.event_value || t("Shift plan", "勤務予定")}</strong><span>{row.manager?.name || t("No manager", "担当未定")}</span><small>{row.staff.map(person => person.name).join(" · ") || t("No staff", "スタッフなし")}</small></EventBlock> : null}
+                    {row ? <EventBlock $state={cellState(row)} onClick={event => choose(day, event.currentTarget)} aria-label={`${day}: ${row.event_value ?? t("Shift plan", "勤務予定")}, ${cellLabel(row)}, ${names(row)}`}><strong>{row.event_value || t("Shift plan", "勤務予定")}</strong><span>{cellLabel(row)}</span><small>{row.manager?.name || t("No manager", "担当未定")}</small><small>{row.staff.map(person => person.name).join(" · ") || t("No staff", "スタッフなし")}</small></EventBlock> : null}
                 </Day>; })}
-            </Calendar> : <Agenda aria-label={t("Scheduled shifts", "シフト予定一覧")}>
+            </Calendar> : <Agenda id="schedule-view-panel-agenda" role="tabpanel" aria-labelledby="schedule-view-tab-agenda" tabIndex={0} aria-label={t("Scheduled shifts", "シフト予定一覧")}>
                 {!loading && !rows.length ? <Empty>{t("No scheduled shifts this month.", "今月の予定はありません。")}</Empty> : rows.map(row => <AgendaRow key={row.id}>
                     <DateRail $today={row.business_date === today}><span>{format(row.business_date, { weekday: "short" })}</span><strong>{Number(row.business_date.slice(-2))}</strong></DateRail>
-                    <AgendaEvent onClick={() => choose(row.business_date)}><small>{t("Date-only plan", "日付のみの予定")}</small><strong>{row.event_value || t("Shift plan", "勤務予定")}</strong><span>{t("Manager", "マネージャー")}: {row.manager?.name || t("Not assigned", "未定")}</span><span>{t("Staff", "スタッフ")}: {row.staff.map(person => person.name).join(" · ") || t("None", "なし")}</span></AgendaEvent>
+                    <AgendaEvent $state={cellState(row)} onClick={event => choose(row.business_date, event.currentTarget)}><small>{cellLabel(row)}</small><strong>{row.event_value || t("Shift plan", "勤務予定")}</strong><span>{t("Manager", "マネージャー")}: {row.manager?.name || t("Not assigned", "未定")}</span><span>{t("Staff", "スタッフ")}: {row.staff.map(person => person.name).join(" · ") || t("None", "なし")}</span></AgendaEvent>
                 </AgendaRow>)}
             </Agenda>}
             {detail ? <Details ref={detailPanel} tabIndex={-1} aria-label={t("Selected day", "選択した日")}>
-                <DetailHeader><h2>{format(selected, { month: "long", day: "numeric", weekday: "short" })}</h2><button className="secondary" onClick={() => setDetail(false)} aria-label={t("Close day details", "詳細を閉じる")}>×</button></DetailHeader>
+                <DetailHeader><h2>{format(selected, { month: "long", day: "numeric", weekday: "short" })}</h2><CloseDetailsButton type="button" aria-label={t("Close day details", "詳細を閉じる")} onClick={closeDetails}><Icon name="X" size="var(--font-size-h4)" /></CloseDetailsButton></DetailHeader>
                 <h3>{selectedRow?.event_value || t("Shift plan", "勤務予定")}</h3>
+                {selectedRow ? <StatusLabel $state={cellState(selectedRow)}>{cellLabel(selectedRow)}</StatusLabel> : null}
                 <Subtitle>{t("Date-only plan · hours not recorded", "日付のみの予定・勤務時間の記録なし")}</Subtitle>
                 <dl><dt>{t("Manager", "マネージャー")}</dt><dd>{selectedRow?.manager?.name || t("Not assigned", "未定")}</dd><dt>{t("Staff", "スタッフ")}</dt><dd>{selectedRow?.staff.map(person => person.name).join(" · ") || t("None", "なし")}</dd></dl>
                 {selectedRow?.actual_shift_exists ? <p>{t("An actual shift is also recorded. Editing this plan does not change it.", "実際のシフト記録があります。予定を変更しても実績は変わりません。")}</p> : null}
-                {viewer?.role === "manager" ? <button onClick={() => { setCreating(!selectedRow); setEditing(true); }}>{selectedRow ? t("Edit plan", "予定を編集") : t("Add plan", "予定を追加")}</button> : null}
+                {viewer?.role === "manager" && !selectedIsPast ? <button onClick={() => { setCreating(!selectedRow); setEditing(true); }}>{selectedRow ? t("Edit plan", "予定を編集") : t("Add plan", "予定を追加")}</button> : null}
+                {viewer?.role === "manager" && selectedIsPast ? <ReadOnlyNotice role="status">{t("Past schedule dates are read-only. Historical plans and assignments cannot be changed.", "過去の予定は閲覧のみです。過去の予定や担当者は変更できません。")}</ReadOnlyNotice> : null}
                 {selectedRow?.provenance.length ? <details><summary>{t("Spreadsheet source", "勤務表の出典")}</summary>{selectedRow.provenance.map((source, i) => <p key={i}>{source.source_file} · {t("row", "行")} {source.source_row}<br />{source.imported_by}{source.uncertainty ? ` · ${source.uncertainty}` : ""}</p>)}</details> : null}
             </Details> : null}
         </Canvas>
-        {editing && viewer?.role === "manager" ? <ScheduleEditor knownManagers={knownManagers} day={selected} row={creating ? undefined : selectedRow} ja={ja} onClose={() => setEditing(false)} onSaved={day => { setEditing(false); setSelected(day); setMonth(day.slice(0, 7)); setDetail(true); window.dispatchEvent(new Event("barticket-schedules-updated")); }} /> : null}
+        {viewer?.role === "manager" && !editing && !createTargetIsPast ? <CreateButton type="button" onClick={() => { setSelected(createTarget); setCreating(true); setEditing(true); }}>{t("+ Create", "＋ 作成")}</CreateButton> : null}
+        {editing && viewer?.role === "manager" && !selectedIsPast ? <ScheduleEditor knownManagers={knownManagers} day={selected} row={creating ? undefined : selectedRow} ja={ja} today={today} onClose={() => setEditing(false)} onSaved={day => { setEditing(false); setSelected(day); setMonth(day.slice(0, 7)); setDetail(true); window.dispatchEvent(new Event("barticket-schedules-updated")); }} /> : null}
     </Page>;
 }
-const Page = styled.main`width: min(100% - 32px, 1440px); margin: 0 auto; padding: 16px 0 32px; button { width:auto; min-height:44px; } button:focus-visible { outline:3px solid var(--royal-300); outline-offset:2px; }`;
-const Toolbar = styled.header`display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px;h1{font-size:21.6px;margin:0}h2{font-size:20px;margin:0} @media(max-width:600px){gap:8px; >div:first-child{flex:1} h1{font-size:19.2px}}`;
+const Page = styled.main`width:100%;max-width:1440px;margin:0 auto;padding:16px 0 calc(112px + env(safe-area-inset-bottom, 0px));button{width:auto;min-height:44px;}button:focus-visible{outline:3px solid var(--royal-300);outline-offset:2px;}`;
+const Toolbar = styled.header`display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;h1{font-size:21.6px;margin:0}h2{font-size:20px;margin:0} @media(max-width:600px){gap:8px; >div:first-child{flex:1;min-width:0} h1{font-size:19.2px}}`;
 const Subtitle = styled.p`color:var(--neutral-300);font-size:13.6px;margin:4px 0;`;
-const MonthNav = styled.div`display:flex;align-items:center;gap:6.4px;flex:1;button{font-size:25.6px;min-width:44px;padding:4px}h2{white-space:nowrap;flex:1;text-align:center;button{font-size:18.4px;}}@media(max-width:600px){order:4;flex-basis:100%;}`;
-const Views = styled.div`display:flex;gap:4px;button[aria-pressed=true]{background:var(--neutral-600);color:var(--neutral-050);}`;
+const ScheduleControls = styled.div`display:flex;align-items:center;gap:2px;max-width:100%;padding:2px;border:1px solid var(--neutral-700);border-radius:var(--space-1);> [role=tablist]{width:176px;max-width:calc(100% - 68px)}@media(max-width:600px){> [role=tablist]{width:164px;}}`;
+const TodayButton = styled.button`min-width:62px;padding-inline:var(--space-1)!important;white-space:nowrap;`;
+const MonthNav = styled.nav`display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:var(--space-1);min-height:48px;width:min(100%,300px);margin:0 auto 16px;h2{min-width:0;text-align:center;}@media(max-width:600px){width:min(100%,300px);}`;
+const MonthStep = styled.button`width:44px!important;min-width:44px;padding:0!important;border-radius:50%;`;
+const MonthLabel = styled.button`max-width:100%;padding:var(--space-1) var(--space-2)!important;background:var(--neutral-800)!important;border:1px solid var(--neutral-700)!important;border-radius:999px!important;color:var(--neutral-050)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:var(--font-size-body);`;
+const ReadOnlyNotice = styled.p`margin:8px 0;padding:var(--space-1) var(--space-2);border:1px solid var(--neutral-700);border-radius:var(--space-1);background:var(--neutral-900);color:var(--neutral-200);font-size:var(--font-size-small);`;
+const CreateButton = styled.button`position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:80;min-width:112px;padding:var(--space-1) var(--space-2);box-shadow:0 4px 18px rgb(0 0 0 / 38%);border-radius:999px;@media(min-width:769px){right:max(calc((100vw - 1440px)/2),24px);}`;
 const Canvas = styled.div`display:flex;align-items:stretch;background:var(--neutral-900);border:1px solid var(--neutral-700);border-radius:16px;overflow:hidden;@media(max-width:900px){flex-direction:column;}`;
 const Calendar = styled.div`display:grid;grid-template-columns:repeat(7,minmax(0,1fr));flex:1;min-width:0;`;
 const Weekday = styled.div`padding:12.8px 3.2px;text-align:center;font-size:12.8px;color:var(--neutral-300);border-bottom:1px solid var(--neutral-700);`;
-const Day = styled.div<{ $outside: boolean; $selected: boolean }>`min-width:0;min-height:135px;border-right:1px solid var(--neutral-700);border-bottom:1px solid var(--neutral-700);padding:4px;background:${p=>p.$selected?'var(--neutral-800)':p.$outside?'var(--neutral-950)':'transparent'};@media(max-width:600px){min-height:110px;padding:1.6px;}`;
-const DayButton = styled.button`display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px!important;padding:0!important;margin:0 auto 3.2px;background:transparent!important;color:var(--neutral-100)!important;span{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;} &[aria-current=date] span{background:var(--royal-500);color:white;} &[aria-pressed=true] span{outline:1px solid var(--neutral-300);}@media(max-width:370px){min-width:36px;}`;
-const EventBlock = styled.button`display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%!important;padding:6.4px 8px!important;border:0;border-left:3px solid #93c5fd;border-radius:5px;background:#253b54!important;color:#f0f6ff!important;text-align:left;font-size:12.8px;overflow:hidden;strong,span,small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}small{font-size:12px;}@media(max-width:600px){padding:4.8px 3.2px!important;font-size:12px;small{font-size:12px;}}`;
+const Day = styled.div<{ $outside: boolean; $selected: boolean; $past: boolean }>`min-width:0;min-height:135px;border-right:1px solid var(--neutral-700);border-bottom:1px solid var(--neutral-700);padding:4px;background:${p=>p.$selected?'var(--neutral-800)':p.$outside?'var(--neutral-950)':'transparent'};${p=>p.$past?"color:var(--neutral-300);":""}@media(max-width:600px){min-height:110px;padding:1.6px;}`;
+const DayButton = styled.button<{ $past: boolean }>`display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px!important;padding:0!important;margin:0 auto 3.2px;background:transparent!important;color:${p=>p.$past?"var(--neutral-400)":"var(--neutral-100)"}!important;span{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;} &[aria-current=date] span{background:var(--royal-500);color:white;} &[aria-pressed=true] span{outline:1px solid var(--neutral-300);}`;
+const EventBlock = styled.button<{ $state: "active" | "finished" | "closed" | "event" | "past" | "planned" }>`display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%!important;padding:6.4px 8px!important;border:0;border-left:3px solid ${p=>p.$state==="active"?"var(--success-400)":p.$state==="closed"?"var(--danger-400)":p.$state==="event"?"var(--event-400)":"var(--neutral-500)"};border-radius:5px;background:${p=>p.$state==="active"?"var(--success-950)":p.$state==="closed"?"var(--danger-950)":"var(--neutral-900)"}!important;color:var(--neutral-100)!important;text-align:left;font-size:12.8px;overflow:hidden;strong,span,small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}small{font-size:12px;}span{font-weight:600;color:${p=>p.$state==="active"?"var(--success-300)":p.$state==="closed"?"var(--danger-300)":p.$state==="event"?"var(--event-400)":"var(--neutral-200)"};}@media(max-width:600px){padding:4.8px 3.2px!important;font-size:12px;small{font-size:12px;}}`;
 const Agenda = styled.div`flex:1;min-width:0;padding:12px 16px;`;
 const AgendaRow = styled.article`display:flex;gap:16px;padding:10.4px 0;`;
 const DateRail = styled.div<{ $today: boolean }>`flex:0 0 42px;text-align:center;color:${p=>p.$today?'var(--royal-300)':'var(--neutral-300)'};span{display:block;font-size:12px;}strong{display:block;font-size:26.4px;line-height:1.5;}`;
-const AgendaEvent = styled.button`overflow-wrap:anywhere;display:flex;flex:1;min-width:0;align-items:flex-start;flex-direction:column;gap:4px;padding:13.6px 16px!important;background:#253b54!important;color:#f0f6ff!important;border-left:3px solid #93c5fd;border-radius:8px;text-align:left;strong{font-size:16.8px;}small{color:#cbd5e1;}span{font-size:13.6px;overflow-wrap:anywhere;}`;
+const AgendaEvent = styled.button<{ $state: "active" | "finished" | "closed" | "event" | "past" | "planned" }>`overflow-wrap:anywhere;display:flex;flex:1;min-width:0;align-items:flex-start;flex-direction:column;gap:4px;padding:13.6px 16px!important;background:var(--neutral-900)!important;color:var(--neutral-100)!important;border-left:3px solid ${p=>p.$state==="active"?"var(--success-400)":p.$state==="closed"?"var(--danger-400)":p.$state==="event"?"var(--event-400)":"var(--neutral-500)"};border-radius:8px;text-align:left;strong{font-size:16.8px;}small{color:${p=>p.$state==="event"?"var(--event-400)":"var(--neutral-200)"};}span{font-size:13.6px;overflow-wrap:anywhere;}`;
 const Details = styled.aside`overflow-wrap:anywhere;width:320px;max-width:100%;flex-shrink:0;padding:20px;border-left:1px solid var(--neutral-700);h2{font-size:16.8px;}h3{margin:16px 0 4.8px;}dl{margin:16px 0;}dt{font-size:12.8px;color:var(--neutral-300);margin-top:16px;}dd{margin:3.2px 0;}p,details{font-size:12.8px;color:var(--neutral-300);overflow-wrap:anywhere;}details{margin-top:19.2px;}summary{cursor:pointer;min-height:44px;}@media(max-width:900px){width:auto;border-left:0;border-bottom:1px solid var(--neutral-700);order:-1;}`;
+const StatusLabel = styled.p<{ $state: "active" | "finished" | "closed" | "event" | "past" | "planned" }>`margin:4px 0;color:${p=>p.$state==="active"?"var(--success-300)":p.$state==="closed"?"var(--danger-300)":p.$state==="event"?"var(--event-400)":"var(--neutral-300)"}!important;`;
 const DetailHeader = styled.div`display:flex;align-items:center;justify-content:space-between;gap:8px;`;
+const CloseDetailsButton = styled.button`display:grid;place-items:center;flex:0 0 44px;width:44px!important;height:44px;min-height:44px;padding:0!important;background:transparent!important;border:1px solid transparent!important;border-radius:var(--space-1)!important;color:var(--neutral-200)!important;&:hover{background:var(--neutral-800)!important;color:white!important;}`;
 const Empty = styled.p`padding:32px;color:var(--neutral-300);text-align:center;`;
 const Notice = styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:16px;margin-bottom:16px;border:1px solid var(--danger-500);border-radius:8px;span{font-size:12.8px;}`;
