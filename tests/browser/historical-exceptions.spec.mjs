@@ -79,7 +79,7 @@ for (const width of [390,768]) test("CSV imported unlinked evidence keeps stored
   const state=await fixture(page,false,"preview");
   await page.locator('input[type="file"]').setInputFiles({name:"Synthetic.csv",mimeType:"text/csv",buffer:Buffer.from("Date,Staff,Hours,Manager,Revenue,Guests\n2025-06-12,Changed uploaded identity,9,Synthetic manager,0,0")});
   await page.getByRole("button",{name:"Reconcile staff hours",exact:true}).click();
-  const results=width<700?page.getByRole("list",{name:"Staff-hours reconciliation results"}):page.locator("table").filter({has:page.getByRole("columnheader",{name:"Current effective hours"})});
+  const results=width<700?page.getByRole("list",{name:"Staff-hours reconciliation results"}):page.locator("table").filter({has:page.locator("th",{hasText:"Current effective hours"})});
   await expect(results).toContainText("Changed uploaded identity");
   await expect(results).toContainText("Imported · Account unlinked");
   await expect(results).toContainText("Former staff");
