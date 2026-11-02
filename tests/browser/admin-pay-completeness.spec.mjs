@@ -103,10 +103,12 @@ for(const locale of ['en','ja']){
 }
 
 for(const locale of ['en','ja']){
- test(`Admin pay same-scope focus stays visible and coalesces pending reads ${locale}`,async({page})=>{
+ for(const width of [320,390,768])test(`Admin pay same-scope focus stays visible and coalesces pending reads ${locale} ${width}`,async({page},testInfo)=>{
+  await page.setViewportSize({width,height:900});
   const state=await fixture(page,locale,'complete');const card=page.getByRole('article',{name:'Fixture staff A'});await expect(card).toContainText(/[¥￥]1,200/);expect(state.calls).toHaveLength(1);
   state.setHold(true);await page.getByRole('button',{name:'Focus identity fixture'}).click();await expect.poll(()=>state.calls.length).toBe(2);
   await expect(card).toBeVisible();await expect(card).toContainText(/[¥￥]1,200/);await expect(page.getByRole('status')).toContainText(locale==='ja'?'更新中':'Updating');
+  await page.getByRole('status').scrollIntoViewIfNeeded();await expect(page.getByRole('status')).toBeInViewport();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:testInfo.outputPath(`audit-admin-pay-updating-${locale}-${width}.png`),fullPage:true});
   await page.getByRole('button',{name:'Focus identity fixture'}).click();await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));expect(state.calls).toHaveLength(2);
   state.resolve();await expect(page.getByRole('status')).toHaveCount(0);await expect(card).toContainText(/[¥￥]1,200/);
  });
