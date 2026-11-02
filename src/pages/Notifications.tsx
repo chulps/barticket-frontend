@@ -209,7 +209,7 @@ export default function Notifications() {
                 ))
                 : null}
             <NotificationActivity activeStockIds={!denied ? notices?.notices.map(notice => notice.id) ?? [] : []} />
-            <ReleaseHistory viewerId={viewerId} viewerStatus={viewerStatus} />
+            <ReleaseHistory key={viewerId ?? "anonymous"} viewerId={viewerId} viewerStatus={viewerStatus} />
         </main>
     );
 }
