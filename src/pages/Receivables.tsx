@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { accountApi, type Account } from "../api/account";
 import { ticketsApi, toTicket, type ApiTicket } from "../api/tickets";
-import { ApiError } from "../api/client";
+import { ApiError, getToken } from "../api/client";
 import PaymentModal from "../components/PaymentModal";
 import { useI18n } from "../i18n";
 import { useModal } from "../hooks/useModal";
@@ -27,10 +27,23 @@ export default function Receivables() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [now] = useState(() => Date.now() / 1000);
+    const requestGeneration = useRef({ generation: 0, scope: "" });
+    const errorMessage = error === "receivables_load_failed"
+        ? (ja ? "未払い伝票を読み込めませんでした。" : "Could not load unpaid tickets.") : error;
 
     const refresh = useCallback(async () => {
+        const request = ++requestGeneration.current.generation;
+        const token = getToken();
+        const isCurrent = () => request === requestGeneration.current.generation && token === getToken();
         setLoading(true);
         setError("");
+        const scope = JSON.stringify([token, offset, reason, status]);
+        if (!token || requestGeneration.current.scope !== scope) {
+            setItems([]);
+            setTotal(0);
+        }
+        requestGeneration.current.scope = scope;
+        if (!token) { setLoading(false); return; }
         try {
             const query = new URLSearchParams({ offset: String(offset), limit: String(PAGE_SIZE) });
             if (status === "unresolved") {
@@ -41,25 +54,55 @@ export default function Receivables() {
             }
             if (reason) query.set("reason", reason);
             const result = await ticketsApi.receivables(`?${query.toString()}`);
+            if (!isCurrent()) return;
             setItems(result.items);
             setTotal(result.total);
         } catch (err) {
-            setError(err instanceof Error ? err.message : (ja ? "未払い伝票を読み込めませんでした。" : "Could not load unpaid tickets."));
-        } finally { setLoading(false); }
-    }, [ja, offset, reason, status]);
+            if (isCurrent()) setError(err instanceof Error ? err.message : "receivables_load_failed");
+        } finally { if (isCurrent()) setLoading(false); }
+    }, [offset, reason, status]);
 
     useEffect(() => {
+        const requests = requestGeneration.current;
         const initial = window.setTimeout(() => void refresh(), 0);
-        return () => window.clearTimeout(initial);
-    }, [refresh]);
-    useEffect(() => {
-        let active = true;
-        accountApi.me().then(value => { if (active) setAccount(value); }).catch(() => { if (active) setAccount(null); });
         const onRefresh = () => { void refresh(); };
         window.addEventListener("barticket-receivables-updated", onRefresh);
         window.addEventListener("focus", onRefresh);
-        return () => { active = false; window.removeEventListener("barticket-receivables-updated", onRefresh); window.removeEventListener("focus", onRefresh); };
+        window.addEventListener("barticket-auth", onRefresh);
+        return () => {
+            requests.generation++;
+            window.clearTimeout(initial);
+            window.removeEventListener("barticket-receivables-updated", onRefresh);
+            window.removeEventListener("focus", onRefresh);
+            window.removeEventListener("barticket-auth", onRefresh);
+        };
     }, [refresh]);
+    // Filters and translated labels do not change the viewer's identity.
+    useEffect(() => {
+        let active = true;
+        let generation = 0;
+        const loadAccount = async () => {
+            const request = ++generation;
+            const token = getToken();
+            setAccount(null);
+            if (!token) return;
+            try {
+                const value = await accountApi.me();
+                if (active && request === generation && token === getToken()) setAccount(value);
+            } catch { /* Permission-sensitive controls remain unavailable. */ }
+        };
+        void loadAccount();
+        window.addEventListener("focus", loadAccount);
+        window.addEventListener("barticket-auth", loadAccount);
+        window.addEventListener("barticket-users-updated", loadAccount);
+        return () => {
+            active = false;
+            generation++;
+            window.removeEventListener("focus", loadAccount);
+            window.removeEventListener("barticket-auth", loadAccount);
+            window.removeEventListener("barticket-users-updated", loadAccount);
+        };
+    }, []);
 
     const reload = () => { window.dispatchEvent(new Event("barticket-receivables-updated")); };
     const yen = (value: number) => "¥" + value.toLocaleString("ja-JP");
@@ -87,7 +130,7 @@ export default function Receivables() {
             <button type="button" className="hollow secondary" onClick={reload} disabled={loading}>{ja ? "更新" : "Refresh"}</button>
         </FilterRow>
         {loading ? <p role="status">{ja ? "未払い伝票を読み込み中…" : "Loading receivables…"}</p> : null}
-        {error ? <div role="alert"><p>{error}</p><button type="button" onClick={reload}>{ja ? "再試行" : "Retry"}</button></div> : null}
+        {error ? <div role="alert"><p>{errorMessage}</p><button type="button" onClick={reload}>{ja ? "再試行" : "Retry"}</button></div> : null}
         {!loading && !error ? <ResultsCount role="status">{ja ? `該当 ${total} 件` : `${total} receivable${total === 1 ? "" : "s"}`}</ResultsCount> : null}
         {!loading && !error && items.length === 0 ? <EmptyState role="status">
             <strong>{ja ? "該当する伝票はありません" : "No receivables match these filters."}</strong>

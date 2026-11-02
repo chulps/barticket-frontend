@@ -10,7 +10,7 @@ function staffReport(id,status,zero=false){
  return result;
 }
 async function fixture(page,locale,mode){
- const calls=[];let fail=false;let delayedResolve;const pending=new Promise(r=>delayedResolve=r);
+ const calls=[];let fail=false;let hold=false;let delayedResolve;const pending=new Promise(r=>delayedResolve=r);
  const people=mode.startsWith('manager')?[{id:901,name:'Fixture manager',role:'manager'}]:[
   {id:903,name:'Fixture staff A',role:'staff'},...(mode==='mixed'?[{id:904,name:'Fixture staff B',role:'staff'}]:[]),
  ];
@@ -22,7 +22,7 @@ async function fixture(page,locale,mode){
   calls.push(req.method()+' '+url.pathname);
   if(req.method()!=='GET')return route.abort();
   const month=url.searchParams.get('month');
-  if(mode==='delayed'&&month==='2026-10')await pending;
+  if(hold||(mode==='delayed'&&month==='2026-10'))await pending;
   let status=mode==='mixed'?(url.pathname.includes('/904/')?'complete':'unknown'):mode==='zero'?'complete':mode==='delayed'?(month==='2026-10'?'complete':'unknown'):mode;
   let body=staffReport(url.pathname.includes('/904/')?904:903,status,mode==='zero');
   if(mode.startsWith('manager')){
@@ -37,13 +37,13 @@ async function fixture(page,locale,mode){
   import RefreshRuntime from '/@react-refresh';RefreshRuntime.injectIntoGlobalHook(window);window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>type=>type;window.__vite_plugin_react_preamble_installed__=true;
   const {default:Overview}=await import('/src/pages/AdminMonthlyPayOverview.tsx');import '/src/index.css';
   const people=${JSON.stringify(people)},viewer={id:901,role:'manager',name:'Fixture manager'};
-  function Harness(){const[month,setMonth]=React.useState('2026-10');const[refresh,setRefresh]=React.useState(0);return React.createElement('main',{style:{padding:16,maxWidth:900,margin:'auto'}},
-   React.createElement('button',{onClick:()=>setMonth('2026-11')},'Next fixture month'),React.createElement('button',{onClick:()=>setRefresh(v=>v+1)},'Refresh fixture'),
-   React.createElement(Overview,{viewer,people,locale:${JSON.stringify(locale)},month,refreshVersion:refresh}));}
+  function Harness(){const[month,setMonth]=React.useState('2026-10');const[refresh,setRefresh]=React.useState(0);const[identity,setIdentity]=React.useState(0);const members=React.useMemo(()=>people.map(p=>({...p})),[identity]);const actor=React.useMemo(()=>({...viewer}),[identity]);return React.createElement('main',{style:{padding:16,maxWidth:900,margin:'auto'}},
+   React.createElement('button',{onClick:()=>setIdentity(v=>v+1)},'Focus identity fixture'),React.createElement('button',{onClick:()=>setMonth('2026-11')},'Next fixture month'),React.createElement('button',{onClick:()=>setRefresh(v=>v+1)},'Refresh fixture'),
+   React.createElement(Overview,{viewer:actor,people:members,locale:${JSON.stringify(locale)},month,refreshVersion:refresh}));}
   ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(Harness));
  </script></body></html>`}));
  await page.goto('/admin-pay-coverage-fixture');
- return {calls,setFail:value=>{fail=value},resolve:()=>delayedResolve()};
+ return {calls,setFail:value=>{fail=value},setHold:value=>{hold=value},resolve:()=>delayedResolve()};
 }
 for(const locale of ['en','ja'])for(const width of [320,390,768])for(const mode of ['unknown','incomplete','legacy','zero','complete','mixed']){
  test(`Admin monthly pay coverage ${mode} ${locale} ${width}`,async({page},testInfo)=>{
@@ -99,5 +99,22 @@ for(const locale of ['en','ja']){
   const state=await fixture(page,locale,'complete');const card=page.getByRole('article',{name:'Fixture staff A'});await expect(card).toContainText(/[¥￥]1,200/);
   state.setFail(true);await page.getByRole('button',{name:'Refresh fixture'}).click();await expect(card).toContainText('Fixture unavailable');
   await expect(card.getByLabel(locale==='ja'?'給与総額は未確定':'Full pay unavailable')).toContainText('—');
+ });
+}
+
+for(const locale of ['en','ja']){
+ for(const width of [320,390,768])test(`Admin pay same-scope focus stays visible and coalesces pending reads ${locale} ${width}`,async({page},testInfo)=>{
+  await page.setViewportSize({width,height:900});
+  const state=await fixture(page,locale,'complete');const card=page.getByRole('article',{name:'Fixture staff A'});await expect(card).toContainText(/[¥￥]1,200/);expect(state.calls).toHaveLength(1);
+  state.setHold(true);await page.getByRole('button',{name:'Focus identity fixture'}).click();await expect.poll(()=>state.calls.length).toBe(2);
+  await expect(card).toBeVisible();await expect(card).toContainText(/[¥￥]1,200/);await expect(page.getByRole('status')).toContainText(locale==='ja'?'更新中':'Updating');
+  await page.getByRole('status').scrollIntoViewIfNeeded();await expect(page.getByRole('status')).toBeInViewport();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:testInfo.outputPath(`audit-admin-pay-updating-${locale}-${width}.png`),fullPage:true});
+  await page.getByRole('button',{name:'Focus identity fixture'}).click();await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));expect(state.calls).toHaveLength(2);
+  state.resolve();await expect(page.getByRole('status')).toHaveCount(0);await expect(card).toContainText(/[¥￥]1,200/);
+ });
+ test(`Admin pay explicit refresh does not reuse pending focus read ${locale}`,async({page})=>{
+  const state=await fixture(page,locale,'complete');await expect(page.getByRole('article',{name:'Fixture staff A'})).toBeVisible();state.setHold(true);
+  await page.getByRole('button',{name:'Focus identity fixture'}).click();await expect.poll(()=>state.calls.length).toBe(2);
+  await page.getByRole('button',{name:'Refresh fixture',exact:true}).click();await expect.poll(()=>state.calls.length).toBe(3);state.resolve();await expect(page.getByRole('status')).toHaveCount(0);
  });
 }

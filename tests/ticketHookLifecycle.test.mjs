@@ -11,9 +11,11 @@ async function moduleFor(name,deps={}) {
  const result=await import('data:text/javascript,'+encodeURIComponent(prefix+code));delete globalThis[key];return result;
 }
 const delta=await moduleFor('ticketDelta');
+const motion=await moduleFor('ticketListMotion');
 const safety=await moduleFor('refreshSafety');
 const policy=await moduleFor('ticketRefreshPolicy');
 const optimistic=await moduleFor('optimisticTickets');
+const operations=await moduleFor('optimisticOperations');
 const background=await moduleFor('backgroundRefresh');
 const scopes=await moduleFor('ticketReadScope');
 const recovery=await moduleFor('../components/paymentAttemptRecovery');
@@ -33,9 +35,9 @@ function runtime(){
 const row=(id,name='old',shiftId=3)=>({id,name,status:'open',shiftId,items:[{id:1,type:'menu',quantity:1,subtotal:10,unit_price:10}],payment:null});
 async function ticketsHarness(api){
  const r=runtime();let token='A';recovery.paymentAttemptRecovery.clear();
- const {useTickets}=await moduleFor('useTickets',{...r.hooks,...delta,...safety,...policy,...optimistic,...recovery,
+ const {useTickets}=await moduleFor('useTickets',{...r.hooks,...delta,...safety,...policy,...optimistic,...recovery,...motion,
  ApiError:class extends Error{},getToken:()=>token,shouldPoll:()=>false,ticketsApi:api,toTicket:x=>x,COVER_ITEM_ID:0,
- readLocale:()=> 'en',useI18n:()=>({t:x=>x,locale:'en'}),notifyMutation:()=>{},provisionalTicket:()=>{},resolveProvisionalTicket:()=>{},removeProvisionalTicket:()=>{}});
+ readLocale:()=> 'en',useI18n:()=>({t:x=>x,locale:'en'}),notifyMutation:()=>{},...operations});
  const actions=useTickets(3),cleanups=r.start();await settle();return {...r,actions,rows:()=>r.states[0],token:value=>token=value,cleanup:()=>cleanups.forEach(f=>f?.())};
 }
 test('hint during held full read gets one trailing authoritative ID read, duplicate hints coalesce',async()=>{
@@ -117,4 +119,66 @@ test('a surfaced payment rejection does not poison the ordered queue for explici
  const intent=recovery.paymentAttemptRecovery.remember(11,{key:'fixture-payment',method:'cash',amount:10});
  await assert.rejects(h.actions.payTicket(11,'cash',10,intent.key),/fixture uncertain/);
  assert.equal(await h.actions.payTicket(11,'cash',10,intent.key),saved);assert.equal(calls,2);h.cleanup();
+});
+
+test('only live accepted snapshots produce targeted new/status moves, never same-status edits',async()=>{
+ let rows=[row(11)];const h=await ticketsHarness({list:async()=>rows});
+ assert.equal(h.states[3].source,'initial');assert.deepEqual(h.states[3].moves,[]);
+ rows=[{...row(11),status:'paid'},row(12)];h.emit({live:true});await settle();
+ assert.equal(h.states[3].source,'live');
+ assert.deepEqual(h.states[3].moves,[{id:12,from:null,to:'open'},{id:11,from:'open',to:'paid'}]);
+ rows=[row(11),{...row(12),status:'cancelled'}];h.emit({live:true});await settle();
+ assert.deepEqual(h.states[3].moves,[{id:12,from:'open',to:'cancelled'},{id:11,from:'paid',to:'open'}]);
+ rows=[row(11,'renamed'),{...row(12),status:'cancelled'}];h.emit({live:true});await settle();
+ assert.deepEqual(h.states[3].moves,[]);h.cleanup();
+});
+test('reconnect, focus and hidden backfill remain quiet; a later fresh change is eligible',async()=>{
+ let rows=[row(11)];const h=await ticketsHarness({list:async()=>rows});
+ rows.push(row(12));h.emit({live:false});await settle();assert.equal(h.states[3].source,'quiet');assert.deepEqual(h.states[3].moves,[]);
+ h.doc.visibilityState='hidden';h.doc.dispatchEvent(new Event('visibilitychange'));
+ rows.push(row(13));h.emit({live:true});await settle();
+ h.doc.visibilityState='visible';h.doc.dispatchEvent(new Event('visibilitychange'));await settle();
+ assert.equal(h.states[3].source,'quiet');assert.deepEqual(h.states[3].moves,[]);
+ rows.push(row(14));h.emit({live:true});await settle();assert.deepEqual(h.states[3].moves,[{id:14,from:null,to:'open'}]);h.cleanup();
+});
+test('a held live response interrupted by reconnect or hiding cannot produce lifecycle motion',async()=>{
+ for(const interrupt of ['reconnect','hidden']) {
+  let response=null;const h=await ticketsHarness({list:()=>response??Promise.resolve([row(11)])});
+  const held=deferred();response=held.promise;h.emit({live:true});await settle();
+  if(interrupt==='reconnect') h.emit({live:false});
+  else {h.doc.visibilityState='hidden';h.doc.dispatchEvent(new Event('visibilitychange'));}
+  held.resolve([row(11),row(12)]);await settle();assert.equal(h.states[3].source,'quiet');assert.deepEqual(h.states[3].moves,[]);h.cleanup();
+ }
+});
+test('confirmed local status change is not replayed when a live invalidation reconciles it',async()=>{
+ let rows=[row(11)];const h=await ticketsHarness({list:async()=>rows,cancel:async()=>{rows=[{...row(11),status:'cancelled'}];return rows[0];}});
+ await h.actions.cancelTicket(11);assert.equal(h.states[3].source,'local');
+ h.emit({live:true});await settle();assert.deepEqual(h.states[3].moves,[]);h.cleanup();
+});
+
+test('fresh server push before socket animates once; replay and stale pushes remain quiet',async()=>{
+ let rows=[row(11)];const h=await ticketsHarness({list:async()=>rows,get:async id=>rows.find(r=>r.id===id)});
+ const detail={eventType:'ticket_created',ticketId:12,eventId:'11111111-1111-4111-8111-111111111111',occurredAt:Date.now()/1000};
+ rows.push(row(12));h.emit(detail);await h.flush();assert.deepEqual(h.states[3].moves,[{id:12,from:null,to:'open'}]);
+ h.emit({live:true});await settle();assert.deepEqual(h.states[3].moves,[]);
+ h.emit(detail);await h.flush();assert.equal(h.states[3].source,'quiet');assert.deepEqual(h.states[3].moves,[]);
+ rows.push(row(13));h.emit({...detail,ticketId:13,eventId:'22222222-2222-4222-8222-222222222222',occurredAt:(Date.now()-60000)/1000});await h.flush();
+ assert.equal(h.states[3].source,'quiet');assert.deepEqual(h.states[3].moves,[]);h.cleanup();
+});
+
+test('a mixed fresh and stale ID batch conservatively suppresses backfill animation',async()=>{
+ let rows=[row(11)];const h=await ticketsHarness({list:async()=>rows,get:async id=>rows.find(r=>r.id===id)});
+ rows.push(row(12),row(13));
+ h.emit({eventType:'ticket_created',ticketId:12,eventId:'11111111-1111-4111-8111-111111111111',occurredAt:Date.now()/1000});
+ h.emit({eventType:'ticket_created',ticketId:13,eventId:'22222222-2222-4222-8222-222222222222',occurredAt:(Date.now()-60000)/1000});
+ await h.flush();assert.equal(h.states[3].source,'quiet');assert.deepEqual(h.states[3].moves,[]);h.cleanup();
+});
+test('an ambiguous local create stays quiet through unrelated targeted reads until full reconciliation',async()=>{
+ let rows=[row(11)];const h=await ticketsHarness({list:async()=>rows,get:async id=>rows.find(r=>r.id===id),create:async()=>{rows.push(row(12));throw new Error('fixture lost create response');}});
+ await h.actions.createTicket().completion;
+ h.emit({eventType:'ticket_updated',ticketId:11,eventId:'11111111-1111-4111-8111-111111111111',occurredAt:Date.now()/1000});await h.flush();
+ h.emit({eventType:'ticket_created',ticketId:12,eventId:'22222222-2222-4222-8222-222222222222',occurredAt:Date.now()/1000});await h.flush();
+ assert.equal(h.states[3].source,'quiet');assert.deepEqual(h.states[3].moves,[]);
+ h.emit({live:true});await settle();assert.equal(h.states[3].source,'quiet');
+ rows.push(row(13));h.emit({live:true});await settle();assert.deepEqual(h.states[3].moves,[{id:13,from:null,to:'open'}]);h.cleanup();
 });

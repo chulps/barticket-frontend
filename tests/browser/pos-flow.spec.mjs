@@ -639,17 +639,40 @@ test("closure-only analytics day has zero sales while preserving maintenance hou
 
 test("schedule page separates assigned people from actual work records and preserves source details",async ({page})=>{
   const state=await mockedPOS(page);
+  // The shared clock is October 31: past plans are in October; tomorrow is November.
+  state.schedules.push(schedule(3,dateOffset(-2),"past",true));
   await page.goto("/schedules");
-  await expect(page.getByRole("heading",{name:"Shift schedule"})).toBeVisible();
-  await expect(page.getByText(/Showing schedule entries from/)).toBeVisible();
-  await expect(page.getByText("Scheduled",{exact:true})).toBeVisible();
-  await expect(page.getByText("Past plan · no actual shift recorded")).toBeVisible();
-  await expect(page.getByText("Haruka").first()).toBeVisible();
-  await expect(page.getByText("Maintenance").first()).toBeVisible();
-  await expect(page.getByText("November 2026 Daily Reports.csv · row 5").first()).toBeVisible();
-  await expect(page.getByText("Unknown · not imported").first()).toBeVisible();
-  await expect(page.getByText("Schedules never create worked time.")).toHaveCount(1);
+  await expect(page.getByRole("heading",{name:"Schedule",exact:true})).toBeVisible();
+  await expect(page.getByText("Plans, not clock-in records",{exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:"Show month calendar"})).toHaveText("October 2026");
+  await page.getByRole("button",{name:`${dateOffset(-1)}: Maintenance, Test Bartender · Haruka`,exact:true}).click();
+  const details=page.getByRole("complementary",{name:"Selected day"});
+  await expect(details.getByRole("heading",{name:"Fri, October 30",exact:true})).toBeVisible();
+  await expect(details.getByRole("heading",{name:"Maintenance",exact:true})).toBeVisible();
+  await expect(details.locator("dl")).toContainText("ManagerTest BartenderStaffHaruka");
+  await expect(details.getByText("Date-only plan · hours not recorded",{exact:true})).toBeVisible();
+  await expect(details.getByText("An actual shift is also recorded. Editing this plan does not change it.",{exact:true})).toHaveCount(0);
+  await details.getByText("Spreadsheet source",{exact:true}).click();
+  await expect(details.getByText(/November 2026 Daily Reports.csv · row 5/)).toBeVisible();
+  await expect(details.getByText(/Test Bartender · Hours are blank in source/)).toBeVisible();
   expect(state.requests.filter(key=>key.startsWith("GET /schedules"))).toHaveLength(1);
+  expect(state.requestUrls.some(url=>url.includes("/schedules?")&&url.includes("date_from=2026-10-01")&&url.includes("date_to=2026-10-31"))).toBe(true);
+
+  // An actual record is distinguished without treating planned names/hours as attendance.
+  await page.getByRole("button",{name:`${dateOffset(-2)}: Maintenance, Test Bartender · Haruka`,exact:true}).click();
+  await expect(details.getByText("An actual shift is also recorded. Editing this plan does not change it.",{exact:true})).toBeVisible();
+  await expect(details.getByText("Date-only plan · hours not recorded",{exact:true})).toBeVisible();
+
+  await page.getByRole("button",{name:"Next month",exact:true}).click();
+  await expect(page.getByRole("button",{name:"Show month calendar"})).toHaveText("November 2026");
+  await page.getByRole("button",{name:`${dateOffset(1)}: Maintenance, Test Bartender · Haruka`,exact:true}).click();
+  await expect(details.getByRole("heading",{name:"Sun, November 1",exact:true})).toBeVisible();
+  await expect(details.locator("dl")).toContainText("ManagerTest BartenderStaffHaruka");
+  await expect(details.getByText("Date-only plan · hours not recorded",{exact:true})).toBeVisible();
+  await expect(details.getByText("An actual shift is also recorded. Editing this plan does not change it.",{exact:true})).toHaveCount(0);
+  expect(state.requests.filter(key=>key.startsWith("GET /schedules"))).toHaveLength(2);
+  expect(state.requestUrls.some(url=>url.includes("/schedules?")&&url.includes("date_from=2026-11-01")&&url.includes("date_to=2026-11-30"))).toBe(true);
+  expect(state.requests.filter(key=>/^(POST|PUT|PATCH|DELETE) \/(schedules|shifts)(?:[/?]|$)/.test(key))).toEqual([]);
 });
 
 test("clock controls stay unavailable when the current shift cannot be verified",async ({page})=>{
@@ -1171,3 +1194,61 @@ for(const width of [390,1280]) for(const locale of ['en','ja']) test(`checkout p
  expect(requests[1]).toEqual(requests[0]);expect(requests[2]).toEqual(requests[0]);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
+
+// #394: original list entrance stays intact; live changes touch only affected rows.
+for (const reducedMotion of ['no-preference','reduce']) {
+ test(`ticket list live lifecycle motion and quiet resync (${reducedMotion})`,async({page},testInfo)=>{
+  await page.emulateMedia({reducedMotion});
+  const state=await mockedPOS(page);let socket,cursor=100;
+  await page.routeWebSocket('**/realtime/ws',peer=>{socket=peer;peer.onMessage(raw=>{
+   if(JSON.parse(raw).type==='authenticate') peer.send(JSON.stringify({type:'ready',version:1,cursor}));
+  });});
+  await page.goto('/tickets');
+  await expect(page.locator('[data-ticket-row="11"]')).toBeVisible();
+  await expect.poll(()=>Boolean(socket)).toBe(true);
+  await page.waitForTimeout(600);
+  await page.evaluate(()=>{
+   window.__originalTicketRow=document.querySelector('[data-ticket-row="11"]');
+   window.__motionObservations=[];
+   window.__minimumUnchangedOpacity=1;
+   window.__measureUnchangedRow=true;
+   const sample=()=>{
+    const row=window.__originalTicketRow;
+    if(row?.isConnected) window.__minimumUnchangedOpacity=Math.min(window.__minimumUnchangedOpacity,Number(getComputedStyle(row).opacity)*Number(getComputedStyle(row.querySelector('button')).opacity));
+    if(window.__measureUnchangedRow) requestAnimationFrame(sample);
+   };
+   requestAnimationFrame(sample);
+   const observe=()=>document.querySelectorAll('[data-ticket-row]').forEach(row=>{
+    if(row.hasAttribute('data-ticket-arrival')||row.inert) window.__motionObservations.push({id:row.dataset.ticketRow,arrival:row.hasAttribute('data-ticket-arrival'),inert:row.inert});
+   });
+   new MutationObserver(observe).observe(document.querySelector('aside'),{subtree:true,childList:true,attributes:true});
+  });
+  const send=()=>socket.send(JSON.stringify({type:'invalidate',version:1,cursor:++cursor,scopes:['tickets']}));
+  state.tickets.push({...ticket(12),name:'Remote fixture'});send();
+  const incoming=page.locator('[data-ticket-row="12"]');await expect(incoming).toBeVisible();
+  expect(await page.evaluate(()=>window.__originalTicketRow===document.querySelector('[data-ticket-row="11"]'))).toBe(true);
+  await expect(page.locator('[data-ticket-row="11"]')).toHaveCSS('opacity','1');
+  await expect(page.locator('[data-ticket-row="11"] > button')).toHaveCSS('opacity','1');
+  if(reducedMotion==='no-preference') await expect.poll(()=>page.evaluate(()=>window.__motionObservations.some(x=>x.id==='12'&&x.arrival))).toBe(true);
+  else expect(await page.evaluate(()=>window.__motionObservations.some(x=>x.arrival))).toBe(false);
+  await testInfo.attach(`ticket-live-${reducedMotion}`,{body:await page.screenshot(),contentType:'image/png'});
+  expect(await page.evaluate(()=>{window.__measureUnchangedRow=false;return window.__minimumUnchangedOpacity;})).toBeGreaterThanOrEqual(.99);
+  // Known active ticket moves out; exiting row is inert, never a stale action target.
+  Object.assign(state.tickets.find(t=>t.id===12),{status:'paid',paid_at:now(),payment:{type:'cash',amount:700}});send();
+  await expect(incoming).toHaveCount(0);
+  if(reducedMotion==='no-preference') expect(await page.evaluate(()=>window.__motionObservations.some(x=>x.id==='12'&&x.inert))).toBe(true);
+  Object.assign(state.tickets.find(t=>t.id===12),{status:'open',paid_at:null,payment:null});send();
+  await expect(incoming).toBeVisible();
+  Object.assign(state.tickets.find(t=>t.id===12),{status:'cancelled',cancelled_at:now()});send();
+  await expect(incoming).toHaveCount(0);
+  // A ready/reconnect resync can discover a new row, but never marks it live.
+  await page.evaluate(()=>{window.__motionObservations=[];});
+  state.tickets.push({...ticket(13),name:'Reconnect fixture'});
+  socket.send(JSON.stringify({type:'ready',version:1,cursor:++cursor}));
+  await expect(page.locator('[data-ticket-row="13"]')).toBeVisible();
+  expect(await page.evaluate(()=>window.__motionObservations.some(x=>x.id==='13'&&x.arrival))).toBe(false);
+  await expect(page.locator('[data-ticket-row="11"]')).toHaveCSS('opacity','1');
+  await expect(page.locator('[data-ticket-row="11"] > button')).toHaveCSS('opacity','1');
+  expect(state.newTicketPosts).toBe(0);expect(state.paymentPosts).toBe(0);
+ });
+}

@@ -8,6 +8,7 @@ const schedule = (state, id) => ({ id, business_date: `2026-11-0${id}`, schedule
   manager: { name: manager.name, user_id: manager.id }, staff: [{ name: staff.name, user_id: staff.id }], event_value: null, hours: null,
   provenance: [{ source_file: "synthetic-november.csv", source_row: id + 1, imported_by: "Fixture Manager", imported_at: "2026-11-01T00:00:00Z", uncertainty: "Synthetic review note" }] });
 async function fixture(page, locale, role = "manager") {
+  await page.clock.install({ time: new Date("2026-11-02T12:00:00Z") });
   const state = { mode: "rows", reads: 0, writes: [], previews: 0, longSource: false };
   await page.addInitScript(({ locale }) => { localStorage.clear(); localStorage.setItem("barticket_locale", locale); localStorage.setItem("barticket_token", "ISOLATED_SCHEDULE_AUDIT"); }, { locale });
   await page.route("**/*", route => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
@@ -45,8 +46,11 @@ for (const locale of ["en", "ja"]) for (const width of [320, 768, 1280]) {
   test(`long schedule provenance reflows ${locale} ${width}`, async ({ page }, testInfo) => {
     const state = await fixture(page, locale, "staff"); state.longSource = true;
     await page.setViewportSize({ width, height: 900 }); await page.goto("/schedules");
+    await page.getByRole("button", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
     await expect(page.locator("main article")).toHaveCount(3);
-    await expect(page.locator("main article").first()).toContainText("SyntheticMonthlySchedule_".repeat(8) + ".csv");
+    await page.locator("main article button").first().click();
+    await page.locator("main details summary").click();
+    await expect(page.locator("main details")).toContainText("SyntheticMonthlySchedule_".repeat(8) + ".csv");
     await capture(page, testInfo, "long-source");
     expect(state.writes).toEqual([]);
   });
@@ -54,12 +58,13 @@ for (const locale of ["en", "ja"]) for (const width of [320, 768, 1280]) {
     const state = await fixture(page, locale, "staff");
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/schedules");
+    await page.getByRole("button", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
     await expect(page.locator("main article")).toHaveCount(3);
-    await expect(page.locator("main")).toContainText(locale === "ja" ? "不明・取り込みなし" : "Unknown · not imported");
+    await expect(page.locator("main")).toContainText(locale === "ja" ? "日付のみの予定" : "Date-only plan");
     await capture(page, testInfo, "rows");
     state.mode = "empty";
     await page.evaluate(() => window.dispatchEvent(new Event("barticket-schedules-updated")));
-    await expect(page.getByText(locale === "ja" ? "この期間に予定はありません" : "No scheduled shifts in this period.", { exact: true })).toBeVisible();
+    await expect(page.getByText(locale === "ja" ? "今月の予定はありません。" : "No scheduled shifts this month.", { exact: true })).toBeVisible();
     await capture(page, testInfo, "empty");
     state.mode = "error";
     await page.evaluate(() => window.dispatchEvent(new Event("barticket-schedules-updated")));
@@ -70,6 +75,7 @@ for (const locale of ["en", "ja"]) for (const width of [320, 768, 1280]) {
     await capture(page, testInfo, "error");
     state.mode = "rows";
     await retry.press("Enter");
+    await page.getByRole("button", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
     await expect(page.locator("main article")).toHaveCount(3);
     await expect(retry).toHaveCount(0);
     expect(state.writes).toEqual([]);

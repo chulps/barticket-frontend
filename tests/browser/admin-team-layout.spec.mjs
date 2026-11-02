@@ -78,6 +78,11 @@ test("team payroll is an explicit destination, not appended to profiles",async({
   await expect(chart).toBeVisible();
   await expect(page.getByText("Total staff pay",{exact:true})).toBeVisible();
   await expect.poll(()=>new Set(requests.filter(r=>r.path.endsWith("/earnings")).map(r=>r.path)).size).toBe(2);
+  expect(requests.filter(r=>r.path==="/analytics/shifts")).toHaveLength(0);
+  const payReads=()=>requests.filter(r=>r.path.endsWith("/earnings")||r.path.endsWith("/chuck-monthly-pay")).length;
+  const before=payReads();await page.getByRole("button",{name:"Refresh",exact:true}).click();
+  await expect.poll(payReads).toBe(before+3);
+  expect(requests.filter(r=>r.path==="/analytics/shifts")).toHaveLength(0);
   expect(requests.some(r=>r.method!=="GET")).toBe(false);
 });
 

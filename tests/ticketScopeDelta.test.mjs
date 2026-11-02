@@ -39,7 +39,7 @@ test('scoped snapshots and delta reads retain optimistic revision and auth guard
  const s=readFileSync(new URL('../src/hooks/useTickets.ts',import.meta.url),'utf8');
  assert.match(s,/acceptBackgroundSnapshot\(snapshot/);assert.match(s,/token !== getToken\(\)/);
  assert.match(s,/pendingWrites.current > 0/);assert.match(s,/pendingIds.size > 50/);
- assert.match(s,/error.status === 404/);assert.match(s,/pendingFull = true; retryRead\(\)/);
+ assert.match(s,/error.status === 404/);assert.match(s,/pendingFull = true; pendingQuiet = true; retryRead\(\)/);
  assert.match(s,/"barticket-auth", onFocus/);
 });
 

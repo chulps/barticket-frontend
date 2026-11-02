@@ -56,6 +56,7 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
     const [history, setHistory] = useState<PersonalWorkHistory | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const errorMessage = error === "history_load_failed" ? (ja ? "勤務履歴を読み込めませんでした。" : "Could not load work history.") : error;
     const [refreshKey, setRefreshKey] = useState(0);
     useEffect(() => subscribeRealtime(["shift", "tickets", "analytics"], () => setRefreshKey(value => value + 1)), []);
     const [section, setSection] = useState<Panel>("hours");
@@ -81,7 +82,7 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
     const loadedIdentity = useRef("");
     useEffect(() => {
         let cancelled = false;
-        const identity = `${userId}:${ja}`;
+        const identity = `${userId}`;
         async function load() {
             setLoading(loadedIdentity.current !== identity);
             if (loadedIdentity.current !== identity) setError("");
@@ -95,7 +96,7 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
             } catch (err) {
                 if (!cancelled) {
                     setError(err instanceof ApiError ? err.message
-                        : (ja ? "勤務履歴を読み込めませんでした。" : "Could not load work history."));
+                        : "history_load_failed");
                 }
             } finally {
                 if (!cancelled) setLoading(false);
@@ -103,7 +104,7 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
         }
         void load();
         return () => { cancelled = true; };
-    }, [userId, refreshKey, ja]);
+    }, [userId, refreshKey]);
 
     const rows = useMemo<PersonalHistoryRow[]>(() => (history?.shifts ?? []).map(shift => ({
         shiftId: shift.shift_id,
@@ -245,7 +246,7 @@ export default function StaffWorkHistory({ userId, locale }: { userId: number; l
                     {loading ? <p role="status">{ja ? "勤務履歴を読み込み中…" : "Loading work history…"}</p>
                         : error ? (
                             <ErrorArea role="alert">
-                                <p>{error}</p>
+                                <p>{errorMessage}</p>
                                 <button type="button" className="small secondary" onClick={() => setRefreshKey(value => value + 1)}>
                                     {ja ? "再試行" : "Retry"}
                                 </button>
