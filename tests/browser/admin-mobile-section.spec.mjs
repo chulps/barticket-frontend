@@ -1,3 +1,4 @@
+import { selectOption, expectValue } from './helpers/select.mjs';
 import {assertTabContrast} from "./helpers/tab-contrast.mjs";
 import {test,expect} from "@playwright/test";
 
@@ -48,19 +49,19 @@ for(const locale of ["en","ja"])test(`mobile Admin section selector preserves na
  await page.setViewportSize({width:390,height:900});
  await page.goto("/admin?teamView=pay&month=2026-09");
  const picker=page.getByRole("combobox",{name:ja?"管理メニュー":"Admin section",exact:true});
- await expect(picker).toHaveValue("team");
- await expect(picker.locator("option")).toHaveCount(6);
+ await expectValue(picker, "team");
+ await picker.click(); await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(6); await picker.press("Escape");
  await expect(page.getByRole("navigation",{name:ja?"管理セクション":"Admin sections"})).toBeHidden();
  expect(await picker.locator("..").evaluate(el=>el.getBoundingClientRect().height)).toBeLessThan(90);
- await picker.selectOption("accounts");
+ await selectOption(picker, "accounts");
  await expect(page).toHaveURL(/\/admin$/);
  await page.goBack();
- await expect(picker).toHaveValue("team");
+ await expectValue(picker, "team");
  await expect(page.getByRole("region",{name:ja?"月次給与一覧":"Monthly team pay",exact:true})).toBeVisible();
- await page.goForward();await expect(picker).toHaveValue("accounts");
- await picker.selectOption("payments");
+ await page.goForward();await expectValue(picker, "accounts");
+ await selectOption(picker, "payments");
  await expect(page.getByRole("heading",{name:ja?"決済設定":"Payment setup",exact:true})).toBeVisible();
- await picker.selectOption("accounts");
+ await selectOption(picker, "accounts");
  await page.screenshot({path:`/tmp/barticket-mobile-section-${locale}-390.png`,fullPage:true});
  await page.setViewportSize({width:1280,height:900});
  await expect(picker).toBeHidden();
@@ -76,14 +77,14 @@ for(const locale of ["en","ja"])for(const width of [390,1280])test(`Admin defaul
  await expect(page).toHaveURL(/\/admin$/);
  const nav=page.getByRole("navigation",{name:ja?"管理セクション":"Admin sections"});
  const picker=page.getByRole("combobox",{name:ja?"管理メニュー":"Admin section",exact:true});
- await expect(picker.locator('option[value="overview"]')).toHaveCount(0);
+ if(width<570){await picker.click(); await expect(page.getByRole('listbox').locator('[data-option-value="overview"]')).toHaveCount(0); await picker.press('Escape');}
  await expect(nav.getByRole("button",{name:ja?"概要":"Overview",exact:true})).toHaveCount(0);
  const selected=async(section,label)=>{
-   if(width<570)await expect(picker).toHaveValue(section);
+   if(width<570)await expectValue(picker, section);
    else await expect(nav.getByRole("button",{name:label,exact:true})).toHaveAttribute("aria-pressed","true");
  };
  await selected("accounts",ja?"アカウント":"Accounts");
- if(width<570)await picker.selectOption("team");else await nav.getByRole("button",{name:ja?"チーム":"Team",exact:true}).click();
+ if(width<570)await selectOption(picker, "team");else await nav.getByRole("button",{name:ja?"チーム":"Team",exact:true}).click();
  await selected("team",ja?"チーム":"Team");
  await page.goBack();await selected("accounts",ja?"アカウント":"Accounts");
  await page.goForward();await selected("team",ja?"チーム":"Team");
@@ -158,8 +159,8 @@ for (const locale of ["en", "ja"]) for (const width of [570, 768, 1280]) {
   await page.setViewportSize({width:320,height:812});
   await expect(nav).toBeHidden();
   const picker=page.getByRole('combobox',{name:ja?'管理メニュー':'Admin section',exact:true});
-  await expect(picker).toBeVisible(); await picker.selectOption('schedules');
-  await expect(picker).toHaveValue('schedules');
+  await expect(picker).toBeVisible(); await selectOption(picker, 'schedules');
+  await expectValue(picker, 'schedules');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.setViewportSize({width:768,height:1024}); await align();
   await expect(buttons.nth(3)).toHaveAttribute('aria-pressed','true');

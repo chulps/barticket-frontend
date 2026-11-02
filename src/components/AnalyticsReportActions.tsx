@@ -1,3 +1,4 @@
+import Dropdown from "./Select";
 import { useRef, useState } from "react";
 import styled from "styled-components";
 
@@ -64,10 +65,10 @@ export default function AnalyticsReportActions({
                     </header>
                     <LanguagePicker>
                         <span>{tr("Report language", "レポートの言語")}</span>
-                        <select aria-label={tr("Report language", "レポートの言語")} value={reportLocale} onChange={(event) => { setReportLocale(event.target.value as "en" | "ja"); setCopyStatus(""); }}>
+                        <Dropdown aria-label={tr("Report language", "レポートの言語")} value={reportLocale} onChange={(event) => { setReportLocale(event.target.value as "en" | "ja"); setCopyStatus(""); }}>
                             <option value="en">English</option>
                             <option value="ja">日本語</option>
-                        </select>
+                        </Dropdown>
                     </LanguagePicker>
                     <ReportText ref={textarea} readOnly value={text} aria-label={tr("Generated report", "作成したレポート")} />
                     <Actions>

@@ -1,0 +1,51 @@
+import {test,expect} from '@playwright/test';
+import {selectOption} from './helpers/select.mjs';
+for(const locale of ['en','ja'])for(const width of [320,390,768])test(`custom dropdown keyboard and dialog ${locale} ${width}`,async({page},testInfo)=>{
+ await page.setViewportSize({width,height:780});
+ await page.goto(`/tests/browser/fixtures/dropdown.html?locale=${locale}`);
+ const control=page.getByRole('combobox').filter({visible:true});
+ await control.focus();await control.press('ArrowDown');await expect(control).toHaveAttribute('aria-expanded','true');
+ await control.press('End');await expect(control).toHaveAttribute('data-select-value','');await control.press('Escape');await expect(control).toHaveAttribute('data-select-value','');
+ await control.press('Home');await control.press('ArrowDown');await control.press('Enter');await expect(control).toHaveAttribute('data-select-value','haruka');
+ await expect(page.getByTestId('changes')).toHaveText('1');
+ await page.getByRole('button',{name:'Submit',exact:true}).click();await expect(page.getByTestId('submitted')).toHaveText('haruka');
+ await control.click();await expect(page.getByRole('listbox')).toHaveCSS('opacity','1');await page.screenshot({path:testInfo.outputPath('audit-dropdown-open.png'),fullPage:true});
+ const list=page.getByRole('listbox');const bounds=await list.boundingBox();expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(width);expect(bounds.y+bounds.height).toBeLessThanOrEqual(780);
+ const rows=await list.getByRole('option').evaluateAll(nodes=>nodes.map(el=>({height:el.getBoundingClientRect().height,overflow:el.scrollWidth>el.clientWidth})));
+ expect(rows.every(row=>row.height>=44&&!row.overflow)).toBe(true);
+ await control.press('End');await control.press('Tab');await expect(control).toHaveAttribute('data-select-value','nori');await expect(control).not.toBeFocused();
+ await selectOption(control,'kanata');await page.getByRole('button',{name:'External update'}).click();await expect(control).toHaveAttribute('data-select-value','nori');
+ await page.getByRole('button',{name:'Toggle disabled'}).click();await expect(control).toBeDisabled();await page.getByRole('button',{name:'Toggle disabled'}).click();
+ await page.getByRole('button',{name:'Open dialog',exact:true}).click();
+ const dialog=page.getByRole('dialog');const modalControl=dialog.getByRole('combobox');await modalControl.click();
+ await expect(dialog.getByRole('listbox')).toBeVisible();await expect(page.getByRole('listbox')).toHaveCount(1);
+ await expect(page.getByRole('listbox')).toHaveCSS('opacity','1');await page.screenshot({path:testInfo.outputPath('audit-dropdown-dialog.png'),fullPage:true});
+ await modalControl.press('Escape');await expect(dialog).toBeVisible();await expect(modalControl).toBeFocused();
+ await selectOption(modalControl,'chuck');await expect(modalControl).toHaveAttribute('data-select-value','chuck');
+ await page.getByRole('button',{name:'Close dialog'}).click();await expect(dialog).not.toBeVisible();
+ await page.emulateMedia({reducedMotion:'reduce'});await control.click();await control.press('Escape');await expect(page.getByRole('listbox')).toHaveCount(0);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+});
+test('disabled options, typeahead, required form and rapid repeat dismissal',async({page})=>{
+ await page.goto('/tests/browser/fixtures/dropdown.html');const control=page.getByRole('combobox').filter({visible:true});
+ await page.getByRole('button',{name:'Submit',exact:true}).click();await expect(control).toBeFocused();await expect(page.getByTestId('submitted')).toBeEmpty();await expect(control).toHaveAttribute('aria-invalid','true');await expect(page.getByRole('alert')).toBeVisible();
+ await control.press('k');await control.press('Enter');await expect(control).toHaveAttribute('data-select-value','kanata');await expect(page.getByRole('alert')).toHaveCount(0);
+ await control.press('ArrowDown');await control.press('ArrowDown');await control.press('Enter');await expect(control).toHaveAttribute('data-select-value','chuck');
+ for(let i=0;i<3;i++){await control.click();await control.press('Escape');}
+ await expect(page.getByRole('listbox')).toHaveCount(0);await expect(control).toBeFocused();
+ await control.click();await page.getByRole('heading',{level:1}).click();await expect(page.getByRole('listbox')).toHaveCount(0);
+});
+test('long lists reset, dynamic updates and disabled groups',async({page})=>{
+ await page.setViewportSize({width:320,height:640});await page.goto('/tests/browser/fixtures/dropdown.html?extended');
+ const reset=page.getByRole('combobox',{name:'Reset example'}),dynamic=page.getByRole('combobox',{name:'Dynamic choices'});
+ const externalUpdate=command=>page.evaluate(detail=>window.dispatchEvent(new CustomEvent('fixture-dropdown-update',{detail})),command);
+ await selectOption(reset,'item-20');await page.getByRole('button',{name:'Reset form'}).click();await expect(reset).toHaveAttribute('data-select-value','item-2');await expect(page.getByTestId('reset-count')).toHaveText('1');await page.getByRole('button',{name:'Cancel resets'}).click();await selectOption(reset,'item-3');await page.getByRole('button',{name:'Reset form'}).click();await expect(reset).toHaveAttribute('data-select-value','item-3');await expect(page.getByTestId('reset-count')).toHaveText('1');
+ await reset.press('Space');await expect(reset).toHaveAttribute('aria-expanded','true');await reset.press('End');await expect(page.getByRole('option',{name:'Locked choice'})).toHaveAttribute('aria-disabled','true');
+ await expect(page.getByRole('group',{name:'Unavailable group'})).toBeVisible();
+ const activeId=await reset.getAttribute('aria-activedescendant');expect(activeId).toBeTruthy();await expect(page.locator(`[id=${JSON.stringify(activeId)}]`)).toBeInViewport();
+ await reset.press('Space');await expect(reset).toHaveAttribute('data-select-value','item-29');
+ await dynamic.click();await expect(dynamic).toHaveAttribute('aria-expanded','true');await externalUpdate('disable');await expect(dynamic).toBeDisabled();await expect(dynamic).toHaveAttribute('aria-expanded','false');await expect(page.getByRole('listbox')).toHaveCount(0);await externalUpdate('enable');await expect(dynamic).toBeEnabled();await expect(dynamic).toHaveAttribute('aria-expanded','false');
+ await dynamic.click();await expect(dynamic).toHaveAttribute('aria-expanded','true');await externalUpdate('value');await expect(dynamic).toHaveAttribute('data-select-value','item-20');await dynamic.press('Enter');await expect(dynamic).toHaveAttribute('data-select-value','item-20');
+ await dynamic.press('Home');await expect(dynamic).toHaveAttribute('aria-expanded','true');await externalUpdate('options');await expect(page.getByRole('option',{name:'Long staff option 0 with a fully readable name',exact:true})).toHaveCount(0);await dynamic.press('Escape');
+ await dynamic.click();await expect(dynamic).toHaveAttribute('aria-expanded','true');await externalUpdate('fieldset-disable');await expect(dynamic).toBeDisabled();await expect(dynamic).toHaveAttribute('aria-expanded','false');
+});

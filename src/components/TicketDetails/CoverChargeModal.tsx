@@ -1,3 +1,4 @@
+import Dropdown from "../Select";
 import { useRef, useState, type FormEvent } from "react";
 import type { Ticket } from "../../types/Ticket";
 import { useModal } from "../../hooks/useModal";
@@ -122,13 +123,13 @@ export default function CoverChargeModal({ ticket, tickets, mode, onSave }: Prop
         </label>}
         {mode === "returning" && returning > 0 && <label style={{ display: "grid", gap: "var(--space-1)" }}>
             {ja ? "元の支払済み伝票" : "Original paid ticket (same shift)"}
-            <select required value={sourceId ?? ""} disabled={saving}
+            <Dropdown aria-label={ja ? "元の支払済み伝票" : "Original paid ticket (same shift)"} required value={sourceId ?? ""} disabled={saving}
                 onChange={event => { setSourceId(event.currentTarget.value ? Number(event.currentTarget.value) : null); setError(""); }}>
                 <option value="">{ja ? "支払済み伝票を選択" : "Select paid ticket"}</option>
                 {sources.map(candidate => <option key={candidate.id} value={candidate.id}>
                     {candidate.name} (#{candidate.id})
                 </option>)}
-            </select>
+            </Dropdown>
             {sourceId !== null && (!selectedSource || availableOnSource < returning)
                 ? <small role="alert">{ja ? "指定した伝票の支払い済みカバー残数が不足しています。" : "Not enough unclaimed paid covers on that ticket."}</small>
                 : null}

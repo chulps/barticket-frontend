@@ -50,7 +50,7 @@ test('phone settings share one keyboard dialog and restore the feed on close',as
   await page.setViewportSize({width:320,height:900}); await fixture(page); await page.goto('/notifications');
   await expect(page.getByRole('heading',{name:'Device push notifications',exact:true})).toBeHidden();
   await expect(page.getByRole('heading',{name:'Push notification types',exact:true})).toBeHidden();
-  await expect(page.getByRole('heading',{name:'Sounds while BarTicket is open',exact:true})).toBeHidden();
+  await expect(page.getByRole('heading',{name:'In-app sounds',exact:true})).toBeHidden();
   await expect(page.getByRole('heading',{name:'Current shift activity',exact:true})).toBeVisible();
   const options=page.getByRole('button',{name:'Notification settings',exact:true}), toggle=page.getByRole('switch',{name:'New tickets',exact:true});
   await expect(options).toHaveAttribute('aria-expanded','false'); await expect(toggle).toBeHidden();
@@ -61,7 +61,7 @@ test('phone settings share one keyboard dialog and restore the feed on close',as
   const reads=[];page.on('request',req=>{if(req.method()==='GET' && /\/push\//.test(req.url()))reads.push(req.url());});
   await options.focus(); await page.keyboard.press('Enter'); await expect(toggle).toBeVisible();
   await expect(page.getByRole('button',{name:'Notification type settings',exact:true})).toHaveCount(0);
-  await expect(page.getByRole('heading',{name:'Sounds while BarTicket is open',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'In-app sounds',exact:true})).toBeVisible();
   await toggle.hover();
   expect(await toggle.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
   expect(await toggle.evaluate(el=>getComputedStyle(el,'::before').backgroundColor)).toBe('rgb(30, 202, 107)');
@@ -109,8 +109,8 @@ for(const locale of ['en','ja'])for(const size of [{width:320,height:640},{width
   await scroller.evaluate(el=>{el.scrollTop=el.scrollHeight;});
   const close=dialog.getByRole('button',{name:closeName,exact:true});
   const closeBox=await close.boundingBox();expect(closeBox.y).toBeGreaterThanOrEqual(0);expect(closeBox.y+closeBox.height).toBeLessThan(100);expect(closeBox.width).toBe(44);
-  const preview=dialog.getByRole('button',{name:locale==='ja'?'支払完了の音':'Preview cha-ching',exact:true});
-  await preview.scrollIntoViewIfNeeded();await expect(preview).toBeInViewport();
+  const preview=dialog.getByRole('button',{name:locale==='ja'?'支払完了の音を試聴':'Preview cha-ching',exact:true});
+  await preview.scrollIntoViewIfNeeded();await expect(preview).toBeInViewport({ratio:1});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:testInfo.outputPath('audit-phone-settings.png')});
   await close.click();await expect(dialog).toBeHidden();
@@ -183,4 +183,70 @@ test('pending preference save survives phone close reopen and resize without dup
   await page.setViewportSize({width:768,height:900});await expect(toggle).toBeDisabled();
   release();await expect(toggle).toBeEnabled();await expect(toggle).toHaveAttribute('aria-checked','false');
   expect(patches).toBe(1);expect(reads).toBe(0);
+});
+
+for(const locale of ['en','ja']) for(const width of [320,390,768]) for(const mode of ['off','ready','resume','unsupported','error']) test(`sound settings design ${locale} ${width} ${mode}`,async({page},testInfo)=>{
+ await page.setViewportSize({width,height:900}); const writes=await fixture(page,locale);
+ await page.addInitScript(mode=>{
+  if(mode==='unsupported'){Object.defineProperty(window,'AudioContext',{value:undefined});return;}
+  window.AudioContext=class {
+   state='suspended';currentTime=0;destination={};onstatechange=null;
+   async resume(){if(mode==='error')throw new Error('Fixture audio blocked');this.state='running';this.onstatechange?.();}
+   async suspend(){this.state='suspended';this.onstatechange?.();}
+   createOscillator(){return {frequency:{value:0},connect(){},start(){},stop(){},disconnect(){}};}
+   createGain(){return {gain:{setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){}},connect(){},disconnect(){}};}
+  };
+  if(mode==='resume')localStorage.setItem('barticket_foreground_sounds','on');
+ },mode);
+ await page.goto('/notifications?notificationSettings=1');
+ const sound=page.getByRole('region',{name:locale==='ja'?'アプリ内のサウンド':'In-app sounds',exact:true});
+ await expect(sound).toBeVisible();
+ if(mode==='ready')await sound.getByRole('switch').click();
+ if(mode==='error')await sound.getByRole('button',{name:locale==='ja'?'新しい伝票の音を試聴':'Preview new ticket',exact:true}).click();
+ if(mode==='resume')await expect(sound.getByRole('button',{name:locale==='ja'?'サウンドを再開':'Resume sounds',exact:true})).toBeVisible();
+ if(mode==='unsupported')await expect(sound.getByRole('status')).toContainText(locale==='ja'?'対応ブラウザー':'supported browser');
+ if(mode==='error')await expect(sound.getByRole('alert')).toBeVisible();
+ await page.mouse.move(0,0);
+ const previews=sound.getByRole('button',{name:locale==='ja'?/音を試聴/:/^Preview /});await expect(previews).toHaveCount(3);
+ for(const button of await previews.all()){const box=await button.boundingBox();expect(box.height).toBeGreaterThanOrEqual(44);expect(box.width).toBeGreaterThanOrEqual(44);await expect(button).toHaveCSS('background-color','rgb(59, 62, 68)');}
+ await sound.locator('h3').scrollIntoViewIfNeeded();await expect(sound.locator('h3')).toBeInViewport();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${width}-${mode}.png`)});
+ if(mode==='resume'||mode==='unsupported'||mode==='error'){const important=mode==='resume'?sound.getByRole('button',{name:locale==='ja'?'サウンドを再開':'Resume sounds',exact:true}):mode==='error'?sound.getByRole('alert'):sound.getByRole('status');await important.scrollIntoViewIfNeeded();await expect(important).toBeInViewport();await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${width}-${mode}-status.png`)});}
+ for(const [index,button] of (await previews.all()).entries()){await button.scrollIntoViewIfNeeded();await expect(button).toBeInViewport();await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${width}-${mode}-preview-${index}.png`)});}
+ const summary=sound.locator('summary');await summary.focus();await page.keyboard.press('Enter');await expect(sound.locator('details')).toHaveAttribute('open','');
+ await expect(sound.getByText(locale==='ja'?'サインアウトやアカウント変更時はオフになります。':'Signing out or switching accounts turns sounds off.',{exact:true})).toBeVisible();
+ await sound.locator('details').evaluate(el=>el.scrollIntoView({block:'end'}));await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${width}-${mode}-guidance.png`)});
+ if(width<768){await summary.focus();await page.keyboard.press('Tab');await expect(page.getByRole('button',{name:locale==='ja'?'通知設定を閉じる':'Close notification settings',exact:true})).toBeFocused();}
+ expect(writes).toEqual([]);
+});
+
+// IntersectionObserver can report 0.9999998808 for a fully visible fractional-pixel
+// box. Keep full containment with a half-CSS-pixel rounding allowance and inspect
+// the actual scrollport as well as the outer viewport, not just any intersection.
+async function expectFullyVisible(target){
+ await expect(target).toBeInViewport({ratio:0.999999});
+ const b=await target.evaluate(el=>{const r=el.getBoundingClientRect(),p=el.closest('section').parentElement.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,minX:Math.max(0,p.left),minY:Math.max(0,p.top),maxX:Math.min(innerWidth,p.right),maxY:Math.min(innerHeight,p.bottom)};});
+ expect(b.left).toBeGreaterThanOrEqual(b.minX-.5);expect(b.top).toBeGreaterThanOrEqual(b.minY-.5);expect(b.right).toBeLessThanOrEqual(b.maxX+.5);expect(b.bottom).toBeLessThanOrEqual(b.maxY+.5);
+}
+
+for(const locale of ['en','ja'])for(const mode of ['off','resume','error'])test(`sound settings reflow at 200 percent ${locale} ${mode}`,async({page},testInfo)=>{
+ await page.setViewportSize({width:390,height:900});const writes=await fixture(page,locale);
+ await page.addInitScript(mode=>{
+  window.AudioContext=class {state='suspended';currentTime=0;destination={};async resume(){throw new Error('Fixture audio blocked');}};
+  if(mode==='resume')localStorage.setItem('barticket_foreground_sounds','on');
+ },mode);
+ await page.goto('/notifications?notificationSettings=1');
+ await page.addStyleTag({content:':root {font-size:112.5% !important;}'});
+ const sound=page.getByRole('region',{name:locale==='ja'?'アプリ内のサウンド':'In-app sounds',exact:true});await expect(sound).toBeVisible();
+ if(mode==='resume')await expect(sound.getByRole('button',{name:locale==='ja'?'サウンドを再開':'Resume sounds',exact:true})).toBeVisible();
+ if(mode==='error'){await sound.getByRole('button',{name:locale==='ja'?'新しい伝票の音を試聴':'Preview new ticket',exact:true}).click();await expect(sound.getByRole('alert')).toBeVisible();}
+ await sound.locator('h3').scrollIntoViewIfNeeded();await expect(sound.locator('h3')).toBeInViewport();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ expect(await sound.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+ await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom.png`)});
+ if(mode!=='off'){const status=mode==='resume'?sound.getByRole('button',{name:locale==='ja'?'サウンドを再開':'Resume sounds',exact:true}):sound.getByRole('alert');await status.scrollIntoViewIfNeeded();await expectFullyVisible(status);if(mode==='resume'){const label=await status.evaluate(el=>{const s=getComputedStyle(el),r=document.createRange();r.setStart(el.firstChild,0);r.setEnd(el.firstChild,Math.min(6,el.firstChild.textContent.length));return {wordLines:r.getClientRects().length,contentHeight:el.getBoundingClientRect().height-parseFloat(s.paddingTop)-parseFloat(s.paddingBottom),lineHeight:parseFloat(s.lineHeight)};});if(locale==='en')expect(label.wordLines).toBe(1);expect(label.contentHeight).toBeLessThanOrEqual(label.lineHeight*2+1);}await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-status.png`)});}
+ for(const [index,button] of (await sound.getByRole('button',{name:locale==='ja'?/音を試聴/:/^Preview /}).all()).entries()){await button.scrollIntoViewIfNeeded();await expectFullyVisible(button);await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-preview-${index}.png`)});}
+ const summary=sound.locator('summary');await summary.scrollIntoViewIfNeeded();await summary.click();await expect(sound.locator('details')).toHaveAttribute('open','');
+ const caveat=sound.getByText(locale==='ja'?'サインアウトやアカウント変更時はオフになります。':'Signing out or switching accounts turns sounds off.',{exact:true});await caveat.scrollIntoViewIfNeeded();await expectFullyVisible(caveat);await page.screenshot({path:testInfo.outputPath(`audit-sound-${locale}-${mode}-zoom-guidance.png`)});expect(writes).toEqual([]);
 });

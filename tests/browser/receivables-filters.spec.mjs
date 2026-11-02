@@ -1,3 +1,4 @@
+import { selectOption, expectValue } from './helpers/select.mjs';
 import { test, expect } from '@playwright/test';
 
 for (const locale of ['en', 'ja']) {
@@ -25,12 +26,12 @@ for (const locale of ['en', 'ja']) {
     await page.goto('/receivables');
     const status = page.getByRole('combobox', { name: locale === 'ja' ? '状態' : 'Status', exact: true });
     const reason = page.getByRole('combobox', { name: locale === 'ja' ? '理由' : 'Reason', exact: true });
-    await status.selectOption('all');
-    await reason.selectOption('walkout');
-    await status.selectOption('unresolved');
+    await selectOption(status, 'all');
+    await selectOption(reason, 'walkout');
+    await selectOption(status, 'unresolved');
     await expect(reason).toBeVisible();
-    await expect(reason).toHaveValue('walkout');
-    await reason.selectOption('');
+    await expectValue(reason, 'walkout');
+    await selectOption(reason, '');
     await expect.poll(() => requests.filter(r => r.path === '/tickets/receivables').at(-1)?.query).toBe('offset=0&limit=50&settlement_status=outstanding&settlement_status=partially_paid');
     expect(requests.every(r => r.method === 'GET')).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

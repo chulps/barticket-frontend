@@ -72,12 +72,10 @@ test("team payroll is an explicit destination, not appended to profiles",async({
   await expect(page.getByRole("navigation",{name:"Team directory"})).toHaveCount(0);
   await expect(page.getByText("Total staff pay",{exact:true})).toBeVisible();
   const chart=page.getByRole("figure",{name:"Monthly staff pay by person",exact:true});
-  await expect(chart).toBeHidden();
-  await expect(page.getByLabel("Pay by team member",{exact:true}).getByText(people[2].name,{exact:true})).toBeVisible();
-  await page.locator("summary").filter({hasText:"Pay comparison charts"}).click();
   await expect(chart).toBeVisible();
-  await page.locator("summary").filter({hasText:"Pay comparison charts"}).click();
-  await expect(chart).toBeHidden();
+  await expect(page.getByLabel("Pay by team member",{exact:true}).getByText(people[2].name,{exact:true})).toBeVisible();
+  await expect(chart).toBeVisible();
+  await expect(chart).toBeVisible();
   await expect(page.getByText("Total staff pay",{exact:true})).toBeVisible();
   await expect.poll(()=>new Set(requests.filter(r=>r.path.endsWith("/earnings")).map(r=>r.path)).size).toBe(2);
   expect(requests.some(r=>r.method!=="GET")).toBe(false);
@@ -116,3 +114,32 @@ test("browser Back restores the team-pay destination after another admin section
   await page.goForward();
   await expect(page.getByRole("navigation",{name:"Admin sections"}).getByRole("button",{name:"Accounts",exact:true})).toHaveAttribute("aria-pressed","true");
 });
+
+for (const locale of ["en", "ja"]) for (const width of [320, 390, 768]) {
+  test(`Team Pay redesign long names and controls ${locale} ${width}`, async ({page}, testInfo) => {
+    const calls = await mockTeam(page, locale), ja = locale === "ja";
+    await page.setViewportSize({width, height:1100});
+    await page.goto("/admin?teamView=pay&month=2026-09");
+    const overview = page.getByRole("region", {name:ja ? "月次給与一覧" : "Monthly team pay", exact:true});
+    await expect(overview).toHaveAttribute("aria-busy", "false");
+    await expect(overview.getByRole("article", {name:people[2].name, exact:true})).toBeVisible();
+    await expect(overview.locator("details")).toHaveCount(0);
+    await expect(overview.getByRole("heading", {name:ja ? "スタッフ給与と控除の内訳" : "Staff pay and deductions"})).toBeVisible();
+    const owner = overview.getByRole("article", {name:"Nori", exact:true});
+    await expect(owner).toContainText(ja ? "月次オーナーサマリー" : "Monthly owner summary");
+    await expect(owner).not.toContainText(ja ? "給与ルールが未設定" : "Pay rule is not configured");
+    await expect(owner.locator("dl")).toHaveCount(0);
+    await page.getByRole("button", {name:ja ? "前月" : "Previous month", exact:true}).click();
+    await expect(page).toHaveURL(/month=2026-08/);
+    await page.getByRole("button", {name:ja ? "翌月" : "Next month", exact:true}).click();
+    await expect(page).toHaveURL(/month=2026-09/);
+    await page.getByRole("button", {name:ja ? "更新" : "Refresh", exact:true}).click();
+    await expect(overview).toHaveAttribute("aria-busy", "false");
+    await expect(overview.getByRole("article", {name:people[2].name, exact:true})).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(calls.every(call => call.method === "GET")).toBe(true);
+    expect(calls.some(call => call.path.includes("nori-monthly-pay"))).toBe(false);
+    await overview.screenshot({path:testInfo.outputPath("audit-team-pay-redesign.png")});
+    await page.screenshot({path:testInfo.outputPath("audit-team-pay-full-page.png"), fullPage:true});
+  });
+}

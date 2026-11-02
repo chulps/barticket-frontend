@@ -41,3 +41,17 @@ test("Admin overview uses tested final-coverage display helpers and labels recor
     assert.match(overview, /not payment records/);
     assert.doesNotMatch(overview, /with complete records/);
 });
+
+
+test("Team Pay uses flat semantic ledgers and never hides financial math", () => {
+    assert.match(overview, /styled\.dl/);
+    assert.match(overview, /<dt>/);
+    assert.match(overview, /<dd>/);
+    assert.match(overview, /<ManagerDetail/);
+    assert.match(overview, /<CoverageNote role="note">/);
+    assert.doesNotMatch(overview, /styled\.details|<details|<summary/);
+    assert.match(overview, /Manager amounts are separate/);
+    assert.match(overview, /owner_summary_in_profile/);
+    assert.match(overview, /not salary or profit/);
+    assert.match(overview, /aria-busy=\{loading\}/);
+});

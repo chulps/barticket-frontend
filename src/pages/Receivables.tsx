@@ -1,3 +1,4 @@
+import Dropdown from "../components/Select";
 import { settlementLabel, unpaidReasonOptions, unpaidReasonLabel } from "../components/settlementLabels";
 import { paymentMethodLabel } from "../components/paymentMethods";
 import PaymentDateHistory from "../components/PaymentDateHistory";
@@ -71,17 +72,17 @@ export default function Receivables() {
             : "Service date, actual collections, and remaining balance are shown separately. Later payments do not change the original shift or attendance."}</p>
         <FilterRow aria-label={ja ? "未払い伝票の絞り込み" : "Filter receivables"}>
             <label>{ja ? "状態" : "Status"}
-                <select value={status} onChange={event => { setStatus(event.target.value); setOffset(0); }}>
+                <Dropdown aria-label={ja ? "状態" : "Status"} value={status} onChange={event => { setStatus(event.target.value); setOffset(0); }}>
                     <option value="unresolved">{ja ? "未回収・一部回収" : "Needs collection (unpaid or partial)"}</option>
                     <option value="all">{ja ? "すべて" : "All receivables"}</option>
                     {STATUSES.map(value => <option key={value} value={value}>{settlementLabel(value, ja)}</option>)}
-                </select>
+                </Dropdown>
             </label>
             <label>{ja ? "理由" : "Reason"}
-                <select value={reason} onChange={event => { setReason(event.target.value); setOffset(0); }}>
+                <Dropdown aria-label={ja ? "理由" : "Reason"} value={reason} onChange={event => { setReason(event.target.value); setOffset(0); }}>
                     <option value="">{ja ? "すべて" : "All reasons"}</option>
                     {reasonOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
+                </Dropdown>
             </label>
             <button type="button" className="hollow secondary" onClick={reload} disabled={loading}>{ja ? "更新" : "Refresh"}</button>
         </FilterRow>

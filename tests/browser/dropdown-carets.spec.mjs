@@ -1,3 +1,4 @@
+import {selectOption} from "./helpers/select.mjs";
 import {test,expect} from "@playwright/test";
 
 const people=[
@@ -43,52 +44,35 @@ async function mockTeam(page, locale="en") {
 }
 
 
-for(const locale of ["en","ja"])for(const width of [320,390,1280])test(`consistent native carets ${locale} ${width}`,async({page},testInfo)=>{
- const requests=await mockTeam(page,locale);
- await page.setViewportSize({width,height:900});await page.goto("/admin");
- await expect(page.getByRole("heading",{name:locale==="ja"?"管理":"Admin",exact:true})).toBeVisible();
- const picker=page.getByRole("combobox",{name:locale==="ja"?"管理メニュー":"Admin section",exact:true});
- if(width<700)await picker.selectOption("accounts");
- else await page.getByRole("navigation",{name:locale==="ja"?"管理セクション":"Admin sections"}).getByRole("button",{name:locale==="ja"?"アカウント":"Accounts",exact:true}).click();
- const role=page.locator("form select");await expect(role).toBeVisible();
- const selects=page.locator("select:visible");
+for(const locale of ['en','ja'])for(const width of [320,390,768])test(`consistent custom dropdown ${locale} ${width}`,async({page},testInfo)=>{
+ const requests=await mockTeam(page,locale);await page.setViewportSize({width,height:900});await page.goto('/admin');
+ await expect(page.getByRole('heading',{name:locale==='ja'?'管理':'Admin',exact:true})).toBeVisible();
+ const picker=page.getByRole('combobox',{name:locale==='ja'?'管理メニュー':'Admin section',exact:true});
+ if(width<570)await selectOption(picker,'accounts');else await page.getByRole('navigation',{name:locale==='ja'?'管理セクション':'Admin sections'}).getByRole('button',{name:locale==='ja'?'アカウント':'Accounts',exact:true}).click();
+ const role=page.locator('form [data-select-trigger]');await expect(role).toBeVisible();
+ await role.focus();await role.press('End');await role.press('Enter');await expect(role).toHaveAttribute('data-select-value','manager');
  async function inspect(){
-  const styles=await selects.evaluateAll(nodes=>nodes.map(el=>{const s=getComputedStyle(el);return {image:s.backgroundImage,size:s.backgroundSize,pad:s.paddingRight,position:s.backgroundPosition,appearance:s.appearance,color:s.color,bg:s.backgroundColor,effectiveBg:(()=>{let node=el;while(node){const bg=getComputedStyle(node).backgroundColor;if(bg!=="rgba(0, 0, 0, 0)"&&bg!=="transparent")return bg;node=node.parentElement;}return "rgb(255, 255, 255)";})()};}));
-  expect(styles.length).toBeGreaterThan(0);
-  const luminance=value=>{const rgb=value.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;});return rgb[0]*0.2126+rgb[1]*0.7152+rgb[2]*0.0722;};
-  for(const style of styles){const a=luminance(style.color),b=luminance(style.effectiveBg);expect((Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)).toBeGreaterThanOrEqual(4.5);}
-  const download=page.getByRole("button",{name:locale==="ja"?"管理データのJSONをダウンロード":"Download admin data (JSON)",exact:true});
-  if(await download.count()){const bounds=await download.boundingBox();expect(bounds.x+bounds.width).toBeLessThanOrEqual(width);expect(await download.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);}
-  for(const s of styles){expect(s.image).toContain("M213.66");expect(s.size).toBe("18px 18px");expect(s.pad).toBe("42px");expect(s.appearance).toBe("none");}
+  const controls=page.locator('[data-select-trigger]:visible');
+  // The 18px square's axis-aligned bounding box grows during caret rotation.
+  // Wait for every real control transition (including theme colors), then
+  // retain the exact geometry and 4.5:1 contrast checks.
+  await expect.poll(()=>controls.evaluateAll(nodes=>nodes.every(el=>
+   el.getAnimations({subtree:true}).every(animation=>animation.playState!=='running')
+  ))).toBe(true);
+  if(await page.locator('html').evaluate(el=>el.classList.contains('light'))){
+   for(const control of await controls.all()){
+    await expect(control).toHaveCSS('color','rgb(76, 79, 85)');
+    await expect(control).toHaveCSS('background-color','rgb(240, 241, 242)');
+   }
+  }
+  const styles=await controls.evaluateAll(nodes=>nodes.map(el=>{const s=getComputedStyle(el);return {color:s.color,bg:s.backgroundColor,height:el.getBoundingClientRect().height,overflow:el.scrollWidth>el.clientWidth,caret:el.querySelector('svg')?.getBoundingClientRect().width};}));
+  const luminance=value=>{const rgb=value.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>{v/=255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4;});return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;};
+  for(const s of styles){expect(s.height).toBeGreaterThanOrEqual(44);expect(s.overflow).toBe(false);expect(s.caret).toBe(18);const a=luminance(s.color),b=luminance(s.bg);expect((Math.max(a,b)+.05)/(Math.min(a,b)+.05)).toBeGreaterThanOrEqual(4.5);}
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  }
- await inspect();
- await role.focus();await expect(role).toBeFocused();await role.press("End");await role.press("Enter");await expect(role).toHaveValue("manager");
- if(width<700){
-  await picker.selectOption("payments");
-  await page.getByText(locale==="ja"?"詳しい決済会社の設定":"Advanced provider preferences",{exact:true}).click();
-  // Section navigation and the permission/setup reads are asynchronous. Wait for
-  // the destination control, not the old Accounts select being unmounted.
-  await expect(page.getByRole("combobox",{name:locale==="ja"?"現在または検討中の決済会社":"Current or proposed provider",exact:true})).toBeVisible();
-  await inspect();
-  await picker.selectOption("accounts");await expect(role).toHaveValue("manager");
- }
- // Enter can leave the desktop OS picker open; close it before screenshot capture.
- await role.press("Escape");
- await page.getByRole("heading",{name:locale==="ja"?"管理":"Admin",exact:true}).click();
- await page.screenshot({path:testInfo.outputPath("carets.png"),fullPage:true});
- await page.evaluate(()=>document.documentElement.classList.add("light"));
- await expect(page.locator("body")).toHaveCSS("background-color","rgb(255, 255, 255)");
- await inspect();
- const lightImage=await role.evaluate(el=>getComputedStyle(el).backgroundImage);
- expect(decodeURIComponent(lightImage)).toContain("fill='#4c4f55'");
- await expect(role).toHaveCSS("color","rgb(76, 79, 85)");
- await page.screenshot({path:testInfo.outputPath("carets-light.png"),fullPage:true});
- await page.evaluate(()=>document.documentElement.classList.remove("light"));
- const darkImage=await role.evaluate(el=>getComputedStyle(el).backgroundImage);
- expect(decodeURIComponent(darkImage)).toContain("fill='#f5f5f5'");
- await page.emulateMedia({forcedColors:"active"});
- await expect(selects.first()).toHaveCSS("appearance","auto");
- await expect(selects.first()).toHaveCSS("background-image","none");
- expect(requests.some(r=>r.method!=="GET")).toBe(false);
+ await inspect();await role.click();await expect(page.getByRole('listbox')).toBeVisible();await expect(page.getByRole('listbox')).toHaveCSS('opacity','1');await page.screenshot({path:testInfo.outputPath('audit-dropdown-admin.png'),fullPage:true});await role.press('Escape');
+ if(width<570){await selectOption(picker,'payments');await page.getByText(locale==='ja'?'詳しい決済会社の設定':'Advanced provider preferences',{exact:true}).click();await expect(page.getByRole('combobox',{name:locale==='ja'?'現在または検討中の決済会社':'Current or proposed provider',exact:true})).toBeVisible();await inspect();await selectOption(picker,'accounts');await expect(role).toHaveAttribute('data-select-value','manager');}
+ await page.evaluate(()=>document.documentElement.classList.add('light'));await inspect();await role.click();await expect(page.getByRole('listbox')).toHaveCSS('opacity','1');await page.screenshot({path:testInfo.outputPath('audit-dropdown-light.png'),fullPage:true});await role.press('Escape');
+ await page.emulateMedia({forcedColors:'active'});await role.focus();await expect(role).toBeFocused();await role.press('Home');await role.press('Enter');await expect(role).toHaveAttribute('data-select-value','staff');
+ expect(requests.some(r=>r.method!=='GET')).toBe(false);
 });

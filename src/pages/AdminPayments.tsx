@@ -1,3 +1,4 @@
+import Dropdown from "../components/Select";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { ApiError, apiRequest, getToken } from "../api/client";
@@ -156,8 +157,8 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
     <details><summary>{t("Identify the current terminal", "今の端末の機種を確認")}</summary>
     <TerminalIdentificationGuide ja={ja} />
     <fieldset disabled={disabled}><legend>{t("Owner’s terminal identification notes", "所有者の端末識別メモ")}</legend>
-      <label>{t("Terminal model", "端末の機種")}<select value={terminalModel} onChange={event => { const next = knownTerminalModel(event.target.value); if (next !== terminalModel) { setTerminalModel(next); setMessage(current => current === "terminalSaved" ? "" : current); } }}>{terminalModels.map(model => <option key={model.id} value={model.id}>{ja ? model.ja : model.label}</option>)}</select></label>
-      <label>{t("Connection type noted on the device or paperwork (optional)", "端末・書類で確認した通信方式（任意）")}<select value={terminalConnection} onChange={event => { const next = knownTerminalConnection(event.target.value); if (next !== terminalConnection) { setTerminalConnection(next); setMessage(current => current === "terminalSaved" ? "" : current); } }}>{terminalConnections.map(connection => <option key={connection.id} value={connection.id}>{ja ? connection.ja : connection.label}</option>)}</select></label>
+      <label>{t("Terminal model", "端末の機種")}<Dropdown aria-label={t("Terminal model", "端末の機種")} value={terminalModel} onChange={event => { const next = knownTerminalModel(event.target.value); if (next !== terminalModel) { setTerminalModel(next); setMessage(current => current === "terminalSaved" ? "" : current); } }}>{terminalModels.map(model => <option key={model.id} value={model.id}>{ja ? model.ja : model.label}</option>)}</Dropdown></label>
+      <label>{t("Connection type noted on the device or paperwork (optional)", "端末・書類で確認した通信方式（任意）")}<Dropdown aria-label={t("Connection type noted on the device or paperwork (optional)", "端末・書類で確認した通信方式（任意）")} value={terminalConnection} onChange={event => { const next = knownTerminalConnection(event.target.value); if (next !== terminalConnection) { setTerminalConnection(next); setMessage(current => current === "terminalSaved" ? "" : current); } }}>{terminalConnections.map(connection => <option key={connection.id} value={connection.id}>{ja ? connection.ja : connection.label}</option>)}</Dropdown></label>
       <small>{t("This records what you found, not a change to the terminal. Leave unknown details as Not sure. Only the payment account owner can view or save these private notes.", "確認できた情報を記録するだけで、端末の設定は変更しません。不明な項目は「わからない」のままにしてください。この非公開メモを確認・保存できるのは決済アカウントの所有者だけです。")}</small>
       <button type="button" disabled={disabled} onClick={() => void save(true)}>{busy ? t("Saving…", "保存中…") : t("Save terminal notes", "端末メモを保存")}</button>
     </fieldset>
@@ -167,11 +168,11 @@ export default function AdminPayments({ locale, accessDenied = false, accessUnav
     <p>{t("Stripe is an online checkout option, not a confirmed provider. Choosing it here only edits this draft; it does not connect or change an existing terminal.", "Stripeはオンライン決済の候補であり、確定した決済会社ではありません。ここで選択しても未保存の希望が変わるだけで、接続や既存端末の変更は行われません。")}</p>
     {(providerId !== "stripe" || channel !== "online") && <button type="button" className="hollow secondary" disabled={disabled} onClick={() => { editDraft(); setProviderId("stripe"); setChannel("online"); }}>{t("Choose Stripe online setup", "Stripeのオンライン設定を選択")}</button>}
     <label>{t("Current or proposed provider", "現在または検討中の決済会社")}
-      <select disabled={disabled} value={providerId} onChange={e => { editDraft(); setProviderId(e.target.value); }}>{providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+      <Dropdown aria-label={t("Current or proposed provider", "現在または検討中の決済会社")} disabled={disabled} value={providerId} onChange={e => { editDraft(); setProviderId(e.target.value); }}>{providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</Dropdown>
     </label>
     {providerId !== "stripe" && <p>{ja ? provider.ja : provider.en}</p>}
     {provider.url && <a href={provider.url} target="_blank" rel="noopener noreferrer">{t("View official options and fees ↗", "公式のサービス・料金を見る ↗")}</a>}
-    <label>{t("Payment channel", "決済方式")}<select disabled={disabled} value={channel} onChange={e => { editDraft(); setChannel(e.target.value); }}><option value="online">{t("Customer phone / online checkout", "お客様のスマホ・オンライン決済")}</option><option value="terminal">{t("In-person terminal", "対面端末")}</option></select></label>
+    <label>{t("Payment channel", "決済方式")}<Dropdown aria-label={t("Payment channel", "決済方式")} disabled={disabled} value={channel} onChange={e => { editDraft(); setChannel(e.target.value); }}><option value="online">{t("Customer phone / online checkout", "お客様のスマホ・オンライン決済")}</option><option value="terminal">{t("In-person terminal", "対面端末")}</option></Dropdown></label>
     <fieldset disabled={disabled}><legend>{t("Requested payment methods", "希望する支払方法")}</legend>{["card", "apple_pay", "google_pay", "paypay", "rakuten_pay"].map(method => <label key={method}><span><input style={{width:"auto"}} type="checkbox" checked={methods.includes(method)} onChange={e => { editDraft(); setMethods(current => e.target.checked ? [...current, method] : current.filter(m => m !== method)); }} /> {{card: ja ? "カード" : "Cards", apple_pay: "Apple Pay", google_pay:"Google Pay", paypay:"PayPay", rakuten_pay:"楽天ペイ"}[method]}</span></label>)}</fieldset>
     <p>{t("Availability depends on your provider, payment channel and merchant approval.", "利用可否は決済会社、決済方式、加盟店審査によります。")}</p>
     <button type="button" disabled={disabled} onClick={() => void save()}>{busy ? t("Saving…", "保存中…") : t("Save setup preferences", "設定の希望を保存")}</button>

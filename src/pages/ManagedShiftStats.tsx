@@ -1,3 +1,4 @@
+import Dropdown from "../components/Select";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { accountApi, type ManagedSalesPeriod, type ManagedShiftStatsReport } from "../api/account";
@@ -74,11 +75,11 @@ export default function ManagedShiftStats({ userId, month, locale, active }: {
         </> : null}
         <Header>
             <h3>{ja ? "曜日別の平均売上" : "Average sales by weekday"}</h3>
-            <label>{ja ? "集計期間" : "Period"} <select value={period} onChange={event => setPeriod(event.target.value as ManagedSalesPeriod)}>
+            <label>{ja ? "集計期間" : "Period"} <Dropdown aria-label={ja ? "集計期間" : "Period"} value={period} onChange={event => setPeriod(event.target.value as ManagedSalesPeriod)}>
                 <option value="month">{ja ? "選択中の月" : "Selected month"}</option>
                 <option value="year">{ja ? "選択中の年" : "Selected year"}</option>
                 <option value="all_time">{ja ? "全期間" : "All time"}</option>
-            </select></label>
+            </Dropdown></label>
         </Header>
         <p>{ja ? "自分が担当した終了済みシフト1回あたりの平均売上。暦日数では割りません。" : "Average sales per closed shift you managed—not per calendar day."}
             {period !== "all_time" ? ` (${period === "month" ? month : month.slice(0, 4)})` : ""}</p>

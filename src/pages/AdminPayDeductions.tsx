@@ -1,3 +1,4 @@
+import Dropdown from "../components/Select";
 import { useEffect, useState, type FormEvent } from "react";
 import { accountApi, type Account, type ManagerPayDeduction } from "../api/account";
 import RequestState from "../components/RequestState";
@@ -130,9 +131,9 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                 {managers.length === 0 ? <p role="status">{ja ? "マネージャーアカウントがありません。" : "No manager accounts are available."}</p> : (
                     <label>
                         {ja ? "報酬の対象者" : "Manager"}
-                        <select value={selectedBeneficiary} onChange={event => setBeneficiary(event.target.value)}>
+                        <Dropdown aria-label={ja ? "報酬の対象者" : "Manager"} value={selectedBeneficiary} onChange={event => setBeneficiary(event.target.value)}>
                             {managers.map(manager => <option key={manager.id} value={manager.id}>{manager.name}</option>)}
-                        </select>
+                        </Dropdown>
                     </label>
                 )}
                 <label>
@@ -149,11 +150,11 @@ export default function AdminPayDeductions({ managers, locale }: Props) {
                 <h2>{ja ? "控除を記録" : "Record a deduction"}</h2>
                 <form onSubmit={create}>
                     <label>{ja ? "種類" : "Type"}
-                        <select value={category} onChange={event => setCategory(event.target.value as ManagerPayDeduction["category"])}>
+                        <Dropdown aria-label={ja ? "種類" : "Type"} value={category} onChange={event => setCategory(event.target.value as ManagerPayDeduction["category"])}>
                             <option value="language_exchange_commission">{ja ? "Language Exchange 手数料" : "Language Exchange commission"}</option>
                             <option value="manager_paid_staff_tip">{ja ? "スタッフへのマネージャー立替チップ" : "Manager-paid staff tip"}</option>
                             <option value="manager_pay_deduction">{ja ? "確認済みのマネージャー報酬控除" : "Confirmed manager-pay deduction"}</option>
-                        </select>
+                        </Dropdown>
                     </label>
                     {category === "manager_pay_deduction" ? <p>{ja
                         ? "マネージャーが報酬から差し引くことを確認した金額に使用します。出典に詳しい種類がない場合は、元の列名と出典を記録してください。"

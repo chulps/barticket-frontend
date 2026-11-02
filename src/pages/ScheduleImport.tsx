@@ -1,3 +1,4 @@
+import Dropdown from "../components/Select";
 import { useMemo, useState } from "react";
 import styled from "styled-components";
 import type { Account } from "../api/account";
@@ -84,21 +85,21 @@ export default function ScheduleImport({ users, locale }: Props) {
         {csv ? <>
             <p>{fileName} · {csv.rows.length} {ja ? "行" : "rows"}</p>
             <Fields>
-                <label>{ja ? "営業日" : "Business date"}<select value={mapping.date} onChange={event => updateMapping("date", event.target.value)}>
+                <label>{ja ? "営業日" : "Business date"}<Dropdown aria-label={ja ? "営業日" : "Business date"} value={mapping.date} onChange={event => updateMapping("date", event.target.value)}>
                     <option value="">{ja ? "列を選択" : "Select column"}</option>{csv.headers.map(header => <option key={header} value={header}>{header}</option>)}
-                </select></label>
-                <label>{ja ? "マネージャー" : "Manager"}<select value={mapping.manager} onChange={event => updateMapping("manager", event.target.value)}>
+                </Dropdown></label>
+                <label>{ja ? "マネージャー" : "Manager"}<Dropdown aria-label={ja ? "マネージャー" : "Manager"} value={mapping.manager} onChange={event => updateMapping("manager", event.target.value)}>
                     <option value="">{ja ? "なし" : "None"}</option>{csv.headers.map(header => <option key={header} value={header}>{header}</option>)}
-                </select></label>
-                <label>{ja ? "スタッフ名の列（任意）" : "Assigned staff names column (optional)"}<select value={mapping.staffNames} onChange={event => updateMapping("staffNames", event.target.value)}>
+                </Dropdown></label>
+                <label>{ja ? "スタッフ名の列（任意）" : "Assigned staff names column (optional)"}<Dropdown aria-label={ja ? "スタッフ名の列（任意）" : "Assigned staff names column (optional)"} value={mapping.staffNames} onChange={event => updateMapping("staffNames", event.target.value)}>
                     <option value="">{ja ? "なし" : "None"}</option>{csv.headers.map(header => <option key={header} value={header}>{header}</option>)}
-                </select><small>{ja ? "複数名はセミコロン、改行、または | で区切ります。" : "Separate multiple names with semicolons, new lines, or |."}</small></label>
-                <label>{ja ? "イベント列（任意）" : "Event column (optional)"}<select value={mapping.event} onChange={event => updateMapping("event", event.target.value)}>
+                </Dropdown><small>{ja ? "複数名はセミコロン、改行、または | で区切ります。" : "Separate multiple names with semicolons, new lines, or |."}</small></label>
+                <label>{ja ? "イベント列（任意）" : "Event column (optional)"}<Dropdown aria-label={ja ? "イベント列（任意）" : "Event column (optional)"} value={mapping.event} onChange={event => updateMapping("event", event.target.value)}>
                     <option value="">{ja ? "なし" : "None"}</option>{csv.headers.map(header => <option key={header} value={header}>{header}</option>)}
-                </select></label>
-                <label>{ja ? "不確実・確認メモ列（任意）" : "Uncertainty or review note column (optional)"}<select value={mapping.uncertainty} onChange={event => updateMapping("uncertainty", event.target.value)}>
+                </Dropdown></label>
+                <label>{ja ? "不確実・確認メモ列（任意）" : "Uncertainty or review note column (optional)"}<Dropdown aria-label={ja ? "不確実・確認メモ列（任意）" : "Uncertainty or review note column (optional)"} value={mapping.uncertainty} onChange={event => updateMapping("uncertainty", event.target.value)}>
                     <option value="">{ja ? "なし" : "None"}</option>{csv.headers.map(header => <option key={header} value={header}>{header}</option>)}
-                </select></label>
+                </Dropdown></label>
             </Fields>
             <fieldset>
                 <legend>{ja ? "スタッフ別の割当列" : "Staff assignment columns"}</legend>

@@ -69,22 +69,27 @@ export default function NotificationPreferences() {
       </Row>)}</Rows> : null}
       {busy ? <p role="status">{ja ? '保存中…' : 'Saving…'}</p> : null}
     </Panel>
-    <Panel aria-labelledby="sound-heading">
-      <h3 id="sound-heading">{ja ? 'アプリを開いている間の音' : 'Sounds while BarTicket is open'}</h3>
-      <Row><span id="sound-toggle-label">{ja ? 'この端末でサウンドを使う' : 'Use sounds on this device'}</span><Switch type="button" role="switch" aria-checked={enabled} aria-labelledby="sound-toggle-label" disabled={audioBusy || (!audioSupported && !enabled)} onClick={() => enabled ? disableSounds() : void audio()}><span /></Switch></Row>
-      <p>{ja ? '新しい伝票・在庫切れ・支払完了に異なる音を鳴らします。この端末のプッシュと該当する通知の種類がオンの場合のみです。操作した端末を除くなど、既存の通知ルールが適用されます。' : 'Different cues for new tickets, stockouts and fully paid tickets. Requires push on this device and the matching notification type to be on. Existing delivery rules still apply, including excluding the device making a ticket change.'}</p>
-      <p>{ja ? 'アプリを閉じた状態やロック画面の通知音は端末が管理します。このサウンドには変更できません。' : 'Closed-app and lock-screen notification sounds are controlled by your device; these custom sounds cannot replace them.'}</p>
-      {!audioSupported ? <p role="status">{ja ? 'このブラウザーでは安全な自動サウンド再生を利用できません。対応ブラウザーで開いてください。通知自体は影響を受けません。' : 'Automatic sounds aren’t supported safely in this browser. Use a supported browser; notifications are unaffected.'}</p> : null}
-      {enabled && !ready && audioSupported ? <p role="status">{ja ? 'この画面でタップしてサウンドを再開してください。' : 'Tap to resume sounds for this open session.'} <button type="button" disabled={audioBusy} onClick={() => void audio()}>{ja ? 'サウンドを再開' : 'Resume sounds'}</button></p> : null}
-      {soundError ? <p role="alert">{soundError}</p> : null}
-      <p>{ja ? 'iPhoneで試聴するには、消音モードを解除してメディア音量を確認してください。' : 'On iPhone, turn Silent mode off and check media volume to hear previews.'}</p>
+    <SoundPanel aria-labelledby="sound-heading">
+      <h3 id="sound-heading">{ja ? 'アプリ内のサウンド' : 'In-app sounds'}</h3>
+      <SoundIntro>{ja ? 'BarTicketを開いている間の通知音。' : 'Notification sounds while BarTicket is open.'}</SoundIntro>
+      <SoundToggleRow><span id="sound-toggle-label">{ja ? 'この端末でサウンドを使う' : 'Use sounds on this device'}</span><Switch type="button" role="switch" aria-checked={enabled} aria-labelledby="sound-toggle-label" disabled={audioBusy || (!audioSupported && !enabled)} onClick={() => enabled ? disableSounds() : void audio()}><span /></Switch></SoundToggleRow>
+      {!audioSupported ? <SoundStatus role="status">{ja ? 'このブラウザーでは安全な自動サウンド再生を利用できません。対応ブラウザーで開いてください。通知自体は影響を受けません。' : 'Automatic sounds aren’t supported safely in this browser. Use a supported browser; notifications are unaffected.'}</SoundStatus> : null}
+      {enabled && !ready && audioSupported ? <ResumeRow><SoundStatus role="status">{ja ? 'このセッションで音を鳴らすには再開してください。' : 'Resume to hear sounds in this session.'}</SoundStatus><button type="button" disabled={audioBusy} onClick={() => void audio()}>{ja ? 'サウンドを再開' : 'Resume sounds'}</button></ResumeRow> : null}
+      {soundError ? <SoundStatus role="alert">{soundError}</SoundStatus> : null}
+      <PreviewHeading>{ja ? 'サウンドを試聴' : 'Preview sounds'}</PreviewHeading>
+      <SoundIntro>{ja ? '試聴だけでは通知音はオンになりません。' : 'Previews do not turn sounds on.'}</SoundIntro>
       <Previews>{([
-        ['ticket_created', 'Preview new ticket', '新しい伝票の音'],
-        ['stock_out', 'Preview stockout', '在庫切れの音'],
-        ['ticket_paid', 'Preview cha-ching', '支払完了の音'],
-      ] as const).map(([cue, en, jp]) => <button key={cue} type="button" disabled={audioBusy} onClick={() => void audio(cue)}>{ja ? jp : en}</button>)}</Previews>
-      <p>{ja ? '試聴だけでは通知音はオンになりません。サインアウトやアカウント変更時はオフになります。' : 'Previews do not turn sounds on. Signing out or switching accounts turns sounds off.'}</p>
-    </Panel>
+        ['ticket_created', 'New ticket', '新しい伝票', 'Preview new ticket', '新しい伝票の音を試聴'],
+        ['stock_out', 'Out of stock', '在庫切れ', 'Preview stockout', '在庫切れの音を試聴'],
+        ['ticket_paid', 'Fully paid · cha-ching', '支払完了', 'Preview cha-ching', '支払完了の音を試聴'],
+      ] as const).map(([cue, en, jp, enAction, jpAction]) => <PreviewRow key={cue}><span>{ja ? jp : en}</span><PreviewButton type="button" aria-label={ja ? jpAction : enAction} disabled={audioBusy} onClick={() => void audio(cue)}>{ja ? '試聴' : 'Preview'}</PreviewButton></PreviewRow>)}</Previews>
+      <SoundIntro>{ja ? 'iPhone：消音モードを解除し、メディア音量を確認してください。' : 'iPhone: turn Silent mode off and check media volume.'}</SoundIntro>
+      <SoundDetails><summary>{ja ? 'サウンドの配信条件と制限' : 'When sounds play & device limits'}</summary>
+        <p>{ja ? '新しい伝票・在庫切れ・支払完了に異なる音を鳴らします。この端末のプッシュと該当する通知の種類がオンの場合のみです。操作した端末を除くなど、既存の通知ルールが適用されます。' : 'Different cues for new tickets, stockouts and fully paid tickets. Requires push on this device and the matching notification type to be on. Existing delivery rules still apply, including excluding the device making a ticket change.'}</p>
+        <p>{ja ? 'アプリを閉じた状態やロック画面の通知音は端末が管理します。このサウンドには変更できません。' : 'Closed-app and lock-screen notification sounds are controlled by your device; these custom sounds cannot replace them.'}</p>
+        <p>{ja ? 'サインアウトやアカウント変更時はオフになります。' : 'Signing out or switching accounts turns sounds off.'}</p>
+      </SoundDetails>
+    </SoundPanel>
   </>;
 }
 const Panel = styled.section`
@@ -106,4 +111,35 @@ const Switch = styled.button`
   &:focus-visible { outline: 3px solid var(--royal-400); outline-offset: 3px; }
   &:disabled { opacity: .6; }
 `;
-const Previews = styled.div`display: flex; flex-wrap: wrap; gap: var(--space-1); button { white-space: normal; width: auto; min-height: 44px; }`;
+const SoundPanel = styled(Panel)`
+  h3 { font-size: var(--font-size-h4); line-height: 1.4; }
+  p { color: var(--neutral-200); line-height: 1.5; }
+`;
+const SoundIntro = styled.p`margin: 0 0 var(--space-1);`;
+const SoundToggleRow = styled(Row)`border-bottom: 0; margin-block: var(--space-1) var(--space-2); font-weight: 500;`;
+const SoundStatus = styled.p`margin: 0;`;
+const ResumeRow = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2);
+  margin-block: var(--space-1) var(--space-2);
+  p { flex: 1 1 180px; }
+  button { flex: none; width: auto; max-width: 100%; white-space: normal; overflow-wrap: anywhere; min-height: 44px; padding: var(--space-1) var(--space-2); line-height: 1.4; }
+`;
+const PreviewHeading = styled.h4`font-size: var(--font-size-h5); margin: var(--space-2) 0 var(--space-0); line-height: 1.5;`;
+const Previews = styled.div`margin-block: var(--space-1) var(--space-2);`;
+const PreviewRow = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-1);
+  min-height: 60px; padding-block: var(--space-0);
+  & + & { border-top: 1px solid var(--neutral-700); }
+  span { flex: 1 1 120px; min-width: 0; overflow-wrap: anywhere; line-height: 1.5; }
+`;
+const PreviewButton = styled.button`
+  && { background: var(--neutral-700); color: var(--white); width: auto; max-width: 100%; white-space: normal; overflow-wrap: anywhere; min-width: 88px; min-height: 44px; padding: var(--space-1) var(--space-2); flex: none; }
+  &&:hover { background: var(--neutral-600); }
+  &&:focus-visible { outline: 2px solid var(--royal-200); outline-offset: 3px; }
+`;
+const SoundDetails = styled.details`
+  margin-top: var(--space-2); color: var(--neutral-200);
+  summary { cursor: pointer; min-height: 44px; align-content: center; line-height: 1.5; padding-block: var(--space-1); }
+  summary:focus-visible { outline: 2px solid var(--royal-200); outline-offset: 3px; }
+  p { margin: var(--space-1) 0; }
+`;

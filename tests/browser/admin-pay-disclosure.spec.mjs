@@ -1,3 +1,4 @@
+import { selectOption, expectValue } from './helpers/select.mjs';
 import { test, expect } from "@playwright/test";
 
 async function previewFixture(page, locale = "en") {
@@ -60,16 +61,16 @@ for (const locale of ["en","ja"]) {
     const summary = page.getByRole("heading",{name:ja ? "給与の見積もり" : "Pay estimate"});
     const shifts = page.getByRole("heading",{name:ja ? "担当シフト" : "Qualifying shifts"});
     expect((await summary.boundingBox()).y).toBeLessThan((await shifts.boundingBox()).y);
-    await expect(page.locator("select")).toHaveCount(0);
+    await expect(page.getByRole("combobox")).toHaveCount(0);
     const correct = ja ? "担当を修正" : "Correct assignment";
     await page.getByRole("button",{name:correct,exact:true}).first().click();
-    await expect(page.locator("select")).toHaveCount(1);
-    await page.locator("select").selectOption("2");
+    await expect(page.getByRole("combobox")).toHaveCount(1);
+    await selectOption(page.getByRole("combobox"), "2");
     await page.getByRole("textbox").fill("Verified source correction");
     await page.getByRole("button",{name:correct,exact:true}).click();
-    await expect(page.locator("select")).toHaveCount(1);
+    await expect(page.getByRole("combobox")).toHaveCount(1);
     await page.getByRole("button",{name:correct,exact:true}).click();
-    await expect(page.locator("select")).toHaveValue("2");
+    await expectValue(page.getByRole("combobox"), "2");
     await expect(page.getByRole("textbox")).toHaveValue("Verified source correction");
     expect(state.writes).toEqual([]);
     const save = page.getByRole("button",{name:ja ? "担当を保存" : "Save assignment",exact:true});
@@ -79,7 +80,7 @@ for (const locale of ["en","ja"]) {
     expect(state.writes).toHaveLength(1);
     state.allowSave();
     await save.click();
-    await expect(page.locator("select")).toHaveCount(0);
+    await expect(page.getByRole("combobox")).toHaveCount(0);
     expect(state.writes).toHaveLength(2);
     expect(state.writes[0]).toEqual(state.writes[1]);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth)).toBe(true);

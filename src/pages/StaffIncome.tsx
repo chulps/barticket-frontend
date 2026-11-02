@@ -1,3 +1,4 @@
+import Dropdown from "../components/Select";
 import { subscribeRealtime } from "../api/realtime";
 import { useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
@@ -254,18 +255,18 @@ function PersonalIncome({ userId, locale, role }: IncomeProps) {
                         <summary>{ja ? "種類・並び順" : "Filter & sort"}</summary>
                         <label>
                             {ja ? "種類" : "Category"}
-                            <select value={category} onChange={event => setCategory(event.target.value as Category)}>
+                            <Dropdown aria-label={ja ? "種類" : "Category"} value={category} onChange={event => setCategory(event.target.value as Category)}>
                                 <option value="all">{ja ? "すべて" : "All categories"}</option>
                                 <option value="hourly_wages">{ja ? "賃金" : "Wages"}</option>
                                 <option value="staff_drink_bonus">{ja ? "スタッフドリンク" : "Staff drinks"}</option>
-                            </select>
+                            </Dropdown>
                         </label>
                         <label>
                             {ja ? "並び順" : "Sort by"}
-                            <select value={sort} onChange={event => setSort(event.target.value as SortOrder)}>
+                            <Dropdown aria-label={ja ? "並び順" : "Sort by"} value={sort} onChange={event => setSort(event.target.value as SortOrder)}>
                                 <option value="date">{ja ? "日付（新しい順）" : "Date (newest)"}</option>
                                 <option value="category">{ja ? "種類、日付" : "Category, date"}</option>
-                            </select>
+                            </Dropdown>
                         </label>
                     </Filters>
                 </> : null}
