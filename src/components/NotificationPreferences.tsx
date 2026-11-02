@@ -122,7 +122,7 @@ const ResumeRow = styled.div`
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2);
   margin-block: var(--space-1) var(--space-2);
   p { flex: 1 1 180px; }
-  button { flex: none; width: auto; max-width: 100%; white-space: normal; overflow-wrap: anywhere; min-height: 44px; }
+  button { flex: none; width: auto; max-width: 100%; white-space: normal; overflow-wrap: anywhere; min-height: 44px; padding: var(--space-1) var(--space-2); line-height: 1.4; }
 `;
 const PreviewHeading = styled.h4`font-size: var(--font-size-h5); margin: var(--space-2) 0 var(--space-0); line-height: 1.5;`;
 const Previews = styled.div`margin-block: var(--space-1) var(--space-2);`;
