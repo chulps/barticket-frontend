@@ -1186,6 +1186,14 @@ for (const reducedMotion of ['no-preference','reduce']) {
   await page.evaluate(()=>{
    window.__originalTicketRow=document.querySelector('[data-ticket-row="11"]');
    window.__motionObservations=[];
+   window.__minimumUnchangedOpacity=1;
+   window.__measureUnchangedRow=true;
+   const sample=()=>{
+    const row=window.__originalTicketRow;
+    if(row?.isConnected) window.__minimumUnchangedOpacity=Math.min(window.__minimumUnchangedOpacity,Number(getComputedStyle(row).opacity)*Number(getComputedStyle(row.querySelector('button')).opacity));
+    if(window.__measureUnchangedRow) requestAnimationFrame(sample);
+   };
+   requestAnimationFrame(sample);
    const observe=()=>document.querySelectorAll('[data-ticket-row]').forEach(row=>{
     if(row.hasAttribute('data-ticket-arrival')||row.inert) window.__motionObservations.push({id:row.dataset.ticketRow,arrival:row.hasAttribute('data-ticket-arrival'),inert:row.inert});
    });
@@ -1195,9 +1203,12 @@ for (const reducedMotion of ['no-preference','reduce']) {
   state.tickets.push({...ticket(12),name:'Remote fixture'});send();
   const incoming=page.locator('[data-ticket-row="12"]');await expect(incoming).toBeVisible();
   expect(await page.evaluate(()=>window.__originalTicketRow===document.querySelector('[data-ticket-row="11"]'))).toBe(true);
+  await expect(page.locator('[data-ticket-row="11"]')).toHaveCSS('opacity','1');
+  await expect(page.locator('[data-ticket-row="11"] > button')).toHaveCSS('opacity','1');
   if(reducedMotion==='no-preference') await expect.poll(()=>page.evaluate(()=>window.__motionObservations.some(x=>x.id==='12'&&x.arrival))).toBe(true);
   else expect(await page.evaluate(()=>window.__motionObservations.some(x=>x.arrival))).toBe(false);
   await testInfo.attach(`ticket-live-${reducedMotion}`,{body:await page.screenshot(),contentType:'image/png'});
+  expect(await page.evaluate(()=>{window.__measureUnchangedRow=false;return window.__minimumUnchangedOpacity;})).toBeGreaterThanOrEqual(.99);
   // Known active ticket moves out; exiting row is inert, never a stale action target.
   Object.assign(state.tickets.find(t=>t.id===12),{status:'paid',paid_at:now(),payment:{type:'cash',amount:700}});send();
   await expect(incoming).toHaveCount(0);
@@ -1212,6 +1223,8 @@ for (const reducedMotion of ['no-preference','reduce']) {
   socket.send(JSON.stringify({type:'ready',version:1,cursor:++cursor}));
   await expect(page.locator('[data-ticket-row="13"]')).toBeVisible();
   expect(await page.evaluate(()=>window.__motionObservations.some(x=>x.id==='13'&&x.arrival))).toBe(false);
+  await expect(page.locator('[data-ticket-row="11"]')).toHaveCSS('opacity','1');
+  await expect(page.locator('[data-ticket-row="11"] > button')).toHaveCSS('opacity','1');
   expect(state.newTicketPosts).toBe(0);expect(state.paymentPosts).toBe(0);
  });
 }

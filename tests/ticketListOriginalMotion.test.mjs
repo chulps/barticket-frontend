@@ -38,7 +38,7 @@ test('restores the original composed outer/inner entrance for every row, not onl
 test('reduced motion bypasses both original layers without delaying ticket access',()=>{
  reduced=true;
  for(const node of all(render(100)).filter(n=>n.type==='motion.div'||n.type==='row')) {
-  assert.equal(node.props.initial,undefined);assert.equal(node.props.animate,undefined);assert.equal(node.props.transition,undefined);
+  assert.equal(node.props.initial,false);assert.deepEqual(node.props.animate,{opacity:1,x:0});assert.deepEqual(node.props.transition,{duration:0});
  }
 });
 
@@ -54,7 +54,7 @@ test('live arrivals touch only the affected row; quiet snapshots never replay ro
  assert.deepEqual(wrappers[5].props.variants.exit({leavingIds:[7],direction:1}),{opacity:1,x:0,transition:{duration:0}});
  for(const source of ['quiet']) {
   nodes=all(render(10,{ticketMotion:{...ticketMotion,source,moves:[]}}));
-  nodes.filter(n=>n.type==='motion.div'||n.type==='row').forEach(row=>assert.equal(row.props.initial,undefined));
+  nodes.filter(n=>n.type==='motion.div'||n.type==='row').forEach(row=>assert.equal(row.props.initial,false));
  }
  // User tab navigation has its original per-index delay even after a recent move.
  tabSnapshot=ticketMotion;
@@ -63,7 +63,7 @@ test('live arrivals touch only the affected row; quiet snapshots never replay ro
  tabSnapshot=undefined;
  for(const extra of [{detailsOpen:true},{ticketMotion:{...ticketMotion,sequence:3}}]) {
   expired=3;
-  all(render(10,{ticketMotion,...extra})).filter(n=>n.type==='motion.div').forEach(row=>assert.equal(row.props.initial,undefined));
+  all(render(10,{ticketMotion,...extra})).filter(n=>n.type==='motion.div').forEach(row=>assert.equal(row.props.initial,false));
  }
  expired=null;
 });

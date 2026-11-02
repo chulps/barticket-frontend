@@ -179,13 +179,9 @@ export default function TicketSidebar({
                     ? { opacity: 0, x: -d * 24, transition: { duration: 0.18 } }
                     : { opacity: 1, x: 0, transition: { duration: 0 } } }}
                 exit="exit"
-                {...(animateEntrance
-                  ? {
-                      initial: { opacity: 0, x: direction * 24 },
-                      animate: { opacity: 1, x: 0 },
-                      transition: { delay, duration: 0.18 },
-                    }
-                  : {})}
+                initial={animateEntrance ? { opacity: 0, x: direction * 24 } : false}
+                animate={{ opacity: 1, x: 0 }}
+                transition={prefersReducedMotion ? { duration: 0 } : { delay, duration: 0.18 }}
               >
               <TicketListItem
                 ticketId={ticket.id}
@@ -194,19 +190,11 @@ export default function TicketSidebar({
                 createdAt={ticket.created_at}
                 createdBy={ticket.created_by}
                 selected={ticket.id === selectedTicketId}
-                {...(animateEntrance
-                  ? {
-                      initial: { opacity: 0, x: -direction * 24 },
-                      animate: { opacity: 1, x: 0 },
-                      transition: {
-                        delay,
-                        type: "spring" as const,
-                        stiffness: 500,
-                        damping: 32,
-                        mass: 0.7,
-                      },
-                    }
-                  : {})}
+                initial={animateEntrance ? { opacity: 0, x: -direction * 24 } : false}
+                animate={{ opacity: 1, x: 0 }}
+                transition={prefersReducedMotion ? { duration: 0 } : {
+                  delay, type: "spring", stiffness: 500, damping: 32, mass: 0.7,
+                }}
                 onClick={() => {
                   setSelectedTicketId(ticket.id);
 
