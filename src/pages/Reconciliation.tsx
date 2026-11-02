@@ -1,3 +1,5 @@
+import { getToken } from "../api/client";
+import HistoricalHoursExceptions, { StoredHoursEvidence } from "./HistoricalHoursExceptions";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import styled from "styled-components";
 import type { Account, ShiftReport } from "../api/account";
@@ -60,6 +62,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
     const [extraHourKey, setExtraHourKey] = useState("");
     const [restoredFromMemory] = useState(() => temporaryWorkingCopy !== null);
     const csvRequestVersion = useRef(0);
+    const historyEpoch = useRef(0);
     const selected = shifts.find(shift => shift.id === selectedId) ?? null;
     const filtered = useMemo(() => shifts.filter(shift => [shift.business_date, shift.opened_by].join(" ").toLowerCase().includes(search.toLowerCase())).sort((a, b) => b.business_date.localeCompare(a.business_date)), [shifts, search]);
     const invalidDraft = Boolean(draft && (!["Chuck", "Nori"].includes(draft.manager) || (draft.staff === "guest" && (!draft.guestName.trim() || (draft.guestPayType !== "" && !["hourly", "flat", "revenue", "custom"].includes(draft.guestPayType)) || (draft.guestPayAmount !== "" && (!validNumber(draft.guestPayAmount) || (draft.guestPayType === "revenue" && Number(draft.guestPayAmount) > 100))) || (draft.guestDrinkback !== "" && (!validNumber(draft.guestDrinkback) || Number(draft.guestDrinkback) > 100)))) || !validNumber(draft.revenue) || !validNumber(draft.guests) ||
@@ -106,6 +109,8 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
 
     useEffect(() => {
         const clearOnAuthChange = () => {
+            historyEpoch.current++;
+            setHistoryBusy(false);
             temporaryWorkingCopy = null;
             setHistoryPreview(null);
             setHistoryBatch(null);
@@ -114,7 +119,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
             setHistoryError("");
         };
         window.addEventListener("barticket-auth", clearOnAuthChange);
-        return () => window.removeEventListener("barticket-auth", clearOnAuthChange);
+        return () => { historyEpoch.current++; window.removeEventListener("barticket-auth", clearOnAuthChange); };
     }, []);
 
     useEffect(() => {
@@ -194,6 +199,8 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
 
     async function reconcileHistory() {
         if (!csv || historyBusy) return;
+        const version = historyEpoch.current, token = getToken();
+        const current = () => version === historyEpoch.current && token === getToken();
         setHistoryBusy(true);
         setHistoryError("");
         setHistoryPreview(null);
@@ -203,12 +210,13 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
         try {
             const batch = buildHistoricalHoursBatch(csv, mapping, users, csvFileName);
             const result = await historicalHoursApi.reconcile(batch.sourceFile, batch.rows);
+            if (!current()) return;
             setHistoryBatch(batch);
             setHistoryPreview(result);
         } catch (e) {
-            setHistoryError(e instanceof Error ? e.message : String(e));
+            if (current()) setHistoryError(e instanceof Error ? e.message : String(e));
         } finally {
-            setHistoryBusy(false);
+            if (current()) setHistoryBusy(false);
         }
     }
 
@@ -236,18 +244,22 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
             ? `${approved.length}件、合計${hoursTotal}時間を履歴として取り込みます。打刻時刻は作成しません。続けますか？`
             : `Save ${approved.length} spreadsheet hour entries (${hoursTotal} total hours), including ${selectedRows.filter(row => row.state === "conflict").length} audited corrections? Existing clock times will remain unchanged.`;
         if (!window.confirm(confirmText)) return;
+        const version = historyEpoch.current, token = getToken();
+        const current = () => version === historyEpoch.current && token === getToken();
         setHistoryBusy(true);
         setHistoryError("");
         try {
             await historicalHoursApi.import(historyBatch.sourceFile, historyBatch.rows, approved);
+            if (!current()) return;
             const refreshed = await historicalHoursApi.reconcile(historyBatch.sourceFile, historyBatch.rows);
+            if (!current()) return;
             setHistoryPreview(refreshed);
             setSelectedHistoryCells([]);
             setHistoryCorrectionReason("");
         } catch (e) {
-            setHistoryError(e instanceof Error ? e.message : String(e));
+            if (current()) setHistoryError(e instanceof Error ? e.message : String(e));
         } finally {
-            setHistoryBusy(false);
+            if (current()) setHistoryBusy(false);
         }
     }
 
@@ -266,6 +278,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
             <p>{ja ? "照合は読み取り専用です。保存すると、選択したスタッフの合計時間だけが記録されます。マネージャー・売上・来客数・イベントは変更されません。" :
                 "Reconciliation is read-only. Saving records only selected staff-hour totals. Manager, revenue, guest count, and event values are not changed."}</p>
         </Notice>
+        <HistoricalHoursExceptions ja={ja} />
         {error ? <p role="alert">{error}</p> : null}
         <Block>
             <details>
@@ -486,7 +499,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                                         : current.filter(item => item !== cellKey))} /></td>
                                 <td>{row.business_date}</td><td>{row.staff_name}</td><td>{row.source_seconds / 3600}</td>
                                 <td>{row.effective_seconds === null ? (ja ? "不明" : "Unknown") : row.effective_seconds / 3600}</td>
-                                <td>{statusLabel} — {row.reason}</td><td>{row.source_row} · {row.source_column}</td>
+                                <td>{statusLabel}{row.account_unlinked ? (ja ? " · アカウント未紐付け" : " · Account unlinked") : ""} — {row.reason}{row.stored_record ? <StoredHoursEvidence record={row.stored_record} ja={ja} /> : null}</td><td>{row.source_row} · {row.source_column}</td>
                             </tr>;
                         })}</tbody></table></TableWrap></DesktopRows>
                     <MobileRows role="list" aria-label={ja ? "勤務時間の照合結果" : "Staff-hours reconciliation results"}>
@@ -511,7 +524,7 @@ export default function Reconciliation({ shifts, users, locale, error, initialSh
                                 { label: ja ? "取り込み" : "Import", value: checkbox },
                                 { label: ja ? "勤務表時間" : "Spreadsheet hours", value: `${row.source_seconds / 3600} h` },
                                 { label: ja ? "現在の有効時間" : "Current effective hours", value: row.effective_seconds === null ? (ja ? "不明" : "Unknown") : `${row.effective_seconds / 3600} h` },
-                                { label: ja ? "結果・理由" : "Result and reason", value: `${statusLabel} — ${row.reason}` },
+                                { label: ja ? "結果・理由" : "Result and reason", value: <>{statusLabel}{row.account_unlinked ? (ja ? " · アカウント未紐付け" : " · Account unlinked") : ""} — {row.reason}{row.stored_record ? <StoredHoursEvidence record={row.stored_record} ja={ja} /> : null}</> },
                                 { label: ja ? "出典" : "Source", value: `${row.source_row} · ${row.source_column}` },
                             ]} />;
                         })}
