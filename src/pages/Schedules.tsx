@@ -1,3 +1,5 @@
+import { isCurrentReservationManager } from "../api/pendingReservations";
+import { usePendingReservations } from "../components/PendingReservationsContext";
 import { useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import styled from "styled-components";
@@ -6,12 +8,14 @@ import { accountApi, type Account } from "../api/account";
 import { timeOffApi, type TimeOffRequest } from "../api/timeOff";
 import { reservationsApi, type Reservation } from "../api/reservations";
 import { isCurrentAuthRequest } from "../api/authRequestGuard.js";
+import { claimReservationLink, reservationLinkFailure, runReservationLinkFlight } from "./reservationLinkClaim.js";
 import { getToken } from "../api/client";
 import { shouldPoll } from "../api/realtime";
 import { businessDateJst } from "./shiftControlPolicy";
 import { useI18n } from "../i18n";
 import { addDays, calendarDays, changeMonth, monthRange, weekDays, weekRange } from "./scheduleCalendar";
 import { createScheduleReadStore } from "./scheduleReadStore";
+import { reservationCounts } from "./reservationCounts";
 import ScheduleEditor from "./ScheduleEditor";
 import TabGroup from "../components/TabGroup";
 import Icon from "../components/Icon";
@@ -49,14 +53,28 @@ export default function Schedules() {
     const [knownManagers, setKnownManagers] = useState<ScheduledPerson[]>([]);
     const detailPanel = useRef<HTMLElement>(null);
     const [viewer, setViewer] = useState<Account | null>(null);
+    const [viewerError, setViewerError] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
     const [timeOff, setTimeOff] = useState<TimeOffRequest[]>([]);
-    const [reservations, setReservations] = useState<Reservation[]>([]);
-    const [managerInboxReservations, setManagerInboxReservations] = useState<Reservation[]>([]);
-    const [reservationBusy, setReservationBusy] = useState(false);
+    const [reservationData, setReservationData] = useState<{ epoch: number; items: Reservation[] }>({ epoch: -1, items: [] });
+    const { snapshot: reservationInbox, retry: retryInbox, refresh: refreshInbox, getSnapshot: getReservationSnapshot, rejectAuthorization } = usePendingReservations();
+    const managerEpoch = reservationInbox.epoch;
+    const verifiedReservationManager = isCurrentReservationManager(reservationInbox, getToken(), managerEpoch);
+    const reservationManagerCurrent = useCallback(() => isCurrentReservationManager(getReservationSnapshot(), getToken(), managerEpoch), [getReservationSnapshot, managerEpoch]);
+    const reservations = verifiedReservationManager && reservationData.epoch === managerEpoch ? reservationData.items : [];
+    const managerInboxReservations = reservationInbox.status === "ready" ? reservationInbox.inbox?.pending_requests ?? [] : [];
+    const inboxStatus = reservationInbox.status === "ready" ? "ready" : reservationInbox.status === "error" || reservationInbox.status === "role-error" ? "error" : "loading";
+    const [reservationReadId, setReservationReadId] = useState<{ id: number; epoch: number } | null>(null);
+    const markingReservation = useRef<string | null>(null);
+    const [reservationBusyEpoch, setReservationBusyEpoch] = useState<number | null>(null);
+    const reservationBusy = reservationBusyEpoch === managerEpoch;
     const [reservationError, setReservationError] = useState("");
+    const [reservationErrorEpoch, setReservationErrorEpoch] = useState(-1);
     const [reservationMessage, setReservationMessage] = useState("");
-    const handledReservationLink = useRef("");
+    const [reservationLinkError, setReservationLinkError] = useState<"unavailable" | "retry" | null>(null);
+    const [reservationLinkAttempt, setReservationLinkAttempt] = useState(0);
+    const handledReservationLink = useRef<object | null>(null);
+    const inboxPanel = useRef<HTMLElement>(null);
     const reservationDispatchInFlight = useRef(false);
     const [timeOffReason, setTimeOffReason] = useState("");
     const [timeOffBusy, setTimeOffBusy] = useState(false);
@@ -112,51 +130,51 @@ export default function Schedules() {
     useEffect(() => {
         let active = true;
         const requestAuth = authSerial.current;
-        void accountApi.me().then(user => { if (active && requestAuth === authSerial.current && session === getToken()) setViewer(user); }).catch(() => { if (active && requestAuth === authSerial.current) setViewer(null); });
+        void accountApi.me().then(user => { if (active && requestAuth === authSerial.current && session === getToken()) { setViewer(user); setViewerError(false); } }).catch(() => { if (active && requestAuth === authSerial.current && session === getToken()) { setViewer(null); setViewerError(true); } });
         return () => { active = false; };
     }, [session, authEpoch]);
     useEffect(() => {
-        if (!viewer || viewer.role !== "manager" || !session || session !== getToken()) {
-            return;
-        }
+        if (!verifiedReservationManager || !session || session !== getToken()) return;
         let active = true;
         let requestSerial = 0;
         const loadReservationViews = (current: number, requestAuth: number) =>
-            Promise.all([reservationsApi.list(from, to), reservationsApi.inbox()]).then(([items, inbox]) => {
-                if (active && requestSerial === current && isCurrentAuthRequest(requestAuth, authSerial.current, session, getToken()) && requestAuth === authEpoch) {
-                    setReservations(items);
-                    setManagerInboxReservations(inbox.pending_requests);
+            reservationsApi.list(from, to).then(items => {
+                if (active && requestSerial === current && isCurrentAuthRequest(requestAuth, authSerial.current, session, getToken()) && requestAuth === authEpoch && reservationManagerCurrent()) {
+                    setReservationData({ epoch: managerEpoch, items });
                     setReservationError("");
                 }
             });
         const refresh = () => {
             const current = ++requestSerial;
             const requestAuth = authSerial.current;
-            if (!isCurrentAuthRequest(authEpoch, requestAuth, session, getToken())) return;
+            if (!isCurrentAuthRequest(authEpoch, requestAuth, session, getToken()) || !reservationManagerCurrent()) return;
             // Render the list and inbox immediately. The bounded one-message
             // recovery call runs independently and refreshes status afterward.
             void loadReservationViews(current, requestAuth).catch(err => {
-                if (active && requestSerial === current && isCurrentAuthRequest(requestAuth, authSerial.current, session, getToken()) && requestAuth === authEpoch) {
-                    setReservationError(err instanceof Error ? err.message : String(err));
+                if (active && requestSerial === current && isCurrentAuthRequest(requestAuth, authSerial.current, session, getToken()) && requestAuth === authEpoch && reservationManagerCurrent()) {
+                    if (rejectAuthorization(err, managerEpoch)) return;
+                    setReservationError(err instanceof Error ? err.message : String(err)); setReservationErrorEpoch(managerEpoch);
                 }
             });
             if (reservationDispatchInFlight.current) return;
             reservationDispatchInFlight.current = true;
             void reservationsApi.dispatchQueuedEmail().then(result => {
-                if (!active || requestSerial !== current || !isCurrentAuthRequest(requestAuth, authSerial.current, session, getToken()) || requestAuth !== authEpoch) return;
+                if (!active || requestSerial !== current || !isCurrentAuthRequest(requestAuth, authSerial.current, session, getToken()) || requestAuth !== authEpoch || !reservationManagerCurrent()) return;
                 if (result.unknown > 0) {
                     setReservationMessage(t("A queued email has an uncertain delivery status. Check with the guest before retrying.", "送信状態が不明なメールがあります。再送信する前にゲストにご確認ください。"));
                 }
-                if (result.scanned > 0) return loadReservationViews(current, requestAuth);
-            }).catch(() => undefined).finally(() => { reservationDispatchInFlight.current = false; });
+                if (result.scanned > 0) { refreshInbox(); return loadReservationViews(current, requestAuth); }
+            }).catch(error => { if (reservationManagerCurrent()) rejectAuthorization(error, managerEpoch); }).finally(() => { reservationDispatchInFlight.current = false; });
         };
         refresh();
         window.addEventListener("barticket-reservations-updated", refresh);
+        window.addEventListener("barticket-schedule-reservations-refresh", refresh);
         return () => {
             active = false;
             window.removeEventListener("barticket-reservations-updated", refresh);
+            window.removeEventListener("barticket-schedule-reservations-refresh", refresh);
         };
-    }, [viewer, from, to, session, authEpoch, t]);
+    }, [verifiedReservationManager, managerEpoch, reservationManagerCurrent, from, to, session, authEpoch, t, refreshInbox, rejectAuthorization]);
     const deepLinkRequestId = (() => {
         const value = searchParams.get("time_off");
         return value && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value)) ? Number(value) : null;
@@ -169,6 +187,8 @@ export default function Schedules() {
         if (!viewer || !session || session !== getToken()) return;
         if (deepLinkRequestId === null) handledDeepLink.current = "";
         let active = true;
+        let releaseReservationLink: (() => void) | null = null;
+        let cancelReservationFlight: (() => void) | null = null;
         let refreshSerial = 0;
         const refreshRequests = () => {
             const request = ++refreshSerial;
@@ -202,37 +222,47 @@ export default function Schedules() {
                 }
             });
         }
-        if (deepLinkReservationId && viewer.role === "manager" && handledReservationLink.current !== `${session}:${deepLinkReservationId}`) {
-            handledReservationLink.current = `${session}:${deepLinkReservationId}`;
+        if (deepLinkReservationId && verifiedReservationManager && reservationManagerCurrent()) {
+            releaseReservationLink = claimReservationLink(handledReservationLink, `${session}:${deepLinkReservationId}`);
+        }
+        if (deepLinkReservationId && releaseReservationLink) {
             const requestEpoch = authSerial.current;
-            const isCurrent = () => active && requestEpoch === authSerial.current && requestEpoch === authEpoch && session === getToken();
-            void reservationsApi.request(deepLinkReservationId).then(async item => {
-                if (!isCurrent()) return;
-                setReservations(current => [item, ...current.filter(existing => existing.id !== item.id)]);
-                setSelected(item.business_date);
-                setMonth(item.business_date.slice(0, 7));
-                setDetail(true);
-                setReservationError("");
-                try {
-                    const inbox = await reservationsApi.inbox();
-                    const notice = inbox.notifications.find(row => row.reservation_id === item.id);
-                    if (notice && isCurrent()) await reservationsApi.markRead(notice.id);
-                } catch { /* The request detail remains authoritative even if its inbox marker cannot be cleared. */ }
-            }).catch(() => {
-                if (isCurrent()) setReservationError(t("This reservation request is unavailable for your account.", "この予約リクエストは現在のアカウントでは表示できません。"));
-            }).finally(() => {
-                if (isCurrent()) {
-                    const next = new URLSearchParams(searchParams);
-                    next.delete("reservation"); next.delete("from_push"); setSearchParams(next, { replace: true });
-                }
+            let clearLink = false;
+            const isCurrent = () => active && requestEpoch === authSerial.current && requestEpoch === authEpoch && session === getToken() && reservationManagerCurrent();
+            cancelReservationFlight = runReservationLinkFlight({
+                read: () => reservationsApi.request(deepLinkReservationId),
+                isCurrent,
+                onLoaded: item => {
+                    setReservationData(current => ({ epoch: managerEpoch, items: [item, ...(current.epoch === managerEpoch ? current.items : []).filter(existing => existing.id !== item.id)] }));
+                    setSelected(item.business_date);
+                    setMonth(item.business_date.slice(0, 7));
+                    setDetail(true);
+                    setReservationLinkError(null);
+                    clearLink = true;
+                    setReservationReadId({ id: item.id, epoch: managerEpoch });
+                },
+                onFailure: error => {
+                    if (rejectAuthorization(error, managerEpoch)) return;
+                    const failure = reservationLinkFailure(error);
+                    clearLink = failure === "unavailable";
+                    setReservationLinkError(failure);
+                },
+                onSettled: () => {
+                    if (clearLink) {
+                        const next = new URLSearchParams(searchParams);
+                        next.delete("reservation"); next.delete("from_push"); setSearchParams(next, { replace: true });
+                    }
+                },
             });
         }
         return () => {
             active = false;
+            cancelReservationFlight?.();
+            releaseReservationLink?.();
             window.removeEventListener("barticket-time-off-updated", refresh);
             window.removeEventListener("barticket-schedules-updated", refresh);
         };
-    }, [viewer, session, authEpoch, deepLinkRequestId, deepLinkReservationId, searchParams, setSearchParams, locale, t]);
+    }, [viewer, session, authEpoch, deepLinkRequestId, deepLinkReservationId, reservationLinkAttempt, searchParams, setSearchParams, locale, t, verifiedReservationManager, managerEpoch, reservationManagerCurrent, rejectAuthorization]);
     useEffect(() => {
         const reset = (event: Event) => {
             if (event instanceof StorageEvent && event.key !== null && event.key !== "barticket_token") return;
@@ -245,15 +275,33 @@ export default function Schedules() {
             contextFlight.current = null;
             store.reset(nextToken);
             setAuthState(current => ({ token: nextToken, epoch: current.epoch + 1 }));
-            setRows([]); setKnownManagers([]); setReservations([]); setManagerInboxReservations([]); setReservationBusy(false); setReservationError(""); setReservationMessage(""); setViewer(null); setScheduleContext(null); setEditing(false); setDetail(false);
+            setRows([]); setKnownManagers([]); setReservationData({ epoch: -1, items: [] }); setReservationReadId(null); markingReservation.current = null; setReservationBusyEpoch(null); setReservationError(""); setReservationMessage(""); setReservationLinkError(null); setViewer(null); setViewerError(false); setScheduleContext(null); setEditing(false); setDetail(false);
             pendingDayDefault.current = null;
             timeOffActionSerial.current++;
             setTimeOff([]); setTimeOffReason(""); setTimeOffBusy(false); setTimeOffError(""); setTimeOffMessage(""); handledDeepLink.current = "";
-            handledReservationLink.current = "";
+            handledReservationLink.current = null;
         };
         window.addEventListener("barticket-auth", reset); window.addEventListener("storage", reset);
         return () => { window.removeEventListener("barticket-auth", reset); window.removeEventListener("storage", reset); };
     }, [session, authEpoch]);
+    // The shared inbox is manager-verified and retired on every auth epoch.
+    // Mark only the notification for the opened request, once the inbox arrives.
+    useEffect(() => {
+        if (reservationReadId === null || reservationReadId.epoch !== managerEpoch || reservationInbox.status !== "ready" || !session || session !== getToken() || authEpoch !== authSerial.current || !reservationManagerCurrent()) return;
+        const notice = reservationInbox.inbox?.notifications.find(row => row.reservation_id === reservationReadId.id && !row.is_read);
+        if (!notice) return;
+        const key = `${authEpoch}:${managerEpoch}:${reservationReadId.id}:${notice.id}`;
+        if (markingReservation.current === key) return;
+        markingReservation.current = key;
+        void reservationsApi.markRead(notice.id).catch(error => { if (reservationManagerCurrent()) rejectAuthorization(error, managerEpoch); });
+    }, [reservationReadId, reservationInbox, session, authEpoch, managerEpoch, reservationManagerCurrent, rejectAuthorization]);
+    const inboxRequested = searchParams.get("inbox") === "reservations";
+    useEffect(() => {
+        if (inboxRequested && verifiedReservationManager) {
+            inboxPanel.current?.scrollIntoView({ block: "center" });
+            inboxPanel.current?.focus({ preventScroll: true });
+        }
+    }, [inboxRequested, verifiedReservationManager, session]);
     useEffect(() => {
         if (detail && window.matchMedia("(max-width: 900px)").matches) { detailPanel.current?.scrollIntoView({ block: "nearest" }); detailPanel.current?.focus({ preventScroll: true }); }
     }, [detail, selected]);
@@ -309,7 +357,7 @@ export default function Schedules() {
             if (polling) {
                 void loadRef.current(true);
                 window.dispatchEvent(new Event("barticket-time-off-updated"));
-                window.dispatchEvent(new Event("barticket-reservations-updated"));
+                window.dispatchEvent(new Event("barticket-schedule-reservations-refresh"));
             }
         };
         const changed = () => { serial.current++; store.invalidate(); requestContext(); void loadRef.current(true); window.dispatchEvent(new Event("barticket-reservations-updated")); };
@@ -420,12 +468,12 @@ export default function Schedules() {
         if (reservationBusy) return;
         const sessionAtStart = getToken();
         const requestEpoch = authSerial.current;
-        if (!sessionAtStart || sessionAtStart !== session) return;
-        setReservationBusy(true); setReservationError(""); setReservationMessage("");
+        if (!sessionAtStart || sessionAtStart !== session || !reservationManagerCurrent()) return;
+        setReservationBusyEpoch(managerEpoch); setReservationError(""); setReservationMessage("");
         try {
             const updated = await reservationsApi.decide(request.id, decision, request.revision);
-            if (requestEpoch !== authSerial.current || sessionAtStart !== getToken()) return;
-            setReservations(current => current.map(item => item.id === updated.id ? updated : item));
+            if (requestEpoch !== authSerial.current || sessionAtStart !== getToken() || !reservationManagerCurrent()) return;
+            setReservationData(current => ({ epoch: managerEpoch, items: current.epoch === managerEpoch ? current.items.map(item => item.id === updated.id ? updated : item) : [] }));
             const decisionLabel = decision === "approve" ? t("Approved", "承認しました") : decision === "decline" ? t("Declined", "お断りしました") : t("Canceled", "キャンセルしました");
             const deliveryLabel = updated.email_status === "accepted" ? t("Email accepted by the mail service.", "メールサービスがメールを受け付けました。")
                 : updated.email_status === "not_enabled" ? t("Email is not enabled yet.", "メール送信はまだ有効ではありません。")
@@ -437,23 +485,24 @@ export default function Schedules() {
             setReservationMessage(`${decisionLabel} · ${deliveryLabel}`);
             window.dispatchEvent(new Event("barticket-reservations-updated"));
         } catch (err) {
-            if (requestEpoch === authSerial.current && sessionAtStart === getToken()) {
-                setReservationError(err instanceof Error ? err.message : String(err));
+            if (requestEpoch === authSerial.current && sessionAtStart === getToken() && reservationManagerCurrent()) {
+                if (rejectAuthorization(err, managerEpoch)) return;
+                setReservationError(err instanceof Error ? err.message : String(err)); setReservationErrorEpoch(managerEpoch);
             }
         } finally {
-            if (requestEpoch === authSerial.current && sessionAtStart === getToken()) setReservationBusy(false);
+            if (requestEpoch === authSerial.current && sessionAtStart === getToken() && reservationManagerCurrent()) setReservationBusyEpoch(null);
         }
     };
     const retryReservationEmail = async (request: Reservation) => {
         if (reservationBusy) return;
         const sessionAtStart = getToken();
         const requestEpoch = authSerial.current;
-        if (!sessionAtStart || sessionAtStart !== session) return;
-        setReservationBusy(true); setReservationError(""); setReservationMessage("");
+        if (!sessionAtStart || sessionAtStart !== session || !reservationManagerCurrent()) return;
+        setReservationBusyEpoch(managerEpoch); setReservationError(""); setReservationMessage("");
         try {
             const updated = await reservationsApi.retryEmail(request.id);
-            if (requestEpoch !== authSerial.current || sessionAtStart !== getToken()) return;
-            setReservations(current => current.map(item => item.id === updated.id ? updated : item));
+            if (requestEpoch !== authSerial.current || sessionAtStart !== getToken() || !reservationManagerCurrent()) return;
+            setReservationData(current => ({ epoch: managerEpoch, items: current.epoch === managerEpoch ? current.items.map(item => item.id === updated.id ? updated : item) : [] }));
             setReservationMessage(updated.email_status === "accepted"
                 ? t("The guest email was accepted by the mail service.", "メールサービスがゲストへのメールを受け付けました。")
                 : updated.email_status === "queued" ? t("The email remains queued. Try again later.", "メールは送信待ちです。後でもう一度お試しください。")
@@ -461,9 +510,9 @@ export default function Schedules() {
                     : t("Email was not resent because its status is uncertain or sending is disabled.", "状態が不明か送信が無効のため、メールは再送信されませんでした。"));
             window.dispatchEvent(new Event("barticket-reservations-updated"));
         } catch (err) {
-            if (requestEpoch === authSerial.current && sessionAtStart === getToken()) setReservationError(err instanceof Error ? err.message : String(err));
+            if (requestEpoch === authSerial.current && sessionAtStart === getToken() && reservationManagerCurrent()) { if (rejectAuthorization(err, managerEpoch)) return; setReservationError(err instanceof Error ? err.message : String(err)); setReservationErrorEpoch(managerEpoch); }
         } finally {
-            if (requestEpoch === authSerial.current && sessionAtStart === getToken()) setReservationBusy(false);
+            if (requestEpoch === authSerial.current && sessionAtStart === getToken() && reservationManagerCurrent()) setReservationBusyEpoch(null);
         }
     };
     const days = calendarDays(month);
@@ -506,6 +555,13 @@ export default function Schedules() {
         if (row.schedule_type === "closed") return t("Closed", "休業");
         return row.venue_status === "closed" && routine ? t("Closed", "休業") : value || t("Shift plan", "勤務予定");
     };
+    const reservationStatusLabel = (counts: ReturnType<typeof reservationCounts>) => [
+        counts.pending ? `${counts.pending} ${t("pending", "件確認待ち")}` : "",
+        counts.approved ? `${counts.approved} ${t("approved", "件確定")}` : "",
+        counts.history ? `${counts.history} ${t("canceled or declined", "件キャンセル・お断り")}` : "",
+    ].filter(Boolean).join(" · ");
+    const reservationLabel = (day: string, counts: ReturnType<typeof reservationCounts>) =>
+        `${day}: ${t("Reservation requests", "予約リクエスト")}: ${reservationStatusLabel(counts)}`;
     return <Page>
         <Toolbar>
             <div><h1>{t("Schedule", "シフト予定")}</h1><Subtitle>{t("Plans, not clock-in records", "勤務予定（打刻記録とは別）")}</Subtitle></div>
@@ -520,8 +576,13 @@ export default function Schedules() {
                 />
             </ScheduleControls>
         </Toolbar>
-        {viewer?.role === "manager" && managerInboxReservations.length > 0 ? <ReservationPanel aria-label={t("Manager reservation inbox", "マネージャーの予約確認箱")}>
+        {inboxRequested && viewerError ? <Notice role="alert">{t("Could not verify your account. Reload to try again.", "アカウントを確認できませんでした。再読み込みしてください。")}</Notice> : null}
+        {inboxRequested && viewer && (viewer.role !== "manager" || reservationInbox.status === "staff") ? <Notice role="status">{t("A manager account is required to review reservations.", "予約の確認にはマネージャーアカウントが必要です。")}</Notice> : null}
+        {(verifiedReservationManager || reservationInbox.status === "role-error") && (inboxRequested || managerInboxReservations.length > 0 || inboxStatus === "error") ? <ReservationPanel ref={inboxPanel} tabIndex={-1} aria-label={t("Manager reservation inbox", "マネージャーの予約確認箱")}>
             <h4>{t("Manager inbox · pending requests", "マネージャー確認箱 · 確認待ち")}</h4>
+            {inboxStatus === "loading" ? <p role="status">{t("Loading reservation requests…", "予約リクエストを読み込んでいます…")}</p> : null}
+            {inboxStatus === "error" ? <p role="alert">{t("Could not load reservation requests.", "予約リクエストを読み込めませんでした。")} <button type="button" onClick={retryInbox}>{t("Retry", "再試行")}</button></p> : null}
+            {inboxStatus === "ready" && managerInboxReservations.length === 0 ? <p role="status">{t("No pending reservation requests.", "確認待ちの予約リクエストはありません。")}</p> : null}
             {managerInboxReservations.map(request => <ReservationInboxItem key={request.id}>
                 <ReservationTopline><strong>{request.guest_name} · {request.party_size} {t("guests", "名")}</strong><span>{request.business_date}</span></ReservationTopline>
                 <p>{new Intl.DateTimeFormat(ja ? "ja-JP" : "en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Tokyo" }).format(new Date(request.arrival_at))} JST · {request.reference}</p>
@@ -546,29 +607,37 @@ export default function Schedules() {
         {error ? <Notice role="alert">{t("Could not refresh schedules. Displayed plans may be out of date.", "予定を更新できませんでした。表示内容が古い場合があります。") } <span>{error}</span><button className="secondary" onClick={() => void load(true)}>{t("Retry", "再試行")}</button></Notice> : null}
         {timeOffError ? <Notice role="alert">{timeOffError}</Notice> : null}
         {timeOffMessage ? <TimeOffStatus role="status">{timeOffMessage}</TimeOffStatus> : null}
-        {reservationError ? <Notice role="alert">{t("Could not refresh reservation requests.", "予約リクエストを更新できませんでした。")} <span>{reservationError}</span></Notice> : null}
-        {reservationMessage ? <TimeOffStatus role="status">{reservationMessage}</TimeOffStatus> : null}
+        {verifiedReservationManager && reservationLinkError ? <Notice role="alert">{reservationLinkError === "unavailable" ? t("This reservation request is unavailable for your account.", "この予約リクエストは現在のアカウントでは表示できません。") : <>{t("Could not load this reservation request.", "この予約リクエストを読み込めませんでした。")} <button type="button" onClick={() => { setReservationLinkError(null); setReservationLinkAttempt(value => value + 1); }}>{t("Retry", "再試行")}</button></>}</Notice> : null}
+        {verifiedReservationManager && reservationErrorEpoch === managerEpoch && reservationError ? <Notice role="alert">{t("Could not refresh reservation requests.", "予約リクエストを更新できませんでした。")} <span>{reservationError}</span></Notice> : null}
+        {verifiedReservationManager && reservationData.epoch === managerEpoch && reservationMessage ? <TimeOffStatus role="status">{reservationMessage}</TimeOffStatus> : null}
         {loading ? <Subtitle role="status">{t("Loading schedules…", "予定を読み込んでいます…")}</Subtitle> : null}
         <Canvas>
             {mode === "month" ? <Calendar id="schedule-view-panel-month" role="tabpanel" aria-labelledby="schedule-view-tab-month" tabIndex={0} aria-label={t("Monthly schedule", "月間予定")}>
                 {Array.from({ length: 7 }, (_, i) => <Weekday key={i}>{format(addDays("2026-11-01", i), { weekday: "short" })}</Weekday>)}
-                {days.map(day => { const row = rows.find(item => item.business_date === day); const dayReservations = reservations.filter(item => item.business_date === day); const pendingCount = dayReservations.filter(item => item.status === "pending").length; const isPast = day < calendarDate && !isActiveShiftDate(day); return <Day key={day} $outside={!day.startsWith(month)} $selected={day === selected} $past={isPast}>
+                {days.map(day => { const row = rows.find(item => item.business_date === day); const dayReservations = reservations.filter(item => item.business_date === day); const counts = reservationCounts(dayReservations); const isPast = day < calendarDate && !isActiveShiftDate(day); return <Day key={day} $outside={!day.startsWith(month)} $selected={day === selected} $past={isPast}>
                     <DayButton $past={isPast} ref={node => { if (node) dateButtons.current.set(day, node); else dateButtons.current.delete(day); }} aria-label={format(day, { dateStyle: "full" })} aria-current={day === today ? "date" : undefined} aria-pressed={day === selected} onClick={event => choose(day, event.currentTarget)} onKeyDown={event => moveDateFocus(event, day)}><span>{Number(day.slice(-2))}</span></DayButton>
                     {row ? <EventBlock $state={cellState(row)} onClick={event => choose(day, event.currentTarget)} aria-label={`${day}: ${cellTitle(row)}, ${cellLabel(row)}, ${names(row)}`}><strong>{cellTitle(row)}</strong><span>{cellLabel(row)}</span><small>{row.manager?.name || t("No manager", "担当未定")}</small><small>{row.staff.map(person => person.name).join(" · ") || t("No staff", "スタッフなし")}</small></EventBlock> : null}
-                    {dayReservations.length ? <ReservationIndicator type="button" onClick={event => choose(day, event.currentTarget)} aria-label={`${dayReservations.length} ${t("reservation requests", "件の予約リクエスト")}`}>
-                        {dayReservations.length} {t("reservations", "件の予約")} · {pendingCount} {t("pending", "確認待ち")}
-                    </ReservationIndicator> : null}
+                    {dayReservations.length ? <MonthReservationIndicator type="button" onClick={event => choose(day, event.currentTarget)} aria-label={reservationLabel(day, counts)}>
+                        <span className="full-label">{t("Requests", "予約")}: {reservationStatusLabel(counts)}</span>
+                        <span className="compact-label" aria-hidden="true">
+                            {counts.pending ? <span>{ja ? `待ち${counts.pending}` : `${counts.pending} wait`}</span> : null}
+                            {counts.approved ? <span>{ja ? `確定${counts.approved}` : `${counts.approved} conf.`}</span> : null}
+                            {counts.history ? <span>{ja ? `履歴${counts.history}` : `${counts.history} hist.`}</span> : null}
+                        </span>
+                    </MonthReservationIndicator> : null}
                 </Day>; })}
             </Calendar> : <Week id={`schedule-view-panel-${mode}`} role="tabpanel" aria-labelledby={`schedule-view-tab-${mode}`} tabIndex={0} aria-label={mode === "day" ? t("Daily schedule", "一日の予定") : t("Weekly schedule", "週間予定")}>
                 <WeekNote>{t("Date-only plans · hours not recorded", "日付のみの予定・勤務時間の記録なし")}</WeekNote>
                 {mode === "week" && !loading && !weekHasPlans ? <Empty>{t("No scheduled shifts this week.", "今週の予定はありません。")}</Empty> : null}
-                {visibleDays.map(day => { const row = rows.find(item => item.business_date === day); const dayReservations = reservations.filter(item => item.business_date === day); const pendingCount = dayReservations.filter(item => item.status === "pending").length; const isPast = day < calendarDate && !isActiveShiftDate(day); return <WeekRow key={day} data-date={day} $selected={day === selected}>
+                {visibleDays.map(day => { const row = rows.find(item => item.business_date === day); const dayReservations = reservations.filter(item => item.business_date === day); const counts = reservationCounts(dayReservations); const isPast = day < calendarDate && !isActiveShiftDate(day); return <WeekRow key={day} data-date={day} $selected={day === selected}>
                     <WeekDate $past={isPast} ref={node => { if (node) dateButtons.current.set(day, node); else dateButtons.current.delete(day); }} aria-label={format(day, { dateStyle: "full" })} aria-current={day === today ? "date" : undefined} aria-pressed={day === selected} onClick={event => choose(day, event.currentTarget)} onKeyDown={event => moveDateFocus(event, day)}><small>{format(day, { weekday: "short" })}</small><span>{Number(day.slice(-2))}</span><small>{format(day, { month: "short" })}</small></WeekDate>
+                    <WeekContent>
                     {row ? <WeekEvent $state={cellState(row)} onClick={event => choose(day, event.currentTarget)} aria-label={`${day}: ${cellTitle(row)}, ${cellLabel(row)}, ${names(row)}`}><small>{cellLabel(row)}</small><strong>{cellTitle(row)}</strong><span>{t("Manager", "マネージャー")}: {row.manager?.name || t("Not assigned", "未定")}</span><span>{t("Staff", "スタッフ")}: {row.staff.map(person => person.name).join(" · ") || t("None", "なし")}</span></WeekEvent>
                         : <EmptyDay type="button" aria-label={`${format(day, { dateStyle: "full" })}: ${t("No plan", "予定なし")}`} onClick={event => choose(day, event.currentTarget)}>{loading ? t("Loading…", "読み込み中…") : t("No plan", "予定なし")}</EmptyDay>}
-                    {dayReservations.length ? <ReservationIndicator type="button" onClick={event => choose(day, event.currentTarget)} aria-label={`${dayReservations.length} ${t("reservation requests", "件の予約リクエスト")}`}>
-                        {dayReservations.length} {t("reservations", "件の予約")} · {pendingCount} {t("pending", "確認待ち")}
+                    {dayReservations.length ? <ReservationIndicator type="button" onClick={event => choose(day, event.currentTarget)} aria-label={reservationLabel(day, counts)}>
+                        {t("Requests", "予約")}: {reservationStatusLabel(counts)}
                     </ReservationIndicator> : null}
+                    </WeekContent>
                 </WeekRow>; })}
             </Week>}
             {detail ? <Details ref={detailPanel} tabIndex={-1} aria-label={t("Selected day", "選択した日")}>
@@ -603,7 +672,7 @@ export default function Schedules() {
                         <div><button type="button" className="primary" disabled={timeOffBusy || selectedIsPast} onClick={() => void decideTimeOff(request, "approve")}>{t("Approve", "承認")}</button><button type="button" className="danger" disabled={timeOffBusy || selectedIsPast} onClick={() => void decideTimeOff(request, "decline")}>{t("Decline", "却下")}</button></div>
                     </TimeOffCard>)}
                 </TimeOffPanel> : null}
-                {viewer?.role === "manager" && selectedReservations.length ? <ReservationPanel>
+                {verifiedReservationManager && selectedReservations.length ? <ReservationPanel>
                     <h4>{t("Reservations", "予約リクエスト")}</h4>
                     {selectedReservations.map(request => <ReservationCard key={request.id}>
                         <ReservationTopline><strong>{request.guest_name} · {request.party_size} {t("guests", "名")}</strong><StatusBadge $status={request.status}>{t(request.status[0].toUpperCase() + request.status.slice(1), ({ pending: "確認待ち", approved: "確定", declined: "お断り", canceled: "キャンセル" } as const)[request.status])}</StatusBadge></ReservationTopline>
@@ -627,7 +696,7 @@ export default function Schedules() {
         {editing && viewer?.role === "manager" && !selectedIsPast ? <ScheduleEditor knownManagers={knownManagers} day={selected} row={creating ? undefined : selectedRow} ja={ja} today={isActiveShiftDate(selected) ? selected : calendarDate} canWrite={!!scheduleContext} onClose={() => setEditing(false)} onSaved={day => { setEditing(false); setSelected(day); setMonth(day.slice(0, 7)); setDetail(true); window.dispatchEvent(new Event("barticket-schedules-updated")); }} /> : null}
     </Page>;
 }
-const Page = styled.main`width:100%;max-width:1440px;margin:0 auto;padding:16px 0 calc(112px + env(safe-area-inset-bottom, 0px));button{width:auto;min-height:44px;}> :not(header) button:focus-visible,> button:focus-visible{outline:3px solid var(--royal-300);outline-offset:2px;}`;
+const Page = styled.main`width:100%;max-width:1440px;margin:0 auto;padding:16px 0 calc(160px + env(safe-area-inset-bottom, 0px));button{width:auto;min-height:44px;scroll-margin-bottom:calc(112px + env(safe-area-inset-bottom, 0px));}> :not(header) button:focus-visible,> button:focus-visible{outline:3px solid var(--royal-300);outline-offset:2px;}`;
 const Toolbar = styled.header`display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;h1{font-size:21.6px;margin:0}h2{font-size:20px;margin:0} @media(max-width:600px){flex-direction:column;align-items:stretch;gap:8px;>div:first-child{width:100%;min-width:0;flex:0 0 auto}h1{font-size:19.2px}}`;
 const Subtitle = styled.p`color:var(--neutral-300);font-size:13.6px;margin:4px 0;`;
 const ScheduleControls = styled.div`align-self:stretch;flex:0 0 100%;min-width:0;max-width:100%;width:100%;`;
@@ -641,11 +710,13 @@ const Calendar = styled.div`display:grid;grid-template-columns:repeat(7,minmax(0
 const Weekday = styled.div`padding:12.8px 3.2px;text-align:center;font-size:12.8px;color:var(--neutral-300);border-bottom:1px solid var(--neutral-700);`;
 const Day = styled.div<{ $outside: boolean; $selected: boolean; $past: boolean }>`min-width:0;min-height:135px;border-right:1px solid var(--neutral-700);border-bottom:1px solid var(--neutral-700);padding:4px;background:${p=>p.$selected?'var(--neutral-800)':p.$outside?'var(--neutral-950)':'transparent'};${p=>p.$past?"color:var(--neutral-300);":""}@media(max-width:600px){min-height:110px;padding:1.6px;}`;
 const DayButton = styled.button<{ $past: boolean }>`display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px!important;padding:0!important;margin:0 auto 3.2px;background:transparent!important;color:${p=>p.$past?"var(--neutral-400)":"var(--neutral-100)"}!important;span{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;} &[aria-current=date] span{background:var(--royal-500);color:white;} &[aria-pressed=true] span{outline:1px solid var(--neutral-300);}`;
-const ReservationIndicator = styled.button`display:block;width:100%!important;min-height:36px!important;margin-top:4px;padding:4px!important;overflow:hidden;border:1px solid var(--warning-700)!important;border-radius:6px!important;background:var(--warning-950)!important;color:var(--warning-200)!important;font-size:12px!important;text-align:center;white-space:nowrap;text-overflow:ellipsis;`;
+const ReservationIndicator = styled.button`display:block;width:100%!important;min-width:0;min-height:36px!important;padding:4px!important;border:1px solid var(--warning-700)!important;border-radius:6px!important;background:var(--warning-950)!important;color:var(--warning-200)!important;font-size:12px!important;text-align:center;overflow-wrap:anywhere;`;
+const MonthReservationIndicator = styled(ReservationIndicator)`margin-top:4px;.compact-label{display:none;}@media(max-width:600px){.full-label{display:none;}.compact-label{display:flex;flex-direction:column;line-height:1.2;font-size:12px;}}`;
 const EventBlock = styled.button<{ $state: ScheduleState }>`display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%!important;padding:6.4px 8px!important;border:0;border-left:3px solid ${p=>scheduleAccent(p.$state)};border-radius:5px;background:${p=>scheduleSurface(p.$state)}!important;color:var(--neutral-100)!important;text-align:left;font-size:12.8px;overflow:hidden;strong,span,small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}small{font-size:12px;}span{font-weight:600;color:${p=>scheduleForeground(p.$state)};}@media(max-width:600px){padding:4.8px 3.2px!important;font-size:12px;small{font-size:12px;}}`;
 const Week = styled.div`flex:1;min-width:0;padding:12px 16px;@media(max-width:600px){padding:8px;}`;
 const WeekNote = styled(Subtitle)`padding:0 8px 8px;`;
 const WeekRow = styled.article<{ $selected: boolean }>`display:flex;align-items:stretch;gap:8px;min-width:0;padding:8px 0;border-top:1px solid var(--neutral-700);background:${p=>p.$selected?'var(--neutral-800)':'transparent'};`;
+const WeekContent = styled.div`display:flex;flex:1;min-width:0;flex-direction:column;gap:4px;`;
 const WeekDate = styled(DayButton)`flex:0 0 56px;flex-direction:column;gap:2px;align-self:flex-start;margin:4px 0!important;padding:4px!important;small{font-size:12px;line-height:1.4;}`;
 const EmptyDay = styled.button`flex:1;min-width:0;justify-content:flex-start;padding:12px!important;background:transparent!important;color:var(--neutral-300)!important;text-align:left;white-space:normal;`;
 const WeekEvent = styled.button<{ $state: ScheduleState }>`overflow-wrap:anywhere;display:flex;flex:1;min-width:0;align-items:flex-start;flex-direction:column;gap:4px;padding:13.6px 16px!important;background:${p=>scheduleSurface(p.$state)}!important;color:var(--neutral-100)!important;border-left:3px solid ${p=>scheduleAccent(p.$state)};border-radius:8px;text-align:left;strong{font-size:16.8px;}small{color:${p=>scheduleForeground(p.$state)};}span{font-size:13.6px;overflow-wrap:anywhere;}`;

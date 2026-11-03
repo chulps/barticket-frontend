@@ -1,3 +1,4 @@
+import { PendingReservationsProvider } from "./components/PendingReservations";
 // src/App.tsx
 
 // import react stuff
@@ -264,7 +265,7 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
+    <PendingReservationsProvider><BrowserRouter basename={import.meta.env.BASE_URL}>
 
       <ModalProvider>
 
@@ -318,7 +319,7 @@ export default function App() {
 
       </ModalProvider>
 
-    </BrowserRouter>
+    </BrowserRouter></PendingReservationsProvider>
   );
 }
 const ConnectionBanner = styled.div`

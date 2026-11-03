@@ -5,11 +5,13 @@ import {test} from "node:test";
 const source=readFileSync(new URL("../public/sw.js",import.meta.url),"utf8");
 function worker(scope="https://example.test/barticket-frontend/",clients=[]) {
   const handlers={},shown=[],opened=[];
-  const self={registration:{scope,showNotification:async(title,options)=>shown.push({title,...options})},location:{origin:new URL(scope).origin},clients:{matchAll:async()=>clients,openWindow:async url=>opened.push(url)},addEventListener:(name,fn)=>handlers[name]=fn};
+  let skipped=0;
+  const self={skipWaiting:async()=>{skipped++},registration:{scope,showNotification:async(title,options)=>shown.push({title,...options})},location:{origin:new URL(scope).origin},clients:{matchAll:async()=>clients,openWindow:async url=>opened.push(url)},addEventListener:(name,fn)=>handlers[name]=fn};
   runInNewContext(source,{self,URL,Number,Promise});
   async function push(payload){let pending;handlers.push({data:{json:()=>payload},waitUntil:p=>pending=p});await pending;return shown.at(-1);}
   async function click(url){let pending;handlers.notificationclick({notification:{data:{url},close(){}},waitUntil:p=>pending=p});await pending;}
-  return {push,click,opened};
+  async function install(){let pending;handlers.install({waitUntil:p=>pending=p});await pending;}
+  return {push,click,opened,install,get skipped(){return skipped}};
 }
 test("ticket push destinations preserve entity ID and deployment base",async()=>{
   for(const base of ["https://example.test/","https://example.test/barticket-frontend/"]){
@@ -79,6 +81,8 @@ test("sign-in return rejects external or expired destinations",async()=>{
   assert.equal(context.notificationDestination("https://example.test/barticket-frontend/schedules?time_off=0","/barticket-frontend/"),null);
   assert.equal(context.notificationDestination("https://example.test/barticket-frontend/schedules?reservation=23","/barticket-frontend/"),"https://example.test/barticket-frontend/schedules?reservation=23&from_push=1");
   assert.equal(context.notificationDestination("https://example.test/barticket-frontend/schedules?reservation=0","/barticket-frontend/"),null);
+  assert.equal(context.notificationDestination("https://example.test/barticket-frontend/schedules?inbox=reservations","/barticket-frontend/"),"https://example.test/barticket-frontend/schedules?inbox=reservations&from_push=1");
+  assert.equal(context.notificationDestination("https://example.test/barticket-frontend/schedules?inbox=other","/barticket-frontend/"),null);
   context.installNotificationReturn();
   const key="barticket-notification-return";
   values.set(key,JSON.stringify({url:"https://evil.test/",at:Date.now()}));listeners["barticket-auth"]();
@@ -88,4 +92,20 @@ test("sign-in return rejects external or expired destinations",async()=>{
   assert.equal(replaced.length,1);
   assert.equal(new URL(replaced[0]).searchParams.get("ticket"),"1");
   assert.equal(values.has(key),false);
+});
+
+test("push-only worker activates without waiting for existing app windows",async()=>{
+  const w=worker(); await w.install(); assert.equal(w.skipped,1);
+});
+test("reservation push without ID opens the manager inbox rather than generic notifications",async()=>{
+  for(const base of ["https://example.test/","https://example.test/barticket-frontend/"]){
+    const w=worker(base); const n=await w.push({type:"reservation_request"});
+    const url=new URL(n.data.url); assert.equal(url.pathname,new URL("schedules",base).pathname);
+    assert.equal(url.searchParams.get("inbox"),"reservations");
+    await w.click(n.data.url); assert.equal(w.opened.at(-1),n.data.url);
+  }
+});
+test("already displayed legacy notifications keep their original safe destination",async()=>{
+  const w=worker(); await w.click("https://example.test/barticket-frontend/notifications?from_push=1");
+  assert.equal(w.opened.at(-1),"https://example.test/barticket-frontend/notifications?from_push=1");
 });

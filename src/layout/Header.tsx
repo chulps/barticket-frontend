@@ -1,3 +1,4 @@
+import { usePendingReservations } from "../components/PendingReservationsContext";
 import { shouldPoll } from "../api/realtime";
 // src/components/Header.tsx
 
@@ -16,6 +17,8 @@ import ShiftCloseReview from "../pages/ShiftCloseReview";
 import { businessDateJst, shouldPromptNoonReview } from "../pages/shiftControlPolicy";
 
 export default function Header({ authenticated }: { authenticated: boolean }) {
+  const { snapshot: pending } = usePendingReservations();
+  const pendingCount = pending.status === "ready" ? pending.count ?? 0 : 0;
   const [isOpen, setIsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
@@ -30,6 +33,7 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
   const [alertCount, setAlertCount] = useState(0);
   const promptedNoonShifts = useRef(new Set<string>());
   const { t, locale, setLocale } = useI18n();
+  const pendingLabel = locale === "ja" ? `予約 ${pendingCount >= 100 ? "100件以上" : `${pendingCount}件`}が確認待ち` : `${pendingCount >= 100 ? "100 or more" : pendingCount} pending reservation${pendingCount === 1 ? "" : "s"}`;
   const { modal, openModal } = useModal();
   const canSeeNotices = authenticated;
 
@@ -228,13 +232,14 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
       {authenticated ? <Hamburger
         ref={menuButtonRef}
         type="button"
-        aria-label={locale === "ja" ? "ナビゲーションメニュー" : "Navigation menu"}
+        aria-label={(locale === "ja" ? "ナビゲーションメニュー" : "Navigation menu") + (pendingCount ? `, ${pendingLabel}` : "")}
         aria-expanded={isOpen}
         aria-controls="main-navigation"
         className="hollow secondary"
         onClick={() => setIsOpen(open => !open)}
       >
         <Icon name={isOpen ? "X" : "List"} />
+        {pendingCount > 0 ? <MenuBadge aria-hidden="true">{pendingCount >= 100 ? "100+" : pendingCount}</MenuBadge> : null}
       </Hamburger> : null}
 
       <Nav id="main-navigation" ref={navRef} $isOpen={isOpen} $authenticated={authenticated}>
@@ -299,8 +304,8 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           {({ isActive }) => <><Icon name="HandCoins" weight={isActive ? "fill" : "regular"} />{locale === "ja" ? "未払い伝票" : "Unpaid tickets"}</>}
         </SecondaryNavLink>
 
-        <SecondaryNavLink onClick={() => closeMainNavigation(true)} to="/schedules">
-          {({ isActive }) => <><Icon name="CalendarBlank" weight={isActive ? "fill" : "regular"} />{locale === "ja" ? "シフト予定" : "Schedule"}</>}
+        <SecondaryNavLink onClick={() => closeMainNavigation(true)} to={pendingCount ? "/schedules?inbox=reservations" : "/schedules"}>
+          {({ isActive }) => <><Icon name="CalendarBlank" weight={isActive ? "fill" : "regular"} />{locale === "ja" ? "シフト予定" : "Schedule"}{pendingCount > 0 ? <InlineBadge role="img" aria-label={pendingLabel}>{pendingCount >= 100 ? "100+" : pendingCount}</InlineBadge> : null}</>}
         </SecondaryNavLink>
 
         {isManager ? (
@@ -350,12 +355,13 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
           <MoreButton
             ref={moreButtonRef}
             type="button"
-            aria-label={locale === "ja" ? "その他のナビゲーション" : "More navigation options"}
+            aria-label={(locale === "ja" ? "その他のナビゲーション" : "More navigation options") + (pendingCount ? `, ${pendingLabel}` : "")}
             aria-expanded={moreOpen}
             aria-controls="desktop-more-menu"
             onClick={() => setMoreOpen((open) => !open)}
           >
             <Icon name="DotsThreeOutlineVertical" />
+            {pendingCount > 0 ? <MenuBadge aria-hidden="true">{pendingCount >= 100 ? "100+" : pendingCount}</MenuBadge> : null}
           </MoreButton>
           {moreOpen ? (
             <MoreDropdown id="desktop-more-menu">
@@ -373,8 +379,9 @@ export default function Header({ authenticated }: { authenticated: boolean }) {
               <MoreLink to="/receivables" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
                 <Icon name="HandCoins" />{locale === "ja" ? "未払い伝票" : "Unpaid tickets"}
               </MoreLink>
-              <MoreLink to="/schedules" onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
+              <MoreLink to={pendingCount ? "/schedules?inbox=reservations" : "/schedules"} onClick={() => { setMoreOpen(false); closeMainNavigation(true); }}>
                 <Icon name="CalendarBlank" />{locale === "ja" ? "シフト予定" : "Schedule"}
+                {pendingCount > 0 ? <InlineBadge role="img" aria-label={pendingLabel}>{pendingCount >= 100 ? "100+" : pendingCount}</InlineBadge> : null}
               </MoreLink>
             </MoreDropdown>
           ) : null}
@@ -545,6 +552,7 @@ const MoreWrap = styled.div`
 `;
 
 const MoreButton = styled.button`
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -748,4 +756,10 @@ const PublicMenuLink = styled(RouterNavLink)`
   text-decoration: none;
   white-space: nowrap;
   &:hover, &:focus-visible { color: white; }
+`;
+
+const InlineBadge = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.5em; padding: 0 0.4em; border-radius: 999px;
+  background: var(--danger-500); color: var(--neutral-100); font-size: 0.75em; font-weight: 700;
 `;

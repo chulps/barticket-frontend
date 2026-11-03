@@ -1,3 +1,4 @@
+import { usePendingReservations } from "../components/PendingReservationsContext";
 import { shouldPoll } from "../api/realtime";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
@@ -26,6 +27,7 @@ function formatWhen(unix: number, locale: Locale) {
 
 export default function Notifications() {
     const { t, locale } = useI18n();
+    const { snapshot: pending, retry: retryReservations } = usePendingReservations();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const rawTicket = searchParams.get("ticket");
@@ -216,6 +218,11 @@ export default function Notifications() {
     return (
         <main>
             <HeadingRow><Heading>{t("notifications")}</Heading><NotificationSettings /></HeadingRow>
+            {pending.status === "ready" && (pending.count ?? 0) > 0 ? <ReservationCallout role="status">
+                <strong>{locale === "ja" ? `確認待ちの予約が${(pending.count ?? 0) >= 100 ? "100件以上" : `${pending.count}件`}あります` : `${(pending.count ?? 0) >= 100 ? "100 or more" : pending.count} reservation${pending.count === 1 ? "" : "s"} awaiting review`}</strong>
+                <button type="button" onClick={() => navigate("/schedules?inbox=reservations")}>{locale === "ja" ? "シフト予定で確認" : "Review in Schedule"}</button>
+            </ReservationCallout> : null}
+            {(pending.status === "error" || pending.status === "role-error") ? <p role="alert">{locale === "ja" ? "予約の確認状態を更新できませんでした。" : "Could not check pending reservations."} <button type="button" onClick={retryReservations}>{locale === "ja" ? "再試行" : "Retry"}</button></p> : null}
             {ticketId !== null ? <NotificationTicket key={ticketId} ticketId={ticketId} /> : null}
             {rawTicket && ticketId === null ? <p role="alert">{locale === "ja" ? "通知のリンクが無効です。通知一覧を表示しています。" : "The notification link is invalid. Your notifications are shown below."}</p> : null}
             {timeOffItems.length ? <TimeOffInbox>
@@ -234,7 +241,7 @@ export default function Notifications() {
             {loading ? <p role="status">{locale === "ja" ? "通知を読み込み中…" : "Loading notifications…"}</p> : null}
             {denied ? <p>{locale === "ja" ? "通知を表示する権限を確認できませんでした。再度ログインしてください。" : "Notification access could not be verified. Please sign in again."}</p> : null}
             {loadFailed ? <p role="alert">{locale === "ja" ? "通知を更新できませんでした。" : "Could not refresh notifications."} <button className="small hollow secondary" type="button" onClick={() => window.dispatchEvent(new Event("barticket-notices"))}>{locale === "ja" ? "再試行" : "Retry"}</button></p> : null}
-            {!denied && notices && notices.notices.length === 0 && timeOffItems.length === 0 ? <QuietStatus>{t("noNotifications")}</QuietStatus> : null}
+            {!denied && notices && notices.notices.length === 0 && timeOffItems.length === 0 && (pending.status === "staff" || (pending.status === "ready" && pending.count === 0)) ? <QuietStatus>{t("noNotifications")}</QuietStatus> : null}
             {!denied && notices
                 ? notices.notices.map((notice) => (
                     <Alert key={notice.id}>
@@ -288,4 +295,10 @@ const AlertText = styled.p`
 const RestockButton = styled.button`
   width: auto;
   flex: none;
+`;
+
+const ReservationCallout = styled.section`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  padding: 16px; margin: 12px 0; border: 1px solid var(--danger-500); border-radius: 8px;
+  background: var(--neutral-800);
 `;

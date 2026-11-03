@@ -20,6 +20,7 @@ export function notificationDestination(value: string, base: string): string | n
       const reservationId = url.searchParams.get("reservation");
       if (requestId && /^[1-9]\d*$/.test(requestId) && Number.isSafeInteger(Number(requestId))) result.searchParams.set("time_off", requestId);
       else if (reservationId && /^[1-9]\d*$/.test(reservationId) && Number.isSafeInteger(Number(reservationId))) result.searchParams.set("reservation", reservationId);
+      else if (url.searchParams.get("inbox") === "reservations") result.searchParams.set("inbox", "reservations");
       else return null;
     } else return null;
     result.searchParams.set("from_push", "1");
