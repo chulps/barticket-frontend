@@ -30,7 +30,7 @@ test("native tab, enter and space retain their normal meaning", () => {
 });
 test("ticket/admin toggle groups keep pressed semantics and Schedule can use true tabs", () => {
   assert.match(tab, /semantics = "group"/);
-  assert.match(tab, /role=\{semantics === "tabs" \? "tablist" : "group"\}/);
+  assert.match(tab, /role=\{semantics === "tabs" && !trailingAction \? "tablist" : "group"\}/);
   assert.match(tab, /aria-pressed=\{semantics === "group" \? tab\.id === activeTab : undefined\}/);
   assert.match(tab, /aria-selected=\{semantics === "tabs" \? tab\.id === activeTab : undefined\}/);
   assert.match(tab, /tabIndex=\{semantics === "tabs" \? \(tab\.id === activeTab \? 0 : -1\) : undefined\}/);
@@ -45,16 +45,17 @@ test("ticket/admin toggle groups keep pressed semantics and Schedule can use tru
   assert.match(payment, /aria-pressed=\{paymentType === method\.type\}/);
   assert.match(payment, /onKeyDown=\{event => handleMethodArrow\(event, index\)\}/);
 });
-test("Schedule associates its month and agenda panels with the selected tab and keeps Today an action", () => {
+test("Schedule associates its month and week panels with the selected tab and keeps Today an action", () => {
   const schedule = readFileSync(new URL("../src/pages/Schedules.tsx", import.meta.url), "utf8");
   const editor = readFileSync(new URL("../src/pages/ScheduleEditor.tsx", import.meta.url), "utf8");
   const api = readFileSync(new URL("../src/api/scheduledShifts.ts", import.meta.url), "utf8");
   const tokens = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
   assert.match(schedule, /semantics="tabs"/);
   assert.match(schedule, /role="tabpanel" aria-labelledby="schedule-view-tab-month"/);
-  assert.match(schedule, /role="tabpanel" aria-labelledby="schedule-view-tab-agenda"/);
-  assert.match(schedule, /<TodayButton[^>]+onClick=/);
-  assert.doesNotMatch(schedule, /TodayButton[^>]+aria-pressed/);
+  assert.match(schedule, /role="tabpanel" aria-labelledby="schedule-view-tab-week"/);
+  assert.match(schedule, /trailingAction=\{\{ label: t\("Today", "今日"\), onClick:/);
+  assert.doesNotMatch(schedule, /TodayButton/);
+  assert.match(tab, /<TabButton type="button" \$active=\{false\} onClick=\{trailingAction.onClick\}/);
   assert.match(schedule, /detailReturnFocus\.current\?\.focus\(\)/);
   assert.match(schedule, /const selectedIsPast = \(selected < calendarDate && !isActiveShiftDate\(selected\)\)/);
   assert.match(schedule, /const createTargetIsPast = \(createTarget < calendarDate && !isActiveShiftDate\(createTarget\)\)/);
