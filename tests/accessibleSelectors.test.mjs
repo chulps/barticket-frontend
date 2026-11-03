@@ -65,7 +65,7 @@ test("Schedule associates Month Week and Day panels with genuine shared tabs", (
   assert.match(editor, /<input disabled=\{!canWrite \|\| busy\} type="date" min=\{today\}/);
   assert.match(editor, /dateIsPast \|\| sourceDateIsPast/);
   assert.match(schedule, /operational_business_date/);
-  assert.match(schedule, /const managerReviewOpen = viewer\?\.role === "manager" && detail && selectedTimeOff\.some\(item => item\.status === "pending"\)/);
+  assert.match(schedule, /const managerReviewOpen = viewer\?\.role === "manager" && detail && \(selectedTimeOff\.some\(item => item\.status === "pending"\) \|\| pendingSelectedReservations\.length > 0\)/);
   assert.match(schedule, /!managerReviewOpen \? <CreateButton/);
   assert.match(schedule, /actual_shift_status === "open"/);
   assert.match(schedule, /actual_shift_status === "closed"/);

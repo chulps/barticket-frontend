@@ -33,6 +33,19 @@ test("time-off pushes deep-link only to an allowlisted request ID",async()=>{
     assert.equal(w.opened.at(-1),n.data.url);
   }
 });
+test("reservation pushes deep-link to schedules without exposing guest details",async()=>{
+  for(const base of ["https://example.test/","https://example.test/barticket-frontend/"]){
+    const w=worker(base);
+    const n=await w.push({type:"reservation_request",reservation_request_id:23,guest_name:"Private Guest",contact_email:"guest@example.com"});
+    const url=new URL(n.data.url);
+    assert.equal(url.pathname,new URL("schedules",base).pathname);
+    assert.equal(url.searchParams.get("reservation"),"23");
+    assert.equal(url.searchParams.has("guest_name"),false);
+    assert.equal(url.searchParams.has("contact_email"),false);
+    await w.click(n.data.url);
+    assert.equal(w.opened.at(-1),n.data.url);
+  }
+});
 test("unknown types, stock, missing IDs and invalid URLs fall back to Notifications",async()=>{
   const w=worker();
   for(const payload of [null,{type:"unknown",ticket_id:42},{type:"stock",ticket_id:42},{type:"ticket_updated"},{type:"ticket_updated",ticket_id:-1}]){
@@ -64,6 +77,8 @@ test("sign-in return rejects external or expired destinations",async()=>{
   assert.equal(context.notificationDestination("https://example.test/barticket-frontend/admin","/barticket-frontend/"),null);
   assert.equal(context.notificationDestination("https://example.test/barticket-frontend/schedules?time_off=8","/barticket-frontend/"),"https://example.test/barticket-frontend/schedules?time_off=8&from_push=1");
   assert.equal(context.notificationDestination("https://example.test/barticket-frontend/schedules?time_off=0","/barticket-frontend/"),null);
+  assert.equal(context.notificationDestination("https://example.test/barticket-frontend/schedules?reservation=23","/barticket-frontend/"),"https://example.test/barticket-frontend/schedules?reservation=23&from_push=1");
+  assert.equal(context.notificationDestination("https://example.test/barticket-frontend/schedules?reservation=0","/barticket-frontend/"),null);
   context.installNotificationReturn();
   const key="barticket-notification-return";
   values.set(key,JSON.stringify({url:"https://evil.test/",at:Date.now()}));listeners["barticket-auth"]();

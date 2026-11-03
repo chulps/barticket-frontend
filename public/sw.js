@@ -8,6 +8,7 @@ self.addEventListener("push", (event) => {
   const type = typeof payload.type === "string" ? payload.type : "activity";
   const ticketId = Number.isSafeInteger(payload.ticket_id) && payload.ticket_id > 0 ? payload.ticket_id : null;
   const timeOffRequestId = Number.isSafeInteger(payload.time_off_request_id) && payload.time_off_request_id > 0 ? payload.time_off_request_id : null;
+  const reservationRequestId = Number.isSafeInteger(payload.reservation_request_id) && payload.reservation_request_id > 0 ? payload.reservation_request_id : null;
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     await Promise.all(windows.map((client) => client.postMessage({ type: "barticket-push", eventType: type, ticketId, eventId: payload.event_id, occurredAt: payload.occurred_at, soundCue: payload.sound_cue })));
@@ -16,7 +17,7 @@ self.addEventListener("push", (event) => {
     icon: new URL("favicon.svg", self.registration.scope).href,
     badge: new URL("favicon.svg", self.registration.scope).href,
     tag: type + (ticketId ? ":" + ticketId : ""),
-    data: { url: notificationTarget(type, ticketId, timeOffRequestId).href },
+    data: { url: notificationTarget(type, ticketId, timeOffRequestId, reservationRequestId).href },
   });
   })());
 });
@@ -38,6 +39,12 @@ self.addEventListener("notificationclick", (event) => {
         if (requestId && /^[1-9]\d*$/.test(requestId) && Number.isSafeInteger(Number(requestId))) {
           schedules.searchParams.set("time_off", requestId);
           target = schedules;
+      } else {
+        const reservationId = candidate.searchParams.get("reservation");
+        if (reservationId && /^[1-9]\d*$/.test(reservationId) && Number.isSafeInteger(Number(reservationId))) {
+          schedules.searchParams.set("reservation", reservationId);
+          target = schedules;
+        }
         }
       }
     }
@@ -54,11 +61,16 @@ self.addEventListener("notificationclick", (event) => {
 
 // Only ticket-bearing event types may select a ticket. All other activity opens
 // Notifications until its payload has a supported, authorized entity target.
-function notificationTarget(type, ticketId, timeOffRequestId) {
+function notificationTarget(type, ticketId, timeOffRequestId, reservationRequestId) {
   const url = new URL("notifications?from_push=1", self.registration.scope);
   if (timeOffRequestId && ["time_off_request", "time_off_decision"].includes(type)) {
     const target = new URL("schedules?from_push=1", self.registration.scope);
     target.searchParams.set("time_off", String(timeOffRequestId));
+    return target;
+  }
+  if (reservationRequestId && type === "reservation_request") {
+    const target = new URL("schedules?from_push=1", self.registration.scope);
+    target.searchParams.set("reservation", String(reservationRequestId));
     return target;
   }
   const ticketEvents = ["ticket_created", "ticket_updated", "ticket_payment_recorded",

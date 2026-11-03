@@ -4,6 +4,8 @@ import styled from "styled-components";
 import { scheduledShiftsApi, type ScheduledShift, type ScheduledPerson, type ScheduleContext } from "../api/scheduledShifts";
 import { accountApi, type Account } from "../api/account";
 import { timeOffApi, type TimeOffRequest } from "../api/timeOff";
+import { reservationsApi, type Reservation } from "../api/reservations";
+import { isCurrentAuthRequest } from "../api/authRequestGuard.js";
 import { getToken } from "../api/client";
 import { shouldPoll } from "../api/realtime";
 import { businessDateJst } from "./shiftControlPolicy";
@@ -49,6 +51,13 @@ export default function Schedules() {
     const [viewer, setViewer] = useState<Account | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const [timeOff, setTimeOff] = useState<TimeOffRequest[]>([]);
+    const [reservations, setReservations] = useState<Reservation[]>([]);
+    const [managerInboxReservations, setManagerInboxReservations] = useState<Reservation[]>([]);
+    const [reservationBusy, setReservationBusy] = useState(false);
+    const [reservationError, setReservationError] = useState("");
+    const [reservationMessage, setReservationMessage] = useState("");
+    const handledReservationLink = useRef("");
+    const reservationDispatchInFlight = useRef(false);
     const [timeOffReason, setTimeOffReason] = useState("");
     const [timeOffBusy, setTimeOffBusy] = useState(false);
     const [timeOffError, setTimeOffError] = useState("");
@@ -106,8 +115,54 @@ export default function Schedules() {
         void accountApi.me().then(user => { if (active && requestAuth === authSerial.current && session === getToken()) setViewer(user); }).catch(() => { if (active && requestAuth === authSerial.current) setViewer(null); });
         return () => { active = false; };
     }, [session, authEpoch]);
+    useEffect(() => {
+        if (!viewer || viewer.role !== "manager" || !session || session !== getToken()) {
+            return;
+        }
+        let active = true;
+        let requestSerial = 0;
+        const loadReservationViews = (current: number, requestAuth: number) =>
+            Promise.all([reservationsApi.list(from, to), reservationsApi.inbox()]).then(([items, inbox]) => {
+                if (active && requestSerial === current && isCurrentAuthRequest(requestAuth, authSerial.current, session, getToken()) && requestAuth === authEpoch) {
+                    setReservations(items);
+                    setManagerInboxReservations(inbox.pending_requests);
+                    setReservationError("");
+                }
+            });
+        const refresh = () => {
+            const current = ++requestSerial;
+            const requestAuth = authSerial.current;
+            if (!isCurrentAuthRequest(authEpoch, requestAuth, session, getToken())) return;
+            // Render the list and inbox immediately. The bounded one-message
+            // recovery call runs independently and refreshes status afterward.
+            void loadReservationViews(current, requestAuth).catch(err => {
+                if (active && requestSerial === current && isCurrentAuthRequest(requestAuth, authSerial.current, session, getToken()) && requestAuth === authEpoch) {
+                    setReservationError(err instanceof Error ? err.message : String(err));
+                }
+            });
+            if (reservationDispatchInFlight.current) return;
+            reservationDispatchInFlight.current = true;
+            void reservationsApi.dispatchQueuedEmail().then(result => {
+                if (!active || requestSerial !== current || !isCurrentAuthRequest(requestAuth, authSerial.current, session, getToken()) || requestAuth !== authEpoch) return;
+                if (result.unknown > 0) {
+                    setReservationMessage(t("A queued email has an uncertain delivery status. Check with the guest before retrying.", "送信状態が不明なメールがあります。再送信する前にゲストにご確認ください。"));
+                }
+                if (result.scanned > 0) return loadReservationViews(current, requestAuth);
+            }).catch(() => undefined).finally(() => { reservationDispatchInFlight.current = false; });
+        };
+        refresh();
+        window.addEventListener("barticket-reservations-updated", refresh);
+        return () => {
+            active = false;
+            window.removeEventListener("barticket-reservations-updated", refresh);
+        };
+    }, [viewer, from, to, session, authEpoch, t]);
     const deepLinkRequestId = (() => {
         const value = searchParams.get("time_off");
+        return value && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value)) ? Number(value) : null;
+    })();
+    const deepLinkReservationId = (() => {
+        const value = searchParams.get("reservation");
         return value && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value)) ? Number(value) : null;
     })();
     useEffect(() => {
@@ -147,12 +202,37 @@ export default function Schedules() {
                 }
             });
         }
+        if (deepLinkReservationId && viewer.role === "manager" && handledReservationLink.current !== `${session}:${deepLinkReservationId}`) {
+            handledReservationLink.current = `${session}:${deepLinkReservationId}`;
+            const requestEpoch = authSerial.current;
+            const isCurrent = () => active && requestEpoch === authSerial.current && requestEpoch === authEpoch && session === getToken();
+            void reservationsApi.request(deepLinkReservationId).then(async item => {
+                if (!isCurrent()) return;
+                setReservations(current => [item, ...current.filter(existing => existing.id !== item.id)]);
+                setSelected(item.business_date);
+                setMonth(item.business_date.slice(0, 7));
+                setDetail(true);
+                setReservationError("");
+                try {
+                    const inbox = await reservationsApi.inbox();
+                    const notice = inbox.notifications.find(row => row.reservation_id === item.id);
+                    if (notice && isCurrent()) await reservationsApi.markRead(notice.id);
+                } catch { /* The request detail remains authoritative even if its inbox marker cannot be cleared. */ }
+            }).catch(() => {
+                if (isCurrent()) setReservationError(t("This reservation request is unavailable for your account.", "この予約リクエストは現在のアカウントでは表示できません。"));
+            }).finally(() => {
+                if (isCurrent()) {
+                    const next = new URLSearchParams(searchParams);
+                    next.delete("reservation"); next.delete("from_push"); setSearchParams(next, { replace: true });
+                }
+            });
+        }
         return () => {
             active = false;
             window.removeEventListener("barticket-time-off-updated", refresh);
             window.removeEventListener("barticket-schedules-updated", refresh);
         };
-    }, [viewer, session, authEpoch, deepLinkRequestId, searchParams, setSearchParams, locale, t]);
+    }, [viewer, session, authEpoch, deepLinkRequestId, deepLinkReservationId, searchParams, setSearchParams, locale, t]);
     useEffect(() => {
         const reset = (event: Event) => {
             if (event instanceof StorageEvent && event.key !== null && event.key !== "barticket_token") return;
@@ -165,10 +245,11 @@ export default function Schedules() {
             contextFlight.current = null;
             store.reset(nextToken);
             setAuthState(current => ({ token: nextToken, epoch: current.epoch + 1 }));
-            setRows([]); setKnownManagers([]); setViewer(null); setScheduleContext(null); setEditing(false); setDetail(false);
+            setRows([]); setKnownManagers([]); setReservations([]); setManagerInboxReservations([]); setReservationBusy(false); setReservationError(""); setReservationMessage(""); setViewer(null); setScheduleContext(null); setEditing(false); setDetail(false);
             pendingDayDefault.current = null;
             timeOffActionSerial.current++;
             setTimeOff([]); setTimeOffReason(""); setTimeOffBusy(false); setTimeOffError(""); setTimeOffMessage(""); handledDeepLink.current = "";
+            handledReservationLink.current = "";
         };
         window.addEventListener("barticket-auth", reset); window.addEventListener("storage", reset);
         return () => { window.removeEventListener("barticket-auth", reset); window.removeEventListener("storage", reset); };
@@ -228,9 +309,10 @@ export default function Schedules() {
             if (polling) {
                 void loadRef.current(true);
                 window.dispatchEvent(new Event("barticket-time-off-updated"));
+                window.dispatchEvent(new Event("barticket-reservations-updated"));
             }
         };
-        const changed = () => { serial.current++; store.invalidate(); requestContext(); void loadRef.current(true); };
+        const changed = () => { serial.current++; store.invalidate(); requestContext(); void loadRef.current(true); window.dispatchEvent(new Event("barticket-reservations-updated")); };
         requestContext(false);
         const interval = window.setInterval(pollFallback, 60000);
         window.addEventListener("focus", refresh); window.addEventListener("online", refresh);
@@ -281,7 +363,9 @@ export default function Schedules() {
     };
     const selectedRow = rows.find(row => row.business_date === selected);
     const selectedTimeOff = timeOff.filter(item => item.business_date === selected);
-    const managerReviewOpen = viewer?.role === "manager" && detail && selectedTimeOff.some(item => item.status === "pending");
+    const selectedReservations = reservations.filter(item => item.business_date === selected);
+    const pendingSelectedReservations = selectedReservations.filter(item => item.status === "pending");
+    const managerReviewOpen = viewer?.role === "manager" && detail && (selectedTimeOff.some(item => item.status === "pending") || pendingSelectedReservations.length > 0);
     const myTimeOffRequests = viewer?.role === "staff" ? selectedTimeOff.filter(item => item.requester_user_id === viewer.id) : [];
     const myPendingTimeOffRequest = myTimeOffRequests.find(item => item.status === "pending");
     const latestMyTimeOffRequest = myTimeOffRequests[0];
@@ -331,6 +415,56 @@ export default function Schedules() {
             await load(true);
         } catch (err) { if (isCurrent()) setTimeOffError(err instanceof Error ? err.message : String(err)); }
         finally { if (isCurrent()) setTimeOffBusy(false); }
+    };
+    const decideReservation = async (request: Reservation, decision: "approve" | "decline" | "cancel") => {
+        if (reservationBusy) return;
+        const sessionAtStart = getToken();
+        const requestEpoch = authSerial.current;
+        if (!sessionAtStart || sessionAtStart !== session) return;
+        setReservationBusy(true); setReservationError(""); setReservationMessage("");
+        try {
+            const updated = await reservationsApi.decide(request.id, decision, request.revision);
+            if (requestEpoch !== authSerial.current || sessionAtStart !== getToken()) return;
+            setReservations(current => current.map(item => item.id === updated.id ? updated : item));
+            const decisionLabel = decision === "approve" ? t("Approved", "承認しました") : decision === "decline" ? t("Declined", "お断りしました") : t("Canceled", "キャンセルしました");
+            const deliveryLabel = updated.email_status === "accepted" ? t("Email accepted by the mail service.", "メールサービスがメールを受け付けました。")
+                : updated.email_status === "not_enabled" ? t("Email is not enabled yet.", "メール送信はまだ有効ではありません。")
+                    : updated.email_status === "failed" ? t("Email could not be sent. You can retry below.", "メールを送信できませんでした。下から再試行できます。")
+                        : updated.email_status === "queued" ? t("Email is queued for delivery. You can dispatch it below.", "メールは送信待ちです。下から送信できます。")
+                        : updated.email_status === "superseded" ? t("This queued email was replaced by a newer reservation update.", "保留中のメールは新しい予約更新に置き換えられました。")
+                        : updated.email_status === "unknown" || updated.email_status === "sending" ? t("Email status is uncertain. Check with the guest before retrying.", "メールの状態を確認できません。再送信する前にゲストにご確認ください。")
+                            : t("No guest email was sent.", "ゲストへのメールは送信されていません。");
+            setReservationMessage(`${decisionLabel} · ${deliveryLabel}`);
+            window.dispatchEvent(new Event("barticket-reservations-updated"));
+        } catch (err) {
+            if (requestEpoch === authSerial.current && sessionAtStart === getToken()) {
+                setReservationError(err instanceof Error ? err.message : String(err));
+            }
+        } finally {
+            if (requestEpoch === authSerial.current && sessionAtStart === getToken()) setReservationBusy(false);
+        }
+    };
+    const retryReservationEmail = async (request: Reservation) => {
+        if (reservationBusy) return;
+        const sessionAtStart = getToken();
+        const requestEpoch = authSerial.current;
+        if (!sessionAtStart || sessionAtStart !== session) return;
+        setReservationBusy(true); setReservationError(""); setReservationMessage("");
+        try {
+            const updated = await reservationsApi.retryEmail(request.id);
+            if (requestEpoch !== authSerial.current || sessionAtStart !== getToken()) return;
+            setReservations(current => current.map(item => item.id === updated.id ? updated : item));
+            setReservationMessage(updated.email_status === "accepted"
+                ? t("The guest email was accepted by the mail service.", "メールサービスがゲストへのメールを受け付けました。")
+                : updated.email_status === "queued" ? t("The email remains queued. Try again later.", "メールは送信待ちです。後でもう一度お試しください。")
+                : updated.email_status === "failed" ? t("Email could not be sent. Check the sender setup.", "メールを送信できませんでした。送信元の設定をご確認ください。")
+                    : t("Email was not resent because its status is uncertain or sending is disabled.", "状態が不明か送信が無効のため、メールは再送信されませんでした。"));
+            window.dispatchEvent(new Event("barticket-reservations-updated"));
+        } catch (err) {
+            if (requestEpoch === authSerial.current && sessionAtStart === getToken()) setReservationError(err instanceof Error ? err.message : String(err));
+        } finally {
+            if (requestEpoch === authSerial.current && sessionAtStart === getToken()) setReservationBusy(false);
+        }
     };
     const days = calendarDays(month);
     const visibleDays = mode === "day" ? [selected] : weekDays(selected);
@@ -386,6 +520,16 @@ export default function Schedules() {
                 />
             </ScheduleControls>
         </Toolbar>
+        {viewer?.role === "manager" && managerInboxReservations.length > 0 ? <ReservationPanel aria-label={t("Manager reservation inbox", "マネージャーの予約確認箱")}>
+            <h4>{t("Manager inbox · pending requests", "マネージャー確認箱 · 確認待ち")}</h4>
+            {managerInboxReservations.map(request => <ReservationInboxItem key={request.id}>
+                <ReservationTopline><strong>{request.guest_name} · {request.party_size} {t("guests", "名")}</strong><span>{request.business_date}</span></ReservationTopline>
+                <p>{new Intl.DateTimeFormat(ja ? "ja-JP" : "en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Tokyo" }).format(new Date(request.arrival_at))} JST · {request.reference}</p>
+                {request.note ? <p><strong>{t("Guest note", "ゲストのメモ")}: </strong>{request.note}</p> : null}
+                {request.note_translation ? <p><strong>{request.note_translation_language === "ja" ? t("Japanese translation", "日本語訳") : t("English translation", "英訳")}: </strong>{request.note_translation}</p> : request.note && request.note_translation_status !== "not_requested" ? <p>{request.note_translation_status === "pending" ? t("Translation is processing; the original note is shown.", "翻訳中です。元のメモを表示しています。") : t("Translation is unavailable; the original note is shown.", "翻訳を利用できません。元のメモを表示しています。")}</p> : null}
+                <button type="button" className="secondary" onClick={() => { setSelected(request.business_date); setMonth(request.business_date.slice(0, 7)); setMode("day"); setDetail(true); }}>{t("Review request", "リクエストを確認")}</button>
+            </ReservationInboxItem>)}
+        </ReservationPanel> : null}
         <MonthNav $week={mode === "week"} aria-label={mode === "day" ? t("Schedule day", "予定の日") : mode === "week" ? t("Schedule week", "予定の週") : t("Schedule month", "予定の月")}>
             <MonthStep type="button" className="hollow secondary" aria-label={mode === "day" ? t("Previous day", "前日") : mode === "week" ? t("Previous week", "前週") : t("Previous month", "前月")} onClick={() => navigate(-1)}>
                 <Icon name="CaretLeft" size="var(--font-size-h4)" />
@@ -402,21 +546,29 @@ export default function Schedules() {
         {error ? <Notice role="alert">{t("Could not refresh schedules. Displayed plans may be out of date.", "予定を更新できませんでした。表示内容が古い場合があります。") } <span>{error}</span><button className="secondary" onClick={() => void load(true)}>{t("Retry", "再試行")}</button></Notice> : null}
         {timeOffError ? <Notice role="alert">{timeOffError}</Notice> : null}
         {timeOffMessage ? <TimeOffStatus role="status">{timeOffMessage}</TimeOffStatus> : null}
+        {reservationError ? <Notice role="alert">{t("Could not refresh reservation requests.", "予約リクエストを更新できませんでした。")} <span>{reservationError}</span></Notice> : null}
+        {reservationMessage ? <TimeOffStatus role="status">{reservationMessage}</TimeOffStatus> : null}
         {loading ? <Subtitle role="status">{t("Loading schedules…", "予定を読み込んでいます…")}</Subtitle> : null}
         <Canvas>
             {mode === "month" ? <Calendar id="schedule-view-panel-month" role="tabpanel" aria-labelledby="schedule-view-tab-month" tabIndex={0} aria-label={t("Monthly schedule", "月間予定")}>
                 {Array.from({ length: 7 }, (_, i) => <Weekday key={i}>{format(addDays("2026-11-01", i), { weekday: "short" })}</Weekday>)}
-                {days.map(day => { const row = rows.find(item => item.business_date === day); const isPast = day < calendarDate && !isActiveShiftDate(day); return <Day key={day} $outside={!day.startsWith(month)} $selected={day === selected} $past={isPast}>
+                {days.map(day => { const row = rows.find(item => item.business_date === day); const dayReservations = reservations.filter(item => item.business_date === day); const pendingCount = dayReservations.filter(item => item.status === "pending").length; const isPast = day < calendarDate && !isActiveShiftDate(day); return <Day key={day} $outside={!day.startsWith(month)} $selected={day === selected} $past={isPast}>
                     <DayButton $past={isPast} ref={node => { if (node) dateButtons.current.set(day, node); else dateButtons.current.delete(day); }} aria-label={format(day, { dateStyle: "full" })} aria-current={day === today ? "date" : undefined} aria-pressed={day === selected} onClick={event => choose(day, event.currentTarget)} onKeyDown={event => moveDateFocus(event, day)}><span>{Number(day.slice(-2))}</span></DayButton>
                     {row ? <EventBlock $state={cellState(row)} onClick={event => choose(day, event.currentTarget)} aria-label={`${day}: ${cellTitle(row)}, ${cellLabel(row)}, ${names(row)}`}><strong>{cellTitle(row)}</strong><span>{cellLabel(row)}</span><small>{row.manager?.name || t("No manager", "担当未定")}</small><small>{row.staff.map(person => person.name).join(" · ") || t("No staff", "スタッフなし")}</small></EventBlock> : null}
+                    {dayReservations.length ? <ReservationIndicator type="button" onClick={event => choose(day, event.currentTarget)} aria-label={`${dayReservations.length} ${t("reservation requests", "件の予約リクエスト")}`}>
+                        {dayReservations.length} {t("reservations", "件の予約")} · {pendingCount} {t("pending", "確認待ち")}
+                    </ReservationIndicator> : null}
                 </Day>; })}
             </Calendar> : <Week id={`schedule-view-panel-${mode}`} role="tabpanel" aria-labelledby={`schedule-view-tab-${mode}`} tabIndex={0} aria-label={mode === "day" ? t("Daily schedule", "一日の予定") : t("Weekly schedule", "週間予定")}>
                 <WeekNote>{t("Date-only plans · hours not recorded", "日付のみの予定・勤務時間の記録なし")}</WeekNote>
                 {mode === "week" && !loading && !weekHasPlans ? <Empty>{t("No scheduled shifts this week.", "今週の予定はありません。")}</Empty> : null}
-                {visibleDays.map(day => { const row = rows.find(item => item.business_date === day); const isPast = day < calendarDate && !isActiveShiftDate(day); return <WeekRow key={day} data-date={day} $selected={day === selected}>
+                {visibleDays.map(day => { const row = rows.find(item => item.business_date === day); const dayReservations = reservations.filter(item => item.business_date === day); const pendingCount = dayReservations.filter(item => item.status === "pending").length; const isPast = day < calendarDate && !isActiveShiftDate(day); return <WeekRow key={day} data-date={day} $selected={day === selected}>
                     <WeekDate $past={isPast} ref={node => { if (node) dateButtons.current.set(day, node); else dateButtons.current.delete(day); }} aria-label={format(day, { dateStyle: "full" })} aria-current={day === today ? "date" : undefined} aria-pressed={day === selected} onClick={event => choose(day, event.currentTarget)} onKeyDown={event => moveDateFocus(event, day)}><small>{format(day, { weekday: "short" })}</small><span>{Number(day.slice(-2))}</span><small>{format(day, { month: "short" })}</small></WeekDate>
                     {row ? <WeekEvent $state={cellState(row)} onClick={event => choose(day, event.currentTarget)} aria-label={`${day}: ${cellTitle(row)}, ${cellLabel(row)}, ${names(row)}`}><small>{cellLabel(row)}</small><strong>{cellTitle(row)}</strong><span>{t("Manager", "マネージャー")}: {row.manager?.name || t("Not assigned", "未定")}</span><span>{t("Staff", "スタッフ")}: {row.staff.map(person => person.name).join(" · ") || t("None", "なし")}</span></WeekEvent>
                         : <EmptyDay type="button" aria-label={`${format(day, { dateStyle: "full" })}: ${t("No plan", "予定なし")}`} onClick={event => choose(day, event.currentTarget)}>{loading ? t("Loading…", "読み込み中…") : t("No plan", "予定なし")}</EmptyDay>}
+                    {dayReservations.length ? <ReservationIndicator type="button" onClick={event => choose(day, event.currentTarget)} aria-label={`${dayReservations.length} ${t("reservation requests", "件の予約リクエスト")}`}>
+                        {dayReservations.length} {t("reservations", "件の予約")} · {pendingCount} {t("pending", "確認待ち")}
+                    </ReservationIndicator> : null}
                 </WeekRow>; })}
             </Week>}
             {detail ? <Details ref={detailPanel} tabIndex={-1} aria-label={t("Selected day", "選択した日")}>
@@ -451,6 +603,23 @@ export default function Schedules() {
                         <div><button type="button" className="primary" disabled={timeOffBusy || selectedIsPast} onClick={() => void decideTimeOff(request, "approve")}>{t("Approve", "承認")}</button><button type="button" className="danger" disabled={timeOffBusy || selectedIsPast} onClick={() => void decideTimeOff(request, "decline")}>{t("Decline", "却下")}</button></div>
                     </TimeOffCard>)}
                 </TimeOffPanel> : null}
+                {viewer?.role === "manager" && selectedReservations.length ? <ReservationPanel>
+                    <h4>{t("Reservations", "予約リクエスト")}</h4>
+                    {selectedReservations.map(request => <ReservationCard key={request.id}>
+                        <ReservationTopline><strong>{request.guest_name} · {request.party_size} {t("guests", "名")}</strong><StatusBadge $status={request.status}>{t(request.status[0].toUpperCase() + request.status.slice(1), ({ pending: "確認待ち", approved: "確定", declined: "お断り", canceled: "キャンセル" } as const)[request.status])}</StatusBadge></ReservationTopline>
+                        <p>{new Intl.DateTimeFormat(ja ? "ja-JP" : "en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Tokyo" }).format(new Date(request.arrival_at))} JST · {request.reference}</p>
+                        <p><a href={`mailto:${encodeURIComponent(request.contact_email || "")}`}>{request.contact_email}</a>{request.contact_phone ? ` · ${request.contact_phone}` : ""}</p>
+                        {request.note ? <p>{request.note}</p> : null}
+                        {request.note_translation ? <p><strong>{request.note_translation_language === "ja" ? t("Japanese translation", "日本語訳") : t("English translation", "英訳")}: </strong>{request.note_translation}</p> : request.note && request.note_translation_status !== "not_requested" ? <p>{request.note_translation_status === "pending" ? t("Translation is processing; the original note is shown.", "翻訳中です。元のメモを表示しています。") : t("Translation is unavailable; the original note is shown.", "翻訳を利用できません。元のメモを表示しています。")}</p> : null}
+                        {request.email_status ? <p>{t("Guest email status", "ゲストメールの状態")}: {({ accepted: t("Accepted", "受付済み"), failed: t("Failed", "失敗"), unknown: t("Unknown", "不明"), sending: t("Sending", "送信中"), queued: t("Queued", "保留中"), superseded: t("Superseded", "更新済み"), not_requested: t("Not requested", "未依頼"), not_enabled: t("Disabled", "無効") } as const)[request.email_status] ?? request.email_status}</p> : null}
+                        {request.manager_user_id === null ? <p>{t("Unassigned manager · fallback inbox", "担当未割当・共有確認箱")}</p> : null}
+                        {request.status === "pending" ? <ReservationActions>
+                            <button type="button" className="primary" disabled={reservationBusy} onClick={() => void decideReservation(request, "approve")}>{t("Approve", "承認")}</button>
+                            <button type="button" className="danger" disabled={reservationBusy} onClick={() => void decideReservation(request, "decline")}>{t("Decline", "お断り")}</button>
+                        </ReservationActions> : request.status === "approved" ? <button type="button" className="danger" disabled={reservationBusy} onClick={() => void decideReservation(request, "cancel")}>{t("Cancel reservation", "予約をキャンセル")}</button> : null}
+                        {request.email_status === "failed" || request.email_status === "queued" ? <button type="button" className="secondary" disabled={reservationBusy} onClick={() => void retryReservationEmail(request)}>{request.email_status === "queued" ? t("Send queued guest email", "保留中のゲストメールを送信") : t("Retry guest email", "ゲストメールを再試行")}</button> : null}
+                    </ReservationCard>)}
+                </ReservationPanel> : null}
                 {selectedRow?.provenance.length ? <details><summary>{t("Spreadsheet source", "勤務表の出典")}</summary>{selectedRow.provenance.map((source, i) => <p key={i}>{source.source_file} · {t("row", "行")} {source.source_row}<br />{source.imported_by}{source.uncertainty ? ` · ${source.uncertainty}` : ""}</p>)}</details> : null}
             </Details> : null}
         </Canvas>
@@ -472,6 +641,7 @@ const Calendar = styled.div`display:grid;grid-template-columns:repeat(7,minmax(0
 const Weekday = styled.div`padding:12.8px 3.2px;text-align:center;font-size:12.8px;color:var(--neutral-300);border-bottom:1px solid var(--neutral-700);`;
 const Day = styled.div<{ $outside: boolean; $selected: boolean; $past: boolean }>`min-width:0;min-height:135px;border-right:1px solid var(--neutral-700);border-bottom:1px solid var(--neutral-700);padding:4px;background:${p=>p.$selected?'var(--neutral-800)':p.$outside?'var(--neutral-950)':'transparent'};${p=>p.$past?"color:var(--neutral-300);":""}@media(max-width:600px){min-height:110px;padding:1.6px;}`;
 const DayButton = styled.button<{ $past: boolean }>`display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px!important;padding:0!important;margin:0 auto 3.2px;background:transparent!important;color:${p=>p.$past?"var(--neutral-400)":"var(--neutral-100)"}!important;span{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;} &[aria-current=date] span{background:var(--royal-500);color:white;} &[aria-pressed=true] span{outline:1px solid var(--neutral-300);}`;
+const ReservationIndicator = styled.button`display:block;width:100%!important;min-height:36px!important;margin-top:4px;padding:4px!important;overflow:hidden;border:1px solid var(--warning-700)!important;border-radius:6px!important;background:var(--warning-950)!important;color:var(--warning-200)!important;font-size:12px!important;text-align:center;white-space:nowrap;text-overflow:ellipsis;`;
 const EventBlock = styled.button<{ $state: ScheduleState }>`display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%!important;padding:6.4px 8px!important;border:0;border-left:3px solid ${p=>scheduleAccent(p.$state)};border-radius:5px;background:${p=>scheduleSurface(p.$state)}!important;color:var(--neutral-100)!important;text-align:left;font-size:12.8px;overflow:hidden;strong,span,small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}small{font-size:12px;}span{font-weight:600;color:${p=>scheduleForeground(p.$state)};}@media(max-width:600px){padding:4.8px 3.2px!important;font-size:12px;small{font-size:12px;}}`;
 const Week = styled.div`flex:1;min-width:0;padding:12px 16px;@media(max-width:600px){padding:8px;}`;
 const WeekNote = styled(Subtitle)`padding:0 8px 8px;`;
@@ -489,3 +659,9 @@ const TimeOffStatus = styled.p`margin:8px 0;padding:12px;border:1px solid var(--
 const TimeOffPanel = styled.section`display:grid;gap:10px;margin:16px 0;padding:12px;border:1px solid var(--info-700);border-radius:10px;background:var(--neutral-950);h4{margin:0;color:var(--info-200);}p{margin:0;font-size:13px;color:var(--neutral-200);}label{font-size:13px;color:var(--neutral-200);}`;
 const TimeOffReason = styled.textarea`width:100%;min-height:72px;padding:10px;border:1px solid var(--neutral-600);border-radius:8px;background:var(--neutral-900);color:var(--neutral-100);resize:vertical;font:inherit;`;
 const TimeOffCard = styled.article`display:grid;gap:8px;padding:10px;border:1px solid var(--neutral-700);border-radius:8px;background:var(--neutral-900);strong{color:var(--neutral-100);}div{display:flex;gap:8px;flex-wrap:wrap;}button{min-width:104px;}`;
+const ReservationPanel = styled.section`display:grid;gap:10px;margin:16px 0;padding:12px;border:1px solid var(--warning-700);border-radius:10px;background:var(--neutral-950);h4{margin:0;color:var(--warning-200);}`;
+const ReservationCard = styled.article`display:grid;gap:8px;padding:10px;border:1px solid var(--warning-800);border-radius:8px;background:var(--neutral-900);p{margin:0;font-size:13px;color:var(--neutral-200);overflow-wrap:anywhere;}a{color:var(--royal-300);}`;
+const ReservationInboxItem = styled.article`display:grid;gap:8px;padding:10px;border:1px solid var(--warning-800);border-radius:8px;background:var(--neutral-900);p{margin:0;font-size:13px;color:var(--neutral-200);}button{justify-self:start;}`;
+const ReservationTopline = styled.div`display:flex;align-items:center;justify-content:space-between;gap:8px;strong{color:var(--neutral-100);}`;
+const StatusBadge = styled.span<{ $status: Reservation["status"] }>`flex:0 0 auto;padding:3px 8px;border-radius:999px;background:${p=>p.$status==="pending"?"var(--warning-950)":p.$status==="approved"?"var(--success-950)":"var(--neutral-800)"};color:${p=>p.$status==="pending"?"var(--warning-200)":p.$status==="approved"?"var(--success-200)":"var(--neutral-300)"};font-size:12px;`;
+const ReservationActions = styled.div`display:flex;gap:8px;flex-wrap:wrap;button{min-width:104px;}`;
