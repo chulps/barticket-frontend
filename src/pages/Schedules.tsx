@@ -369,7 +369,7 @@ export default function Schedules() {
                         <TimeOffReason id="time-off-reason" maxLength={500} value={timeOffReason} onChange={event => setTimeOffReason(event.target.value)} placeholder={t("You can leave this blank.", "空欄でも申請できます。")} />
                         <p>{t("A reason is optional. Avoid private medical details.", "理由は任意です。医療などの個人的な詳細は書かないでください。")}</p>
                         <button type="button" className="primary" disabled={timeOffBusy} onClick={() => void submitTimeOff()}>{timeOffBusy ? t("Sending…", "送信中…") : t("Send request", "申請を送る")}</button>
-                    </> : <p>{!selectedRow.manager?.user_id ? t("A request is unavailable because no linked manager is assigned to this day.", "この日にリンク済みの担当マネージャーがいないため、申請できません。") : t("Time-off requests are available for future or currently running assigned shifts.", "将来または現在進行中で、担当しているシフトのみ申請できます。")}</p>}
+                    </> : <p>{!selectedRow ? t("The scheduled day is no longer available.", "この日の予定は表示できません。") : !selectedRow.manager?.user_id ? t("A request is unavailable because no linked manager is assigned to this day.", "この日にリンク済みの担当マネージャーがいないため、申請できません。") : t("Time-off requests are available for future or currently running assigned shifts.", "将来または現在進行中で、担当しているシフトのみ申請できます。")}</p>}
                 </TimeOffPanel> : null}
                 {viewer?.role === "manager" && selectedTimeOff.length ? <TimeOffPanel>
                     <h4>{t("Time-off requests", "休暇申請")}</h4>
