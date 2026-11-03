@@ -11,6 +11,18 @@ import ScheduleEditor from "./ScheduleEditor";
 import TabGroup from "../components/TabGroup";
 import Icon from "../components/Icon";
 
+type ScheduleState = "active" | "finished" | "closed" | "event" | "past" | "planned";
+// Use the app's semantic palette consistently in Month, Week and day details.
+const scheduleAccent = (state: ScheduleState) => state === "active" ? "var(--success)"
+    : state === "planned" ? "var(--primary)" : state === "event" ? "var(--info)"
+    : state === "closed" ? "var(--danger)" : "var(--neutral-500)";
+const scheduleForeground = (state: ScheduleState) => state === "active" ? "var(--success-300)"
+    : state === "planned" ? "var(--royal-300)" : state === "event" ? "var(--info-300)"
+    : state === "closed" ? "var(--danger-300)" : "var(--neutral-300)";
+const scheduleSurface = (state: ScheduleState) => state === "active" ? "var(--success-900)"
+    : state === "planned" ? "var(--royal-900)" : state === "event" ? "var(--info-900)"
+    : state === "closed" ? "var(--danger-900)" : "var(--neutral-900)";
+
 const store = createScheduleReadStore(scheduledShiftsApi.list);
 export default function Schedules() {
     const { locale } = useI18n();
@@ -178,14 +190,13 @@ export default function Schedules() {
         { id: "week" as const, label: t("Week", "週") },
     ];
     const names = (row: ScheduledShift) => [row.manager?.name, ...row.staff.map(person => person.name)].filter(Boolean).join(" · ");
-    const cellState = (row: ScheduledShift): "active" | "finished" | "closed" | "event" | "past" | "planned" => {
+    const cellState = (row: ScheduledShift): ScheduleState => {
         if (row.actual_shift_status === "open") return "active";
         if (row.actual_shift_status === "closed") return "finished";
-        if (row.venue_status === "closed") return "closed";
         const normalizedEvent = row.event_value?.trim().toLocaleLowerCase() ?? "";
         const scheduleType = row.schedule_type ?? (normalizedEvent === "closed" ? "closed" : normalizedEvent === "open" || !normalizedEvent ? "open" : "event");
         if (row.schedule_state === "past" || row.business_date < calendarDate) return "past";
-        if (scheduleType === "closed") return "closed";
+        if (row.venue_status === "closed" || scheduleType === "closed") return "closed";
         if (row.venue_event || scheduleType === "event") return "event";
         return "planned";
     };
@@ -284,15 +295,15 @@ const Calendar = styled.div`display:grid;grid-template-columns:repeat(7,minmax(0
 const Weekday = styled.div`padding:12.8px 3.2px;text-align:center;font-size:12.8px;color:var(--neutral-300);border-bottom:1px solid var(--neutral-700);`;
 const Day = styled.div<{ $outside: boolean; $selected: boolean; $past: boolean }>`min-width:0;min-height:135px;border-right:1px solid var(--neutral-700);border-bottom:1px solid var(--neutral-700);padding:4px;background:${p=>p.$selected?'var(--neutral-800)':p.$outside?'var(--neutral-950)':'transparent'};${p=>p.$past?"color:var(--neutral-300);":""}@media(max-width:600px){min-height:110px;padding:1.6px;}`;
 const DayButton = styled.button<{ $past: boolean }>`display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px!important;padding:0!important;margin:0 auto 3.2px;background:transparent!important;color:${p=>p.$past?"var(--neutral-400)":"var(--neutral-100)"}!important;span{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;} &[aria-current=date] span{background:var(--royal-500);color:white;} &[aria-pressed=true] span{outline:1px solid var(--neutral-300);}`;
-const EventBlock = styled.button<{ $state: "active" | "finished" | "closed" | "event" | "past" | "planned" }>`display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%!important;padding:6.4px 8px!important;border:0;border-left:3px solid ${p=>p.$state==="active"?"var(--success-400)":p.$state==="closed"?"var(--danger-400)":p.$state==="event"?"var(--event-400)":"var(--neutral-500)"};border-radius:5px;background:${p=>p.$state==="active"?"var(--success-950)":p.$state==="closed"?"var(--danger-950)":"var(--neutral-900)"}!important;color:var(--neutral-100)!important;text-align:left;font-size:12.8px;overflow:hidden;strong,span,small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}small{font-size:12px;}span{font-weight:600;color:${p=>p.$state==="active"?"var(--success-300)":p.$state==="closed"?"var(--danger-300)":p.$state==="event"?"var(--event-400)":"var(--neutral-200)"};}@media(max-width:600px){padding:4.8px 3.2px!important;font-size:12px;small{font-size:12px;}}`;
+const EventBlock = styled.button<{ $state: ScheduleState }>`display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%!important;padding:6.4px 8px!important;border:0;border-left:3px solid ${p=>scheduleAccent(p.$state)};border-radius:5px;background:${p=>scheduleSurface(p.$state)}!important;color:var(--neutral-100)!important;text-align:left;font-size:12.8px;overflow:hidden;strong,span,small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}small{font-size:12px;}span{font-weight:600;color:${p=>scheduleForeground(p.$state)};}@media(max-width:600px){padding:4.8px 3.2px!important;font-size:12px;small{font-size:12px;}}`;
 const Week = styled.div`flex:1;min-width:0;padding:12px 16px;@media(max-width:600px){padding:8px;}`;
 const WeekNote = styled(Subtitle)`padding:0 8px 8px;`;
 const WeekRow = styled.article<{ $selected: boolean }>`display:flex;align-items:stretch;gap:8px;min-width:0;padding:8px 0;border-top:1px solid var(--neutral-700);background:${p=>p.$selected?'var(--neutral-800)':'transparent'};`;
 const WeekDate = styled(DayButton)`flex:0 0 56px;flex-direction:column;gap:2px;align-self:flex-start;margin:4px 0!important;padding:4px!important;small{font-size:12px;line-height:1.4;}`;
 const EmptyDay = styled.button`flex:1;min-width:0;justify-content:flex-start;padding:12px!important;background:transparent!important;color:var(--neutral-300)!important;text-align:left;white-space:normal;`;
-const WeekEvent = styled.button<{ $state: "active" | "finished" | "closed" | "event" | "past" | "planned" }>`overflow-wrap:anywhere;display:flex;flex:1;min-width:0;align-items:flex-start;flex-direction:column;gap:4px;padding:13.6px 16px!important;background:var(--neutral-900)!important;color:var(--neutral-100)!important;border-left:3px solid ${p=>p.$state==="active"?"var(--success-400)":p.$state==="closed"?"var(--danger-400)":p.$state==="event"?"var(--event-400)":"var(--neutral-500)"};border-radius:8px;text-align:left;strong{font-size:16.8px;}small{color:${p=>p.$state==="event"?"var(--event-400)":"var(--neutral-200)"};}span{font-size:13.6px;overflow-wrap:anywhere;}`;
+const WeekEvent = styled.button<{ $state: ScheduleState }>`overflow-wrap:anywhere;display:flex;flex:1;min-width:0;align-items:flex-start;flex-direction:column;gap:4px;padding:13.6px 16px!important;background:${p=>scheduleSurface(p.$state)}!important;color:var(--neutral-100)!important;border-left:3px solid ${p=>scheduleAccent(p.$state)};border-radius:8px;text-align:left;strong{font-size:16.8px;}small{color:${p=>scheduleForeground(p.$state)};}span{font-size:13.6px;overflow-wrap:anywhere;}`;
 const Details = styled.aside`overflow-wrap:anywhere;width:320px;max-width:100%;flex-shrink:0;padding:20px;border-left:1px solid var(--neutral-700);h2{font-size:16.8px;}h3{margin:16px 0 4.8px;}dl{margin:16px 0;}dt{font-size:12.8px;color:var(--neutral-300);margin-top:16px;}dd{margin:3.2px 0;}p,details{font-size:12.8px;color:var(--neutral-300);overflow-wrap:anywhere;}details{margin-top:19.2px;}summary{cursor:pointer;min-height:44px;}@media(max-width:900px){width:auto;border-left:0;border-bottom:1px solid var(--neutral-700);order:-1;}`;
-const StatusLabel = styled.p<{ $state: "active" | "finished" | "closed" | "event" | "past" | "planned" }>`margin:4px 0;color:${p=>p.$state==="active"?"var(--success-300)":p.$state==="closed"?"var(--danger-300)":p.$state==="event"?"var(--event-400)":"var(--neutral-300)"}!important;`;
+const StatusLabel = styled.p<{ $state: ScheduleState }>`width:fit-content;max-width:100%;margin:4px 0;padding:6px 10px;border-left:3px solid ${p=>scheduleAccent(p.$state)};border-radius:5px;background:${p=>scheduleSurface(p.$state)};color:${p=>scheduleForeground(p.$state)}!important;`;
 const DetailHeader = styled.div`display:flex;align-items:center;justify-content:space-between;gap:8px;`;
 const CloseDetailsButton = styled.button`display:grid;place-items:center;flex:0 0 44px;width:44px!important;height:44px;min-height:44px;padding:0!important;background:transparent!important;border:1px solid transparent!important;border-radius:var(--space-1)!important;color:var(--neutral-200)!important;&:hover{background:var(--neutral-800)!important;color:white!important;}`;
 const Empty = styled.p`padding:32px;color:var(--neutral-300);text-align:center;`;

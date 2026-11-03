@@ -119,10 +119,10 @@ test('a failed authoritative context request hides manager editing and explains 
 });
 for(const locale of ['en','ja'])test(`ordinary Open, active, finished, closed, event, and past rows have semantic colors (${locale})`,async({page})=>{
  await setup(page,locale,'manager','2026-11-15T12:00:00Z',{'2026-11-15':{event_value:'Closed',schedule_type:'closed'},'2026-11-16':{event_value:'Charity night',schedule_type:'event',event_notes:'Charity night'},'2026-11-18':{event_value:'Open'},'2026-11-19':{event_value:'Community night',schedule_type:'event',event_notes:'Community night'}});await page.goto('/schedules');await expect(page.getByText('Haruka').first()).toBeVisible();
- const row=day=>page.locator(`button[aria-label^="${day}:"]`), colors=await page.evaluate(()=>Object.fromEntries(['success-400','neutral-500','danger-400','event-400'].map(token=>{const probe=document.createElement('span');probe.style.color=`var(--${token})`;document.body.append(probe);const color=getComputedStyle(probe).color;probe.remove();return [token,color];}))), label=en=>locale==='ja'?({ 'Finished shift':'終了したシフト','Active shift':'営業中のシフト','Planned shift':'シフト予定','Closed':'休業','Special event':'特別イベント','Past':'過去'}[en]):en;
- await expect(row('2026-11-01')).toContainText(label('Finished shift'));await expect(row('2026-11-02')).toContainText(label('Active shift'));await expect(row('2026-11-18')).toContainText(label('Planned shift'));await expect(row('2026-11-13')).toContainText(label('Closed'));await expect(row('2026-11-13').locator('strong')).toHaveText(label('Closed'));await expect(row('2026-11-19')).toContainText(label('Special event'));await expect(row('2026-11-19').locator('strong')).toHaveText('Community night');await expect(row('2026-11-14')).toContainText(label('Past'));
+ const row=day=>page.locator(`button[aria-label^="${day}:"]`), colors=await page.evaluate(()=>Object.fromEntries(['success','primary','neutral-500','danger','info'].map(token=>{const probe=document.createElement('span');probe.style.color=`var(--${token})`;document.body.append(probe);const color=getComputedStyle(probe).color;probe.remove();return [token,color];}))), label=en=>locale==='ja'?({ 'Finished shift':'終了したシフト','Active shift':'営業中のシフト','Planned shift':'シフト予定','Closed':'休業','Special event':'特別イベント','Past':'過去'}[en]):en;
+ await expect(row('2026-11-01')).toContainText(label('Finished shift'));await expect(row('2026-11-02')).toContainText(label('Active shift'));await expect(row('2026-11-18')).toContainText(label('Planned shift'));await expect(row('2026-11-13')).toContainText(label('Closed'));await expect(row('2026-11-13').locator('strong')).toHaveText(label('Closed'));await expect(row('2026-11-13').locator('span')).toHaveText(locale==='ja'?'過去 · 休業':'Past · Closed');await expect(row('2026-11-19')).toContainText(label('Special event'));await expect(row('2026-11-19').locator('strong')).toHaveText('Community night');await expect(row('2026-11-14')).toContainText(label('Past'));
  await expect(row('2026-11-15')).toContainText(label('Closed'));await expect(row('2026-11-15').locator('strong')).toHaveText(label('Closed'));await expect(row('2026-11-16')).toContainText(label('Special event'));await expect(row('2026-11-16').locator('strong')).toHaveText('Charity night');
- const border=day=>row(day).evaluate(el=>getComputedStyle(el).borderLeftColor);expect(await border('2026-11-01')).toBe(colors['neutral-500']);expect(await border('2026-11-02')).toBe(colors['success-400']);expect(await border('2026-11-18')).toBe(colors['neutral-500']);expect(await border('2026-11-13')).toBe(colors['danger-400']);expect(await border('2026-11-19')).toBe(colors['event-400']);expect(await border('2026-11-14')).toBe(colors['neutral-500']);expect(await border('2026-11-15')).toBe(colors['danger-400']);expect(await border('2026-11-16')).toBe(colors['event-400']);
+ const border=day=>row(day).evaluate(el=>getComputedStyle(el).borderLeftColor);expect(await border('2026-11-01')).toBe(colors['neutral-500']);expect(await border('2026-11-02')).toBe(colors['success']);expect(await border('2026-11-18')).toBe(colors['primary']);expect(await border('2026-11-13')).toBe(colors['neutral-500']);expect(await border('2026-11-19')).toBe(colors['info']);expect(await border('2026-11-14')).toBe(colors['neutral-500']);expect(await border('2026-11-15')).toBe(colors['danger']);expect(await border('2026-11-16')).toBe(colors['info']);
 });
 test('late previous-month read cannot replace latest month; signed-out data clears',async({page})=>{
  const state=await setup(page);await page.goto('/schedules');await expect(page.getByText('Haruka').first()).toBeVisible();let release;const held=new Promise(resolve=>release=resolve);
@@ -422,3 +422,100 @@ test('late previous-week read cannot replace latest week and sign-out clears pla
  await expect(page.getByRole('button', { name: '+ Create', exact: true })).toHaveCount(0);
  expect(state.writes).toEqual([]);
 });
+
+
+const scheduleColorPalettes = {
+ active: { border: 'success', color: 'success-300', surface: 'success-900' },
+ planned: { border: 'primary', color: 'royal-300', surface: 'royal-900' },
+ event: { border: 'info', color: 'info-300', surface: 'info-900' },
+ closed: { border: 'danger', color: 'danger-300', surface: 'danger-900' },
+ finished: { border: 'neutral-500', color: 'neutral-300', surface: 'neutral-900' },
+ past: { border: 'neutral-500', color: 'neutral-300', surface: 'neutral-900' },
+};
+const scheduleColorMatrices = [
+ { name: 'current', start: '2026-11-15', end: '2026-11-21', cases: [
+  { date: '2026-11-15', state: 'finished', en: 'Finished shift', ja: '終了したシフト',
+   row: { actual_shift_exists: true, actual_shift_status: 'closed', actual_shift_closed_at: '2026-11-15T16:00:00Z', event_value: 'Finished event', schedule_type: 'event' } },
+  { date: '2026-11-16', state: 'past', en: 'Past', ja: '過去', row: { event_value: 'Past event', schedule_type: 'event' } },
+  { date: '2026-11-17', state: 'active', en: 'Active shift', ja: '営業中のシフト', row: { actual_shift_exists: true, actual_shift_status: 'open' } },
+  { date: '2026-11-18', state: 'planned', en: 'Planned shift', ja: 'シフト予定', row: {} },
+  { date: '2026-11-19', state: 'event', en: 'Special event', ja: '特別イベント', row: { event_value: 'Live music', schedule_type: 'event', event_notes: 'Live music' } },
+  { date: '2026-11-20', state: 'closed', en: 'Closed', ja: '休業', row: { event_value: 'Closed', schedule_type: 'closed' } },
+  { date: '2026-11-21', state: 'closed', en: 'Closed · Weather closure', ja: '休業 · Weather closure', row: { venue_status: 'closed', venue_event: 'Weather closure' } },
+ ] },
+ { name: 'past-and-overnight', start: '2026-11-08', end: '2026-11-14', cases: [
+  { date: '2026-11-08', state: 'past', en: 'Past', ja: '過去', row: {} },
+  { date: '2026-11-09', state: 'past', en: 'Past · Closed', ja: '過去 · 休業', row: { event_value: 'Closed', schedule_type: undefined } },
+  { date: '2026-11-10', state: 'past', en: 'Past · Closed', ja: '過去 · 休業', row: { event_value: 'Closed', schedule_type: 'closed' } },
+  { date: '2026-11-11', state: 'past', en: 'Past · Closed', ja: '過去 · 休業', row: { venue_status: 'closed', venue_event: 'Past weather closure' } },
+  { date: '2026-11-12', state: 'past', en: 'Past', ja: '過去', row: { event_value: 'Past live music', schedule_type: 'event' } },
+  { date: '2026-11-13', state: 'active', en: 'Active shift', ja: '営業中のシフト', row: { schedule_state: 'past', actual_shift_exists: true, actual_shift_status: 'open' } },
+  { date: '2026-11-14', state: 'finished', en: 'Finished shift', ja: '終了したシフト',
+   row: { schedule_state: 'past', actual_shift_exists: true, actual_shift_status: 'closed', actual_shift_closed_at: '2026-11-14T16:00:00Z', event_value: 'Finished live music', schedule_type: 'event' } },
+ ] },
+];
+for (const locale of ['en', 'ja']) for (const mode of ['month', 'week']) for (const matrix of scheduleColorMatrices) {
+ test(`Schedule state colors agree across ${mode} and Details ${locale} ${matrix.name}`, async ({ page }, info) => {
+  const state = await setup(page, locale, 'staff', '2026-11-17T12:00:00Z');
+  if (matrix.name === 'past-and-overnight') await page.route('**/schedules/context', route => route.fulfill({ json: {
+   operational_business_date: '2026-11-13', calendar_business_date: '2026-11-17', actual_shift_status: 'open', actual_shift_business_date: '2026-11-13',
+  }, headers: { 'Access-Control-Allow-Origin': '*' } }));
+  const sample = { ...state.rows[4], schedule_state: 'upcoming', event_value: 'Open', schedule_type: 'open', event_notes: null,
+   actual_shift_exists: false, actual_shift_status: null, actual_shift_closed_at: null, venue_status: null, venue_event: null };
+  state.rows = matrix.cases.map((item, index) => ({ ...sample, ...item.row, id: 950 + index, business_date: item.date }));
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/schedules');
+  const viewName = mode === 'month' ? (locale === 'ja' ? '月' : 'Month') : (locale === 'ja' ? '週' : 'Week');
+  await page.getByRole('tab', { name: viewName, exact: true }).click();
+  if (mode === 'week' && matrix.name === 'past-and-overnight') await page.getByRole('button', { name: locale === 'ja' ? '前週' : 'Previous week', exact: true }).click();
+  const panel = page.locator(`#schedule-view-panel-${mode}`);
+  const expectedRange = mode === 'month' ? { from: '2026-11-01', to: '2026-11-30' } : { from: matrix.start, to: matrix.end };
+  await expect.poll(() => state.reads.some(query => rangeOf(query).from === expectedRange.from && rangeOf(query).to === expectedRange.to)).toBe(true);
+  await expect(page.getByText(locale === 'ja' ? '予定を読み込んでいます…' : 'Loading schedules…', { exact: true })).toHaveCount(0);
+  await expect(panel.locator('button[aria-label^="2026-11-"]')).toHaveCount(7);
+  if (mode === 'week') await expectWeek(page, matrix.start);
+  const colors = await page.evaluate(tokens => Object.fromEntries(tokens.map(token => {
+   const probe = document.createElement('span'); probe.style.color = `var(--${token})`; document.body.append(probe);
+   const color = getComputedStyle(probe).color; probe.remove(); return [token, color];
+  })), [...new Set(Object.values(scheduleColorPalettes).flatMap(palette => Object.values(palette)))]);
+  if (matrix.name === 'current') {
+   // Blue is an ordinary shift; red keeps the existing Closed label.
+   await expect(panel.locator('button[aria-label^="2026-11-18:"] strong')).toHaveText('Open');
+   await expect(panel.locator('button[aria-label^="2026-11-20:"] strong')).toHaveText(locale === 'ja' ? '休業' : 'Closed');
+  } else {
+   await expect(panel.getByRole('button', { name: fullDate('2026-11-13', locale), exact: true })).toHaveAttribute('aria-current', 'date');
+   await expect(panel.locator('button[aria-label^="2026-11-11:"] strong')).toHaveText(locale === 'ja' ? '休業' : 'Closed');
+  }
+  for (const item of matrix.cases) {
+   const palette = scheduleColorPalettes[item.state];
+   const event = panel.getByRole('button', { name: new RegExp(`^${item.date}:`) });
+   const label = event.locator(mode === 'month' ? ':scope > span' : ':scope > small');
+   await expect(label).toHaveText(item[locale]);
+   await expect(event).toHaveCSS('border-left-color', colors[palette.border]);
+   await expect(event).toHaveCSS('border-left-width', '3px');
+   await expect(event).toHaveCSS('background-color', colors[palette.surface]);
+   await expect(label).toHaveCSS('color', colors[palette.color]);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.screenshot({ path: info.outputPath(`audit-week-colors-${mode}-${locale}-${matrix.name}.png`), fullPage: true });
+  for (const item of matrix.cases) {
+   const palette = scheduleColorPalettes[item.state];
+   const event = panel.getByRole('button', { name: new RegExp(`^${item.date}:`) });
+   await event.click();
+   const details = page.getByRole('complementary', { name: locale === 'ja' ? '選択した日' : 'Selected day', exact: true });
+   const status = details.locator(':scope > p').filter({ hasText: new RegExp(`^${item[locale]}$`) });
+   await expect(status).toHaveText(item[locale]);
+   await expect(status).toHaveCSS('color', colors[palette.color]);
+   await expect(status).toHaveCSS('border-left-color', colors[palette.border]);
+   await expect(status).toHaveCSS('border-left-width', '3px');
+   await expect(status).toHaveCSS('background-color', colors[palette.surface]);
+   await expect(details).toContainText(locale === 'ja' ? '日付のみの予定・勤務時間の記録なし' : 'Date-only plan · hours not recorded');
+   await expect(page.getByRole('tab', { name: viewName, exact: true })).toHaveAttribute('aria-selected', 'true');
+   await expect(event).toHaveCSS('border-left-color', colors[palette.border]);
+   if (item.state === 'active') await details.screenshot({ path: info.outputPath(`audit-week-colors-${mode}-${locale}-${matrix.name}-details.png`) });
+   await details.getByRole('button', { name: locale === 'ja' ? '詳細を閉じる' : 'Close day details', exact: true }).click();
+   await expect(event).toBeFocused();
+  }
+  expect(state.writes).toEqual([]);
+ });
+}

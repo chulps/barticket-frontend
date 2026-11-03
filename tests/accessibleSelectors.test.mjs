@@ -77,14 +77,14 @@ test("Schedule associates its month and week panels with the selected tab and ke
   assert.match(schedule, /operational_business_date/);
   assert.match(schedule, /calendar_business_date/);
   assert.match(schedule, /const scheduleType = row\.schedule_type \?\?/);
-  assert.match(schedule, /if \(scheduleType === "closed"\) return "closed"/);
+  assert.match(schedule, /if \(row\.venue_status === "closed" \|\| scheduleType === "closed"\) return "closed"/);
   assert.match(editor, /<option value="open">/);
   assert.match(editor, /<option value="event">/);
   assert.match(editor, /<option value="closed">/);
   assert.match(editor, /Add notes describing the event/);
-  assert.match(schedule, /var\(--success-400\)/);
-  assert.match(schedule, /var\(--danger-400\)/);
-  assert.match(schedule, /var\(--event-400\)/);
+  assert.match(schedule, /var\(--success\)/);
+  assert.match(schedule, /var\(--danger\)/);
+  assert.match(schedule, /var\(--info\)/);
   assert.match(schedule, /Active shift/);
   assert.match(schedule, /Finished shift/);
   assert.match(api, /"\/schedules\/context"/);
