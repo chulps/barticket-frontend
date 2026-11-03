@@ -3,6 +3,7 @@ import styled from "styled-components";
 import { scheduledShiftsApi, type ScheduledShift, type ScheduledPerson, type ScheduleContext } from "../api/scheduledShifts";
 import { accountApi, type Account } from "../api/account";
 import { getToken } from "../api/client";
+import { shouldPoll } from "../api/realtime";
 import { businessDateJst } from "./shiftControlPolicy";
 import { useI18n } from "../i18n";
 import { addDays, calendarDays, changeMonth, monthRange, weekDays, weekRange } from "./scheduleCalendar";
@@ -29,6 +30,7 @@ export default function Schedules() {
     const ja = locale === "ja";
     const t = (en: string, jp: string) => ja ? jp : en;
     const [calendarToday, setCalendarToday] = useState(() => businessDateJst(Date.now()));
+    const calendarTodayRef = useRef(calendarToday);
     const [scheduleContext, setScheduleContext] = useState<ScheduleContext | null>(null);
     const [month, setMonth] = useState(() => businessDateJst(Date.now()).slice(0, 7));
     const [selected, setSelected] = useState(() => businessDateJst(Date.now()));
@@ -109,6 +111,13 @@ export default function Schedules() {
         // with the first request instead of issuing a duplicate.
         contextEffectActive.current = true;
         const retire = () => { serial.current++; };
+        const updateCalendarToday = () => {
+            const next = businessDateJst(Date.now());
+            const rolled = calendarTodayRef.current !== next;
+            calendarTodayRef.current = next;
+            setCalendarToday(next);
+            return rolled;
+        };
         const requestContext = (rerunInFlight = true) => {
             if (!contextEffectActive.current || authEpoch !== authSerial.current || !session || session !== getToken() || document.hidden || !navigator.onLine) return;
             const inFlight = contextFlight.current;
@@ -129,13 +138,22 @@ export default function Schedules() {
             });
         };
         const refresh = () => {
-            setCalendarToday(businessDateJst(Date.now()));
+            updateCalendarToday();
             requestContext();
             void loadRef.current(true);
         };
+        const pollFallback = () => {
+            // Keep the local operational-day clock current while sockets are
+            // healthy, but only use the minute timer for network recovery.
+            const rolled = updateCalendarToday();
+            const polling = shouldPoll();
+            if (!polling && !rolled) return;
+            requestContext();
+            if (polling) void loadRef.current(true);
+        };
         const changed = () => { serial.current++; store.invalidate(); requestContext(); void loadRef.current(true); };
         requestContext(false);
-        const interval = window.setInterval(refresh, 60000);
+        const interval = window.setInterval(pollFallback, 60000);
         window.addEventListener("focus", refresh); window.addEventListener("online", refresh);
         document.addEventListener("visibilitychange", refresh); window.addEventListener("barticket-schedules-updated", changed); window.addEventListener("barticket-shift-updated", changed);
         return () => {

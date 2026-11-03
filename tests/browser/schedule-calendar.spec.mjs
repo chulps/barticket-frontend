@@ -96,6 +96,21 @@ test('unrelated storage leaves manager controls; create is new; dirty Back and F
  page.once('dialog',d=>d.dismiss());await page.evaluate(()=>history.back());await expect(page.getByLabel('Event notes',{exact:true})).toHaveValue('Unsaved new event');
  page.once('dialog',d=>d.dismiss());await page.evaluate(()=>history.back());await expect(page.getByLabel('Event notes',{exact:true})).toHaveValue('Unsaved new event');
 });
+test('healthy schedule socket suppresses minute reads while shift invalidation and fallback still refresh',async({page})=>{
+ const state=await setup(page);let socket,provideReady=true;
+ await page.routeWebSocket('**/realtime/ws',peer=>{socket=peer;peer.onMessage(message=>{if(JSON.parse(message).type==='authenticate'&&provideReady)peer.send(JSON.stringify({type:'ready',version:1,cursor:0}));});});
+ await page.goto('/schedules');await expect(page.getByText('Haruka').first()).toBeVisible();await expect.poll(()=>!!socket).toBe(true);await page.clock.runFor(100);
+ let reads=state.reads.length,contexts=state.contextReads.length;await page.clock.fastForward(60000);expect(state.reads.length).toBe(reads);expect(state.contextReads.length).toBe(contexts);
+ await page.evaluate(()=>window.dispatchEvent(new Event('barticket-shift-updated')));await expect.poll(()=>state.reads.length).toBeGreaterThan(reads);await expect.poll(()=>state.contextReads.length).toBeGreaterThan(contexts);
+ reads=state.reads.length;contexts=state.contextReads.length;provideReady=false;socket.close({code:1012,reason:'fixture disconnect'});await page.clock.runFor(100);await page.clock.fastForward(60000);expect(state.reads.length).toBeGreaterThan(reads);expect(state.contextReads.length).toBeGreaterThan(contexts);
+});
+test('healthy schedule socket still refreshes authoritative context at the Tokyo business-day rollover',async({page})=>{
+ const state=await setup(page,'en','manager','2026-11-02T02:59:00Z');
+ await page.routeWebSocket('**/realtime/ws',peer=>{peer.onMessage(message=>{if(JSON.parse(message).type==='authenticate')peer.send(JSON.stringify({type:'ready',version:1,cursor:0}));});});
+ await page.goto('/schedules');await expect(page.getByText('Haruka').first()).toBeVisible();const reads=state.reads.length,contexts=state.contextReads.length;
+ await page.clock.fastForward(60000);await expect(page.locator('[aria-current="date"]')).toHaveAttribute('aria-label','Monday, November 2, 2026');
+ expect(state.reads.length).toBe(reads);expect(state.contextReads.length).toBeGreaterThan(contexts);
+});
 test('hidden interval requests nothing and returning visible coalesces one refresh',async({page})=>{
  const state=await setup(page);await page.goto('/schedules');await expect(page.getByText('Haruka').first()).toBeVisible();const before=state.reads.length, contextBefore=state.contextReads.length;
  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});await page.clock.fastForward(600000);expect(state.reads.length).toBe(before);expect(state.contextReads.length).toBe(contextBefore);
