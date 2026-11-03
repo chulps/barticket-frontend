@@ -38,3 +38,38 @@ for(const locale of ['en','ja']) for(const width of [320,768]) test(`stock failu
  await warning.getByRole('button',{name:ja?'閉じる':'Dismiss',exact:true}).click();
  await expect(warning).toHaveCount(0);expect(writes).toBe(1);
 });
+
+for(const locale of ['en','ja']) test(`stock rejection shows the server reason ${locale}`,async({page})=>{
+ await page.setViewportSize({width:375,height:900});
+ await page.clock.install();
+ await page.addInitScript(locale=>{localStorage.setItem('barticket_token','ISOLATED_STOCK_TEST');localStorage.setItem('barticket_locale',locale);},locale);
+ const item={id:1,name:'Fixture whisky',category:'Whisky',prices:{standard:800},inStock:true};
+ let writes=0;
+ await page.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());
+ await page.route('http://127.0.0.1:8765/**',async route=>{
+  const req=route.request(),path=new URL(req.url()).pathname;
+  const headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,PUT,OPTIONS'};
+  if(req.method()==='OPTIONS')return route.fulfill({status:204,headers});
+  let status=200,data={};
+  if(path==='/menu/items/1/stock'){writes++;status=409;data={detail:'Fixture item is archived'};}
+  else if(path==='/menu')data={items:[item]};
+  else if(path==='/auth/me')data={id:7,name:'Fixture staff',email:'fixture@example.invalid',role:'staff'};
+  else if(path==='/shifts/current')data=null;
+  else if(path==='/notices')data={notices:[]};
+  else if(path==='/realtime/events')data={events:[],cursor:0};
+  else if(path==='/auth/status')data={has_accounts:true};
+  else {status=404;data={detail:'Fixture endpoint unavailable'};}
+  await route.fulfill({status,json:data,headers});
+ });
+ await page.goto('/menu');
+ const ja=locale==='ja';
+ await page.getByRole('button',{name:ja?'Fixture whisky の操作':'Actions for Fixture whisky',exact:true}).click();
+ await page.getByText(ja?'品切れにする':'Mark out of stock',{exact:true}).click();
+ const warning=page.getByRole('alert').filter({hasText:ja?'サーバーが在庫の更新を拒否しました':'The server rejected the stock update'});
+ await expect(warning).toBeVisible();
+ await expect(warning).toContainText('Fixture whisky');
+ await expect(warning).toContainText('Fixture item is archived');
+ await expect(page.getByRole('alert').filter({hasText:ja?'在庫の更新を確認できませんでした':'Could not confirm the stock update'})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:ja?'Fixture whisky の操作':'Actions for Fixture whisky',exact:true})).toBeVisible();
+ await page.clock.fastForward(8000);expect(writes).toBe(1);
+});
