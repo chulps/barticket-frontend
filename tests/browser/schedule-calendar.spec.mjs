@@ -153,7 +153,8 @@ for (const locale of ['en', 'ja']) for (const width of [320, 390, 768]) test(`ca
  await expect(event).toHaveValue(draft);
  await expect(event).toBeVisible();
  await expect(alert).toBeVisible();
- await alert.scrollIntoViewIfNeeded();
+ // Frame the complete recovery area after the Event textarea increases form height.
+ await dialog.getByRole('button', { name: locale === 'ja' ? '予定を保存' : 'Save plan', exact: true }).scrollIntoViewIfNeeded();
  await expect(alert).toBeInViewport({ ratio: 1 });
  await expect(dialog.getByRole('button', { name: locale === 'ja' ? 'キャンセル' : 'Cancel', exact: true })).toBeInViewport({ ratio: 1 });
  await expect(dialog.getByRole('button', { name: locale === 'ja' ? '予定を保存' : 'Save plan', exact: true })).toBeInViewport({ ratio: 1 });
