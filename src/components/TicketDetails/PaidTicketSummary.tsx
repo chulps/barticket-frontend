@@ -21,7 +21,7 @@ export default function PaidTicketSummary({ ticket }: Props) {
                         name="CheckCircle"
                         size={"var(--font-size-h5"}
                         weight="fill"
-                        color="var(--success-700)"
+                        color="var(--success-400)"
                     />
                     {t("paymentStatus")}
                 </ValueLabel>
@@ -36,7 +36,7 @@ export default function PaidTicketSummary({ ticket }: Props) {
                         name="Money"
                         size={"var(--font-size-h5"}
                         weight="fill"
-                        color="var(--success-700)"
+                        color="var(--success-400)"
                     />
                     {t("paymentType")}
                 </ValueLabel>
@@ -52,7 +52,7 @@ export default function PaidTicketSummary({ ticket }: Props) {
                         name="Hash"
                         size={"var(--font-size-h5"}
                         weight="fill"
-                        color="var(--success-700)"
+                        color="var(--success-400)"
                     />
                     {t("numberOfItems")}
                 </ValueLabel>
@@ -64,7 +64,7 @@ export default function PaidTicketSummary({ ticket }: Props) {
                         name="Calendar"
                         size={"var(--font-size-h5"}
                         weight="fill"
-                        color="var(--success-700)"
+                        color="var(--success-400)"
                     />
                     {locale === "ja" ? "記録日時（日本時間）" : "Recorded (JST)"}
                 </ValueLabel>
@@ -125,7 +125,7 @@ const Row = styled.div`
   align-items: center;
 
   label {
-    color: var(--success-700);
+    color: var(--success-400);
   }
 
   @media (min-width: 992px) {
