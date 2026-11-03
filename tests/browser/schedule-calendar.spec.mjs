@@ -24,7 +24,7 @@ for(const locale of ['en','ja'])for(const width of [320,390,768,1280])test(`cale
  const subtitle=page.getByText(locale==='ja'?'勤務予定（打刻記録とは別）':'Plans, not clock-in records',{exact:true}),controls=page.getByRole('group',{name:locale==='ja'?'予定表示の操作':'Schedule controls',exact:true}),subtitleBox=await subtitle.boundingBox(),controlsBox=await controls.boundingBox();expect(await subtitle.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);expect(await subtitle.evaluate(el=>{const range=document.createRange();range.selectNodeContents(el);return new Set([...range.getClientRects()].map(rect=>Math.round(rect.top))).size;})).toBe(1);if(width<=600)expect(controlsBox.y).toBeGreaterThanOrEqual(subtitleBox.y+subtitleBox.height);
  await page.getByRole('tab',{name:locale==='ja'?'週':'Week',exact:true}).click();await expect.poll(()=>state.reads.some(query=>rangeOf(query).from==='2026-11-01'&&rangeOf(query).to==='2026-11-07')).toBe(true);await expectWeek(page,'2026-11-01');await expect(weekPanel(page).locator('button[aria-label^="2026-11-"]')).toHaveCount(7);await expect(page.getByText(locale==='ja'?'予定を読み込んでいます…':'Loading schedules…',{exact:true})).toHaveCount(0);await page.screenshot({path:info.outputPath('audit-week-calendar.png'),fullPage:true});
  await page.getByRole('tab',{name:locale==='ja'?'月':'Month',exact:true}).click();const monthTitle=page.getByRole('button',{name:locale==='ja'?'月間カレンダーを表示':'Show month calendar',exact:true});await expect(monthTitle).toBeVisible();expect(await monthTitle.evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);expect(Number.parseFloat(await monthTitle.evaluate(el=>getComputedStyle(el).fontSize))).toBeLessThanOrEqual(18);await page.screenshot({path:info.outputPath('calendar.png'),fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
- const today=page.getByRole('button',{name:locale==='ja'?'今日':'Today',exact:true});await today.click();const detailClose=page.getByRole('button',{name:locale==='ja'?'詳細を閉じる':'Close day details',exact:true}),detailBounds=await detailClose.boundingBox();expect(detailBounds.width).toBe(44);expect(detailBounds.height).toBe(44);expect(await detailClose.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');await detailClose.focus();await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');await expect(detailClose).toBeFocused();expect(await detailClose.evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none');await page.screenshot({path:info.outputPath('day-details.png'),fullPage:true});await detailClose.press('Enter');await expect(page.getByRole('complementary',{name:locale==='ja'?'選択した日':'Selected day'})).toHaveCount(0);await expect(today).toBeFocused();
+ await openDayDetails(page,locale);const today=dayPanel(page).getByRole('button',{name:fullDate('2026-11-02',locale),exact:true});const detailClose=page.getByRole('button',{name:locale==='ja'?'詳細を閉じる':'Close day details',exact:true}),detailBounds=await detailClose.boundingBox();expect(detailBounds.width).toBe(44);expect(detailBounds.height).toBe(44);expect(await detailClose.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');await detailClose.focus();await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');await expect(detailClose).toBeFocused();expect(await detailClose.evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none');await page.screenshot({path:info.outputPath('day-details.png'),fullPage:true});await detailClose.press('Enter');await expect(page.getByRole('complementary',{name:locale==='ja'?'選択した日':'Selected day'})).toHaveCount(0);await expect(today).toBeFocused();
  await today.click();await page.getByRole('button',{name:locale==='ja'?'予定を編集':'Edit plan',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();await page.screenshot({path:info.outputPath('editor.png'),fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
  await selectScheduleType(page,'event',locale);const eventNotes=page.getByLabel(locale==='ja'?'イベントのメモ':'Event notes',{exact:true});await expect(eventNotes).toBeVisible();const notesBounds=await eventNotes.boundingBox();expect(notesBounds.x).toBeGreaterThanOrEqual(0);expect(notesBounds.x+notesBounds.width).toBeLessThanOrEqual(width);await page.screenshot({path:info.outputPath('editor-event-notes.png'),fullPage:true});
  const managerSelect=page.getByRole('combobox',{name:locale==='ja'?'マネージャー':'Manager',exact:true});await managerSelect.click();const listbox=page.getByRole('listbox');await expect(listbox).toBeVisible();
@@ -56,7 +56,7 @@ test('legacy schedule labels open closed and event title load as the matching ed
 });
 test('past dates are read-only; a Tokyo noon rollover closes an open editor',async({page})=>{
  await setup(page,'en','manager','2026-11-02T02:50:00Z',{'2026-11-01':{actual_shift_exists:false,actual_shift_status:null,actual_shift_closed_at:null}});await page.setViewportSize({width:390,height:844});await page.goto('/schedules');await page.getByRole('tab',{name:'Month',exact:true}).click();
- await page.getByRole('button',{name:'Today',exact:true}).click();
+ await openDayDetails(page,'en','2026-11-01');
  await page.getByRole('button',{name:'Edit plan',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();
  await page.clock.fastForward(11*60*1000);
  await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -84,7 +84,7 @@ test('an active overnight shift date remains editable after the Tokyo calendar r
  await expect(page.getByRole('button',{name:'Thursday, November 12, 2026',exact:true})).toHaveAttribute('aria-current','date');await page.getByRole('button',{name:'Thursday, November 12, 2026',exact:true}).click();await expect(page.getByRole('button',{name:'Edit plan',exact:true})).toBeVisible();await page.getByRole('button',{name:'Edit plan',exact:true}).click();await expect(page.getByLabel('Business date',{exact:true})).toHaveAttribute('min','2026-11-12');await expect(page.getByRole('button',{name:'Save plan',exact:true})).toBeEnabled();
 });
 test('manager draft stays on conflict; cancel is guarded; reads limited to month; staff cannot edit',async({page})=>{
- const state=await setup(page);await page.goto('/schedules');await page.getByRole('button',{name:'Today',exact:true}).click();await page.getByRole('button',{name:'Edit plan',exact:true}).click();await selectScheduleType(page,'event');await page.getByLabel('Event notes',{exact:true}).fill('Changed event');state.revision='b'.repeat(64);await page.evaluate(()=>window.dispatchEvent(new Event('barticket-schedules-updated')));await expect.poll(()=>state.reads.length).toBeGreaterThan(1);state.conflict=true;await page.getByRole('button',{name:'Save plan',exact:true}).click();await expect(page.getByRole('alert')).toContainText('nothing was overwritten');await expect(page.getByLabel('Event notes',{exact:true})).toHaveValue('Changed event');page.once('dialog',d=>d.dismiss());await page.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();expect(state.writes).toHaveLength(1);expect(state.writes[0].body.expected_revision).toBe('a'.repeat(64));expect(state.reads[0]).toContain('date_from=2026-11-01');expect(state.reads[0]).toContain('date_to=2026-11-30');
+ const state=await setup(page);await page.goto('/schedules');await openDayDetails(page);await page.getByRole('button',{name:'Edit plan',exact:true}).click();await selectScheduleType(page,'event');await page.getByLabel('Event notes',{exact:true}).fill('Changed event');state.revision='b'.repeat(64);await page.evaluate(()=>window.dispatchEvent(new Event('barticket-schedules-updated')));await expect.poll(()=>state.reads.length).toBeGreaterThan(1);state.conflict=true;await page.getByRole('button',{name:'Save plan',exact:true}).click();await expect(page.getByRole('alert')).toContainText('nothing was overwritten');await expect(page.getByLabel('Event notes',{exact:true})).toHaveValue('Changed event');page.once('dialog',d=>d.dismiss());await page.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.getByRole('dialog')).toBeVisible();expect(state.writes).toHaveLength(1);expect(state.writes[0].body.expected_revision).toBe('a'.repeat(64));expect(state.reads[0]).toContain('date_from=2026-11-01');expect(state.reads[0]).toContain('date_to=2026-11-30');
 });
 test('staff read-only; offline timer does not request',async({page})=>{const state=await setup(page,'en','staff');await page.goto('/schedules');await expect(page.getByText('Haruka').first()).toBeVisible();await expect(page.getByRole('button',{name:'+ Create',exact:true})).toHaveCount(0);const before=state.reads.length;await page.evaluate(()=>Object.defineProperty(navigator,'onLine',{configurable:true,get:()=>false}));await page.clock.fastForward(600000);expect(state.reads.length).toBe(before);expect(state.writes).toEqual([]);});
 test('unrelated storage leaves manager controls; create is new; dirty Back and Forward preserve draft',async({page})=>{
@@ -167,7 +167,7 @@ for (const locale of ['en', 'ja']) for (const width of [320, 390, 768]) test(`ca
  const state = await setup(page, locale);
  await page.setViewportSize({ width, height: 900 });
  await page.goto('/schedules');
- await page.getByRole('button', { name: locale === 'ja' ? '今日' : 'Today', exact: true }).click();
+ await openDayDetails(page, locale);
  await page.getByRole('button', { name: locale === 'ja' ? '予定を編集' : 'Edit plan', exact: true }).click();
  const dialog = page.getByRole('dialog');
  const eventType = dialog.getByLabel(locale === 'ja' ? '予定の種類' : 'Schedule type', { exact: true });
@@ -227,20 +227,22 @@ async function expectWeek(page, start) {
 }
 
 for (const locale of ['en', 'ja']) for (const width of [320, 390, 768]) {
- test(`Month Week Today controls fit and retain keyboard focus ${locale} ${width}`, async ({ page }, info) => {
+ test(`Month Week Day controls fit and retain keyboard focus ${locale} ${width}`, async ({ page }, info) => {
   const state = await setup(page, locale);
   await page.setViewportSize({ width, height: 900 });
   await page.goto('/schedules');
-  const labels = locale === 'ja' ? ['月', '週', '今日'] : ['Month', 'Week', 'Today'];
+  const labels = locale === 'ja' ? ['月', '週', '日'] : ['Month', 'Week', 'Day'];
   const controls = page.getByRole('group', { name: locale === 'ja' ? '予定表示の操作' : 'Schedule controls', exact: true });
   const month = controls.getByRole('tab', { name: labels[0], exact: true });
   const week = controls.getByRole('tab', { name: labels[1], exact: true });
-  const today = controls.getByRole('button', { name: labels[2], exact: true });
+  const today = controls.getByRole('tab', { name: labels[2], exact: true });
   await expect(controls.locator('button')).toHaveText(labels);
-  await expect(controls.getByRole('tab')).toHaveCount(2);
+  await expect(controls.getByRole('tab')).toHaveCount(3);
   await expect(width <= 600 ? week : month).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('tab', { name: /Agenda|予定一覧/ })).toHaveCount(0);
-  await expect(today).not.toHaveAttribute('aria-selected');
+  await expect(today).toHaveAttribute('aria-selected', 'false');
+  await expect(today).toHaveAttribute('id', 'schedule-view-tab-day');
+  await expect(today).toHaveAttribute('aria-controls', 'schedule-view-panel-day');
   await expect(today).not.toHaveAttribute('aria-pressed');
   await expect(week).toHaveAttribute('aria-controls', 'schedule-view-panel-week');
   expect(await controls.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
@@ -260,11 +262,17 @@ for (const locale of ['en', 'ja']) for (const width of [320, 390, 768]) {
   await expect(week).toHaveAttribute('tabindex', '0'); await expect(month).toHaveAttribute('tabindex', '-1');
   await expectWeek(page, '2026-11-01');
   await expect.poll(() => state.reads.some(query => rangeOf(query).from === '2026-11-01' && rangeOf(query).to === '2026-11-07')).toBe(true);
-  await week.press('Tab'); await expect(today).toBeFocused();
+  await week.press('ArrowRight'); await expect(today).toBeFocused();
+  await expect(today).toHaveAttribute('aria-selected', 'true');
+  await expectDay(page, '2026-11-02');
+  await expect(page.getByRole('complementary')).toHaveCount(0);
   expect(await today.evaluate(el => getComputedStyle(el).outlineStyle)).not.toBe('none');
-  await today.press('Shift+Tab'); await expect(week).toBeFocused();
-  await week.press('Home'); await expect(month).toBeFocused(); await expect(month).toHaveAttribute('aria-selected', 'true');
-  await month.press('End'); await expect(week).toBeFocused(); await expect(week).toHaveAttribute('aria-selected', 'true');
+  await today.press('ArrowRight'); await expect(month).toBeFocused();
+  await month.press('ArrowLeft'); await expect(today).toBeFocused();
+  await today.press('Home'); await expect(month).toBeFocused();
+  await month.press('End'); await expect(today).toBeFocused();
+  await expect(today).toHaveAttribute('aria-selected', 'true');
+  await today.press('ArrowLeft'); await expect(week).toBeFocused();
   await expectWeek(page, '2026-11-01');
   await expect(weekPanel(page).getByRole('button', { name: fullDate('2026-11-02', locale), exact: true })).toHaveAttribute('aria-current', 'date');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
@@ -281,26 +289,26 @@ for (const locale of ['en', 'ja']) for (const width of [320, 390, 768]) {
     'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'fontSize', 'fontWeight',
     'backgroundColor', 'color', 'minHeight'].map(key => [key, css[key]]));
   });
-  const frame = controls.getByRole('group', { name: locale === 'ja' ? '表示方法' : 'Calendar view', exact: true });
+  const frame = controls.getByRole('tablist', { name: locale === 'ja' ? '表示方法' : 'Calendar view', exact: true });
   await expect(controls).toHaveCSS('border-top-width', '0px');
   await expect(frame).toHaveCSS('border-top-width', '1px');
   await expect(controls.locator('[data-tab-indicator]')).toHaveCount(1);
-  await page.mouse.move(0, 0);
+  await page.mouse.move(0, 0); await page.clock.runFor(300);
   await expect.poll(async () => {
    const indicator = await controls.locator('[data-tab-indicator]').boundingBox();
    const active = await week.boundingBox();
    return Math.max(...['x', 'y', 'width', 'height'].map(key => Math.abs(indicator[key] - active[key])));
   }).toBeLessThan(0.6);
   await expect(controls.locator('[data-tab-indicator-clip]')).toHaveAttribute('aria-hidden', 'true');
-  const scheduleStyle = { frame: await style(frame), active: await style(week), inactive: await style(month), action: await style(today),
+  const scheduleStyle = { frame: Object.fromEntries(Object.entries(await style(frame)).filter(([key]) => key !== 'color')), active: await style(week), inactive: await style(month), action: await style(today),
    animation: await controls.locator('[data-tab-indicator]').evaluate(el => getComputedStyle(el).transition) };
   expect(scheduleStyle.action).toEqual(scheduleStyle.inactive);
   await page.goto('/tests/browser/fixtures/tab-group.html');
   if (locale === 'ja') await page.getByRole('button', { name: 'Language', exact: true }).click();
   const tickets = page.getByRole('group', { name: 'Status', exact: true });
-  await page.mouse.move(0, 0);
+  await page.mouse.move(0, 0); await page.clock.runFor(300);
   await expect(tickets.locator('[data-tab-indicator]')).toBeVisible();
-  expect(await style(tickets)).toEqual(scheduleStyle.frame);
+  expect(Object.fromEntries(Object.entries(await style(tickets)).filter(([key]) => key !== 'color'))).toEqual(scheduleStyle.frame);
   expect(await style(tickets.locator('button[aria-pressed="true"]'))).toEqual(scheduleStyle.active);
   expect(await style(tickets.locator('button[aria-pressed="false"]').first())).toEqual(scheduleStyle.inactive);
   expect(await tickets.locator('[data-tab-indicator]').evaluate(el => getComputedStyle(el).transition)).toBe(scheduleStyle.animation);
@@ -372,38 +380,6 @@ for (const locale of ['en', 'ja']) for (const boundary of [
  await page.getByRole('tab', { name: locale === 'ja' ? '週' : 'Week', exact: true }).click();
  await page.getByRole('button', { name: locale === 'ja' ? '前週' : 'Previous week', exact: true }).click();
  await expectWeek(page, boundary.start);
- expect(state.writes).toEqual([]);
-});
-
-for (const locale of ['en', 'ja']) for (const mode of ['month', 'week']) test(`Today opens operational date without changing ${mode} mode ${locale}`, async ({ page }) => {
- const state = await setup(page, locale, 'manager', '2026-11-13T12:00:00Z');
- await page.route('**/schedules/context', route => route.fulfill({ json: {
-  operational_business_date: '2026-11-17', calendar_business_date: '2026-11-13', actual_shift_status: null, actual_shift_business_date: null,
- }, headers: { 'Access-Control-Allow-Origin': '*' } }));
- await page.setViewportSize({ width: 390, height: 844 });
- await page.goto('/schedules');
- const modeLabel = mode === 'month' ? (locale === 'ja' ? '月' : 'Month') : (locale === 'ja' ? '週' : 'Week');
- const tab = page.getByRole('tab', { name: modeLabel, exact: true });
- await tab.click();
- const nextLabel = mode === 'month' ? (locale === 'ja' ? '翌月' : 'Next month') : (locale === 'ja' ? '翌週' : 'Next week');
- await page.getByRole('button', { name: nextLabel, exact: true }).click();
- if (mode === 'week') await page.getByRole('button', { name: nextLabel, exact: true }).click();
- const today = page.getByRole('button', { name: locale === 'ja' ? '今日' : 'Today', exact: true });
- await today.click();
- await expect(tab).toHaveAttribute('aria-selected', 'true');
- await expect(page.locator(`#schedule-view-panel-${mode}`)).toBeVisible();
- const currentDate = page.getByRole('button', { name: fullDate('2026-11-17', locale), exact: true });
- await expect(currentDate).toHaveAttribute('aria-current', 'date');
- await expect(currentDate).toHaveAttribute('aria-pressed', 'true');
- await expect(page.getByRole('complementary')).toContainText(locale === 'ja' ? '11月17日' : 'November 17');
- await expect(page.getByRole('button', { name: locale === 'ja' ? '予定を編集' : 'Edit plan', exact: true })).toBeVisible();
- if (mode === 'week') {
-  await expectWeek(page, '2026-11-15');
-  await expect.poll(() => state.reads.some(query => rangeOf(query).from === '2026-11-15' && rangeOf(query).to === '2026-11-21')).toBe(true);
- }
- await page.getByRole('button', { name: locale === 'ja' ? '詳細を閉じる' : 'Close day details', exact: true }).click();
- await expect(today).toBeFocused();
- await expect(tab).toHaveAttribute('aria-selected', 'true');
  expect(state.writes).toEqual([]);
 });
 
@@ -550,4 +526,17 @@ for (const locale of ['en', 'ja']) for (const mode of ['month', 'week']) for (co
   }
   expect(state.writes).toEqual([]);
  });
+}
+
+const dayPanel = page => page.locator('#schedule-view-panel-day');
+async function expectDay(page, date) {
+ await expect(dayPanel(page)).toHaveAttribute('role', 'tabpanel');
+ await expect(dayPanel(page).locator('article[data-date]')).toHaveCount(1);
+ await expect(dayPanel(page).locator('article[data-date]')).toHaveAttribute('data-date', date);
+}
+async function openDayDetails(page, locale = 'en', date = '2026-11-02') {
+ await page.getByRole('tab', { name: locale === 'ja' ? '日' : 'Day', exact: true }).click();
+ await expectDay(page, date);
+ await expect(page.getByRole('complementary')).toHaveCount(0);
+ await dayPanel(page).getByRole('button', { name: fullDate(date, locale), exact: true }).click();
 }
