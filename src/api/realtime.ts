@@ -15,6 +15,10 @@ function dispatchInvalidation(scopes: readonly RealtimeScope[], live = false) {
   if (scopes.includes("users") || scopes.includes("session")) window.dispatchEvent(new Event("barticket-users-updated"));
   if (scopes.includes("tickets")) window.dispatchEvent(new CustomEvent("barticket-push", { detail: { live } }));
   if (scopes.includes("shift")) window.dispatchEvent(new Event("barticket-shift-updated"));
+  // The server only returns this scope to the request's authorized recipient.
+  // Consumers refetch their own inbox/request rows; no private payload rides on
+  // the realtime frame.
+  if (scopes.includes("time_off")) window.dispatchEvent(new Event("barticket-time-off-updated"));
   if (scopes.includes("menu")) window.dispatchEvent(new Event("barticket-menu-updated"));
   if (scopes.includes("notices")) window.dispatchEvent(new Event("barticket-notices"));
 }

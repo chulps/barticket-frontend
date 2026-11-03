@@ -1,4 +1,4 @@
-export const REALTIME_SCOPES = ["tickets", "menu", "shift", "notices", "analytics", "users", "session", "activity"] as const;
+export const REALTIME_SCOPES = ["tickets", "menu", "shift", "notices", "analytics", "users", "session", "activity", "time_off"] as const;
 export type RealtimeScope = typeof REALTIME_SCOPES[number];
 
 export type SocketLike = Pick<WebSocket, "onopen" | "onmessage" | "onerror" | "onclose" | "send" | "close">;

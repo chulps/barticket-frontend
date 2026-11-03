@@ -36,6 +36,18 @@ jobs:
         run: npm install --no-save --package-lock=false @playwright/test@1.56.1
       - name: Install isolated Chromium
         run: npx playwright install --with-deps chromium
+      - name: Staff time-off request and manager decision preflight
+        run: npx playwright test --config=playwright.config.mjs tests/browser/time-off-flow.spec.mjs
+      - name: Preserve staff time-off flow screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staff-time-off-flow-visuals
+          path: |
+            test-results/**/staff-time-off-pending-mobile.png
+            test-results/**/manager-time-off-review-mobile.png
+          if-no-files-found: warn
+          retention-days: 5
       # Run this changed surface first and preserve its evidence independently.
       - name: App update history recovery preflight
         run: npx playwright test --config=playwright.config.mjs tests/browser/release-history.spec.mjs
