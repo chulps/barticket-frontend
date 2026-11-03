@@ -21,6 +21,18 @@ test("ticket push destinations preserve entity ID and deployment base",async()=>
     assert.equal(url.searchParams.get("from_push"),"1");
   }
 });
+test("time-off pushes deep-link only to an allowlisted request ID",async()=>{
+  for(const base of ["https://example.test/","https://example.test/barticket-frontend/"]){
+    const w=worker(base);
+    const n=await w.push({type:"time_off_request",time_off_request_id:19});
+    const url=new URL(n.data.url);
+    assert.equal(url.pathname,new URL("schedules",base).pathname);
+    assert.equal(url.searchParams.get("time_off"),"19");
+    assert.equal(url.searchParams.get("from_push"),"1");
+    await w.click(n.data.url);
+    assert.equal(w.opened.at(-1),n.data.url);
+  }
+});
 test("unknown types, stock, missing IDs and invalid URLs fall back to Notifications",async()=>{
   const w=worker();
   for(const payload of [null,{type:"unknown",ticket_id:42},{type:"stock",ticket_id:42},{type:"ticket_updated"},{type:"ticket_updated",ticket_id:-1}]){
@@ -50,6 +62,8 @@ test("sign-in return rejects external or expired destinations",async()=>{
   runInNewContext(code,context);
   assert.equal(context.notificationDestination("https://evil.test/barticket-frontend/notifications?ticket=1","/barticket-frontend/"),null);
   assert.equal(context.notificationDestination("https://example.test/barticket-frontend/admin","/barticket-frontend/"),null);
+  assert.equal(context.notificationDestination("https://example.test/barticket-frontend/schedules?time_off=8","/barticket-frontend/"),"https://example.test/barticket-frontend/schedules?time_off=8&from_push=1");
+  assert.equal(context.notificationDestination("https://example.test/barticket-frontend/schedules?time_off=0","/barticket-frontend/"),null);
   context.installNotificationReturn();
   const key="barticket-notification-return";
   values.set(key,JSON.stringify({url:"https://evil.test/",at:Date.now()}));listeners["barticket-auth"]();

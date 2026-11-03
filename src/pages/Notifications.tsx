@@ -2,11 +2,13 @@ import { shouldPoll } from "../api/realtime";
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import { useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import ReleaseHistory from "../components/ReleaseHistory";
 import NotificationActivity from "../components/NotificationActivity";
 import NotificationSettings from "../components/NotificationSettings";
 import NotificationTicket from "../components/NotificationTicket";
 import { clearNotificationReturn } from "../api/notificationNavigation";
+import { timeOffApi, type TimeOffInboxItem } from "../api/timeOff";
 
 import { accountApi } from "../api/account";
 import { ApiError, getToken } from "../api/client";
@@ -24,6 +26,7 @@ function formatWhen(unix: number, locale: Locale) {
 
 export default function Notifications() {
     const { t, locale } = useI18n();
+    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const rawTicket = searchParams.get("ticket");
     const ticketId = rawTicket && /^[1-9]\d*$/.test(rawTicket) && Number.isSafeInteger(Number(rawTicket)) ? Number(rawTicket) : null;
@@ -39,6 +42,7 @@ export default function Notifications() {
     const pendingRestock = useRef(false);
     const revision = useRef(0);
     const [pendingNoticeId, setPendingNoticeId] = useState<number | null>(null);
+    const [timeOffItems, setTimeOffItems] = useState<TimeOffInboxItem[]>([]);
     const restockLifetime = useRef({ active: true, epoch: 0 });
     useEffect(() => {
         const lifetime = restockLifetime.current;
@@ -56,6 +60,37 @@ export default function Notifications() {
             window.removeEventListener("barticket-auth", retire);
         };
     }, []);
+
+    useEffect(() => {
+        let active = true;
+        let authEpoch = 0;
+        let requestSerial = 0;
+        const refreshTimeOff = () => {
+            const request = ++requestSerial;
+            const token = getToken();
+            const epoch = authEpoch;
+            if (!token) { setTimeOffItems([]); return; }
+            const isCurrent = () => active && epoch === authEpoch && request === requestSerial && token === getToken();
+            void timeOffApi.inbox().then(items => { if (isCurrent()) setTimeOffItems(items); })
+                .catch(() => { if (isCurrent()) setTimeOffItems([]); });
+        };
+        const authChanged = () => { authEpoch++; requestSerial++; setTimeOffItems([]); refreshTimeOff(); };
+        refreshTimeOff();
+        const timer = window.setInterval(() => { if (shouldPoll()) refreshTimeOff(); }, 20000);
+        window.addEventListener("barticket-time-off-updated", refreshTimeOff);
+        window.addEventListener("barticket-auth", authChanged);
+        return () => {
+            active = false; authEpoch++; requestSerial++; window.clearInterval(timer);
+            window.removeEventListener("barticket-time-off-updated", refreshTimeOff);
+            window.removeEventListener("barticket-auth", authChanged);
+        };
+    }, []);
+
+    const openTimeOff = (item: TimeOffInboxItem) => {
+        void timeOffApi.markRead(item.id).catch(() => undefined);
+        setTimeOffItems(current => current.map(row => row.id === item.id ? { ...row, is_read: true } : row));
+        navigate(`/schedules?time_off=${item.request.id}&from_push=1`);
+    };
 
 
     useEffect(() => {
@@ -183,10 +218,23 @@ export default function Notifications() {
             <HeadingRow><Heading>{t("notifications")}</Heading><NotificationSettings /></HeadingRow>
             {ticketId !== null ? <NotificationTicket key={ticketId} ticketId={ticketId} /> : null}
             {rawTicket && ticketId === null ? <p role="alert">{locale === "ja" ? "通知のリンクが無効です。通知一覧を表示しています。" : "The notification link is invalid. Your notifications are shown below."}</p> : null}
+            {timeOffItems.length ? <TimeOffInbox>
+                <h3>{locale === "ja" ? "休暇申請" : "Time-off requests"}</h3>
+                {timeOffItems.map(item => <TimeOffNotification key={item.id} type="button" $unread={!item.is_read} onClick={() => openTimeOff(item)}>
+                    <strong>{item.kind === "request" || item.kind === "reassigned"
+                        ? (locale === "ja" ? "確認が必要な休暇申請" : "Time-off request to review")
+                        : (locale === "ja" ? "休暇申請の決定" : "Time-off decision")}</strong>
+                    <span>{item.request.business_date} · {item.request.requester_name}</span>
+                    <small>{item.request.status === "pending" ? (locale === "ja" ? "確認待ち" : "Pending")
+                        : item.request.status === "approved" ? (locale === "ja" ? "承認済み" : "Approved")
+                            : item.request.status === "declined" ? (locale === "ja" ? "却下" : "Declined")
+                                : (locale === "ja" ? "無効" : "No longer active")}</small>
+                </TimeOffNotification>)}
+            </TimeOffInbox> : null}
             {loading ? <p role="status">{locale === "ja" ? "通知を読み込み中…" : "Loading notifications…"}</p> : null}
             {denied ? <p>{locale === "ja" ? "通知を表示する権限を確認できませんでした。再度ログインしてください。" : "Notification access could not be verified. Please sign in again."}</p> : null}
             {loadFailed ? <p role="alert">{locale === "ja" ? "通知を更新できませんでした。" : "Could not refresh notifications."} <button className="small hollow secondary" type="button" onClick={() => window.dispatchEvent(new Event("barticket-notices"))}>{locale === "ja" ? "再試行" : "Retry"}</button></p> : null}
-            {!denied && notices && notices.notices.length === 0 ? <QuietStatus>{t("noNotifications")}</QuietStatus> : null}
+            {!denied && notices && notices.notices.length === 0 && timeOffItems.length === 0 ? <QuietStatus>{t("noNotifications")}</QuietStatus> : null}
             {!denied && notices
                 ? notices.notices.map((notice) => (
                     <Alert key={notice.id}>
@@ -220,6 +268,8 @@ const HeadingRow = styled.div`
 `;
 const Heading = styled.h2`margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: var(--font-size-h3); line-height: 1.3;`;
 const QuietStatus = styled.p`color: var(--neutral-200); margin-block: var(--space-2);`;
+const TimeOffInbox = styled.section`display:grid;gap:8px;margin:var(--space-2) 0;padding:var(--space-2);border:1px solid var(--info-700);border-radius:10px;background:var(--neutral-950);h3{margin:0 0 4px;color:var(--info-200);}`;
+const TimeOffNotification = styled.button<{ $unread: boolean }>`display:grid;gap:4px;width:100%;padding:12px!important;text-align:left;border:1px solid ${({ $unread }) => $unread ? "var(--primary)" : "var(--neutral-700)"};border-radius:8px;background:var(--neutral-900)!important;color:var(--neutral-100)!important;strong{color:var(--info-200);}span,small{color:var(--neutral-300);}`;
 
 const Alert = styled.div`
   display: flex;
@@ -239,4 +289,3 @@ const RestockButton = styled.button`
   width: auto;
   flex: none;
 `;
-

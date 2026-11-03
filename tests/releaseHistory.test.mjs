@@ -85,9 +85,9 @@ test('current release note manifest is bilingual, reviewed, and contains only fe
  assert.ok(current.title.en.length&&current.title.ja.length);
  assert.ok(current.features.en.length>0&&current.features.en.length<=5);
  assert.equal(current.features.en.length,current.features.ja.length);
- assert.match(current.title.en,/Full-width Schedule tabs/);
- assert.match(current.features.en.join(' '),/Month, Week and Day.*full available width.*equal-sized tabs.*same familiar tab controls and animation/);
- assert.match(current.features.ja.join(' '),/月・週・日のタブ.*同じ幅.*横幅いっぱい.*同じタブ操作とアニメーション/);
+ assert.match(current.title.en,/Request time off from your manager/);
+ assert.match(current.features.en.join(' '),/optional time-off request.*manager assigned to their scheduled day.*approve or decline.*planned assignment.*notify the staff member/i);
+ assert.match(current.features.ja.join(' '),/予定日の担当マネージャー.*任意の休暇申請.*承認または却下.*予定の担当者が更新.*スタッフに通知/);
 });
 test('fetch is same-origin metadata, uncached, abortable and carries no API token',async()=>{
  const calls=[],signal=new AbortController().signal;

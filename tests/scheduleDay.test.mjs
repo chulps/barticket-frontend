@@ -9,7 +9,8 @@ const between = (start, end) => source.slice(source.indexOf(start), source.index
 function fixture(context = null) {
     const module = { exports: {} }; new Function('module', 'exports', compile(calendar))(module, module.exports);
     const handlers = between('const navigate =', 'const moveDateFocus =');
-    const readRange = between('const { from, to } =', 'const load =');
+    const readRange = source.match(/^\s*const \{ from, to \} =.*;$/m)?.[0];
+    assert.ok(readRange, 'Schedule range declaration must be available');
     const contextHandler = between('const requestContext =', 'const refresh =');
     let finish;
     const request = new Promise(resolve => { finish = resolve; });

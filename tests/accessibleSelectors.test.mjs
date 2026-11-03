@@ -65,6 +65,8 @@ test("Schedule associates Month Week and Day panels with genuine shared tabs", (
   assert.match(editor, /<input disabled=\{!canWrite \|\| busy\} type="date" min=\{today\}/);
   assert.match(editor, /dateIsPast \|\| sourceDateIsPast/);
   assert.match(schedule, /operational_business_date/);
+  assert.match(schedule, /const managerReviewOpen = viewer\?\.role === "manager" && detail && selectedTimeOff\.some\(item => item\.status === "pending"\)/);
+  assert.match(schedule, /!managerReviewOpen \? <CreateButton/);
   assert.match(schedule, /actual_shift_status === "open"/);
   assert.match(schedule, /actual_shift_status === "closed"/);
   assert.match(schedule, /const requestContext = \(rerunInFlight = true\) =>/);
@@ -101,4 +103,3 @@ test("all updated typescript parses", () => {
     assert.deepEqual(parsed.parseDiagnostics.map(d=>d.messageText),[]);
   }
 });
-

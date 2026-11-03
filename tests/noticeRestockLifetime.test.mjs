@@ -10,10 +10,10 @@ const lifetime=source.slice(source.indexOf('    const restockLifetime ='),source
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no});return {promise,resolve,reject}};
 const flush=()=>new Promise(r=>setImmediate(r));
 function harness(){
- const post=deferred(),read=deferred();let token='A',cleanup;const events=[],alerts=[],states=[];let reads=0;const window=new EventTarget();window.addEventListener('barticket-notices',()=>events.push('notices'));window.alert=text=>alerts.push(text);
- const context={useRef:current=>({current}),useEffect:fn=>{cleanup=fn()},pendingRestock:{current:false},revision:{current:0},notices:{notices:[{id:1}]},setPendingNoticeId:id=>states.push(['pending',id]),setNotices:value=>states.push(['notices',value]),getToken:()=>token,dismissRestockNotice:()=>({notices:[]}),restockNotice:()=>post.promise,listNotices:()=>{reads++;return read.promise},window,Event,console:{warn:()=>{}},ApiError:class extends Error{},t:x=>x};
+ const post=deferred(),read=deferred();let token='A';const cleanups=[];const events=[],alerts=[],states=[];let reads=0;const window=new EventTarget();window.addEventListener('barticket-notices',()=>events.push('notices'));window.alert=text=>alerts.push(text);window.setInterval=()=>1;window.clearInterval=()=>{};
+ const context={useRef:current=>({current}),useEffect:fn=>{cleanups.push(fn())},pendingRestock:{current:false},revision:{current:0},notices:{notices:[{id:1}]},timeOffApi:{inbox:()=>Promise.resolve([])},shouldPoll:()=>true,setTimeOffItems:()=>{},setPendingNoticeId:id=>states.push(['pending',id]),setNotices:value=>states.push(['notices',value]),getToken:()=>token,dismissRestockNotice:()=>({notices:[]}),restockNotice:()=>post.promise,listNotices:()=>{reads++;return read.promise},window,Event,console:{warn:()=>{}},ApiError:class extends Error{},t:x=>x};
  vm.createContext(context);vm.runInContext(ts.transpile(lifetime+'\n'+handler+'\nglobalThis.run=restock;'),context);
- return {post,read,events,alerts,states,reads:()=>reads,run:()=>context.run(1),auth:next=>{token=next;window.dispatchEvent(new Event('barticket-auth'))},unmount:()=>cleanup()};
+ return {post,read,events,alerts,states,reads:()=>reads,run:()=>context.run(1),auth:next=>{token=next;window.dispatchEvent(new Event('barticket-auth'))},unmount:()=>cleanups.forEach(cleanup=>cleanup?.())};
 }
 for(const outcome of ['success','failure'])for(const change of ['account','same-token','unmount'])test(`old restock ${outcome} has no late actions after ${change}`,async()=>{
  const h=harness();const done=h.run();if(change==='unmount')h.unmount();else h.auth(change==='account'?'B':'A');const stateCount=h.states.length;

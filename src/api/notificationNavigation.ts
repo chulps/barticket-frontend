@@ -3,15 +3,23 @@ import { getToken } from "./client";
 const KEY = "barticket-notification-return";
 const MAX_AGE = 30 * 60 * 1000;
 
-/** Exact in-app allowlist, also used for session-storage restoration. */
+/** Exact in-app allowlist; entity IDs are only hints and are re-authorized by the API. */
 export function notificationDestination(value: string, base: string): string | null {
   try {
     const scope = new URL(base, window.location.origin);
     const url = new URL(value, scope);
-    if (url.origin !== scope.origin || url.pathname !== `${scope.pathname}notifications`) return null;
-    const result = new URL("notifications", scope);
-    const ticket = url.searchParams.get("ticket");
-    if (ticket && /^[1-9]\d*$/.test(ticket) && Number.isSafeInteger(Number(ticket))) result.searchParams.set("ticket", ticket);
+    if (url.origin !== scope.origin) return null;
+    let result: URL;
+    if (url.pathname === `${scope.pathname}notifications`) {
+      result = new URL("notifications", scope);
+      const ticket = url.searchParams.get("ticket");
+      if (ticket && /^[1-9]\d*$/.test(ticket) && Number.isSafeInteger(Number(ticket))) result.searchParams.set("ticket", ticket);
+    } else if (url.pathname === `${scope.pathname}schedules`) {
+      const requestId = url.searchParams.get("time_off");
+      if (!requestId || !/^[1-9]\d*$/.test(requestId) || !Number.isSafeInteger(Number(requestId))) return null;
+      result = new URL("schedules", scope);
+      result.searchParams.set("time_off", requestId);
+    } else return null;
     result.searchParams.set("from_push", "1");
     return result.href;
   } catch { return null; }

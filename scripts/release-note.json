@@ -1,16 +1,16 @@
 {
   "title": {
-    "en": "Full-width Schedule tabs",
-    "ja": "シフト予定のタブを横幅いっぱいに"
+    "en": "Request time off from your manager",
+    "ja": "マネージャーに休暇を申請"
   },
   "features": {
     "en": [
-      "Month, Week and Day now share the full available width with equal-sized tabs.",
-      "Switch views with the same familiar tab controls and animation."
+      "Staff can send an optional time-off request to the manager assigned to their scheduled day.",
+      "Managers can approve or decline requests; approvals update the planned assignment and both decisions notify the staff member."
     ],
     "ja": [
-      "月・週・日のタブを同じ幅で、表示エリアの横幅いっぱいに配置しました。",
-      "これまでと同じタブ操作とアニメーションで表示を切り替えられます。"
+      "スタッフは予定日の担当マネージャーに、任意の休暇申請を送れます。",
+      "マネージャーは申請を承認または却下できます。承認すると予定の担当者が更新され、どちらの決定でもスタッフに通知されます。"
     ]
   }
 }

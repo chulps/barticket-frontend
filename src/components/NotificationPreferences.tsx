@@ -60,7 +60,7 @@ export default function NotificationPreferences() {
     <Panel aria-labelledby="push-types-heading">
       <h3 id="push-types-heading">{ja ? 'プッシュ通知の種類' : 'Push notification types'}</h3>
       <p>{ja ? 'このアカウントのすべての端末に適用されます。各端末でプッシュ通知を有効にしてください。アプリ内の通知一覧には影響しません。' : 'Applies to your account across devices. Push must also be enabled on each device. Your in-app notification list is unchanged.'}</p>
-      <p>{ja ? '営業開始・終了は勤務外でも届きます。その他の通知は出勤中のみです。' : 'Shift opening and closing alerts can arrive off shift. Other push alerts require you to be clocked in.'}</p>
+      <p>{ja ? '営業開始・終了と休暇申請の通知は勤務外でも届きます。その他の通知は出勤中のみです。' : 'Shift opening and closing alerts and time-off updates can arrive off shift. Other push alerts require you to be clocked in.'}</p>
       {error ? <p role="alert">{error} <button type="button" onClick={() => { setError(''); setRevision(r => r + 1); }}>{ja ? '再読み込み' : 'Reload settings'}</button></p> : null}
       {!preferences && !error ? <p role="status">{ja ? '設定を読み込み中…' : 'Loading settings…'}</p> : null}
       {preferences ? <Rows>{PUSH_TYPES.map(([type, en, jp]) => <Row key={type}>
