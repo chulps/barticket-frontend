@@ -1,4 +1,8 @@
 /* BarTicket web push worker. Deliberately does not cache tickets, menus, or API data. */
+// This worker only handles push, so activating it immediately cannot invalidate
+// an open page's cached assets. Avoid leaving an old notification router active
+// while a long-lived BarTicket window stays open.
+self.addEventListener("install", (event) => { event.waitUntil(self.skipWaiting()); });
 self.addEventListener("push", (event) => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; } catch { /* malformed push */ }
@@ -39,12 +43,15 @@ self.addEventListener("notificationclick", (event) => {
         if (requestId && /^[1-9]\d*$/.test(requestId) && Number.isSafeInteger(Number(requestId))) {
           schedules.searchParams.set("time_off", requestId);
           target = schedules;
-      } else {
-        const reservationId = candidate.searchParams.get("reservation");
-        if (reservationId && /^[1-9]\d*$/.test(reservationId) && Number.isSafeInteger(Number(reservationId))) {
-          schedules.searchParams.set("reservation", reservationId);
-          target = schedules;
-        }
+        } else {
+          const reservationId = candidate.searchParams.get("reservation");
+          if (reservationId && /^[1-9]\d*$/.test(reservationId) && Number.isSafeInteger(Number(reservationId))) {
+            schedules.searchParams.set("reservation", reservationId);
+            target = schedules;
+          } else if (candidate.searchParams.get("inbox") === "reservations") {
+            schedules.searchParams.set("inbox", "reservations");
+            target = schedules;
+          }
         }
       }
     }
@@ -59,8 +66,7 @@ self.addEventListener("notificationclick", (event) => {
   })());
 });
 
-// Only ticket-bearing event types may select a ticket. All other activity opens
-// Notifications until its payload has a supported, authorized entity target.
+// Entity IDs are hints only. The destination reauthorizes every request.
 function notificationTarget(type, ticketId, timeOffRequestId, reservationRequestId) {
   const url = new URL("notifications?from_push=1", self.registration.scope);
   if (timeOffRequestId && ["time_off_request", "time_off_decision"].includes(type)) {
@@ -68,9 +74,10 @@ function notificationTarget(type, ticketId, timeOffRequestId, reservationRequest
     target.searchParams.set("time_off", String(timeOffRequestId));
     return target;
   }
-  if (reservationRequestId && type === "reservation_request") {
+  if (type === "reservation_request") {
     const target = new URL("schedules?from_push=1", self.registration.scope);
-    target.searchParams.set("reservation", String(reservationRequestId));
+    if (reservationRequestId) target.searchParams.set("reservation", String(reservationRequestId));
+    else target.searchParams.set("inbox", "reservations");
     return target;
   }
   const ticketEvents = ["ticket_created", "ticket_updated", "ticket_payment_recorded",
