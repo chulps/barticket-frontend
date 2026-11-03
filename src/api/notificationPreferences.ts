@@ -19,6 +19,7 @@ export const PUSH_TYPES = [
   ['noon_clock_out', 'Noon clock-outs', '正午の退勤処理'],
   ['time_off_request', 'Time-off requests', '休暇申請'],
   ['time_off_decision', 'Time-off decisions', '休暇申請の決定'],
+  ['reservation_request', 'Reservation requests', '予約リクエスト'],
 ] as const;
 export type PushType = typeof PUSH_TYPES[number][0];
 export type PushPreferences = Record<PushType, boolean>;

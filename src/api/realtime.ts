@@ -19,6 +19,7 @@ function dispatchInvalidation(scopes: readonly RealtimeScope[], live = false) {
   // Consumers refetch their own inbox/request rows; no private payload rides on
   // the realtime frame.
   if (scopes.includes("time_off")) window.dispatchEvent(new Event("barticket-time-off-updated"));
+  if (scopes.includes("reservations")) window.dispatchEvent(new Event("barticket-reservations-updated"));
   if (scopes.includes("menu")) window.dispatchEvent(new Event("barticket-menu-updated"));
   if (scopes.includes("notices")) window.dispatchEvent(new Event("barticket-notices"));
 }

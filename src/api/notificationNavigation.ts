@@ -16,9 +16,11 @@ export function notificationDestination(value: string, base: string): string | n
       if (ticket && /^[1-9]\d*$/.test(ticket) && Number.isSafeInteger(Number(ticket))) result.searchParams.set("ticket", ticket);
     } else if (url.pathname === `${scope.pathname}schedules`) {
       const requestId = url.searchParams.get("time_off");
-      if (!requestId || !/^[1-9]\d*$/.test(requestId) || !Number.isSafeInteger(Number(requestId))) return null;
       result = new URL("schedules", scope);
-      result.searchParams.set("time_off", requestId);
+      const reservationId = url.searchParams.get("reservation");
+      if (requestId && /^[1-9]\d*$/.test(requestId) && Number.isSafeInteger(Number(requestId))) result.searchParams.set("time_off", requestId);
+      else if (reservationId && /^[1-9]\d*$/.test(reservationId) && Number.isSafeInteger(Number(reservationId))) result.searchParams.set("reservation", reservationId);
+      else return null;
     } else return null;
     result.searchParams.set("from_push", "1");
     return result.href;

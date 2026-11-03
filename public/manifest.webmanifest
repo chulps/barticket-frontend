@@ -1,10 +1,10 @@
 {
-  "id": "/barticket-frontend/",
+  "id": "/",
   "name": "BarTicket",
   "short_name": "BarTicket",
   "description": "BarTicket shared bar tabs and shift notebook",
-  "start_url": "/barticket-frontend/",
-  "scope": "/barticket-frontend/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
