@@ -25,3 +25,12 @@ test('month request labels truncate within the cell while retaining full detail 
   assert.match(schedule, /const MonthReservationIndicator = styled\(ReservationIndicator\)`[^`]*overflow:hidden;/);
   assert.match(schedule, /selectedReservations\.map\(request =>/);
 });
+
+
+test('canceled reservation badge uses danger tokens without changing other statuses', () => {
+  const badge = schedule.match(/const StatusBadge = styled\.span[^`]*`([^`]*)`;/)?.[1];
+  assert.ok(badge);
+  assert.match(badge, /\$status==="canceled"\?"border:1px solid var\(--danger-500\);":""/);
+  assert.match(badge, /background:\$\{p=>p\.\$status==="pending"\?"var\(--warning-950\)":p\.\$status==="approved"\?"var\(--success-950\)":p\.\$status==="canceled"\?"var\(--danger-950\)":"var\(--neutral-800\)"\}/);
+  assert.match(badge, /color:\$\{p=>p\.\$status==="pending"\?"var\(--warning-200\)":p\.\$status==="approved"\?"var\(--success-200\)":p\.\$status==="canceled"\?"var\(--danger-200\)":"var\(--neutral-300\)"\}/);
+});
