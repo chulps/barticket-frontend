@@ -5,7 +5,7 @@ const manager = { id: 901, name: "Fixture Manager", role: "manager", email: "man
 const staff = { id: 903, name: "Fixture Staff", role: "staff", email: "staff@example.invalid" };
 
 async function setup(page, role = "staff", locale = "en") {
-  const state = { writes: [], requests: [], request: null, staffIds: [903, 904], lastInbox: [] };
+  const state = { writes: [], requests: [], request: null, staffIds: [903, 904], lastInbox: [], scheduleReads: 0 };
   await page.clock.install({ time: new Date("2026-11-02T12:00:00Z") });
   await page.addInitScript(({ locale }) => {
     localStorage.setItem("barticket_token", "TIME_OFF_TEST");
@@ -22,13 +22,16 @@ async function setup(page, role = "staff", locale = "en") {
     else if (path === "/auth/me") body = role === "manager" ? manager : staff;
     else if (path === "/users") body = [manager, staff, { id: 904, name: "Other Staff", role: "staff" }];
     else if (path === "/schedules/context") body = { operational_business_date: "2026-11-02", calendar_business_date: "2026-11-02", actual_shift_status: null, actual_shift_business_date: null };
-    else if (path === "/schedules") body = [{
+    else if (path === "/schedules") {
+      state.scheduleReads++;
+      body = [{
       id: 31, business_date: "2026-11-02", manager: { name: manager.name, user_id: 901 },
       staff: state.staffIds.map(id => ({ name: id === 903 ? staff.name : "Other Staff", user_id: id })),
       event_value: "Open", schedule_type: "open", revision: scheduleRevision,
       schedule_state: "upcoming", actual_shift_exists: false, actual_shift_status: null,
       actual_shift_closed_at: null, venue_status: null, venue_event: null, hours: null, provenance: [],
-    }];
+      }];
+    }
     else if (path === "/time-off/requests" && req.method() === "GET") body = state.request ? [state.request] : [];
     else if (path === "/time-off/requests" && req.method() === "POST") {
       const payload = req.postDataJSON();
@@ -56,17 +59,19 @@ async function setup(page, role = "staff", locale = "en") {
   return state;
 }
 
-async function openSelectedDay(page, locale = "en") {
+async function openSelectedDay(page, state, locale = "en") {
   await page.goto("/schedules");
-  await expect(page.getByText("Fixture Staff").first()).toBeVisible();
+  await expect.poll(() => state.scheduleReads).toBeGreaterThan(0);
   await page.getByRole("button", { name: locale === "ja" ? "今日" : "Today", exact: true }).click();
-  await expect(page.getByRole("complementary", { name: locale === "ja" ? "選択した日" : "Selected day" })).toBeVisible();
+  const details = page.getByRole("complementary", { name: locale === "ja" ? "選択した日" : "Selected day" });
+  await expect(details).toBeVisible();
+  await expect(details.locator("dl dd").nth(1)).toContainText("Fixture Staff");
 }
 
 test("staff submits an optional-reason request and sees pending state on mobile", async ({ page }, info) => {
   const state = await setup(page, "staff", "en");
   await page.setViewportSize({ width: 390, height: 844 });
-  await openSelectedDay(page);
+  await openSelectedDay(page, state);
   await expect(page.getByLabel("Short reason (optional)")).toBeVisible();
   await page.getByLabel("Short reason (optional)").fill("Family commitment");
   await page.getByRole("button", { name: "Send request", exact: true }).click();
@@ -79,7 +84,7 @@ test("assigned manager approves and only the requester leaves the planned assign
   const state = await setup(page, "manager");
   state.request = { id: 501, scheduled_shift_id: 31, requester_user_id: 903, requester_name: staff.name, manager_user_id: 901, business_date: "2026-11-02", reason: "Family commitment", status: "pending", revision: 1, schedule_revision: scheduleRevision, created_at: "2026-11-02T12:00:00Z", decided_at: null };
   await page.setViewportSize({ width: 390, height: 844 });
-  await openSelectedDay(page);
+  await openSelectedDay(page, state);
   const card = page.getByText("Fixture Staff", { exact: true }).last().locator("..") ;
   await expect(page.getByText("Family commitment", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("manager-time-off-review-mobile.png"), fullPage: true });
@@ -94,7 +99,7 @@ test("decline leaves the schedule unchanged and Japanese day detail remains usab
   const state = await setup(page, "manager", "ja");
   state.request = { id: 501, scheduled_shift_id: 31, requester_user_id: 903, requester_name: staff.name, manager_user_id: 901, business_date: "2026-11-02", reason: null, status: "pending", revision: 1, schedule_revision: scheduleRevision, created_at: "2026-11-02T12:00:00Z", decided_at: null };
   await page.setViewportSize({ width: 320, height: 700 });
-  await openSelectedDay(page, "ja");
+  await openSelectedDay(page, state, "ja");
   await expect(page.getByText("理由の記載なし", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "却下", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("却下しました。予定は変更されていません。");
