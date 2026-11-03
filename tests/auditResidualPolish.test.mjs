@@ -17,12 +17,14 @@ test('payment draft edits invalidate confirmed success but preserve uncertain-sa
 });
 test('stock failure has persistent item-specific refresh recovery without automatic mutation replay',()=>{
  const menu=src('pages/Menu.tsx');
- assert.match(menu,/setStockErrors\(items => \[\.\.\.items.filter\(row => row.id !== item.id\), item\]\)/);
+ assert.match(menu,/type: "rejected" \| "unknown"/);
+ assert.match(menu,/type: rejected \? "rejected" : "unknown"/);
  assert.match(menu,/authenticated && stockErrors.length > 0/);
  assert.match(menu,/Refresh the menu and check stock before trying again/);
  assert.match(menu,/onClick=\{retryMenu\}[^\n]*"Refresh menu"/);
- assert.match(menu,/stockErrors.map\(item => <li key=\{item.id\}>/);
- assert.match(menu,/setStockErrors\(items => items.filter\(row => row.id !== item.id\)\)/);
+ assert.match(menu,/stockErrors.map\(error => <li key=\{error.item.id\}>/);
+ assert.match(menu,/errors => errors.filter\(row => row.item.id !== item.id\)/);
+ assert.match(menu,/error\.detail \? `: \$\{error\.detail\}` : ""/);
  assert.doesNotMatch(menu,/setTimeout\([^)]*setStockErrors/s);
 });
 test('declared dark metric label token pair meets normal-text contrast',()=>{
