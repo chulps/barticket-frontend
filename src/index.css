@@ -74,11 +74,11 @@
   font-family: var(--font-family-default);
   line-height: var(--line-height-default);
 
-  --royal-950: #00061a;
-  --royal-900: #041341;
-  --royal-800: #0c2369;
-  --royal-700: #193791;
-  --royal-600: #2b4eb9;
+  --royal-950: #1f2534;
+  --royal-900: #232c47;
+  --royal-800: #2a3b6e;
+  --royal-700: #324b94;
+  --royal-600: #395abb;
   --royal-500: #4169e1;
   --royal-400: #6183e9;
   --royal-300: #839ef0;
@@ -110,22 +110,22 @@
   --neutral-050: #f0f1f2;
   --white: #ffffff;
 
-  --danger-950: #36252A;
-  --danger-900: #49262A;
-  --danger-800: #70282B;
-  --danger-700: #982A2C;
-  --danger-600: #982A2C;
+  --danger-950: #2f1f22;
+  --danger-900: #442024;
+  --danger-800: #6c2426;
+  --danger-700: #952729;
+  --danger-600: #bd2b2b;
   --danger-500: #e62e2e;
   --danger-400: #ff5a5a;
   --danger-300: #ff8080;
   --danger-200: #ffa6a6;
   --danger-100: #ffcccc;
 
-  --success-950: #03140a;
-  --success-900: #062814;
-  --success-800: #0c5129;
-  --success-700: #12793d;
-  --success-600: #18a251;
+  --success-950: #1b2e28;
+  --success-900: #1c4030;
+  --success-800: #1c623f;
+  --success-700: #1d854d;
+  --success-600: #1da75c;
   --success-500: #1eca6b;
   --success-400: #43d585;
   --success-300: #6ddfa0;
@@ -134,22 +134,22 @@
   /* Calendar-only semantic accent for special event plans. */
   --event-400: #b99cff;
 
-  --warning-950: #1a170a;
-  --warning-900: #4E4B35;
-  --warning-800: #7A7141;
-  --warning-700: #A7984D;
-  --warning-600: #D3BE59;
+  --warning-950: #323128;
+  --warning-900: #49452f;
+  --warning-800: #766d3c;
+  --warning-700: #a4954a;
+  --warning-600: #d1bd57;
   --warning-500: #ffe565;
   --warning-400: #fff184;
   --warning-300: #fffaa3;
   --warning-200: #ffffc1;
   --warning-100: #fdffe0;
 
-  --info-950: #090217;
-  --info-900: #14072e;
-  --info-800: #2c145b;
-  --info-700: #472689;
-  --info-600: #663eb7;
+  --info-950: #262335;
+  --info-900: #312948;
+  --info-800: #47366f;
+  --info-700: #5d4296;
+  --info-600: #734fbd;
   --info-500: #895be4;
   --info-400: #9f79ea;
   --info-300: #b699ef;
