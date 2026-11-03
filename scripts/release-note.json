@@ -1,18 +1,16 @@
 {
   "title": {
-    "en": "View your schedule by month or week",
-    "ja": "予定を月・週で表示"
+    "en": "Request time off from your manager",
+    "ja": "マネージャーに休暇を申請"
   },
   "features": {
     "en": [
-      "Switch between Month and Week using the same familiar controls as Tickets, and jump straight to Today.",
-      "See all seven days of a week, including dates across month and year boundaries.",
-      "Spot running shifts in green, normal plans in blue, events in purple, closed days in red, and finished or past days in grey."
+      "Staff can send an optional time-off request to the manager assigned to their scheduled day.",
+      "Managers can approve or decline requests; approvals update the planned assignment and both decisions notify the staff member."
     ],
     "ja": [
-      "チケット画面と同じ操作で月・週の表示を切り替え、今日の予定にすぐ移動できます。",
-      "月末や年末をまたぐ週も、7日間すべての予定を確認できます。",
-      "営業中は緑、通常の予定は青、イベントは紫、休業日は赤、終了済み・過去の日はグレーで表示します。"
+      "スタッフは予定日の担当マネージャーに、任意の休暇申請を送れます。",
+      "マネージャーは申請を承認または却下できます。承認すると予定の担当者が更新され、どちらの決定でもスタッフに通知されます。"
     ]
   }
 }

@@ -85,11 +85,9 @@ test('current release note manifest is bilingual, reviewed, and contains only fe
  assert.ok(current.title.en.length&&current.title.ja.length);
  assert.ok(current.features.en.length>0&&current.features.en.length<=5);
  assert.equal(current.features.en.length,current.features.ja.length);
- assert.match(current.title.en,/View your schedule by month or week/);
- assert.match(current.features.en.join(' '),/Month and Week.*same familiar controls as Tickets.*Today.*seven days.*month and year boundaries/i);
- assert.match(current.features.ja.join(' '),/チケット画面と同じ操作.*月・週.*今日.*月末や年末.*7日間/);
- assert.match(current.features.en.join(' '),/running shifts in green.*normal plans in blue.*events in purple.*closed days in red.*past days in grey/);
- assert.match(current.features.ja.join(' '),/営業中は緑.*通常の予定は青.*イベントは紫.*休業日は赤.*過去の日はグレー/);
+ assert.match(current.title.en,/Request time off from your manager/);
+ assert.match(current.features.en.join(' '),/optional time-off request.*manager assigned to their scheduled day.*approve or decline.*planned assignment.*notify the staff member/i);
+ assert.match(current.features.ja.join(' '),/予定日の担当マネージャー.*任意の休暇申請.*承認または却下.*予定の担当者が更新.*スタッフに通知/);
 });
 test('fetch is same-origin metadata, uncached, abortable and carries no API token',async()=>{
  const calls=[],signal=new AbortController().signal;
