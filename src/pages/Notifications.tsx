@@ -289,4 +289,3 @@ const RestockButton = styled.button`
   width: auto;
   flex: none;
 `;
-

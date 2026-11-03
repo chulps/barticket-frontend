@@ -67,5 +67,3 @@ function notificationTarget(type, ticketId, timeOffRequestId) {
   if (ticketId && ticketEvents.includes(type)) url.searchParams.set("ticket", String(ticketId));
   return url;
 }
-
-

@@ -91,4 +91,3 @@ export function subscribeRealtime(scopes: readonly RealtimeScope[], refresh: () 
   window.addEventListener("barticket-realtime", receive);
   return () => { window.removeEventListener("barticket-realtime", receive); if (timer !== undefined) window.clearTimeout(timer); };
 }
-

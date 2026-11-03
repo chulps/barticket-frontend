@@ -45,15 +45,16 @@ test("ticket/admin toggle groups keep pressed semantics and Schedule can use tru
   assert.match(payment, /aria-pressed=\{paymentType === method\.type\}/);
   assert.match(payment, /onKeyDown=\{event => handleMethodArrow\(event, index\)\}/);
 });
-test("Schedule associates its month and week panels with the selected tab and keeps Today an action", () => {
+test("Schedule associates Month Week and Day panels with genuine shared tabs", () => {
   const schedule = readFileSync(new URL("../src/pages/Schedules.tsx", import.meta.url), "utf8");
   const editor = readFileSync(new URL("../src/pages/ScheduleEditor.tsx", import.meta.url), "utf8");
   const api = readFileSync(new URL("../src/api/scheduledShifts.ts", import.meta.url), "utf8");
   const tokens = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
   assert.match(schedule, /semantics="tabs"/);
   assert.match(schedule, /role="tabpanel" aria-labelledby="schedule-view-tab-month"/);
-  assert.match(schedule, /role="tabpanel" aria-labelledby="schedule-view-tab-week"/);
-  assert.match(schedule, /trailingAction=\{\{ label: t\("Today", "今日"\), onClick:/);
+  assert.match(schedule, /role="tabpanel" aria-labelledby=\{`schedule-view-tab-\$\{mode\}`\}/);
+  assert.doesNotMatch(schedule, /trailingAction=/);
+  assert.match(schedule, /id: "day" as const, label: t\("Day", "日"\)/);
   assert.doesNotMatch(schedule, /TodayButton/);
   assert.match(tab, /<TabButton type="button" \$active=\{false\} onClick=\{trailingAction.onClick\}/);
   assert.match(schedule, /detailReturnFocus\.current\?\.focus\(\)/);
@@ -64,6 +65,8 @@ test("Schedule associates its month and week panels with the selected tab and ke
   assert.match(editor, /<input disabled=\{!canWrite \|\| busy\} type="date" min=\{today\}/);
   assert.match(editor, /dateIsPast \|\| sourceDateIsPast/);
   assert.match(schedule, /operational_business_date/);
+  assert.match(schedule, /const managerReviewOpen = viewer\?\.role === "manager" && detail && selectedTimeOff\.some\(item => item\.status === "pending"\)/);
+  assert.match(schedule, /!managerReviewOpen \? <CreateButton/);
   assert.match(schedule, /actual_shift_status === "open"/);
   assert.match(schedule, /actual_shift_status === "closed"/);
   assert.match(schedule, /const requestContext = \(rerunInFlight = true\) =>/);
@@ -100,4 +103,3 @@ test("all updated typescript parses", () => {
     assert.deepEqual(parsed.parseDiagnostics.map(d=>d.messageText),[]);
   }
 });
-

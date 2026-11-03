@@ -36,10 +36,11 @@ export default function Schedules() {
     const ja = locale === "ja";
     const t = useCallback((en: string, jp: string) => ja ? jp : en, [ja]);
     const [calendarToday, setCalendarToday] = useState(() => businessDateJst(Date.now()));
+    const calendarTodayRef = useRef(calendarToday);
     const [scheduleContext, setScheduleContext] = useState<ScheduleContext | null>(null);
     const [month, setMonth] = useState(() => businessDateJst(Date.now()).slice(0, 7));
     const [selected, setSelected] = useState(() => businessDateJst(Date.now()));
-    const [mode, setMode] = useState<"month" | "week">(() => window.matchMedia("(max-width: 600px)").matches ? "week" : "month");
+    const [mode, setMode] = useState<"month" | "week" | "day">(() => window.matchMedia("(max-width: 600px)").matches ? "week" : "month");
     const [rows, setRows] = useState<ScheduledShift[]>([]);
     const today = scheduleContext?.operational_business_date ?? calendarToday;
     const calendarDate = scheduleContext?.calendar_business_date ?? calendarToday;
@@ -71,7 +72,9 @@ export default function Schedules() {
     const contextEffectActive = useRef(false);
     const dateButtons = useRef(new Map<string, HTMLButtonElement>());
     const pendingDateFocus = useRef<string | null>(null);
-    const { from, to } = mode === "week" ? weekRange(selected) : monthRange(month);
+    // Only a Day selection awaiting authoritative context may follow its first result.
+    const pendingDayDefault = useRef<number | null>(null);
+    const { from, to } = mode === "day" ? { from: selected, to: selected } : mode === "week" ? weekRange(selected) : monthRange(month);
     useEffect(() => {
         timeOffLifecycle.current++;
         return () => retireTimeOffActions(timeOffLifecycle, timeOffActionSerial);
@@ -93,7 +96,7 @@ export default function Schedules() {
     useEffect(() => { loadRef.current = load; }, [load]);
     useEffect(() => {
         const initial = window.setTimeout(() => { setLoading(true); setRows([]); void load(); }, 0);
-        // Retire old range reads immediately when switching Month/Week or dates.
+        // Retire old range reads immediately when switching Month/Week/Day or dates.
         const retire = () => { serial.current++; };
         return () => { clearTimeout(initial); retire(); };
     }, [load]);
@@ -124,7 +127,6 @@ export default function Schedules() {
         const refresh = () => refreshRequests();
         window.addEventListener("barticket-time-off-updated", refresh);
         window.addEventListener("barticket-schedules-updated", refresh);
-        const timer = window.setInterval(() => { if (shouldPoll()) refresh(); }, 30000);
         if (deepLinkRequestId && handledDeepLink.current !== `${session}:${deepLinkRequestId}`) {
             handledDeepLink.current = `${session}:${deepLinkRequestId}`;
             const requestEpoch = authSerial.current;
@@ -147,7 +149,6 @@ export default function Schedules() {
         }
         return () => {
             active = false;
-            clearInterval(timer);
             window.removeEventListener("barticket-time-off-updated", refresh);
             window.removeEventListener("barticket-schedules-updated", refresh);
         };
@@ -165,6 +166,7 @@ export default function Schedules() {
             store.reset(nextToken);
             setAuthState(current => ({ token: nextToken, epoch: current.epoch + 1 }));
             setRows([]); setKnownManagers([]); setViewer(null); setScheduleContext(null); setEditing(false); setDetail(false);
+            pendingDayDefault.current = null;
             timeOffActionSerial.current++;
             setTimeOff([]); setTimeOffReason(""); setTimeOffBusy(false); setTimeOffError(""); setTimeOffMessage(""); handledDeepLink.current = "";
         };
@@ -180,6 +182,13 @@ export default function Schedules() {
         // with the first request instead of issuing a duplicate.
         contextEffectActive.current = true;
         const retire = () => { serial.current++; };
+        const updateCalendarToday = () => {
+            const next = businessDateJst(Date.now());
+            const rolled = calendarTodayRef.current !== next;
+            calendarTodayRef.current = next;
+            setCalendarToday(next);
+            return rolled;
+        };
         const requestContext = (rerunInFlight = true) => {
             if (!contextEffectActive.current || authEpoch !== authSerial.current || !session || session !== getToken() || document.hidden || !navigator.onLine) return;
             const inFlight = contextFlight.current;
@@ -190,6 +199,11 @@ export default function Schedules() {
             void scheduledShiftsApi.context().then(context => {
                 if (contextEffectActive.current && contextFlight.current === flight && flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken() && !document.hidden && navigator.onLine) {
                     setScheduleContext(context);
+                    if (pendingDayDefault.current === authSerial.current) {
+                        pendingDayDefault.current = null;
+                        setSelected(context.operational_business_date);
+                        setMonth(context.operational_business_date.slice(0, 7));
+                    }
                 }
             }).catch(() => {
                 if (contextEffectActive.current && contextFlight.current === flight && flight.serial === contextSerial.current && authEpoch === authSerial.current && session === getToken()) setScheduleContext(null);
@@ -200,13 +214,25 @@ export default function Schedules() {
             });
         };
         const refresh = () => {
-            setCalendarToday(businessDateJst(Date.now()));
+            updateCalendarToday();
             requestContext();
             void loadRef.current(true);
         };
+        const pollFallback = () => {
+            // Keep the local operational-day clock current while sockets are
+            // healthy, but only use the minute timer for network recovery.
+            const rolled = updateCalendarToday();
+            const polling = shouldPoll();
+            if (!polling && !rolled) return;
+            requestContext();
+            if (polling) {
+                void loadRef.current(true);
+                window.dispatchEvent(new Event("barticket-time-off-updated"));
+            }
+        };
         const changed = () => { serial.current++; store.invalidate(); requestContext(); void loadRef.current(true); };
         requestContext(false);
-        const interval = window.setInterval(refresh, 60000);
+        const interval = window.setInterval(pollFallback, 60000);
         window.addEventListener("focus", refresh); window.addEventListener("online", refresh);
         document.addEventListener("visibilitychange", refresh); window.addEventListener("barticket-schedules-updated", changed); window.addEventListener("barticket-shift-updated", changed);
         return () => {
@@ -218,15 +244,22 @@ export default function Schedules() {
     }, [authEpoch, session]);
     const format = (date: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(ja ? "ja-JP" : "en-US", { ...options, timeZone: "UTC" }).format(new Date(`${date}T00:00:00Z`));
     const navigate = (amount: number) => {
-        const next = mode === "week" ? addDays(selected, amount * 7) : `${changeMonth(month, amount)}-01`;
+        pendingDayDefault.current = null;
+        const next = mode === "day" ? addDays(selected, amount) : mode === "week" ? addDays(selected, amount * 7) : `${changeMonth(month, amount)}-01`;
         setMonth(next.slice(0, 7)); setSelected(next); setDetail(false);
     };
-    const changeView = (next: "month" | "week") => { setMonth(selected.slice(0, 7)); setMode(next); };
+    const changeView = (next: "month" | "week" | "day") => {
+        pendingDayDefault.current = next === "day" && !scheduleContext ? authSerial.current : null;
+        const day = next === "day" ? today : selected;
+        setMonth(day.slice(0, 7)); setSelected(day); setMode(next);
+        if (next === "day") { setDetail(false); setEditing(false); setCreating(false); }
+    };
     const moveDateFocus = (event: KeyboardEvent<HTMLButtonElement>, day: string) => {
         const delta = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 } as Record<string, number>)[event.key];
         const next = event.key === "Home" ? weekRange(day).from : event.key === "End" ? weekRange(day).to : delta ? addDays(day, delta) : null;
         if (!next) return;
         event.preventDefault();
+        pendingDayDefault.current = null;
         pendingDateFocus.current = next;
         setSelected(next);
         if (mode === "week" || !dateButtons.current.has(next)) setMonth(next.slice(0, 7));
@@ -238,6 +271,7 @@ export default function Schedules() {
         pendingDateFocus.current = null;
     }, [mode, selected, month]);
     const choose = (day: string, trigger?: HTMLElement) => {
+        pendingDayDefault.current = null;
         if (trigger) detailReturnFocus.current = trigger;
         setSelected(day); setDetail(true); if (!day.startsWith(month)) setMonth(day.slice(0, 7));
     };
@@ -247,13 +281,14 @@ export default function Schedules() {
     };
     const selectedRow = rows.find(row => row.business_date === selected);
     const selectedTimeOff = timeOff.filter(item => item.business_date === selected);
+    const managerReviewOpen = viewer?.role === "manager" && detail && selectedTimeOff.some(item => item.status === "pending");
     const myTimeOffRequests = viewer?.role === "staff" ? selectedTimeOff.filter(item => item.requester_user_id === viewer.id) : [];
     const myPendingTimeOffRequest = myTimeOffRequests.find(item => item.status === "pending");
     const latestMyTimeOffRequest = myTimeOffRequests[0];
     const staffAssignedToSelected = !!selectedRow && viewer?.role === "staff" && selectedRow.staff.some(person => person.user_id === viewer.id);
     const isActiveShiftDate = (day: string) => scheduleContext?.actual_shift_status === "open" && scheduleContext.actual_shift_business_date === day;
     const selectedIsPast = (selected < calendarDate && !isActiveShiftDate(selected)) || selectedRow?.actual_shift_status === "closed" || (scheduleContext?.actual_shift_status === "closed" && scheduleContext.actual_shift_business_date === selected);
-    const createTarget = mode === "week" || selected.startsWith(month) ? selected : `${month}-01`;
+    const createTarget = mode !== "month" || selected.startsWith(month) ? selected : `${month}-01`;
     const createTargetIsPast = (createTarget < calendarDate && !isActiveShiftDate(createTarget)) || (scheduleContext?.actual_shift_status === "closed" && scheduleContext.actual_shift_business_date === createTarget);
     const canRequestTimeOff = staffAssignedToSelected && !selectedIsPast && !!selectedRow?.manager?.user_id &&
         selectedRow?.schedule_type !== "closed" && selectedRow?.venue_status !== "closed" && selectedRow?.actual_shift_status !== "closed";
@@ -298,14 +333,15 @@ export default function Schedules() {
         finally { if (isCurrent()) setTimeOffBusy(false); }
     };
     const days = calendarDays(month);
-    const visibleWeek = weekDays(selected);
+    const visibleDays = mode === "day" ? [selected] : weekDays(selected);
     const weekHasPlans = rows.some(row => row.business_date >= from && row.business_date <= to);
-    const rangeLabel = mode === "week"
+    const rangeLabel = mode === "day" ? format(selected, { year: "numeric", month: "short", day: "numeric" }) : mode === "week"
         ? new Intl.DateTimeFormat(ja ? "ja-JP" : "en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }).formatRange(new Date(`${from}T00:00:00Z`), new Date(`${to}T00:00:00Z`))
         : format(`${month}-01`, { year: "numeric", month: "long" });
     const viewTabs = [
         { id: "month" as const, label: t("Month", "月") },
         { id: "week" as const, label: t("Week", "週") },
+        { id: "day" as const, label: t("Day", "日") },
     ];
     const names = (row: ScheduledShift) => [row.manager?.name, ...row.staff.map(person => person.name)].filter(Boolean).join(" · ");
     const cellState = (row: ScheduledShift): ScheduleState => {
@@ -347,19 +383,17 @@ export default function Schedules() {
                     label={t("Calendar view", "表示方法")}
                     semantics="tabs"
                     idPrefix="schedule-view"
-                    fitLabels
-                    trailingAction={{ label: t("Today", "今日"), onClick: event => { detailReturnFocus.current = event.currentTarget; setEditing(false); setCreating(false); setMonth(today.slice(0, 7)); setSelected(today); setDetail(true); } }}
                 />
             </ScheduleControls>
         </Toolbar>
-        <MonthNav $week={mode === "week"} aria-label={mode === "week" ? t("Schedule week", "予定の週") : t("Schedule month", "予定の月")}>
-            <MonthStep type="button" className="hollow secondary" aria-label={mode === "week" ? t("Previous week", "前週") : t("Previous month", "前月")} onClick={() => navigate(-1)}>
+        <MonthNav $week={mode === "week"} aria-label={mode === "day" ? t("Schedule day", "予定の日") : mode === "week" ? t("Schedule week", "予定の週") : t("Schedule month", "予定の月")}>
+            <MonthStep type="button" className="hollow secondary" aria-label={mode === "day" ? t("Previous day", "前日") : mode === "week" ? t("Previous week", "前週") : t("Previous month", "前月")} onClick={() => navigate(-1)}>
                 <Icon name="CaretLeft" size="var(--font-size-h4)" />
             </MonthStep>
             <h2 aria-live="polite"><MonthLabel $week={mode === "week"} type="button" aria-label={t("Show month calendar", "月間カレンダーを表示")} onClick={() => changeView("month")}>
                 {rangeLabel}
             </MonthLabel></h2>
-            <MonthStep type="button" className="hollow secondary" aria-label={mode === "week" ? t("Next week", "翌週") : t("Next month", "翌月")} onClick={() => navigate(1)}>
+            <MonthStep type="button" className="hollow secondary" aria-label={mode === "day" ? t("Next day", "翌日") : mode === "week" ? t("Next week", "翌週") : t("Next month", "翌月")} onClick={() => navigate(1)}>
                 <Icon name="CaretRight" size="var(--font-size-h4)" />
             </MonthStep>
         </MonthNav>
@@ -376,10 +410,10 @@ export default function Schedules() {
                     <DayButton $past={isPast} ref={node => { if (node) dateButtons.current.set(day, node); else dateButtons.current.delete(day); }} aria-label={format(day, { dateStyle: "full" })} aria-current={day === today ? "date" : undefined} aria-pressed={day === selected} onClick={event => choose(day, event.currentTarget)} onKeyDown={event => moveDateFocus(event, day)}><span>{Number(day.slice(-2))}</span></DayButton>
                     {row ? <EventBlock $state={cellState(row)} onClick={event => choose(day, event.currentTarget)} aria-label={`${day}: ${cellTitle(row)}, ${cellLabel(row)}, ${names(row)}`}><strong>{cellTitle(row)}</strong><span>{cellLabel(row)}</span><small>{row.manager?.name || t("No manager", "担当未定")}</small><small>{row.staff.map(person => person.name).join(" · ") || t("No staff", "スタッフなし")}</small></EventBlock> : null}
                 </Day>; })}
-            </Calendar> : <Week id="schedule-view-panel-week" role="tabpanel" aria-labelledby="schedule-view-tab-week" tabIndex={0} aria-label={t("Weekly schedule", "週間予定")}>
+            </Calendar> : <Week id={`schedule-view-panel-${mode}`} role="tabpanel" aria-labelledby={`schedule-view-tab-${mode}`} tabIndex={0} aria-label={mode === "day" ? t("Daily schedule", "一日の予定") : t("Weekly schedule", "週間予定")}>
                 <WeekNote>{t("Date-only plans · hours not recorded", "日付のみの予定・勤務時間の記録なし")}</WeekNote>
-                {!loading && !weekHasPlans ? <Empty>{t("No scheduled shifts this week.", "今週の予定はありません。")}</Empty> : null}
-                {visibleWeek.map(day => { const row = rows.find(item => item.business_date === day); const isPast = day < calendarDate && !isActiveShiftDate(day); return <WeekRow key={day} data-date={day} $selected={day === selected}>
+                {mode === "week" && !loading && !weekHasPlans ? <Empty>{t("No scheduled shifts this week.", "今週の予定はありません。")}</Empty> : null}
+                {visibleDays.map(day => { const row = rows.find(item => item.business_date === day); const isPast = day < calendarDate && !isActiveShiftDate(day); return <WeekRow key={day} data-date={day} $selected={day === selected}>
                     <WeekDate $past={isPast} ref={node => { if (node) dateButtons.current.set(day, node); else dateButtons.current.delete(day); }} aria-label={format(day, { dateStyle: "full" })} aria-current={day === today ? "date" : undefined} aria-pressed={day === selected} onClick={event => choose(day, event.currentTarget)} onKeyDown={event => moveDateFocus(event, day)}><small>{format(day, { weekday: "short" })}</small><span>{Number(day.slice(-2))}</span><small>{format(day, { month: "short" })}</small></WeekDate>
                     {row ? <WeekEvent $state={cellState(row)} onClick={event => choose(day, event.currentTarget)} aria-label={`${day}: ${cellTitle(row)}, ${cellLabel(row)}, ${names(row)}`}><small>{cellLabel(row)}</small><strong>{cellTitle(row)}</strong><span>{t("Manager", "マネージャー")}: {row.manager?.name || t("Not assigned", "未定")}</span><span>{t("Staff", "スタッフ")}: {row.staff.map(person => person.name).join(" · ") || t("None", "なし")}</span></WeekEvent>
                         : <EmptyDay type="button" aria-label={`${format(day, { dateStyle: "full" })}: ${t("No plan", "予定なし")}`} onClick={event => choose(day, event.currentTarget)}>{loading ? t("Loading…", "読み込み中…") : t("No plan", "予定なし")}</EmptyDay>}
@@ -420,14 +454,14 @@ export default function Schedules() {
                 {selectedRow?.provenance.length ? <details><summary>{t("Spreadsheet source", "勤務表の出典")}</summary>{selectedRow.provenance.map((source, i) => <p key={i}>{source.source_file} · {t("row", "行")} {source.source_row}<br />{source.imported_by}{source.uncertainty ? ` · ${source.uncertainty}` : ""}</p>)}</details> : null}
             </Details> : null}
         </Canvas>
-        {viewer?.role === "manager" && scheduleContext && !editing && !createTargetIsPast ? <CreateButton type="button" onClick={() => { setSelected(createTarget); setCreating(true); setEditing(true); }}>{t("+ Create", "＋ 作成")}</CreateButton> : null}
+        {viewer?.role === "manager" && scheduleContext && !editing && !createTargetIsPast && !managerReviewOpen ? <CreateButton type="button" onClick={() => { setSelected(createTarget); setCreating(true); setEditing(true); }}>{t("+ Create", "＋ 作成")}</CreateButton> : null}
         {editing && viewer?.role === "manager" && !selectedIsPast ? <ScheduleEditor knownManagers={knownManagers} day={selected} row={creating ? undefined : selectedRow} ja={ja} today={isActiveShiftDate(selected) ? selected : calendarDate} canWrite={!!scheduleContext} onClose={() => setEditing(false)} onSaved={day => { setEditing(false); setSelected(day); setMonth(day.slice(0, 7)); setDetail(true); window.dispatchEvent(new Event("barticket-schedules-updated")); }} /> : null}
     </Page>;
 }
 const Page = styled.main`width:100%;max-width:1440px;margin:0 auto;padding:16px 0 calc(112px + env(safe-area-inset-bottom, 0px));button{width:auto;min-height:44px;}> :not(header) button:focus-visible,> button:focus-visible{outline:3px solid var(--royal-300);outline-offset:2px;}`;
 const Toolbar = styled.header`display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;h1{font-size:21.6px;margin:0}h2{font-size:20px;margin:0} @media(max-width:600px){flex-direction:column;align-items:stretch;gap:8px;>div:first-child{width:100%;min-width:0;flex:0 0 auto}h1{font-size:19.2px}}`;
 const Subtitle = styled.p`color:var(--neutral-300);font-size:13.6px;margin:4px 0;`;
-const ScheduleControls = styled.div`align-self:flex-start;flex:0 0 auto;max-width:100%;width:max-content;`;
+const ScheduleControls = styled.div`align-self:stretch;flex:0 0 100%;min-width:0;max-width:100%;width:100%;`;
 const MonthNav = styled.nav<{ $week: boolean }>`display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:var(--space-1);min-height:48px;width:min(100%,${p=>p.$week?'460px':'300px'});margin:0 auto 16px;h2{display:flex;justify-content:center;min-width:0;text-align:center;}`;
 const MonthStep = styled.button`width:44px!important;min-width:44px;padding:0!important;border-radius:50%;`;
 const MonthLabel = styled.button<{ $week: boolean }>`width:max-content!important;min-width:0;max-width:100%;flex:0 1 auto;padding:var(--space-1) var(--space-2)!important;background:var(--neutral-800)!important;border:1px solid var(--neutral-700)!important;border-radius:999px!important;color:var(--neutral-050)!important;white-space:${p=>p.$week?'normal':'nowrap'};overflow:hidden;text-overflow:ellipsis;font-size:var(--font-size-default);`;

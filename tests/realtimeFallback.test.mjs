@@ -51,4 +51,3 @@ test('hidden/offline clients stop fallback reads and account changes reset healt
   h.document.visibilityState='visible';h.navigator.onLine=false;assert.equal(h.poll(),false);
   h.navigator.onLine=true;assert.equal(h.poll(),true);h.stop();
 });
-

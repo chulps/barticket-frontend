@@ -58,8 +58,13 @@ navigation network dependence; do not reintroduce lazy routes without equivalent
 version-safe asset delivery and interruption tests.
 
 `node --test tests/*.test.mjs` includes the retention policy and containment
-structure. The browser workflow builds separate old/new production fixtures and
-runs `playwright.deployment.config.mjs`: original blackout reproduction, retained
+structure. The optional manual browser checks build separate old/new production
+fixtures with `node scripts/build-deployment-fixtures.mjs`, then run
+`npx playwright test --config=playwright.deployment.config.mjs` after the setup in
+[browser regression tests](browser-regression-tests.md). The former automated
+browser workflow has been removed; the fixture builder, tests, and Pages
+asset-retention protections remain. Browser coverage includes the original
+blackout reproduction, retained
 legacy assets, contained missing-chunk recovery, and an unsaved edit dialog that
 survives deployment followed by offline navigation and explicit manual reload,
 a delayed mocked mutation, and route failure while a dialog remains open.
