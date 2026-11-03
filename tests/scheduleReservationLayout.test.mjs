@@ -34,3 +34,11 @@ test('canceled reservation badge uses danger tokens without changing other statu
   assert.match(badge, /background:\$\{p=>p\.\$status==="pending"\?"var\(--warning-950\)":p\.\$status==="approved"\?"var\(--success-950\)":p\.\$status==="canceled"\?"var\(--danger-950\)":"var\(--neutral-800\)"\}/);
   assert.match(badge, /color:\$\{p=>p\.\$status==="pending"\?"var\(--warning-200\)":p\.\$status==="approved"\?"var\(--success-200\)":p\.\$status==="canceled"\?"var\(--danger-200\)":"var\(--neutral-300\)"\}/);
 });
+
+test('pending and confirmed reservation badges use matching semantic outlines', () => {
+  const badge = schedule.match(/const StatusBadge = styled\.span[^`]*`([^`]*)`;/)?.[1];
+  assert.ok(badge);
+  assert.match(badge, /\$status==="pending"\?"border:1px solid var\(--warning-500\);":p\.\$status==="approved"\?"border:1px solid var\(--success-500\);":""/);
+  assert.match(schedule, /request\.status === "approved" \? "Confirmed" : request\.status\[0\]\.toUpperCase\(\) \+ request\.status\.slice\(1\)/);
+  assert.match(schedule, /approved: "確定"/);
+});
