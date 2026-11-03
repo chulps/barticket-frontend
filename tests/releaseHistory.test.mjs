@@ -85,9 +85,9 @@ test('current release note manifest is bilingual, reviewed, and contains only fe
  assert.ok(current.title.en.length&&current.title.ja.length);
  assert.ok(current.features.en.length>0&&current.features.en.length<=5);
  assert.equal(current.features.en.length,current.features.ja.length);
- assert.match(current.title.en,/Choose Month, Week or Day/);
- assert.match(current.features.en.join(' '),/Select Day.*today's schedule.*one day at a time.*Month, Week and Day.*view tabs.*colors and permissions/);
- assert.match(current.features.ja.join(' '),/「日」を選ぶと今日の予定.*1日ずつ.*月・週・日.*タブ操作.*色分けと編集権限/);
+ assert.match(current.title.en,/Full-width Schedule tabs/);
+ assert.match(current.features.en.join(' '),/Month, Week and Day.*full available width.*equal-sized tabs.*same familiar tab controls and animation/);
+ assert.match(current.features.ja.join(' '),/月・週・日のタブ.*同じ幅.*横幅いっぱい.*同じタブ操作とアニメーション/);
 });
 test('fetch is same-origin metadata, uncached, abortable and carries no API token',async()=>{
  const calls=[],signal=new AbortController().signal;
