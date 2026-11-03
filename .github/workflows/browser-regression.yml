@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      time_off_only:
+        description: Run only the focused time-off request and decision browser flows
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -50,6 +56,7 @@ jobs:
           retention-days: 5
       # Run this changed surface first and preserve its evidence independently.
       - name: App update history recovery preflight
+        if: github.event_name != 'workflow_dispatch' || inputs.time_off_only != true
         run: npx playwright test --config=playwright.config.mjs tests/browser/release-history.spec.mjs
       - name: Preserve focused app update history visuals
         if: always()
@@ -61,10 +68,11 @@ jobs:
           retention-days: 5
       # Fail fast on the changed Schedule surfaces before the full release gate.
       - name: Schedule recovery preflight (not a release gate by itself)
+        if: github.event_name != 'workflow_dispatch' || inputs.time_off_only != true
         run: npx playwright test --config=playwright.config.mjs tests/browser/schedule-calendar.spec.mjs tests/browser/schedule-audit.spec.mjs tests/browser/pos-flow.spec.mjs
       - name: Run mocked browser tests
         # Explicit one-release exceptions: stock recovery403 and Schedule follow-up405.
-        if: github.event_name != 'pull_request' || (github.event.pull_request.number != 403 && github.event.pull_request.number != 405)
+        if: (github.event_name != 'workflow_dispatch' || inputs.time_off_only != true) && (github.event_name != 'pull_request' || (github.event.pull_request.number != 403 && github.event.pull_request.number != 405))
         run: npx playwright test --config=playwright.config.mjs
       - name: Preserve pay UI fixture screenshots before continuity tests
         if: always()
@@ -107,8 +115,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 5
       - name: Build old/new deployment fixtures
+        if: github.event_name != 'workflow_dispatch' || inputs.time_off_only != true
         run: node scripts/build-deployment-fixtures.mjs
       - name: Verify active-session deployment continuity
+        if: github.event_name != 'workflow_dispatch' || inputs.time_off_only != true
         run: npx playwright test --config=playwright.deployment.config.mjs
       - uses: actions/upload-artifact@v4
         if: always()
