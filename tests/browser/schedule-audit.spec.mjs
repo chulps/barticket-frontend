@@ -13,7 +13,7 @@ async function fixture(page, locale, role = "manager") {
   await page.addInitScript(({ locale }) => { localStorage.clear(); localStorage.setItem("barticket_locale", locale); localStorage.setItem("barticket_token", "ISOLATED_SCHEDULE_AUDIT"); }, { locale });
   await page.route("**/*", route => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
   await page.route("http://127.0.0.1:8765/**", async route => {
-    const request = route.request(), path = new URL(request.url()).pathname;
+    const request = route.request(), url = new URL(request.url()), path = url.pathname;
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
     let status = 200, data = [];
     if (path === "/schedules/reconcile" && request.method() === "POST") {
@@ -26,13 +26,14 @@ async function fixture(page, locale, role = "manager") {
     else if (path === "/auth/status") data = { has_accounts: true, google_enabled: false };
     else if (path === "/admin/payment-setup/access") data = { can_configure: false };
     else if (path === "/shifts/current") data = null;
+    else if (path === "/schedules/context") data = { operational_business_date: "2026-11-02", calendar_business_date: "2026-11-02", actual_shift_status: null, actual_shift_business_date: null };
     else if (path === "/menu") data = { items: [], coverCharge: 500 };
     else if (path === "/notices") data = { notices: [] };
     else if (path === "/schedules") {
       state.reads++;
       if (state.mode === "error") { status = 503; data = { detail: "Synthetic schedule unavailable" }; }
       else {
-        data = state.mode === "empty" ? [] : [schedule("upcoming", 1), schedule("today", 2), schedule("past", 3)];
+        data = state.mode === "empty" ? [] : [schedule("upcoming", 1), schedule("today", 2), schedule("past", 3)].filter(row => row.business_date >= url.searchParams.get("date_from") && row.business_date <= url.searchParams.get("date_to"));
         if (state.longSource) for (const row of data) row.provenance[0].source_file = "SyntheticMonthlySchedule_".repeat(8) + ".csv";
       }
     }
@@ -42,13 +43,14 @@ async function fixture(page, locale, role = "manager") {
 }
 async function fits(page) { expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(await page.evaluate(() => innerWidth)); }
 async function capture(page, testInfo, name) { await page.screenshot({ path: testInfo.outputPath(`audit-schedule-${name}.png`), fullPage: true }); await fits(page); }
-for (const locale of ["en", "ja"]) for (const width of [320, 768, 1280]) {
+for (const locale of ["en", "ja"]) for (const width of [320, 390, 768, 1280]) {
   test(`long schedule provenance reflows ${locale} ${width}`, async ({ page }, testInfo) => {
     const state = await fixture(page, locale, "staff"); state.longSource = true;
     await page.setViewportSize({ width, height: 900 }); await page.goto("/schedules");
-    await page.getByRole("tab", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
-    await expect(page.locator("main article")).toHaveCount(3);
-    await page.locator("main article button").first().click();
+    await page.getByRole("tab", { name: locale === "ja" ? "週" : "Week", exact: true }).click();
+    await expect(page.locator("#schedule-view-panel-week article[data-date]")).toHaveCount(7);
+    await expect(page.locator('#schedule-view-panel-week button[aria-label^="2026-11-"]')).toHaveCount(3);
+    await page.locator('#schedule-view-panel-week button[aria-label^="2026-11-01:"]').click();
     await page.locator("main details summary").click();
     await expect(page.locator("main details")).toContainText("SyntheticMonthlySchedule_".repeat(8) + ".csv");
     await capture(page, testInfo, "long-source");
@@ -58,27 +60,37 @@ for (const locale of ["en", "ja"]) for (const width of [320, 768, 1280]) {
     const state = await fixture(page, locale, "staff");
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/schedules");
-    await page.getByRole("tab", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
-    await expect(page.locator("main article")).toHaveCount(3);
-    await page.locator("main article button").first().click();
-    await expect(page.getByRole("complementary")).toContainText(locale === "ja" ? "日付のみの予定" : "Date-only plan");
+    await page.getByRole("tab", { name: locale === "ja" ? "週" : "Week", exact: true }).click();
+    await expect(page.locator("#schedule-view-panel-week article[data-date]")).toHaveCount(7);
+    await expect(page.locator('#schedule-view-panel-week button[aria-label^="2026-11-"]')).toHaveCount(3);
+    await page.locator('#schedule-view-panel-week button[aria-label^="2026-11-01:"]').click();
+    await expect(page.getByRole("complementary")).toContainText(locale === "ja" ? "日付のみの予定・勤務時間の記録なし" : "Date-only plan · hours not recorded");
+    await page.getByRole("button", { name: locale === "ja" ? "詳細を閉じる" : "Close day details", exact: true }).click();
+    await expect(page.locator('#schedule-view-panel-week button[aria-label^="2026-11-01:"]')).toBeFocused();
+    await page.locator('#schedule-view-panel-week button[aria-label^="2026-11-03:"]').click();
+    await expect(page.getByRole("complementary")).toContainText(locale === "ja" ? "実際のシフト記録があります。予定を変更しても実績は変わりません。" : "An actual shift is also recorded. Editing this plan does not change it.");
+    await expect(page.getByRole("complementary")).toContainText(locale === "ja" ? "勤務時間の記録なし" : "hours not recorded");
     await page.getByRole("button", { name: locale === "ja" ? "詳細を閉じる" : "Close day details", exact: true }).click();
     await capture(page, testInfo, "rows");
     state.mode = "empty";
     await page.evaluate(() => window.dispatchEvent(new Event("barticket-schedules-updated")));
-    await expect(page.getByText(locale === "ja" ? "今月の予定はありません。" : "No scheduled shifts this month.", { exact: true })).toBeVisible();
+    await expect(page.getByText(locale === "ja" ? "今週の予定はありません。" : "No scheduled shifts this week.", { exact: true })).toBeVisible();
+    await expect(page.locator("#schedule-view-panel-week article[data-date]")).toHaveCount(7);
+    await expect(page.locator("#schedule-view-panel-week").getByText(locale === "ja" ? "予定なし" : "No plan", { exact: true })).toHaveCount(7);
     await capture(page, testInfo, "empty");
     state.mode = "error";
     await page.evaluate(() => window.dispatchEvent(new Event("barticket-schedules-updated")));
     const retry = page.getByRole("button", { name: locale === "ja" ? "再試行" : "Retry", exact: true });
     await expect(retry).toBeVisible();
-    await expect(page.locator("main article")).toHaveCount(0);
+    await expect(page.locator("#schedule-view-panel-week article[data-date]")).toHaveCount(7);
+    await expect(page.locator('#schedule-view-panel-week button[aria-label^="2026-11-"]')).toHaveCount(0);
     await retry.focus(); await expect(retry).toBeFocused();
     await capture(page, testInfo, "error");
     state.mode = "rows";
     await retry.press("Enter");
-    await page.getByRole("tab", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
-    await expect(page.locator("main article")).toHaveCount(3);
+    await page.getByRole("tab", { name: locale === "ja" ? "週" : "Week", exact: true }).click();
+    await expect(page.locator("#schedule-view-panel-week article[data-date]")).toHaveCount(7);
+    await expect(page.locator('#schedule-view-panel-week button[aria-label^="2026-11-"]')).toHaveCount(3);
     await expect(retry).toHaveCount(0);
     expect(state.writes).toEqual([]);
   });

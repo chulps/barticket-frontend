@@ -1,14 +1,18 @@
 {
   "title": {
-    "en": "Manage app update history",
-    "ja": "アプリ更新履歴を管理"
+    "en": "View your schedule by month or week",
+    "ja": "予定を月・週で表示"
   },
   "features": {
     "en": [
-      "View five updates at a time, dismiss releases per account, and restore them later."
+      "Switch between Month and Week using the same familiar controls as Tickets, and jump straight to Today.",
+      "See all seven days of a week, including dates across month and year boundaries.",
+      "Spot running shifts in green, normal plans in blue, events in purple, closed days in red, and finished or past days in grey."
     ],
     "ja": [
-      "アプリ更新を5件ずつ表示し、アカウントごとに非表示にして後から再表示できます。"
+      "チケット画面と同じ操作で月・週の表示を切り替え、今日の予定にすぐ移動できます。",
+      "月末や年末をまたぐ週も、7日間すべての予定を確認できます。",
+      "営業中は緑、通常の予定は青、イベントは紫、休業日は赤、終了済み・過去の日はグレーで表示します。"
     ]
   }
 }

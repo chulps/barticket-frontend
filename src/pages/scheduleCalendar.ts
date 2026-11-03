@@ -18,3 +18,13 @@ export function calendarDays(month: string): string[] {
     const count = Math.ceil((Number(to.slice(-2)) + new Date(`${from}T00:00:00Z`).getUTCDay()) / 7) * 7;
     return Array.from({ length: count }, (_, i) => addDays(start, i));
 }
+
+/** Sunday–Saturday, matching the month calendar, including month/year edges. */
+export function weekRange(day: string) {
+    const from = addDays(day, -new Date(`${day}T00:00:00Z`).getUTCDay());
+    return { from, to: addDays(from, 6) };
+}
+export function weekDays(day: string): string[] {
+    const { from } = weekRange(day);
+    return Array.from({ length: 7 }, (_, i) => addDays(from, i));
+}

@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import styled from "styled-components";
 import { nextSelectorIndex } from "./selectorNavigation";
 
@@ -20,6 +20,8 @@ type TabGroupProps<T extends string> = {
   idPrefix?: string;
   /** Let a parent provide the surrounding border and rounded container. */
   unframed?: boolean;
+  /** An adjacent one-shot action, styled like a tab but never selected. */
+  trailingAction?: { label: string; onClick: (event: MouseEvent<HTMLButtonElement>) => void };
   /** Optional wrapping grid; keeps the shared visual/interaction contract. */
   responsiveColumns?: readonly { minWidth: number; columns: number }[];
 };
@@ -35,6 +37,7 @@ export default function TabGroup<T extends string>({
   semantics = "group",
   idPrefix,
   unframed = false,
+  trailingAction,
 }: TabGroupProps<T>) {
     const activeIndex = tabs.findIndex(tab => tab.id === activeTab);
     const viewport = useRef<HTMLDivElement>(null);
@@ -89,32 +92,37 @@ export default function TabGroup<T extends string>({
         onChange(tabs[next].id);
     }
 
+    const tabButtons = tabs.map((tab, index) => (
+        <TabButton
+            key={tab.id}
+            ref={node => { buttons.current[index] = node; }}
+            type="button"
+            id={semantics === "tabs" && idPrefix ? `${idPrefix}-tab-${tab.id}` : undefined}
+            role={semantics === "tabs" ? "tab" : undefined}
+            aria-controls={semantics === "tabs" && idPrefix ? `${idPrefix}-panel-${tab.id}` : undefined}
+            aria-selected={semantics === "tabs" ? tab.id === activeTab : undefined}
+            aria-pressed={semantics === "group" ? tab.id === activeTab : undefined}
+            tabIndex={semantics === "tabs" ? (tab.id === activeTab ? 0 : -1) : undefined}
+            $active={tab.id === activeTab}
+            onClick={() => onChange(tab.id)}
+            onKeyDown={event => handleArrow(event, index)}
+        >
+            {tab.label}
+        </TabButton>
+    ));
+
     return (
-        <Viewport ref={viewport} $unframed={unframed} role={semantics === "tabs" ? "tablist" : "group"}
-            aria-orientation={semantics === "tabs" ? "horizontal" : undefined}
+        <Viewport ref={viewport} $unframed={unframed} role={semantics === "tabs" && !trailingAction ? "tablist" : "group"}
+            aria-orientation={semantics === "tabs" && !trailingAction ? "horizontal" : undefined}
             aria-label={label ?? tabs.map(tab => tab.label).join(" / ")}>
             <Track ref={track} $mobileColumns={mobileColumns} $fitLabels={fitLabels} $responsiveColumns={responsiveColumns}>
                 {activeIndex >= 0 && indicator.width > 0 && <IndicatorClip aria-hidden="true" data-tab-indicator-clip>
                     <Indicator data-tab-indicator $left={indicator.left} $top={indicator.top} $width={indicator.width} $height={indicator.height} />
                 </IndicatorClip>}
-                {tabs.map((tab, index) => (
-                    <TabButton
-                        key={tab.id}
-                        ref={node => { buttons.current[index] = node; }}
-                        type="button"
-                        id={semantics === "tabs" && idPrefix ? `${idPrefix}-tab-${tab.id}` : undefined}
-                        role={semantics === "tabs" ? "tab" : undefined}
-                        aria-controls={semantics === "tabs" && idPrefix ? `${idPrefix}-panel-${tab.id}` : undefined}
-                        aria-selected={semantics === "tabs" ? tab.id === activeTab : undefined}
-                        aria-pressed={semantics === "group" ? tab.id === activeTab : undefined}
-                        tabIndex={semantics === "tabs" ? (tab.id === activeTab ? 0 : -1) : undefined}
-                        $active={tab.id === activeTab}
-                        onClick={() => onChange(tab.id)}
-                        onKeyDown={event => handleArrow(event, index)}
-                    >
-                        {tab.label}
-                    </TabButton>
-                ))}
+                {trailingAction && semantics === "tabs" ? <TabList role="tablist" aria-orientation="horizontal" aria-label={label}>
+                    {tabButtons}
+                </TabList> : tabButtons}
+                {trailingAction ? <TabButton type="button" $active={false} onClick={trailingAction.onClick}>{trailingAction.label}</TabButton> : null}
             </Track>
         </Viewport>
     );
@@ -151,7 +159,7 @@ const Track = styled.div<{
   ${({ $fitLabels }) => $fitLabels ? `
     grid-auto-columns: auto;
     width: max-content;
-    > button { min-width: max-content; white-space: nowrap; overflow-wrap: normal; }
+    > button, > [role=tablist] > button { min-width: max-content; white-space: nowrap; overflow-wrap: normal; }
   ` : ""}
 
   ${({ $mobileColumns }) => $mobileColumns ? `
@@ -162,7 +170,7 @@ const Track = styled.div<{
       grid-auto-rows: 1fr;
       width: 100%;
       min-width: 0;
-      > button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+      > button, > [role=tablist] > button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     }
   ` : ""}
 
@@ -172,7 +180,7 @@ const Track = styled.div<{
     grid-auto-rows: 1fr;
     width: 100%;
     min-width: 0;
-    > button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+    > button, > [role=tablist] > button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
     ${$responsiveColumns.map(({ minWidth, columns }) => `
       @media (min-width: ${minWidth}px) {
         grid-template-columns: repeat(${columns}, minmax(0, 1fr));
@@ -180,6 +188,10 @@ const Track = styled.div<{
     `).join("")}
   ` : ""}
 `;
+
+// Preserve the shared three-column track while exposing only the view switches
+// as tabs. The one-shot action remains a sibling button, not a fake third tab.
+const TabList = styled.div`display: contents;`;
 
 // Clip only decoration: labels, keyboard focus and hit targets remain untouched.
 const IndicatorClip = styled.div`

@@ -28,12 +28,12 @@ test('batched A→B→A auth captures latest token and retires every epoch', () 
     assert.equal(f.clears.filter(([field]) => field === 'rows').length, 2);
     assert.equal(f.clears.filter(([field]) => field === 'context').length, 2);
 });
-test('same-token authorization refresh retires cached reads and reloads viewer and month', () => {
+test('same-token authorization refresh retires cached reads and reloads viewer and visible range', () => {
     const f = fixture(); f.reset({});
     assert.deepEqual(f.flush(), { token: 'A', epoch: 1 });
     assert.deepEqual(f.resets, ['A']); assert.equal(f.serial.current, 1);
     assert.equal(f.contextSerial.current, 1); assert.equal(f.contextFlight.current, null);
-    assert.match(source, /\[month, session, authEpoch\]/);
+    assert.match(source, /\[from, to, session, authEpoch\]/);
     assert.match(source, /authEpoch !== authSerial.current \|\| !session/);
     assert.match(source, /requestAuth === authSerial.current && session === getToken\(\)/);
     assert.match(source, /accountApi\.me\(\)[\s\S]*?\[session, authEpoch\]/);
