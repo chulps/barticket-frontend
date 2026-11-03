@@ -18,3 +18,10 @@ test('floating create keeps a scrollable clearance for page controls', () => {
   assert.match(schedule, /padding:16px 0 calc\(160px \+ env\(safe-area-inset-bottom/);
   assert.match(schedule, /scroll-margin-bottom:calc\(112px \+ env\(safe-area-inset-bottom/);
 });
+
+test('month request labels truncate within the cell while retaining full detail access', () => {
+  assert.match(schedule, /<MonthReservationIndicator[^\n]*aria-label=\{reservationLabel\(day, counts\)\} title=\{reservationLabel\(day, counts\)\}/);
+  assert.match(schedule, /\.full-label,\.compact-label > span\{[^}]*overflow:hidden;white-space:nowrap;text-overflow:ellipsis;/);
+  assert.match(schedule, /const MonthReservationIndicator = styled\(ReservationIndicator\)`[^`]*overflow:hidden;/);
+  assert.match(schedule, /selectedReservations\.map\(request =>/);
+});
