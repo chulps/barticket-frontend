@@ -5,6 +5,7 @@ import { scheduledShiftsApi, type ScheduledShift, type ScheduledPerson, type Sch
 import { accountApi, type Account } from "../api/account";
 import { timeOffApi, type TimeOffRequest } from "../api/timeOff";
 import { getToken } from "../api/client";
+import { shouldPoll } from "../api/realtime";
 import { businessDateJst } from "./shiftControlPolicy";
 import { useI18n } from "../i18n";
 import { addDays, calendarDays, changeMonth, monthRange, weekDays, weekRange } from "./scheduleCalendar";
@@ -24,6 +25,10 @@ const scheduleForeground = (state: ScheduleState) => state === "active" ? "var(-
 const scheduleSurface = (state: ScheduleState) => state === "active" ? "var(--success-900)"
     : state === "planned" ? "var(--royal-900)" : state === "event" ? "var(--info-900)"
     : state === "closed" ? "var(--danger-900)" : "var(--neutral-900)";
+const retireTimeOffActions = (lifecycle: { current: number }, actionSerial: { current: number }) => {
+    lifecycle.current++;
+    actionSerial.current++;
+};
 
 const store = createScheduleReadStore(scheduledShiftsApi.list);
 export default function Schedules() {
@@ -47,6 +52,8 @@ export default function Schedules() {
     const [timeOffBusy, setTimeOffBusy] = useState(false);
     const [timeOffError, setTimeOffError] = useState("");
     const [timeOffMessage, setTimeOffMessage] = useState("");
+    const timeOffLifecycle = useRef(0);
+    const timeOffActionSerial = useRef(0);
     const handledDeepLink = useRef("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -65,6 +72,10 @@ export default function Schedules() {
     const dateButtons = useRef(new Map<string, HTMLButtonElement>());
     const pendingDateFocus = useRef<string | null>(null);
     const { from, to } = mode === "week" ? weekRange(selected) : monthRange(month);
+    useEffect(() => {
+        timeOffLifecycle.current++;
+        return () => retireTimeOffActions(timeOffLifecycle, timeOffActionSerial);
+    }, []);
     const load = useCallback(async (force = false) => {
         if (authEpoch !== authSerial.current || !session || session !== getToken() || document.hidden || !navigator.onLine) return;
         const request = ++serial.current;
@@ -100,28 +111,35 @@ export default function Schedules() {
         if (!viewer || !session || session !== getToken()) return;
         if (deepLinkRequestId === null) handledDeepLink.current = "";
         let active = true;
+        let refreshSerial = 0;
         const refreshRequests = () => {
-            void timeOffApi.requests().then(items => { if (active && session === getToken()) setTimeOff(items); })
-                .catch(error => { if (active && session === getToken()) setTimeOffError(error instanceof Error ? error.message : String(error)); });
+            const request = ++refreshSerial;
+            const requestEpoch = authSerial.current;
+            const isCurrent = () => active && request === refreshSerial && requestEpoch === authSerial.current && requestEpoch === authEpoch && session === getToken();
+            if (!isCurrent()) return;
+            void timeOffApi.requests().then(items => { if (isCurrent()) setTimeOff(items); })
+                .catch(error => { if (isCurrent()) setTimeOffError(error instanceof Error ? error.message : String(error)); });
         };
         refreshRequests();
         const refresh = () => refreshRequests();
         window.addEventListener("barticket-time-off-updated", refresh);
         window.addEventListener("barticket-schedules-updated", refresh);
-        const timer = window.setInterval(refresh, 30000);
+        const timer = window.setInterval(() => { if (shouldPoll()) refresh(); }, 30000);
         if (deepLinkRequestId && handledDeepLink.current !== `${session}:${deepLinkRequestId}`) {
             handledDeepLink.current = `${session}:${deepLinkRequestId}`;
+            const requestEpoch = authSerial.current;
+            const isCurrent = () => active && requestEpoch === authSerial.current && requestEpoch === authEpoch && session === getToken();
             void timeOffApi.request(deepLinkRequestId).then(item => {
-                if (!active || session !== getToken()) return;
+                if (!isCurrent()) return;
                 setTimeOff(current => [item, ...current.filter(existing => existing.id !== item.id)]);
                 setSelected(item.business_date);
                 setMonth(item.business_date.slice(0, 7));
                 setDetail(true);
                 setTimeOffError("");
             }).catch(() => {
-                if (active) setTimeOffError(t("This time-off request is unavailable for your account.", "この休暇申請は現在のアカウントでは表示できません。"));
+                if (isCurrent()) setTimeOffError(t("This time-off request is unavailable for your account.", "この休暇申請は現在のアカウントでは表示できません。"));
             }).finally(() => {
-                if (active) {
+                if (isCurrent()) {
                     const next = new URLSearchParams(searchParams);
                     next.delete("time_off"); next.delete("from_push"); setSearchParams(next, { replace: true });
                 }
@@ -147,7 +165,8 @@ export default function Schedules() {
             store.reset(nextToken);
             setAuthState(current => ({ token: nextToken, epoch: current.epoch + 1 }));
             setRows([]); setKnownManagers([]); setViewer(null); setScheduleContext(null); setEditing(false); setDetail(false);
-            setTimeOff([]); setTimeOffError(""); setTimeOffMessage(""); handledDeepLink.current = "";
+            timeOffActionSerial.current++;
+            setTimeOff([]); setTimeOffReason(""); setTimeOffBusy(false); setTimeOffError(""); setTimeOffMessage(""); handledDeepLink.current = "";
         };
         window.addEventListener("barticket-auth", reset); window.addEventListener("storage", reset);
         return () => { window.removeEventListener("barticket-auth", reset); window.removeEventListener("storage", reset); };
@@ -228,7 +247,9 @@ export default function Schedules() {
     };
     const selectedRow = rows.find(row => row.business_date === selected);
     const selectedTimeOff = timeOff.filter(item => item.business_date === selected);
-    const myTimeOffRequest = viewer?.role === "staff" ? selectedTimeOff.find(item => item.requester_user_id === viewer.id) : undefined;
+    const myTimeOffRequests = viewer?.role === "staff" ? selectedTimeOff.filter(item => item.requester_user_id === viewer.id) : [];
+    const myPendingTimeOffRequest = myTimeOffRequests.find(item => item.status === "pending");
+    const latestMyTimeOffRequest = myTimeOffRequests[0];
     const staffAssignedToSelected = !!selectedRow && viewer?.role === "staff" && selectedRow.staff.some(person => person.user_id === viewer.id);
     const isActiveShiftDate = (day: string) => scheduleContext?.actual_shift_status === "open" && scheduleContext.actual_shift_business_date === day;
     const selectedIsPast = (selected < calendarDate && !isActiveShiftDate(selected)) || selectedRow?.actual_shift_status === "closed" || (scheduleContext?.actual_shift_status === "closed" && scheduleContext.actual_shift_business_date === selected);
@@ -237,21 +258,35 @@ export default function Schedules() {
     const canRequestTimeOff = staffAssignedToSelected && !selectedIsPast && !!selectedRow?.manager?.user_id &&
         selectedRow?.schedule_type !== "closed" && selectedRow?.venue_status !== "closed" && selectedRow?.actual_shift_status !== "closed";
     const submitTimeOff = async () => {
-        if (!selectedRow || !canRequestTimeOff || timeOffBusy) return;
+        if (!selectedRow || !canRequestTimeOff || myPendingTimeOffRequest || timeOffBusy) return;
+        const sessionAtStart = getToken();
+        const authRequest = authSerial.current;
+        const lifecycle = timeOffLifecycle.current;
+        const action = ++timeOffActionSerial.current;
+        const isCurrent = () => authRequest === authSerial.current && authRequest === authEpoch && sessionAtStart === session && sessionAtStart === getToken() && lifecycle === timeOffLifecycle.current && action === timeOffActionSerial.current;
+        if (!sessionAtStart || !isCurrent()) return;
         setTimeOffBusy(true); setTimeOffError(""); setTimeOffMessage("");
         try {
             const created = await timeOffApi.submit(selectedRow.id, timeOffReason);
+            if (!isCurrent()) return;
             setTimeOff(current => [created, ...current.filter(item => item.id !== created.id)]);
             setTimeOffReason(""); setTimeOffMessage(t("Your request was sent to the manager assigned to this day.", "この日の担当マネージャーに申請を送信しました。"));
             window.dispatchEvent(new Event("barticket-time-off-updated"));
-        } catch (err) { setTimeOffError(err instanceof Error ? err.message : String(err)); }
-        finally { setTimeOffBusy(false); }
+        } catch (err) { if (isCurrent()) setTimeOffError(err instanceof Error ? err.message : String(err)); }
+        finally { if (isCurrent()) setTimeOffBusy(false); }
     };
     const decideTimeOff = async (request: TimeOffRequest, decision: "approve" | "decline") => {
         if (timeOffBusy) return;
+        const sessionAtStart = getToken();
+        const authRequest = authSerial.current;
+        const lifecycle = timeOffLifecycle.current;
+        const action = ++timeOffActionSerial.current;
+        const isCurrent = () => authRequest === authSerial.current && authRequest === authEpoch && sessionAtStart === session && sessionAtStart === getToken() && lifecycle === timeOffLifecycle.current && action === timeOffActionSerial.current;
+        if (!sessionAtStart || !isCurrent()) return;
         setTimeOffBusy(true); setTimeOffError(""); setTimeOffMessage("");
         try {
             const updated = await timeOffApi.decide(request.id, decision, request.revision, request.schedule_revision);
+            if (!isCurrent()) return;
             setTimeOff(current => viewer?.role === "manager"
                 ? current.filter(item => item.id !== updated.id)
                 : current.map(item => item.id === updated.id ? updated : item));
@@ -259,8 +294,8 @@ export default function Schedules() {
             window.dispatchEvent(new Event("barticket-time-off-updated"));
             window.dispatchEvent(new Event("barticket-schedules-updated"));
             await load(true);
-        } catch (err) { setTimeOffError(err instanceof Error ? err.message : String(err)); }
-        finally { setTimeOffBusy(false); }
+        } catch (err) { if (isCurrent()) setTimeOffError(err instanceof Error ? err.message : String(err)); }
+        finally { if (isCurrent()) setTimeOffBusy(false); }
     };
     const days = calendarDays(month);
     const visibleWeek = weekDays(selected);
@@ -359,17 +394,20 @@ export default function Schedules() {
                 {selectedRow?.actual_shift_exists ? <p>{t("An actual shift is also recorded. Editing this plan does not change it.", "実際のシフト記録があります。予定を変更しても実績は変わりません。")}</p> : null}
                 {viewer?.role === "manager" && scheduleContext && !selectedIsPast ? <button onClick={() => { setCreating(!selectedRow); setEditing(true); }}>{selectedRow ? t("Edit plan", "予定を編集") : t("Add plan", "予定を追加")}</button> : null}
                 {viewer?.role === "manager" && selectedIsPast ? <ReadOnlyNotice role="status">{t("Past schedule dates are read-only. Historical plans and assignments cannot be changed.", "過去の予定は閲覧のみです。過去の予定や担当者は変更できません。")}</ReadOnlyNotice> : null}
-                {viewer?.role === "staff" && (staffAssignedToSelected || myTimeOffRequest) ? <TimeOffPanel>
+                {viewer?.role === "staff" && (staffAssignedToSelected || myTimeOffRequests.length > 0) ? <TimeOffPanel>
                     <h4>{t("Request time off", "休暇を申請")}</h4>
-                    {myTimeOffRequest ? <>
-                        <p><strong>{t("Status", "状態")}:</strong> {myTimeOffRequest.status === "pending" ? t("Pending manager review", "マネージャーの確認待ち") : myTimeOffRequest.status === "approved" ? t("Approved", "承認済み") : myTimeOffRequest.status === "declined" ? t("Declined", "却下") : t("No longer active", "無効")}</p>
-                        {myTimeOffRequest.reason ? <p>{myTimeOffRequest.reason}</p> : null}
-                    </> : canRequestTimeOff ? <>
+                    {myPendingTimeOffRequest ? <>
+                        <p><strong>{t("Status", "状態")}:</strong> {t("Pending manager review", "マネージャーの確認待ち")}</p>
+                        {myPendingTimeOffRequest.reason ? <p>{myPendingTimeOffRequest.reason}</p> : null}
+                    </> : <>
+                        {latestMyTimeOffRequest ? <p><strong>{t("Last request", "前回の申請")}:</strong> {latestMyTimeOffRequest.status === "approved" ? t("Approved", "承認済み") : latestMyTimeOffRequest.status === "declined" ? t("Declined", "却下") : t("No longer active", "無効")}</p> : null}
+                        {canRequestTimeOff ? <>
                         <label htmlFor="time-off-reason">{t("Short reason (optional)", "理由（任意・簡潔に）")}</label>
                         <TimeOffReason id="time-off-reason" maxLength={500} value={timeOffReason} onChange={event => setTimeOffReason(event.target.value)} placeholder={t("You can leave this blank.", "空欄でも申請できます。")} />
                         <p>{t("A reason is optional. Avoid private medical details.", "理由は任意です。医療などの個人的な詳細は書かないでください。")}</p>
                         <button type="button" className="primary" disabled={timeOffBusy} onClick={() => void submitTimeOff()}>{timeOffBusy ? t("Sending…", "送信中…") : t("Send request", "申請を送る")}</button>
-                    </> : <p>{!selectedRow ? t("The scheduled day is no longer available.", "この日の予定は表示できません。") : !selectedRow.manager?.user_id ? t("A request is unavailable because no linked manager is assigned to this day.", "この日にリンク済みの担当マネージャーがいないため、申請できません。") : t("Time-off requests are available for future or currently running assigned shifts.", "将来または現在進行中で、担当しているシフトのみ申請できます。")}</p>}
+                        </> : <p>{!selectedRow ? t("The scheduled day is no longer available.", "この日の予定は表示できません。") : !selectedRow.manager?.user_id ? t("A request is unavailable because no linked manager is assigned to this day.", "この日にリンク済みの担当マネージャーがいないため、申請できません。") : t("Time-off requests are available for future or currently running assigned shifts.", "将来または現在進行中で、担当しているシフトのみ申請できます。")}</p>}
+                    </>}
                 </TimeOffPanel> : null}
                 {viewer?.role === "manager" && selectedTimeOff.length ? <TimeOffPanel>
                     <h4>{t("Time-off requests", "休暇申請")}</h4>

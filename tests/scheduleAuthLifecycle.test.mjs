@@ -17,22 +17,27 @@ function fixture() {
     const serial = { current: 0 };
     const authSerial = { current: 0 };
     const contextSerial = { current: 0 }, contextFlight = { current: { session: 'A', serial: 0, rerun: false } };
-    const reset = new Function('StorageEvent', 'getToken', 'serial', 'authSerial', 'contextSerial', 'contextFlight', 'store', 'setAuthState', 'setRows', 'setKnownManagers', 'setViewer', 'setScheduleContext', 'setEditing', 'setDetail', handler)(StorageEvent, () => token, serial, authSerial, contextSerial, contextFlight, { reset: next => resets.push(next) }, update => queue.push(update), value => clears.push(['rows', value]), value => clears.push(['names', value]), value => clears.push(['viewer', value]), value => clears.push(['context', value]), value => clears.push(['editing', value]), value => clears.push(['detail', value]));
-    return { reset, serial, authSerial, contextSerial, contextFlight, resets, clears, token: next => { token = next; }, flush: () => { for (const update of queue.splice(0)) state = update(state); return state; } };
+    const timeOffActionSerial = { current: 4 };
+    const reset = new Function('StorageEvent', 'getToken', 'serial', 'authSerial', 'contextSerial', 'contextFlight', 'store', 'setAuthState', 'setRows', 'setKnownManagers', 'setViewer', 'setScheduleContext', 'setEditing', 'setDetail', 'setTimeOff', 'setTimeOffReason', 'setTimeOffBusy', 'setTimeOffError', 'setTimeOffMessage', 'timeOffActionSerial', 'handledDeepLink', handler)(StorageEvent, () => token, serial, authSerial, contextSerial, contextFlight, { reset: next => resets.push(next) }, update => queue.push(update), value => clears.push(['rows', value]), value => clears.push(['names', value]), value => clears.push(['viewer', value]), value => clears.push(['context', value]), value => clears.push(['editing', value]), value => clears.push(['detail', value]), value => clears.push(['timeOff', value]), value => clears.push(['timeOffReason', value]), value => clears.push(['timeOffBusy', value]), value => clears.push(['timeOffError', value]), value => clears.push(['timeOffMessage', value]), timeOffActionSerial, { current: 'A:1' });
+    return { reset, serial, authSerial, contextSerial, contextFlight, timeOffActionSerial, resets, clears, token: next => { token = next; }, flush: () => { for (const update of queue.splice(0)) state = update(state); return state; } };
 }
 test('batched A→B→A auth captures latest token and retires every epoch', () => {
     const f = fixture(); f.token('B'); f.reset({}); f.token('A'); f.reset({});
     assert.deepEqual(f.flush(), { token: 'A', epoch: 2 });
     assert.deepEqual(f.resets, ['B', 'A']); assert.equal(f.serial.current, 2); assert.equal(f.authSerial.current, 2);
     assert.equal(f.contextSerial.current, 2); assert.equal(f.contextFlight.current, null);
+    assert.equal(f.timeOffActionSerial.current, 6);
     assert.equal(f.clears.filter(([field]) => field === 'rows').length, 2);
     assert.equal(f.clears.filter(([field]) => field === 'context').length, 2);
+    assert.deepEqual(f.clears.filter(([field]) => field === 'timeOffReason'), [['timeOffReason', ''], ['timeOffReason', '']]);
+    assert.deepEqual(f.clears.filter(([field]) => field === 'timeOffBusy'), [['timeOffBusy', false], ['timeOffBusy', false]]);
 });
 test('same-token authorization refresh retires cached reads and reloads viewer and visible range', () => {
     const f = fixture(); f.reset({});
     assert.deepEqual(f.flush(), { token: 'A', epoch: 1 });
     assert.deepEqual(f.resets, ['A']); assert.equal(f.serial.current, 1);
     assert.equal(f.contextSerial.current, 1); assert.equal(f.contextFlight.current, null);
+    assert.equal(f.timeOffActionSerial.current, 5);
     assert.match(source, /\[from, to, session, authEpoch\]/);
     assert.match(source, /authEpoch !== authSerial.current \|\| !session/);
     assert.match(source, /requestAuth === authSerial.current && session === getToken\(\)/);

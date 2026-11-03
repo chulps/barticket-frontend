@@ -63,16 +63,24 @@ export default function Notifications() {
 
     useEffect(() => {
         let active = true;
+        let authEpoch = 0;
+        let requestSerial = 0;
         const refreshTimeOff = () => {
-            void timeOffApi.inbox().then(items => { if (active) setTimeOffItems(items); }).catch(() => { if (active) setTimeOffItems([]); });
+            const request = ++requestSerial;
+            const token = getToken();
+            const epoch = authEpoch;
+            if (!token) { setTimeOffItems([]); return; }
+            const isCurrent = () => active && epoch === authEpoch && request === requestSerial && token === getToken();
+            void timeOffApi.inbox().then(items => { if (isCurrent()) setTimeOffItems(items); })
+                .catch(() => { if (isCurrent()) setTimeOffItems([]); });
         };
-        const authChanged = () => { setTimeOffItems([]); refreshTimeOff(); };
+        const authChanged = () => { authEpoch++; requestSerial++; setTimeOffItems([]); refreshTimeOff(); };
         refreshTimeOff();
         const timer = window.setInterval(() => { if (shouldPoll()) refreshTimeOff(); }, 20000);
         window.addEventListener("barticket-time-off-updated", refreshTimeOff);
         window.addEventListener("barticket-auth", authChanged);
         return () => {
-            active = false; window.clearInterval(timer);
+            active = false; authEpoch++; requestSerial++; window.clearInterval(timer);
             window.removeEventListener("barticket-time-off-updated", refreshTimeOff);
             window.removeEventListener("barticket-auth", authChanged);
         };
