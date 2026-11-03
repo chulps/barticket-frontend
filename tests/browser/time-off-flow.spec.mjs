@@ -75,7 +75,7 @@ test("staff submits an optional-reason request and sees pending state on mobile"
   await expect(page.getByLabel("Short reason (optional)")).toBeVisible();
   await page.getByLabel("Short reason (optional)").fill("Family commitment");
   await page.getByRole("button", { name: "Send request", exact: true }).click();
-  await expect(page.getByText("Pending manager review", { exact: true })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Selected day" }).getByText("Pending manager review")).toBeVisible();
   expect(state.writes.filter(write => write.path === "/time-off/requests")[0].payload.reason).toBe("Family commitment");
   await page.screenshot({ path: info.outputPath("staff-time-off-pending-mobile.png"), fullPage: true });
 });
