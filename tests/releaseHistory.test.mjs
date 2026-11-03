@@ -85,6 +85,9 @@ test('current release note manifest is bilingual, reviewed, and contains only fe
  assert.ok(current.title.en.length&&current.title.ja.length);
  assert.ok(current.features.en.length>0&&current.features.en.length<=5);
  assert.equal(current.features.en.length,current.features.ja.length);
+ assert.match(current.title.en,/Manage app update history/);
+ assert.match(current.features.en.join(' '),/five updates at a time.*dismiss releases per account.*restore them later/i);
+ assert.match(current.features.ja.join(' '),/5件ずつ表示.*アカウントごとに非表示.*後から再表示/);
 });
 test('fetch is same-origin metadata, uncached, abortable and carries no API token',async()=>{
  const calls=[],signal=new AbortController().signal;

@@ -156,16 +156,17 @@ export default function ReleaseHistory({ viewerId, viewerStatus }: { viewerId: n
                 </ItemAction> : null}
             </li>;
         })}</List> : null}
-        {releases && shownReleases.length < (showDismissed ? dismissedReleases.length : activeReleases.length) ? <button type="button" className="small hollow secondary" onClick={() => setVisible(value => value + 5)}>{ja ? "更新を5件追加で表示" : "Load 5 more updates"}</button> : null}
+        {releases && shownReleases.length < (showDismissed ? dismissedReleases.length : activeReleases.length) ? <LoadMore type="button" className="small hollow secondary" onClick={() => setVisible(value => value + 5)}>{ja ? "更新を5件追加で表示" : "Load 5 more updates"}</LoadMore> : null}
     </Section>;
 }
 
 const Section = styled.section`margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--neutral-700); h3 { font-size: var(--font-size-h4); line-height: 1.4; margin: 0 0 var(--space-1); }`;
 const Intro = styled.p`color: var(--neutral-200); margin: 0 0 var(--space-2); font-size: var(--font-size-p);`;
-const Controls = styled.div`display: flex; flex-wrap: wrap; gap: var(--space-1); margin: 0 0 var(--space-1);`;
+const Controls = styled.div`display: flex; flex-wrap: wrap; gap: var(--space-1); margin: 0 0 var(--space-1); && button { min-height: 44px; padding: 0.55rem 0.75rem; font-size: max(var(--font-size-p), 1rem); }`;
 const Subheading = styled.h4`font-size: var(--font-size-p); margin: var(--space-2) 0 0;`;
 const List = styled.ol`list-style: none; margin: 0; padding: 0; li { padding: var(--space-2) 0; border-bottom: 1px solid var(--neutral-700); } li:last-child { border-bottom: 0; }`;
 const Title = styled.p`margin: 0 0 0.35rem; font-weight: 600; overflow-wrap: anywhere;`;
 const FeatureList = styled.ul`margin: 0 0 var(--space-1); padding-inline-start: 1.25rem; color: var(--neutral-100); font-size: var(--font-size-p); line-height: 1.5; overflow-wrap: anywhere; li { padding: 0; margin: 0 0 0.25rem; border: 0; } li:last-child { margin-bottom: 0; }`;
 const Meta = styled.p`margin: 0; color: var(--neutral-200); font-size: var(--font-size-p); line-height: 1.5; overflow-wrap: anywhere; code { color: inherit; }`;
-const ItemAction = styled.button`margin-top: var(--space-1);`;
+const ItemAction = styled.button`&& { margin-top: var(--space-1); min-height: 44px; padding: 0.55rem 0.75rem; font-size: var(--font-size-p); }`;
+const LoadMore = styled.button`&& { min-height: 44px; padding: 0.55rem 0.75rem; font-size: var(--font-size-p); }`;

@@ -36,6 +36,17 @@ jobs:
         run: npm install --no-save --package-lock=false @playwright/test@1.56.1
       - name: Install isolated Chromium
         run: npx playwright install --with-deps chromium
+      # Fail fast on this changed surface; the full suite below remains mandatory.
+      - name: App update history recovery preflight
+        run: npx playwright test --config=playwright.config.mjs tests/browser/release-history.spec.mjs
+      - name: Preserve focused app update history visuals
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-update-history-preflight-visuals
+          path: test-results/**/audit-release-history*.png
+          if-no-files-found: warn
+          retention-days: 5
       - name: Run mocked browser tests
         run: npx playwright test --config=playwright.config.mjs
       - name: Preserve pay UI fixture screenshots before continuity tests

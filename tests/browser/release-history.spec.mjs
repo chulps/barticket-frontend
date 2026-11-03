@@ -35,6 +35,11 @@ for(const locale of ['en','ja'])for(const width of [320,390,768])test(`release h
  await expect(unknownRelease.locator('ul')).toHaveCount(0);
  expect(await section.locator('p').last().evaluate(e=>parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(14);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ for (const button of await section.getByRole('button').all()) {
+  const metrics=await button.evaluate(element=>({height:element.getBoundingClientRect().height,font:parseFloat(getComputedStyle(element).fontSize)}));
+  expect(metrics.height).toBeGreaterThanOrEqual(44);
+  expect(metrics.font).toBeGreaterThanOrEqual(14);
+ }
  await page.screenshot({path:testInfo.outputPath(`audit-release-history-manage-${locale}-${width}.png`),fullPage:true});
  await section.getByRole('button',{name:locale==='ja'?'更新を5件追加で表示':'Load 5 more updates'}).click();await expect(section.locator('ol > li')).toHaveCount(10);
  await section.getByRole('button',{name:locale==='ja'?'更新を5件追加で表示':'Load 5 more updates'}).click();await expect(section.locator('ol > li')).toHaveCount(12);
@@ -97,12 +102,19 @@ test('dismissals stay isolated across accounts and logout',async({page})=>{
  await section.getByRole('button',{name:'View dismissed updates (1)'}).click();
  await expect(section.locator('ol > li').first()).toContainText('Schedule calendar and ticket updates');
  await page.evaluate(()=>{localStorage.removeItem('barticket_token');window.dispatchEvent(new Event('barticket-auth'));});
- await expect(section.locator('ol > li').first()).toContainText('Schedule calendar and ticket updates');
- await expect(section.getByRole('group',{name:'Manage app updates'})).toHaveCount(0);
+ await expect(page.getByRole('heading',{name:'Account'})).toBeVisible();
+ await expect(page.getByRole('region',{name:'App updates'})).toHaveCount(0);
+ expect(await page.evaluate(()=>[localStorage.getItem('barticket:release-dismissals:v1:7'),localStorage.getItem('barticket:release-dismissals:v1:8')])).toEqual([
+  '{"schema":1,"accountId":7,"dismissedIds":["100:1"]}',
+  '{"schema":1,"accountId":8,"dismissedIds":["99:1"]}',
+ ]);
  await page.evaluate(()=>{localStorage.setItem('barticket_token','TEST_ONLY_8');window.dispatchEvent(new Event('barticket-auth'));});
- await expect(section.getByRole('button',{name:'View dismissed updates (1)'})).toBeVisible();
- await section.getByRole('button',{name:'View dismissed updates (1)'}).click();
- await expect(section.locator('ol > li').first()).toContainText('Sound settings, Team Pay and menus');
+ await expect(page).toHaveURL(/\/tickets$/);
+ await page.getByRole('link',{name:'Notifications',exact:true}).click();
+ const afterLogout=page.getByRole('region',{name:'App updates'});
+ await expect(afterLogout.getByRole('button',{name:'View dismissed updates (1)'})).toBeVisible();
+ await afterLogout.getByRole('button',{name:'View dismissed updates (1)'}).click();
+ await expect(afterLogout.locator('ol > li').first()).toContainText('Sound settings, Team Pay and menus');
  expect(await page.evaluate(()=>[localStorage.getItem('barticket:release-dismissals:v1:7'),localStorage.getItem('barticket:release-dismissals:v1:8')])).toEqual([
   '{"schema":1,"accountId":7,"dismissedIds":["100:1"]}',
   '{"schema":1,"accountId":8,"dismissedIds":["99:1"]}',

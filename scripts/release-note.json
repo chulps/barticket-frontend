@@ -1,14 +1,14 @@
 {
   "title": {
-    "en": "Clearer app updates",
-    "ja": "アプリ更新内容を分かりやすく"
+    "en": "Manage app update history",
+    "ja": "アプリ更新履歴を管理"
   },
   "features": {
     "en": [
-      "App updates now explain the features launched in each reviewed release in English and Japanese."
+      "View five updates at a time, dismiss releases per account, and restore them later."
     ],
     "ja": [
-      "アプリ更新履歴に、確認済みリリースで公開された機能を日本語と英語で表示します。"
+      "アプリ更新を5件ずつ表示し、アカウントごとに非表示にして後から再表示できます。"
     ]
   }
 }
