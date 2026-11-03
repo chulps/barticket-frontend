@@ -14,6 +14,12 @@ type TabGroupProps<T extends string> = {
   label?: string;
   mobileColumns?: number;
   fitLabels?: boolean;
+  /** Render a proper ARIA tablist while keeping the shared animated indicator. */
+  semantics?: "group" | "tabs";
+  /** Stable prefix used to associate tabs with their panels. Required for `tabs`. */
+  idPrefix?: string;
+  /** Let a parent provide the surrounding border and rounded container. */
+  unframed?: boolean;
   /** Optional wrapping grid; keeps the shared visual/interaction contract. */
   responsiveColumns?: readonly { minWidth: number; columns: number }[];
 };
@@ -26,6 +32,9 @@ export default function TabGroup<T extends string>({
   mobileColumns,
   fitLabels,
   responsiveColumns,
+  semantics = "group",
+  idPrefix,
+  unframed = false,
 }: TabGroupProps<T>) {
     const activeIndex = tabs.findIndex(tab => tab.id === activeTab);
     const viewport = useRef<HTMLDivElement>(null);
@@ -81,7 +90,9 @@ export default function TabGroup<T extends string>({
     }
 
     return (
-        <Viewport ref={viewport} role="group" aria-label={label ?? tabs.map(tab => tab.label).join(" / ")}>
+        <Viewport ref={viewport} $unframed={unframed} role={semantics === "tabs" ? "tablist" : "group"}
+            aria-orientation={semantics === "tabs" ? "horizontal" : undefined}
+            aria-label={label ?? tabs.map(tab => tab.label).join(" / ")}>
             <Track ref={track} $mobileColumns={mobileColumns} $fitLabels={fitLabels} $responsiveColumns={responsiveColumns}>
                 {activeIndex >= 0 && indicator.width > 0 && <IndicatorClip aria-hidden="true" data-tab-indicator-clip>
                     <Indicator data-tab-indicator $left={indicator.left} $top={indicator.top} $width={indicator.width} $height={indicator.height} />
@@ -91,7 +102,12 @@ export default function TabGroup<T extends string>({
                         key={tab.id}
                         ref={node => { buttons.current[index] = node; }}
                         type="button"
-                        aria-pressed={tab.id === activeTab}
+                        id={semantics === "tabs" && idPrefix ? `${idPrefix}-tab-${tab.id}` : undefined}
+                        role={semantics === "tabs" ? "tab" : undefined}
+                        aria-controls={semantics === "tabs" && idPrefix ? `${idPrefix}-panel-${tab.id}` : undefined}
+                        aria-selected={semantics === "tabs" ? tab.id === activeTab : undefined}
+                        aria-pressed={semantics === "group" ? tab.id === activeTab : undefined}
+                        tabIndex={semantics === "tabs" ? (tab.id === activeTab ? 0 : -1) : undefined}
                         $active={tab.id === activeTab}
                         onClick={() => onChange(tab.id)}
                         onKeyDown={event => handleArrow(event, index)}
@@ -104,12 +120,12 @@ export default function TabGroup<T extends string>({
     );
 }
 
-const Viewport = styled.div`
+const Viewport = styled.div<{ $unframed?: boolean }>`
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  border: 1px solid var(--neutral-700);
-  border-radius: var(--space-1);
+  border: ${({ $unframed }) => $unframed ? "0" : "1px solid var(--neutral-700)"};
+  border-radius: ${({ $unframed }) => $unframed ? "0" : "var(--space-1)"};
   scrollbar-width: none;
 
   &::-webkit-scrollbar { display: none; }

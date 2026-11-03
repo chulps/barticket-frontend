@@ -131,6 +131,8 @@
   --success-300: #6ddfa0;
   --success-200: #9aeabe;
   --success-100: #cbf4dd;
+  /* Calendar-only semantic accent for special event plans. */
+  --event-400: #b99cff;
 
   --warning-950: #1a170a;
   --warning-900: #4E4B35;
