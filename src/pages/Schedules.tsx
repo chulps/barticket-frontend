@@ -52,8 +52,7 @@ export default function Schedules() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [timeOff, setTimeOff] = useState<TimeOffRequest[]>([]);
     const [reservations, setReservations] = useState<Reservation[]>([]);
-    const [assignedReservations, setAssignedReservations] = useState<Reservation[]>([]);
-    const [unassignedReservations, setUnassignedReservations] = useState<Reservation[]>([]);
+    const [managerInboxReservations, setManagerInboxReservations] = useState<Reservation[]>([]);
     const [reservationBusy, setReservationBusy] = useState(false);
     const [reservationError, setReservationError] = useState("");
     const [reservationMessage, setReservationMessage] = useState("");
@@ -126,8 +125,7 @@ export default function Schedules() {
             Promise.all([reservationsApi.list(from, to), reservationsApi.inbox()]).then(([items, inbox]) => {
                 if (active && requestSerial === current && isCurrentAuthRequest(requestAuth, authSerial.current, session, getToken()) && requestAuth === authEpoch) {
                     setReservations(items);
-                    setAssignedReservations(inbox.assigned_pending_requests ?? []);
-                    setUnassignedReservations(inbox.unassigned_requests);
+                    setManagerInboxReservations(inbox.pending_requests);
                     setReservationError("");
                 }
             });
@@ -247,7 +245,7 @@ export default function Schedules() {
             contextFlight.current = null;
             store.reset(nextToken);
             setAuthState(current => ({ token: nextToken, epoch: current.epoch + 1 }));
-            setRows([]); setKnownManagers([]); setReservations([]); setAssignedReservations([]); setUnassignedReservations([]); setReservationBusy(false); setReservationError(""); setReservationMessage(""); setViewer(null); setScheduleContext(null); setEditing(false); setDetail(false);
+            setRows([]); setKnownManagers([]); setReservations([]); setManagerInboxReservations([]); setReservationBusy(false); setReservationError(""); setReservationMessage(""); setViewer(null); setScheduleContext(null); setEditing(false); setDetail(false);
             pendingDayDefault.current = null;
             timeOffActionSerial.current++;
             setTimeOff([]); setTimeOffReason(""); setTimeOffBusy(false); setTimeOffError(""); setTimeOffMessage(""); handledDeepLink.current = "";
@@ -522,19 +520,13 @@ export default function Schedules() {
                 />
             </ScheduleControls>
         </Toolbar>
-        {viewer?.role === "manager" && unassignedReservations.length > 0 ? <ReservationPanel aria-label={t("Unassigned reservation inbox", "担当未割当の予約確認箱")}>
-            <h4>{t("Manager inbox · unassigned requests", "マネージャー確認箱 · 担当未割当")}</h4>
-            {unassignedReservations.map(request => <ReservationInboxItem key={request.id}>
+        {viewer?.role === "manager" && managerInboxReservations.length > 0 ? <ReservationPanel aria-label={t("Manager reservation inbox", "マネージャーの予約確認箱")}>
+            <h4>{t("Manager inbox · pending requests", "マネージャー確認箱 · 確認待ち")}</h4>
+            {managerInboxReservations.map(request => <ReservationInboxItem key={request.id}>
                 <ReservationTopline><strong>{request.guest_name} · {request.party_size} {t("guests", "名")}</strong><span>{request.business_date}</span></ReservationTopline>
                 <p>{new Intl.DateTimeFormat(ja ? "ja-JP" : "en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Tokyo" }).format(new Date(request.arrival_at))} JST · {request.reference}</p>
-                <button type="button" className="secondary" onClick={() => { setSelected(request.business_date); setMonth(request.business_date.slice(0, 7)); setMode("day"); setDetail(true); }}>{t("Review request", "リクエストを確認")}</button>
-            </ReservationInboxItem>)}
-        </ReservationPanel> : null}
-        {viewer?.role === "manager" && assignedReservations.length > 0 ? <ReservationPanel aria-label={t("Assigned reservation inbox", "担当予約の確認箱")}>
-            <h4>{t("Manager inbox · assigned requests", "マネージャー確認箱 · 担当予約")}</h4>
-            {assignedReservations.map(request => <ReservationInboxItem key={request.id}>
-                <ReservationTopline><strong>{request.guest_name} · {request.party_size} {t("guests", "名")}</strong><span>{request.business_date}</span></ReservationTopline>
-                <p>{new Intl.DateTimeFormat(ja ? "ja-JP" : "en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Tokyo" }).format(new Date(request.arrival_at))} JST · {request.reference}</p>
+                {request.note ? <p><strong>{t("Guest note", "ゲストのメモ")}: </strong>{request.note}</p> : null}
+                {request.note_translation ? <p><strong>{request.note_translation_language === "ja" ? t("Japanese translation", "日本語訳") : t("English translation", "英訳")}: </strong>{request.note_translation}</p> : request.note && request.note_translation_status !== "not_requested" ? <p>{request.note_translation_status === "pending" ? t("Translation is processing; the original note is shown.", "翻訳中です。元のメモを表示しています。") : t("Translation is unavailable; the original note is shown.", "翻訳を利用できません。元のメモを表示しています。")}</p> : null}
                 <button type="button" className="secondary" onClick={() => { setSelected(request.business_date); setMonth(request.business_date.slice(0, 7)); setMode("day"); setDetail(true); }}>{t("Review request", "リクエストを確認")}</button>
             </ReservationInboxItem>)}
         </ReservationPanel> : null}
@@ -618,7 +610,8 @@ export default function Schedules() {
                         <p>{new Intl.DateTimeFormat(ja ? "ja-JP" : "en-US", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Tokyo" }).format(new Date(request.arrival_at))} JST · {request.reference}</p>
                         <p><a href={`mailto:${encodeURIComponent(request.contact_email || "")}`}>{request.contact_email}</a>{request.contact_phone ? ` · ${request.contact_phone}` : ""}</p>
                         {request.note ? <p>{request.note}</p> : null}
-                        {request.email_status ? <p>{t("Guest email", "ゲストメール")}: {request.email_status}</p> : null}
+                        {request.note_translation ? <p><strong>{request.note_translation_language === "ja" ? t("Japanese translation", "日本語訳") : t("English translation", "英訳")}: </strong>{request.note_translation}</p> : request.note && request.note_translation_status !== "not_requested" ? <p>{request.note_translation_status === "pending" ? t("Translation is processing; the original note is shown.", "翻訳中です。元のメモを表示しています。") : t("Translation is unavailable; the original note is shown.", "翻訳を利用できません。元のメモを表示しています。")}</p> : null}
+                        {request.email_status ? <p>{t("Guest email status", "ゲストメールの状態")}: {({ accepted: t("Accepted", "受付済み"), failed: t("Failed", "失敗"), unknown: t("Unknown", "不明"), sending: t("Sending", "送信中"), queued: t("Queued", "保留中"), superseded: t("Superseded", "更新済み"), not_requested: t("Not requested", "未依頼"), not_enabled: t("Disabled", "無効") } as const)[request.email_status] ?? request.email_status}</p> : null}
                         {request.manager_user_id === null ? <p>{t("Unassigned manager · fallback inbox", "担当未割当・共有確認箱")}</p> : null}
                         {request.status === "pending" ? <ReservationActions>
                             <button type="button" className="primary" disabled={reservationBusy} onClick={() => void decideReservation(request, "approve")}>{t("Approve", "承認")}</button>

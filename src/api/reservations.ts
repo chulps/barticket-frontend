@@ -10,6 +10,9 @@ export type Reservation = {
     contact_email: string | null;
     contact_phone: string | null;
     note: string | null;
+    note_translation: string | null;
+    note_translation_language: "en" | "ja" | null;
+    note_translation_status: "not_requested" | "pending" | "translated" | "unavailable";
     manager_user_id: number | null;
     status: "pending" | "approved" | "declined" | "canceled";
     revision: number;
@@ -21,8 +24,7 @@ export type Reservation = {
 
 export type ReservationInbox = {
     notifications: { id: number; reservation_id: number; is_read: boolean; created_at: string }[];
-    assigned_pending_requests?: Reservation[];
-    unassigned_requests: Reservation[];
+    pending_requests: Reservation[];
 };
 
 export const reservationsApi = {
