@@ -33,6 +33,8 @@ export default function Notifications() {
     const [loading, setLoading] = useState(true);
     const [loadFailed, setLoadFailed] = useState(false);
     const [isManager, setIsManager] = useState(false);
+    const [viewerId, setViewerId] = useState<number | null>(null);
+    const [viewerStatus, setViewerStatus] = useState<"checking" | "ready" | "anonymous" | "unavailable">("checking");
     // Serialize restocks and reject responses from refreshes started before a write.
     const pendingRestock = useRef(false);
     const revision = useRef(0);
@@ -102,11 +104,19 @@ export default function Notifications() {
             const generation = ++roleGeneration;
             const token = getToken();
             setIsManager(false);
-            if (!token) return;
+            setViewerId(null);
+            if (!token) { setViewerStatus("anonymous"); return; }
+            setViewerStatus("checking");
             try {
                 const me = await accountApi.me();
-                if (!cancelled && generation === roleGeneration && token === getToken()) setIsManager(me.role === "manager");
-            } catch { /* Fail closed until the next authenticated refresh. */ }
+                if (!cancelled && generation === roleGeneration && token === getToken()) {
+                    if (Number.isSafeInteger(me.id) && me.id > 0) {
+                        setViewerId(me.id);
+                        setViewerStatus("ready");
+                        setIsManager(me.role === "manager");
+                    } else setViewerStatus("unavailable");
+                }
+            } catch { if (!cancelled && generation === roleGeneration && token === getToken()) setViewerStatus("unavailable"); }
         };
         void loadRole();
         window.addEventListener("barticket-users-updated", loadRole);
@@ -117,6 +127,7 @@ export default function Notifications() {
         window.addEventListener("barticket-api-restored", load);
         return () => {
             cancelled = true;
+            roleGeneration++;
             window.removeEventListener("barticket-users-updated", loadRole);
             window.removeEventListener("barticket-auth", loadRole);
             window.clearInterval(timer);
@@ -198,7 +209,7 @@ export default function Notifications() {
                 ))
                 : null}
             <NotificationActivity activeStockIds={!denied ? notices?.notices.map(notice => notice.id) ?? [] : []} />
-            <ReleaseHistory />
+            <ReleaseHistory key={viewerId ?? "anonymous"} viewerId={viewerId} viewerStatus={viewerStatus} />
         </main>
     );
 }

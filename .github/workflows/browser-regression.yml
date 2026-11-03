@@ -36,6 +36,17 @@ jobs:
         run: npm install --no-save --package-lock=false @playwright/test@1.56.1
       - name: Install isolated Chromium
         run: npx playwright install --with-deps chromium
+      # Run this changed surface first and preserve its evidence independently.
+      - name: App update history recovery preflight
+        run: npx playwright test --config=playwright.config.mjs tests/browser/release-history.spec.mjs
+      - name: Preserve focused app update history visuals
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-update-history-preflight-visuals
+          path: test-results/**/audit-release-history*.png
+          if-no-files-found: warn
+          retention-days: 5
       # Fail fast on the changed Schedule surfaces before the full release gate.
       - name: Schedule recovery preflight (not a release gate by itself)
         run: npx playwright test --config=playwright.config.mjs tests/browser/schedule-calendar.spec.mjs tests/browser/schedule-audit.spec.mjs tests/browser/pos-flow.spec.mjs
