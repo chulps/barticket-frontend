@@ -38,7 +38,8 @@ test('continuity output is separate and retained alongside original browser evid
   assert.match(deployment, /outputDir: '\.\/deployment-test-results'/);
   assert.doesNotMatch(mocked, /outputDir:/); // Existing Playwright default: test-results.
   assert.match(workflow, /name: browser-regression-results[\s\S]*?playwright-report\/[\s\S]*?test-results\/[\s\S]*?deployment-test-results\//);
-  assert.equal((workflow.match(/retention-days: 5/g) || []).length, 5);
+  assert.equal((workflow.match(/retention-days: 5/g) || []).length, 6);
+  assert.match(workflow, /name: app-update-history-preflight-visuals[\s\S]*?path: test-results\/\*\*\/audit-release-history\*\.png/);
   assert.match(workflow, /run: npx playwright test --config=playwright.config.mjs\n/);
   assert.match(workflow, /run: npx playwright test --config=playwright.deployment.config.mjs\n/);
   assert.doesNotMatch(workflow, /--grep|--shard|--workers|continue-on-error/);

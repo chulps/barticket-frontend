@@ -14,11 +14,23 @@ export type ScheduledShift = {
     business_date: string;
     schedule_state: "upcoming" | "today" | "past";
     actual_shift_exists: boolean;
+    actual_shift_status: "open" | "closed" | null;
+    actual_shift_closed_at: string | null;
+    venue_status: "open" | "closed" | null;
+    venue_event: string | null;
     manager: ScheduledPerson | null;
     staff: ScheduledPerson[];
     event_value: string | null;
+    schedule_type?: "open" | "event" | "closed";
+    event_notes?: string | null;
     hours: null;
     provenance: ScheduledShiftSource[];
+};
+export type ScheduleContext = {
+    operational_business_date: string;
+    calendar_business_date: string;
+    actual_shift_status: "open" | "closed" | null;
+    actual_shift_business_date: string | null;
 };
 export type ScheduleSourceRow = {
     business_date: string;
@@ -43,6 +55,7 @@ export type SchedulePreview = {
 };
 
 export const scheduledShiftsApi = {
+    context: () => apiRequest<ScheduleContext>("/schedules/context"),
     list: (dateFrom: string, dateTo: string) =>
         apiRequest<ScheduledShift[]>(`/schedules?date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`),
     reconcile: (source_file: string, rows: ScheduleSourceRow[]) =>
@@ -59,6 +72,8 @@ export type ScheduleDraft = {
     business_date: string;
     manager: ScheduledPerson | null;
     staff: ScheduledPerson[];
+    schedule_type: "open" | "event" | "closed";
+    event_notes: string | null;
     event_value: string | null;
 };
 export const scheduleEditorApi = {
