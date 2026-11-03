@@ -4,6 +4,7 @@ import { Navigate, useLocation, useMatch, useNavigate, useParams } from "react-r
 import styled from "styled-components";
 import RequestState from "../components/RequestState";
 import TabGroup from "../components/TabGroup";
+import TemporarySmtpTest from "../components/TemporarySmtpTest";
 
 import { accountApi, type Account, type ShiftReport } from "../api/account";
 import { ApiError, getToken } from "../api/client";
@@ -271,6 +272,7 @@ export default function Admin() {
                 <h1>{locale === "ja" ? "管理" : "Admin"}</h1>
                 <p>{locale === "ja" ? "管理者向けのアカウント管理画面です。" : "Manager-only account management."}</p>
             </header>
+            {sectionParams.get("smtp-test") === "1" ? <TemporarySmtpTest locale={locale} /> : null}
             {refreshing ? <p role="status">{locale === "ja" ? "最新情報を確認中…" : "Checking for updates…"}</p> : null}
             {error ? <ErrorText role="alert">{error}</ErrorText> : null}
             <MobileSectionPicker>
