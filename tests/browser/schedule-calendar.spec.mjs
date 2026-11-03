@@ -96,19 +96,36 @@ test('unrelated storage leaves manager controls; create is new; dirty Back and F
  page.once('dialog',d=>d.dismiss());await page.evaluate(()=>history.back());await expect(page.getByLabel('Event notes',{exact:true})).toHaveValue('Unsaved new event');
  page.once('dialog',d=>d.dismiss());await page.evaluate(()=>history.back());await expect(page.getByLabel('Event notes',{exact:true})).toHaveValue('Unsaved new event');
 });
-test('healthy schedule socket suppresses minute reads while shift invalidation and fallback still refresh',async({page})=>{
- const state=await setup(page);let socket,provideReady=true;
- await page.routeWebSocket('**/realtime/ws',peer=>{socket=peer;peer.onMessage(message=>{if(JSON.parse(message).type==='authenticate'&&provideReady)peer.send(JSON.stringify({type:'ready',version:1,cursor:0}));});});
- await page.goto('/schedules');await expect(page.getByText('Haruka').first()).toBeVisible();await expect.poll(()=>!!socket).toBe(true);await page.clock.runFor(100);
- let reads=state.reads.length,contexts=state.contextReads.length;await page.clock.fastForward(60000);expect(state.reads.length).toBe(reads);expect(state.contextReads.length).toBe(contexts);
+test('healthy socket stops polling, a disconnect resumes it, and reconnect stops it again',async({page})=>{
+ const state=await setup(page);let ready=true,readyCount=0;const sockets=[];
+ await page.routeWebSocket('**/realtime/ws',peer=>{sockets.push(peer);peer.onMessage(message=>{if(JSON.parse(message).type==='authenticate'&&ready){readyCount++;peer.send(JSON.stringify({type:'ready',version:1,cursor:0}));}});});
+ await page.goto('/schedules');await expect(page.getByText('Haruka').first()).toBeVisible();await expect.poll(()=>readyCount).toBe(1);await page.clock.runFor(100);
+ const heartbeat=()=>sockets.at(-1)?.send(JSON.stringify({type:'heartbeat',version:1,cursor:0,scopes:[]}));
+ const healthyMinute=async()=>{for(let i=0;i<6;i++){heartbeat();await page.clock.runFor(10000);}};
+ let reads=state.reads.length,contexts=state.contextReads.length;await healthyMinute();expect(state.reads.length).toBe(reads);expect(state.contextReads.length).toBe(contexts);
  await page.evaluate(()=>window.dispatchEvent(new Event('barticket-shift-updated')));await expect.poll(()=>state.reads.length).toBeGreaterThan(reads);await expect.poll(()=>state.contextReads.length).toBeGreaterThan(contexts);
- reads=state.reads.length;contexts=state.contextReads.length;provideReady=false;socket.close({code:1012,reason:'fixture disconnect'});await page.clock.runFor(100);await page.clock.fastForward(60000);expect(state.reads.length).toBeGreaterThan(reads);expect(state.contextReads.length).toBeGreaterThan(contexts);
+ const beforeDisconnectReads=state.reads.length,beforeDisconnectContexts=state.contextReads.length;
+ ready=false;sockets.at(-1).close({code:1012,reason:'fixture disconnect'});await page.clock.runFor(100);
+ await expect.poll(()=>state.reads.length).toBeGreaterThan(beforeDisconnectReads);await expect.poll(()=>state.contextReads.length).toBeGreaterThan(beforeDisconnectContexts);
+ // Let the disconnect invalidation settle, then prove the later minute tick polls.
+ await page.clock.runFor(5000);reads=state.reads.length;contexts=state.contextReads.length;
+ for(let i=0;i<6;i++)await page.clock.runFor(10000);
+ expect(state.reads.length).toBeGreaterThan(reads);expect(state.contextReads.length).toBeGreaterThan(contexts);
+ // A new ready generation recovers the socket. Its catch-up refresh is immediate;
+ // the following healthy minute ticks should be quiet again.
+ ready=true;const previousReadyCount=readyCount,beforeReconnectReads=state.reads.length,beforeReconnectContexts=state.contextReads.length;
+ for(let i=0;i<45&&readyCount===previousReadyCount;i++)await page.clock.runFor(1000);
+ await expect.poll(()=>readyCount).toBeGreaterThan(previousReadyCount);
+ await expect.poll(()=>state.reads.length).toBeGreaterThan(beforeReconnectReads);await expect.poll(()=>state.contextReads.length).toBeGreaterThan(beforeReconnectContexts);
+ await page.clock.runFor(100);reads=state.reads.length;contexts=state.contextReads.length;
+ await healthyMinute();expect(state.reads.length).toBe(reads);expect(state.contextReads.length).toBe(contexts);
 });
-test('healthy schedule socket still refreshes authoritative context at the Tokyo business-day rollover',async({page})=>{
- const state=await setup(page,'en','manager','2026-11-02T02:59:00Z');
- await page.routeWebSocket('**/realtime/ws',peer=>{peer.onMessage(message=>{if(JSON.parse(message).type==='authenticate')peer.send(JSON.stringify({type:'ready',version:1,cursor:0}));});});
- await page.goto('/schedules');await expect(page.getByText('Haruka').first()).toBeVisible();const reads=state.reads.length,contexts=state.contextReads.length;
- await page.clock.fastForward(60000);await expect(page.locator('[aria-current="date"]')).toHaveAttribute('aria-label','Monday, November 2, 2026');
+test('healthy schedule socket refreshes authoritative context at Tokyo rollover without minute polling',async({page})=>{
+ const state=await setup(page,'en','manager','2026-11-02T02:59:00Z');let socket,readyCount=0;
+ await page.routeWebSocket('**/realtime/ws',peer=>{socket=peer;peer.onMessage(message=>{if(JSON.parse(message).type==='authenticate'){readyCount++;peer.send(JSON.stringify({type:'ready',version:1,cursor:0}));}});});
+ await page.goto('/schedules');await expect(page.getByText('Haruka').first()).toBeVisible();await expect.poll(()=>readyCount).toBe(1);const reads=state.reads.length,contexts=state.contextReads.length;
+ for(let i=0;i<6;i++){socket.send(JSON.stringify({type:'heartbeat',version:1,cursor:0,scopes:[]}));await page.clock.runFor(10000);}
+ await expect(page.locator('[aria-current="date"]')).toHaveAttribute('aria-label','Monday, November 2, 2026');
  expect(state.reads.length).toBe(reads);expect(state.contextReads.length).toBeGreaterThan(contexts);
 });
 test('hidden interval requests nothing and returning visible coalesces one refresh',async({page})=>{
