@@ -1,7 +1,9 @@
+import { useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import styled from "styled-components";
 import { scheduledShiftsApi, type ScheduledShift, type ScheduledPerson, type ScheduleContext } from "../api/scheduledShifts";
 import { accountApi, type Account } from "../api/account";
+import { timeOffApi, type TimeOffRequest } from "../api/timeOff";
 import { getToken } from "../api/client";
 import { businessDateJst } from "./shiftControlPolicy";
 import { useI18n } from "../i18n";
@@ -27,7 +29,7 @@ const store = createScheduleReadStore(scheduledShiftsApi.list);
 export default function Schedules() {
     const { locale } = useI18n();
     const ja = locale === "ja";
-    const t = (en: string, jp: string) => ja ? jp : en;
+    const t = useCallback((en: string, jp: string) => ja ? jp : en, [ja]);
     const [calendarToday, setCalendarToday] = useState(() => businessDateJst(Date.now()));
     const [scheduleContext, setScheduleContext] = useState<ScheduleContext | null>(null);
     const [month, setMonth] = useState(() => businessDateJst(Date.now()).slice(0, 7));
@@ -39,6 +41,13 @@ export default function Schedules() {
     const [knownManagers, setKnownManagers] = useState<ScheduledPerson[]>([]);
     const detailPanel = useRef<HTMLElement>(null);
     const [viewer, setViewer] = useState<Account | null>(null);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [timeOff, setTimeOff] = useState<TimeOffRequest[]>([]);
+    const [timeOffReason, setTimeOffReason] = useState("");
+    const [timeOffBusy, setTimeOffBusy] = useState(false);
+    const [timeOffError, setTimeOffError] = useState("");
+    const [timeOffMessage, setTimeOffMessage] = useState("");
+    const handledDeepLink = useRef("");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [editing, setEditing] = useState(false);
@@ -83,6 +92,48 @@ export default function Schedules() {
         void accountApi.me().then(user => { if (active && requestAuth === authSerial.current && session === getToken()) setViewer(user); }).catch(() => { if (active && requestAuth === authSerial.current) setViewer(null); });
         return () => { active = false; };
     }, [session, authEpoch]);
+    const deepLinkRequestId = (() => {
+        const value = searchParams.get("time_off");
+        return value && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value)) ? Number(value) : null;
+    })();
+    useEffect(() => {
+        if (!viewer || !session || session !== getToken()) return;
+        if (deepLinkRequestId === null) handledDeepLink.current = "";
+        let active = true;
+        const refreshRequests = () => {
+            void timeOffApi.requests().then(items => { if (active && session === getToken()) setTimeOff(items); })
+                .catch(error => { if (active && session === getToken()) setTimeOffError(error instanceof Error ? error.message : String(error)); });
+        };
+        refreshRequests();
+        const refresh = () => refreshRequests();
+        window.addEventListener("barticket-time-off-updated", refresh);
+        window.addEventListener("barticket-schedules-updated", refresh);
+        const timer = window.setInterval(refresh, 30000);
+        if (deepLinkRequestId && handledDeepLink.current !== `${session}:${deepLinkRequestId}`) {
+            handledDeepLink.current = `${session}:${deepLinkRequestId}`;
+            void timeOffApi.request(deepLinkRequestId).then(item => {
+                if (!active || session !== getToken()) return;
+                setTimeOff(current => [item, ...current.filter(existing => existing.id !== item.id)]);
+                setSelected(item.business_date);
+                setMonth(item.business_date.slice(0, 7));
+                setDetail(true);
+                setTimeOffError("");
+            }).catch(() => {
+                if (active) setTimeOffError(t("This time-off request is unavailable for your account.", "この休暇申請は現在のアカウントでは表示できません。"));
+            }).finally(() => {
+                if (active) {
+                    const next = new URLSearchParams(searchParams);
+                    next.delete("time_off"); next.delete("from_push"); setSearchParams(next, { replace: true });
+                }
+            });
+        }
+        return () => {
+            active = false;
+            clearInterval(timer);
+            window.removeEventListener("barticket-time-off-updated", refresh);
+            window.removeEventListener("barticket-schedules-updated", refresh);
+        };
+    }, [viewer, session, authEpoch, deepLinkRequestId, searchParams, setSearchParams, locale, t]);
     useEffect(() => {
         const reset = (event: Event) => {
             if (event instanceof StorageEvent && event.key !== null && event.key !== "barticket_token") return;
@@ -96,6 +147,7 @@ export default function Schedules() {
             store.reset(nextToken);
             setAuthState(current => ({ token: nextToken, epoch: current.epoch + 1 }));
             setRows([]); setKnownManagers([]); setViewer(null); setScheduleContext(null); setEditing(false); setDetail(false);
+            setTimeOff([]); setTimeOffError(""); setTimeOffMessage(""); handledDeepLink.current = "";
         };
         window.addEventListener("barticket-auth", reset); window.addEventListener("storage", reset);
         return () => { window.removeEventListener("barticket-auth", reset); window.removeEventListener("storage", reset); };
@@ -175,10 +227,41 @@ export default function Schedules() {
         detailReturnFocus.current?.focus();
     };
     const selectedRow = rows.find(row => row.business_date === selected);
+    const selectedTimeOff = timeOff.filter(item => item.business_date === selected);
+    const myTimeOffRequest = viewer?.role === "staff" ? selectedTimeOff.find(item => item.requester_user_id === viewer.id) : undefined;
+    const staffAssignedToSelected = !!selectedRow && viewer?.role === "staff" && selectedRow.staff.some(person => person.user_id === viewer.id);
     const isActiveShiftDate = (day: string) => scheduleContext?.actual_shift_status === "open" && scheduleContext.actual_shift_business_date === day;
     const selectedIsPast = (selected < calendarDate && !isActiveShiftDate(selected)) || selectedRow?.actual_shift_status === "closed" || (scheduleContext?.actual_shift_status === "closed" && scheduleContext.actual_shift_business_date === selected);
     const createTarget = mode === "week" || selected.startsWith(month) ? selected : `${month}-01`;
     const createTargetIsPast = (createTarget < calendarDate && !isActiveShiftDate(createTarget)) || (scheduleContext?.actual_shift_status === "closed" && scheduleContext.actual_shift_business_date === createTarget);
+    const canRequestTimeOff = staffAssignedToSelected && !selectedIsPast && !!selectedRow?.manager?.user_id &&
+        selectedRow?.schedule_type !== "closed" && selectedRow?.venue_status !== "closed" && selectedRow?.actual_shift_status !== "closed";
+    const submitTimeOff = async () => {
+        if (!selectedRow || !canRequestTimeOff || timeOffBusy) return;
+        setTimeOffBusy(true); setTimeOffError(""); setTimeOffMessage("");
+        try {
+            const created = await timeOffApi.submit(selectedRow.id, timeOffReason);
+            setTimeOff(current => [created, ...current.filter(item => item.id !== created.id)]);
+            setTimeOffReason(""); setTimeOffMessage(t("Your request was sent to the manager assigned to this day.", "この日の担当マネージャーに申請を送信しました。"));
+            window.dispatchEvent(new Event("barticket-time-off-updated"));
+        } catch (err) { setTimeOffError(err instanceof Error ? err.message : String(err)); }
+        finally { setTimeOffBusy(false); }
+    };
+    const decideTimeOff = async (request: TimeOffRequest, decision: "approve" | "decline") => {
+        if (timeOffBusy) return;
+        setTimeOffBusy(true); setTimeOffError(""); setTimeOffMessage("");
+        try {
+            const updated = await timeOffApi.decide(request.id, decision, request.revision, request.schedule_revision);
+            setTimeOff(current => viewer?.role === "manager"
+                ? current.filter(item => item.id !== updated.id)
+                : current.map(item => item.id === updated.id ? updated : item));
+            setTimeOffMessage(decision === "approve" ? t("Approved. The staff member was removed from the planned day.", "承認しました。スタッフを予定から外しました。") : t("Declined. The schedule is unchanged.", "却下しました。予定は変更されていません。"));
+            window.dispatchEvent(new Event("barticket-time-off-updated"));
+            window.dispatchEvent(new Event("barticket-schedules-updated"));
+            await load(true);
+        } catch (err) { setTimeOffError(err instanceof Error ? err.message : String(err)); }
+        finally { setTimeOffBusy(false); }
+    };
     const days = calendarDays(month);
     const visibleWeek = weekDays(selected);
     const weekHasPlans = rows.some(row => row.business_date >= from && row.business_date <= to);
@@ -248,6 +331,8 @@ export default function Schedules() {
         {viewer?.role === "manager" && !detail && selectedIsPast ? <ReadOnlyNotice role="status">{t("Past schedule dates are read-only. Choose today or a future date to create a plan.", "過去の予定は閲覧のみです。今日または未来の日付を選んでください。")}</ReadOnlyNotice> : null}
         {viewer?.role === "manager" && !scheduleContext ? <ReadOnlyNotice role="status">{t("Schedule date could not be verified. Editing is temporarily unavailable.", "予定日を確認できません。確認できるまで編集できません。")}</ReadOnlyNotice> : null}
         {error ? <Notice role="alert">{t("Could not refresh schedules. Displayed plans may be out of date.", "予定を更新できませんでした。表示内容が古い場合があります。") } <span>{error}</span><button className="secondary" onClick={() => void load(true)}>{t("Retry", "再試行")}</button></Notice> : null}
+        {timeOffError ? <Notice role="alert">{timeOffError}</Notice> : null}
+        {timeOffMessage ? <TimeOffStatus role="status">{timeOffMessage}</TimeOffStatus> : null}
         {loading ? <Subtitle role="status">{t("Loading schedules…", "予定を読み込んでいます…")}</Subtitle> : null}
         <Canvas>
             {mode === "month" ? <Calendar id="schedule-view-panel-month" role="tabpanel" aria-labelledby="schedule-view-tab-month" tabIndex={0} aria-label={t("Monthly schedule", "月間予定")}>
@@ -274,6 +359,26 @@ export default function Schedules() {
                 {selectedRow?.actual_shift_exists ? <p>{t("An actual shift is also recorded. Editing this plan does not change it.", "実際のシフト記録があります。予定を変更しても実績は変わりません。")}</p> : null}
                 {viewer?.role === "manager" && scheduleContext && !selectedIsPast ? <button onClick={() => { setCreating(!selectedRow); setEditing(true); }}>{selectedRow ? t("Edit plan", "予定を編集") : t("Add plan", "予定を追加")}</button> : null}
                 {viewer?.role === "manager" && selectedIsPast ? <ReadOnlyNotice role="status">{t("Past schedule dates are read-only. Historical plans and assignments cannot be changed.", "過去の予定は閲覧のみです。過去の予定や担当者は変更できません。")}</ReadOnlyNotice> : null}
+                {viewer?.role === "staff" && (staffAssignedToSelected || myTimeOffRequest) ? <TimeOffPanel>
+                    <h4>{t("Request time off", "休暇を申請")}</h4>
+                    {myTimeOffRequest ? <>
+                        <p><strong>{t("Status", "状態")}:</strong> {myTimeOffRequest.status === "pending" ? t("Pending manager review", "マネージャーの確認待ち") : myTimeOffRequest.status === "approved" ? t("Approved", "承認済み") : myTimeOffRequest.status === "declined" ? t("Declined", "却下") : t("No longer active", "無効")}</p>
+                        {myTimeOffRequest.reason ? <p>{myTimeOffRequest.reason}</p> : null}
+                    </> : canRequestTimeOff ? <>
+                        <label htmlFor="time-off-reason">{t("Short reason (optional)", "理由（任意・簡潔に）")}</label>
+                        <TimeOffReason id="time-off-reason" maxLength={500} value={timeOffReason} onChange={event => setTimeOffReason(event.target.value)} placeholder={t("You can leave this blank.", "空欄でも申請できます。")} />
+                        <p>{t("A reason is optional. Avoid private medical details.", "理由は任意です。医療などの個人的な詳細は書かないでください。")}</p>
+                        <button type="button" className="primary" disabled={timeOffBusy} onClick={() => void submitTimeOff()}>{timeOffBusy ? t("Sending…", "送信中…") : t("Send request", "申請を送る")}</button>
+                    </> : <p>{!selectedRow.manager?.user_id ? t("A request is unavailable because no linked manager is assigned to this day.", "この日にリンク済みの担当マネージャーがいないため、申請できません。") : t("Time-off requests are available for future or currently running assigned shifts.", "将来または現在進行中で、担当しているシフトのみ申請できます。")}</p>}
+                </TimeOffPanel> : null}
+                {viewer?.role === "manager" && selectedTimeOff.length ? <TimeOffPanel>
+                    <h4>{t("Time-off requests", "休暇申請")}</h4>
+                    {selectedTimeOff.map(request => <TimeOffCard key={request.id}>
+                        <strong>{request.requester_name}</strong>
+                        {request.reason ? <p>{request.reason}</p> : <p>{t("No reason provided", "理由の記載なし")}</p>}
+                        <div><button type="button" className="primary" disabled={timeOffBusy || selectedIsPast} onClick={() => void decideTimeOff(request, "approve")}>{t("Approve", "承認")}</button><button type="button" className="danger" disabled={timeOffBusy || selectedIsPast} onClick={() => void decideTimeOff(request, "decline")}>{t("Decline", "却下")}</button></div>
+                    </TimeOffCard>)}
+                </TimeOffPanel> : null}
                 {selectedRow?.provenance.length ? <details><summary>{t("Spreadsheet source", "勤務表の出典")}</summary>{selectedRow.provenance.map((source, i) => <p key={i}>{source.source_file} · {t("row", "行")} {source.source_row}<br />{source.imported_by}{source.uncertainty ? ` · ${source.uncertainty}` : ""}</p>)}</details> : null}
             </Details> : null}
         </Canvas>
@@ -308,3 +413,7 @@ const DetailHeader = styled.div`display:flex;align-items:center;justify-content:
 const CloseDetailsButton = styled.button`display:grid;place-items:center;flex:0 0 44px;width:44px!important;height:44px;min-height:44px;padding:0!important;background:transparent!important;border:1px solid transparent!important;border-radius:var(--space-1)!important;color:var(--neutral-200)!important;&:hover{background:var(--neutral-800)!important;color:white!important;}`;
 const Empty = styled.p`padding:32px;color:var(--neutral-300);text-align:center;`;
 const Notice = styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:16px;margin-bottom:16px;border:1px solid var(--danger-500);border-radius:8px;span{font-size:12.8px;}`;
+const TimeOffStatus = styled.p`margin:8px 0;padding:12px;border:1px solid var(--info-500);border-radius:8px;background:var(--info-950);color:var(--info-200);`;
+const TimeOffPanel = styled.section`display:grid;gap:10px;margin:16px 0;padding:12px;border:1px solid var(--info-700);border-radius:10px;background:var(--neutral-950);h4{margin:0;color:var(--info-200);}p{margin:0;font-size:13px;color:var(--neutral-200);}label{font-size:13px;color:var(--neutral-200);}`;
+const TimeOffReason = styled.textarea`width:100%;min-height:72px;padding:10px;border:1px solid var(--neutral-600);border-radius:8px;background:var(--neutral-900);color:var(--neutral-100);resize:vertical;font:inherit;`;
+const TimeOffCard = styled.article`display:grid;gap:8px;padding:10px;border:1px solid var(--neutral-700);border-radius:8px;background:var(--neutral-900);strong{color:var(--neutral-100);}div{display:flex;gap:8px;flex-wrap:wrap;}button{min-width:104px;}`;
