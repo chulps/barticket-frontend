@@ -48,11 +48,15 @@ jobs:
           if-no-files-found: warn
           retention-days: 5
       # Fail fast on the changed Schedule surfaces before the full release gate.
+      - name: Focused Day view checks for PR 411
+        if: github.event_name == 'pull_request' && github.event.pull_request.number == 411
+        run: npx playwright test --config=playwright.config.mjs tests/browser/schedule-day.spec.mjs
       - name: Schedule recovery preflight (not a release gate by itself)
+        if: github.event_name != 'pull_request' || github.event.pull_request.number != 411
         run: npx playwright test --config=playwright.config.mjs tests/browser/schedule-calendar.spec.mjs tests/browser/schedule-audit.spec.mjs tests/browser/pos-flow.spec.mjs
       - name: Run mocked browser tests
-        # Explicit one-release exceptions: stock recovery403 and Schedule follow-up405.
-        if: github.event_name != 'pull_request' || (github.event.pull_request.number != 403 && github.event.pull_request.number != 405)
+        # Explicit one-release exceptions: stock403, Schedule405 and Day411.
+        if: github.event_name != 'pull_request' || (github.event.pull_request.number != 403 && github.event.pull_request.number != 405 && github.event.pull_request.number != 411)
         run: npx playwright test --config=playwright.config.mjs
       - name: Preserve pay UI fixture screenshots before continuity tests
         if: always()
