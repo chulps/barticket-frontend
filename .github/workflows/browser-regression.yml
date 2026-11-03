@@ -36,6 +36,9 @@ jobs:
         run: npm install --no-save --package-lock=false @playwright/test@1.56.1
       - name: Install isolated Chromium
         run: npx playwright install --with-deps chromium
+      # Fail fast on the changed Schedule surfaces before the full release gate.
+      - name: Schedule recovery preflight (not a release gate by itself)
+        run: npx playwright test --config=playwright.config.mjs tests/browser/schedule-calendar.spec.mjs tests/browser/schedule-audit.spec.mjs tests/browser/pos-flow.spec.mjs
       - name: Run mocked browser tests
         run: npx playwright test --config=playwright.config.mjs
       - name: Preserve pay UI fixture screenshots before continuity tests

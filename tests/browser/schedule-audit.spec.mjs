@@ -60,7 +60,9 @@ for (const locale of ["en", "ja"]) for (const width of [320, 768, 1280]) {
     await page.goto("/schedules");
     await page.getByRole("tab", { name: locale === "ja" ? "予定一覧" : "Agenda", exact: true }).click();
     await expect(page.locator("main article")).toHaveCount(3);
-    await expect(page.locator("main")).toContainText(locale === "ja" ? "日付のみの予定" : "Date-only plan");
+    await page.locator("main article button").first().click();
+    await expect(page.getByRole("complementary")).toContainText(locale === "ja" ? "日付のみの予定" : "Date-only plan");
+    await page.getByRole("button", { name: locale === "ja" ? "詳細を閉じる" : "Close day details", exact: true }).click();
     await capture(page, testInfo, "rows");
     state.mode = "empty";
     await page.evaluate(() => window.dispatchEvent(new Event("barticket-schedules-updated")));
