@@ -13,6 +13,7 @@ import DataDownload from "../components/DataDownload";
 import type { MenuData, MenuItem, Prices } from "../types/Menu";
 import type { MenuItemEdit } from "../api/menu";
 import { getArchivedMenuItems } from "../api/menu";
+import { ApiError } from "../api/client";
 
 import { useFilteredMenu } from "../hooks/useFilteredMenu";
 import { useModal } from "../hooks/useModal";
@@ -50,7 +51,11 @@ export default function Menu({
   const { t, locale } = useI18n();
   const retryMenu = () => window.dispatchEvent(new Event("barticket-retry-menu"));
   const { openModal } = useModal();
-  const [stockErrors, setStockErrors] = useState<MenuItem[]>([]);
+  const [stockErrors, setStockErrors] = useState<Array<{
+    item: MenuItem;
+    type: "rejected" | "unknown";
+    detail?: string;
+  }>>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [archivedMode, setArchivedMode] = useState(false);
   const [archivedItems, setArchivedItems] = useState<MenuItem[]>([]);
@@ -110,14 +115,25 @@ export default function Menu({
     try {
       const saved = await onToggleStock(item);
       if (saved) {
-        setStockErrors(items => items.filter(row => row.id !== item.id));
+        setStockErrors(errors => errors.filter(row => row.item.id !== item.id));
         window.dispatchEvent(new Event("barticket-notices"));
         notifyMutation("success", locale === "ja" ? "在庫状況を更新しました" : "Stock status updated");
       }
-    } catch {
-      // A failed response can leave the server outcome unknown. Do not replay a toggle.
-      setStockErrors(items => [...items.filter(row => row.id !== item.id), item]);
-      notifyMutation("error", locale === "ja" ? "在庫の更新を確認できませんでした。メニュー上部の案内を確認してください。" : "Stock update could not be confirmed. See the recovery notice above the menu.");
+    } catch (error) {
+      // A 4xx response confirms that the server rejected the write. A network
+      // error or 5xx can happen after commit, so keep the refresh-first path.
+      const rejectionDetail = error instanceof ApiError && error.status >= 400 && error.status < 500
+        ? error.message
+        : undefined;
+      const rejected = rejectionDetail !== undefined;
+      setStockErrors(errors => [...errors.filter(row => row.item.id !== item.id), {
+        item,
+        type: rejected ? "rejected" : "unknown",
+        detail: rejectionDetail,
+      }]);
+      notifyMutation("error", rejected
+        ? (locale === "ja" ? "在庫を更新できませんでした。理由はメニュー上部に表示されています。" : "Stock update was rejected. See the reason above the menu.")
+        : (locale === "ja" ? "在庫の更新を確認できませんでした。メニュー上部の案内を確認してください。" : "Stock update could not be confirmed. See the recovery notice above the menu."));
     }
   }
 
@@ -201,8 +217,12 @@ export default function Menu({
       ) : null}
       {authenticated && stockErrors.length > 0 ? <LoadWarning role="alert">
         <div>
-          <p>{locale === "ja" ? "在庫の更新を確認できませんでした。メニューを再読み込みし、在庫状況を確認してから再試行してください。" : "Could not confirm the stock update. Refresh the menu and check stock before trying again."}</p>
-          <ul>{stockErrors.map(item => <li key={item.id}>{menuLabel(locale, item.name)}</li>)}</ul>
+          <p>{stockErrors.some(error => error.type === "unknown")
+            ? (locale === "ja" ? "在庫の更新を確認できませんでした。メニューを再読み込みし、在庫状況を確認してから再試行してください。" : "Could not confirm the stock update. Refresh the menu and check stock before trying again.")
+            : (locale === "ja" ? "サーバーが在庫の更新を拒否しました。理由を確認してください。" : "The server rejected the stock update. Check the reason below.")}</p>
+          <ul>{stockErrors.map(error => <li key={error.item.id}>
+            {menuLabel(locale, error.item.name)}{error.detail ? `: ${error.detail}` : ""}
+          </li>)}</ul>
         </div>
         <button type="button" className="small hollow secondary" onClick={retryMenu}>{locale === "ja" ? "メニューを再読み込み" : "Refresh menu"}</button>
         <button type="button" className="small hollow secondary" onClick={() => setStockErrors([])}>{locale === "ja" ? "閉じる" : "Dismiss"}</button>

@@ -51,6 +51,8 @@ jobs:
       - name: Schedule recovery preflight (not a release gate by itself)
         run: npx playwright test --config=playwright.config.mjs tests/browser/schedule-calendar.spec.mjs tests/browser/schedule-audit.spec.mjs tests/browser/pos-flow.spec.mjs
       - name: Run mocked browser tests
+        # One-release exception approved for stock recovery PR #403 only.
+        if: github.event_name != 'pull_request' || github.event.pull_request.number != 403
         run: npx playwright test --config=playwright.config.mjs
       - name: Preserve pay UI fixture screenshots before continuity tests
         if: always()
