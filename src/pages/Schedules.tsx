@@ -263,7 +263,6 @@ export default function Schedules() {
                     label={t("Calendar view", "表示方法")}
                     semantics="tabs"
                     idPrefix="schedule-view"
-                    fitLabels
                 />
             </ScheduleControls>
         </Toolbar>
@@ -317,7 +316,7 @@ export default function Schedules() {
 const Page = styled.main`width:100%;max-width:1440px;margin:0 auto;padding:16px 0 calc(112px + env(safe-area-inset-bottom, 0px));button{width:auto;min-height:44px;}> :not(header) button:focus-visible,> button:focus-visible{outline:3px solid var(--royal-300);outline-offset:2px;}`;
 const Toolbar = styled.header`display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;h1{font-size:21.6px;margin:0}h2{font-size:20px;margin:0} @media(max-width:600px){flex-direction:column;align-items:stretch;gap:8px;>div:first-child{width:100%;min-width:0;flex:0 0 auto}h1{font-size:19.2px}}`;
 const Subtitle = styled.p`color:var(--neutral-300);font-size:13.6px;margin:4px 0;`;
-const ScheduleControls = styled.div`align-self:flex-start;flex:0 0 auto;max-width:100%;width:max-content;`;
+const ScheduleControls = styled.div`align-self:stretch;flex:0 0 100%;min-width:0;max-width:100%;width:100%;`;
 const MonthNav = styled.nav<{ $week: boolean }>`display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:var(--space-1);min-height:48px;width:min(100%,${p=>p.$week?'460px':'300px'});margin:0 auto 16px;h2{display:flex;justify-content:center;min-width:0;text-align:center;}`;
 const MonthStep = styled.button`width:44px!important;min-width:44px;padding:0!important;border-radius:50%;`;
 const MonthLabel = styled.button<{ $week: boolean }>`width:max-content!important;min-width:0;max-width:100%;flex:0 1 auto;padding:var(--space-1) var(--space-2)!important;background:var(--neutral-800)!important;border:1px solid var(--neutral-700)!important;border-radius:999px!important;color:var(--neutral-050)!important;white-space:${p=>p.$week?'normal':'nowrap'};overflow:hidden;text-overflow:ellipsis;font-size:var(--font-size-default);`;

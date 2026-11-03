@@ -1,7 +1,16 @@
 {
-  "title": {"en": "Choose Month, Week or Day", "ja": "予定を月・週・日で表示"},
+  "title": {
+    "en": "Full-width Schedule tabs",
+    "ja": "シフト予定のタブを横幅いっぱいに"
+  },
   "features": {
-    "en": ["Select Day to open today's schedule, then move forward or back one day at a time.", "Month, Week and Day now work as matching view tabs, with the same schedule colors and permissions.", "Primary and status color shades now blend from their existing colors toward the app background."],
-    "ja": ["「日」を選ぶと今日の予定が開き、前日・翌日へ1日ずつ移動できます。", "月・週・日を同じタブ操作で切り替えられ、予定の色分けと編集権限も引き継がれます。", "プライマリとステータスカラーの濃い色を、既存色からアプリの背景色へなじむように調整しました。"]
+    "en": [
+      "Month, Week and Day now share the full available width with equal-sized tabs.",
+      "Switch views with the same familiar tab controls and animation."
+    ],
+    "ja": [
+      "月・週・日のタブを同じ幅で、表示エリアの横幅いっぱいに配置しました。",
+      "これまでと同じタブ操作とアニメーションで表示を切り替えられます。"
+    ]
   }
 }
