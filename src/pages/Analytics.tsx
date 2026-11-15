@@ -462,24 +462,6 @@ function StaffChart({ shifts, context }: { shifts: AnalyticsShiftReport[]; conte
     );
 }
 
-function staffDrinkShifts(
-    visible: AnalyticsShiftReport[],
-    openShift: ShiftReport | null,
-    range: Range,
-    month: string,
-    year: string,
-    pickedDate: string,
-): AnalyticsShiftReport[] {
-    if (!openShift) return visible;
-    const inRange =
-        range === "all" ||
-        (range === "year" && yearKey(openShift.business_date) === year) ||
-        (range === "month" && monthKey(openShift.business_date) === month) ||
-        (range === "day" && openShift.business_date === pickedDate);
-    if (!inRange) return visible;
-    return [openShift, ...visible.filter((shift) => shift.id !== openShift.id)];
-}
-
 export default function Analytics() {
     const { t, locale } = useI18n();
     const [shiftIndex, setShiftIndex] = useState<AnalyticsShiftIndex[] | null>(null);
@@ -674,29 +656,28 @@ export default function Analytics() {
                   : [],
     [monthShifts, range, selected, shifts, yearShifts]);
     const totals = useMemo(() => summarize(visible), [visible]);
-    // Keep staff drink data in generated text reports; remove only the on-screen panel.
-    const staffShifts = useMemo(
-        () => staffDrinkShifts(visible, openShift, range, month, year, pickedDate),
-        [month, openShift, pickedDate, range, visible, year],
+    // Live analytics stay visible, but only closed shifts feed shareable reports.
+    const reportShifts = useMemo(
+        () => visible.filter((shift) => shift.status === "closed" && shift.id !== openShift?.id && shift.id !== staleShift?.shiftId),
+        [visible, openShift?.id, staleShift?.shiftId],
     );
+    const reportTotals = useMemo(() => summarize(reportShifts), [reportShifts]);
     const soldItems = useMemo(() => range === "day" && selected?.status === "open" ? [] :
         topSellingItems(tickets, new Set(visible.flatMap((shift) => shift.id === null ? [] : [shift.id]))),
     [range, selected?.status, tickets, visible]);
+    const reportItems = useMemo(() =>
+        topSellingItems(tickets, new Set(reportShifts.flatMap((shift) => shift.id === null ? [] : [shift.id]))),
+    [tickets, reportShifts]);
     function reportText(reportLocale: Locale) {
         return createAnalyticsTextReport({
             range,
             label: copyPeriod(range, month, year, selected, reportLocale),
             locale: reportLocale,
-            shifts: visible,
-            totals,
-            tickets,
-            topItems: soldItems.map((item) => ({
+            shifts: reportShifts,
+            totals: reportTotals,
+            topItems: reportItems.map((item) => ({
                 name: menuLabel(reportLocale, item.name), quantity: item.quantity, revenue: item.revenue,
             })),
-            staffShifts,
-            team,
-            notices,
-            updatedAt: lastUpdated,
         });
     }
 
@@ -841,6 +822,9 @@ export default function Analytics() {
                     {ticketsReady && reportsReady && !ticketsError && !reportsError ? <>
                     <AnalyticsReportActions
                         key={[range, month, year, range === "day" ? dayId : null].join(":")}
+                        unavailableReason={range === "day" && selected && (selected.status === "open" || selected.id === staleShift?.shiftId)
+                            ? (locale === "ja" ? "シフトを締めると、テキストレポートを作成・共有できます。" : "Close the shift to generate or share a text report.")
+                            : undefined}
                         textEn={reportText("en")}
                         textJa={reportText("ja")}
                         locale={locale}

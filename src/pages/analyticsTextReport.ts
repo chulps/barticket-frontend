@@ -1,6 +1,4 @@
-import type { Account, AnalyticsShiftReport } from "../api/account";
-import type { NoticeList } from "../api/notices";
-import type { Ticket } from "../types/Ticket";
+import type { AnalyticsShiftReport } from "../api/account";
 
 export type ReportRange = "all" | "year" | "month" | "day";
 
@@ -27,12 +25,7 @@ export type AnalyticsTextReportInput = {
     locale: "en" | "ja";
     shifts: readonly AnalyticsShiftReport[];
     totals: ReportTotals;
-    tickets: readonly Ticket[];
     topItems: readonly ReportItem[];
-    staffShifts: readonly AnalyticsShiftReport[];
-    team: readonly Account[] | null;
-    notices: NoticeList | null;
-    updatedAt: number | null;
 };
 
 function yen(amount: number): string {
@@ -91,10 +84,10 @@ function staffHoursRows(shifts: readonly AnalyticsShiftReport[]) {
     return [...rows.values()].filter((row) => row.seconds > 0).sort((a, b) => b.seconds - a.seconds);
 }
 
-/** Build a plain-text snapshot of the selected Analytics period from the same data as the UI. */
+/** Only finalized, closed shifts may produce shareable text. Reject mixed input too. */
 export function createAnalyticsTextReport(input: AnalyticsTextReportInput): string {
-    const { range, label, locale, shifts, totals, tickets, topItems, staffShifts, team, notices, updatedAt } = input;
-    if (shifts.length === 0) return "";
+    const { range, label, locale, shifts, totals, topItems } = input;
+    if (shifts.length === 0 || shifts.some((shift) => shift.status !== "closed")) return "";
     const ja = locale === "ja";
     const tr = (en: string, jp: string) => ja ? jp : en;
     const line = (name: string, value: string | number) => name + ": " + value;
@@ -103,19 +96,7 @@ export function createAnalyticsTextReport(input: AnalyticsTextReportInput): stri
         tr("ROCK BAR FXXKUP", "ロックバー Fxxkup"),
         tr("Analytics Report", "分析レポート") + " · " + label,
     ];
-    const current = range === "day" && shifts.length === 1 && shifts[0].status === "open" ? shifts[0] : null;
-    if (current) {
-        result.push(tr("SHIFT IN PROGRESS — provisional snapshot", "営業中 — 暫定集計"));
-        if (updatedAt !== null) {
-            result.push(tr("Updated", "更新") + ": " + new Date(updatedAt * 1000).toLocaleString(ja ? "ja-JP" : "en-US", {
-                timeZone: "Asia/Tokyo", dateStyle: "medium", timeStyle: "short",
-            }) + " JST");
-        }
-        result.push(line(tr("Opened by", "開始担当"), current.opened_by ?? tr("No shift recorded", "シフト記録なし")));
-        result.push(line(tr("Started", "開始時刻"), current.opened_at === null ? "—" : new Date(current.opened_at * 1000).toLocaleTimeString(ja ? "ja-JP" : "en-US", {
-            timeZone: "Asia/Tokyo", hour: "2-digit", minute: "2-digit",
-        }) + " JST"));
-    } else if (range !== "day") {
+    if (range !== "day") {
         result.push(tr("Closed shifts only", "締め済みシフトのみ"));
     } else {
         result.push(line(tr("Manager", "開始担当"), shifts[0].opened_by ?? tr("No shift recorded", "シフト記録なし")));
@@ -129,23 +110,15 @@ export function createAnalyticsTextReport(input: AnalyticsTextReportInput): stri
     result.push(line(tr("Guests", "客数"), totals.guests));
     result.push(line(tr("Average per guest", "客単価"), totals.guests ? yen(totals.revenue / totals.guests) : "—"));
     result.push(line(tr("Cover revenue", "チャージ売上"), yen(totals.cover)));
-    if (current) {
-        const shiftTickets = tickets.filter((ticket) => ticket.shiftId === current.id);
-        result.push(line(tr("Open tickets", "未会計チケット"), shiftTickets.filter((ticket) => ticket.status === "open").length));
-        result.push(line(tr("Paid tickets", "会計済みチケット"), totals.paid));
-        result.push(line(tr("Cancelled tickets", "キャンセル"), totals.cancelled));
-        result.push(line(tr("Average paid ticket", "会計済みチケット平均"), totals.paid ? yen(totals.revenue / totals.paid) : "—"));
+    result.push(line(tr("Shifts", "シフト数"), totals.nights));
+    result.push(line(tr("Average per shift", "1シフト平均売上"), yen(totals.revenue / totals.nights)));
+    result.push(line(tr("Average guests per shift", "1シフト平均客数"), Math.round(totals.guests / totals.nights)));
+    if (totals.missingTicketNights) {
+        result.push(line(tr("Ticket counts unavailable for shifts", "チケット件数未記録のシフト"), totals.missingTicketNights));
     } else {
-        result.push(line(tr("Shifts", "シフト数"), totals.nights));
-        result.push(line(tr("Average per shift", "1シフト平均売上"), yen(totals.revenue / totals.nights)));
-        result.push(line(tr("Average guests per shift", "1シフト平均客数"), Math.round(totals.guests / totals.nights)));
-        if (totals.missingTicketNights) {
-            result.push(line(tr("Ticket counts unavailable for shifts", "チケット件数未記録のシフト"), totals.missingTicketNights));
-        } else {
-            result.push(line(tr("Paid / cancelled tickets", "会計済み・キャンセル"), totals.paid + " / " + totals.cancelled));
-        }
-        result.push(line(tr("Recorded staff hours", "記録済み勤務時間"), hours(totals.seconds, ja)));
+        result.push(line(tr("Paid / cancelled tickets", "会計済み・キャンセル"), totals.paid + " / " + totals.cancelled));
     }
+    result.push(line(tr("Recorded staff hours", "記録済み勤務時間"), hours(totals.seconds, ja)));
 
     result.push(...section(tr("Payments", "支払方法")));
     const noBreakdown = totals.unknownPayment > 0 && totals.cash + totals.card + totals.other === 0;
@@ -156,27 +129,7 @@ export function createAnalyticsTextReport(input: AnalyticsTextReportInput): stri
         result.push(line(tr("Payment type not recorded", "支払方法未記録"), yen(totals.unknownPayment)));
     }
 
-    if (current) {
-        const roles = new Map(team?.map((member): [number, string] => [member.id, member.role]) ?? []);
-        const onDuty = current.punches.filter((punch) => punch.clock_out === null);
-        result.push(...section(tr("Clocked in", "勤務中")));
-        for (const role of ["manager", "staff", "unknown"] as const) {
-            const people = onDuty.filter((punch) => (roles.get(punch.user_id) ?? "unknown") === role).map((punch) => punch.name);
-            if (people.length) result.push(line(
-                role === "manager" ? tr("Managers", "マネージャー") : role === "staff" ? tr("Staff", "スタッフ") : tr("Role unknown", "役職未確認"),
-                people.join(", "),
-            ));
-        }
-        if (!onDuty.length) result.push(tr("Nobody clocked in", "勤務中のスタッフなし"));
-        result.push(...section(tr("Active stockouts", "現在の品切れ")));
-        if (!notices || notices.status !== "open" || notices.business_date !== current.business_date) {
-            result.push(tr("Stock status unavailable", "在庫情報を取得できません"));
-        } else if (notices.notices.length === 0) {
-            result.push(tr("None", "なし"));
-        } else {
-            result.push(...notices.notices.map((notice) => "- " + notice.item));
-        }
-    } else if (range === "day") {
+    if (range === "day") {
         const stockouts = shifts[0].stockouts ?? [];
         if (stockouts.length) {
             result.push(...section(tr("Stockouts recorded", "品切れ記録")));
@@ -209,28 +162,23 @@ export function createAnalyticsTextReport(input: AnalyticsTextReportInput): stri
         }
     }
 
-    if (!current) {
-        result.push(...section(tr("Top 3 selling items", "販売数 TOP 3")));
-        if (topItems.length) {
-            result.push(...topItems.map((item, index) =>
-                (index + 1) + ". " + item.name + " · " + item.quantity + " " + tr("units", "杯") + " · " + yen(item.revenue)));
-        } else {
-            result.push(tr("No recorded items", "販売商品データなし"));
-        }
-        const people = staffHoursRows(shifts);
-        if (people.length) {
-            result.push(...section(tr("Staff hours", "勤務時間")));
-            result.push(...people.map((person) => "- " + person.name + ": " + hours(person.seconds, ja)));
-        }
+    result.push(...section(tr("Top 3 selling items", "販売数 TOP 3")));
+    if (topItems.length) {
+        result.push(...topItems.map((item, index) =>
+            (index + 1) + ". " + item.name + " · " + item.quantity + " " + tr("units", "杯") + " · " + yen(item.revenue)));
+    } else {
+        result.push(tr("No recorded items", "販売商品データなし"));
+    }
+    const people = staffHoursRows(shifts);
+    if (people.length) {
+        result.push(...section(tr("Staff hours", "勤務時間")));
+        result.push(...people.map((person) => "- " + person.name + ": " + hours(person.seconds, ja)));
     }
 
-    const drinks = staffDrinkRows(staffShifts);
+    const drinks = staffDrinkRows(shifts);
     if (drinks.length) {
         result.push(...section(tr("Staff drinks", "スタッフドリンク")));
         for (const item of drinks) result.push("- " + item.name + " · " + item.drink + " × " + item.quantity + " · " + yen(item.revenue));
-    }
-    if (current) {
-        result.push("", tr("Unpaid tickets are excluded from revenue.", "未会計チケットの金額は売上に含まれません。"));
     }
     return result.join("\n");
 }

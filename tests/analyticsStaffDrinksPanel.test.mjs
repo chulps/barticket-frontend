@@ -10,6 +10,7 @@ test("Analytics does not render a Staff Drinks panel in any range", () => {
 });
 
 test("text reports still retain recorded staff drinks", () => {
-  assert.match(analytics, /staffShifts,/);
+  assert.match(analytics, /shifts: reportShifts,/);
+  assert.doesNotMatch(analytics, /staffDrinkShifts/);
   assert.match(report, /shift\.staff_drinks/);
 });
