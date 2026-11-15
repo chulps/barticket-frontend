@@ -38,8 +38,7 @@ function totals(rows) {
 function report(range, rows, extra = {}) {
     return createAnalyticsTextReport({
         range, label: "Selected Period", locale: "en", shifts: rows,
-        totals: totals(rows), tickets: [], staffShifts: rows, team: null, notices: null,
-        updatedAt: null, topItems: [{ name: "Whisky", quantity: 3, revenue: 2400 }], ...extra,
+        totals: totals(rows), topItems: [{ name: "Whisky", quantity: 3, revenue: 2400 }], ...extra,
     });
 }
 
@@ -72,43 +71,44 @@ test("Closed daily report includes manager, payments, and historic stockouts", (
     assert.match(text, /Staff hours/);
 });
 
-test("closure-only day remains a zero-sales night and retains maintenance hours and Event value", () => {
-    const row = shift(null, "2026-10-05", {
-        id: null, status: null, opened_at: null, opened_by: null,
-        venue_status: "closed", venue_event: "Maintenance",
-        paid_total: 0, cash_total: 0, card_total: 0, other_total: 0,
-        cover_total: 0, guest_count: 0, paid_count: 0, cancelled_count: 0,
-        staff_hours: [{ user_id: 7, name: "Haruka", seconds: 7200 }],
-    });
-    const text = report("day", [row]);
-    assert.match(text, /Revenue: ¥0/);
-    assert.match(text, /Guests: 0/);
-    assert.match(text, /Manager: No shift recorded/);
-    assert.match(text, /Venue status: Maintenance/);
-    assert.match(text, /Recorded staff hours: 2h 0m/);
+test("days without a closed shift produce no report", () => {
+    for (const status of [null, undefined, "open"]) {
+        assert.equal(report("day", [shift(null, "2026-10-05", { status })]), "");
+    }
 });
 
-test("Live daily snapshot shows only paid totals and current shift activity", () => {
-    const row = shift(99, "2026-10-12", {
-        status: "open", paid_count: 1, cancelled_count: 0, paid_total: 7000,
-        guest_count: 2, punches: [{ user_id: 1, name: "Chuck", clock_out: null }],
-    });
-    const text = report("day", [row], {
-        tickets: [
-            { shiftId: 99, status: "open", name: "Private customer", items: [] },
-            { shiftId: 99, status: "paid", items: [] },
-        ],
-        team: [{ id: 1, name: "Chuck", role: "manager" }],
-        notices: { business_date: "2026-10-12", status: "open", notices: [{ id: 1, item: "Yamazaki" }] },
-        updatedAt: 1791800000,
-    });
-    assert.match(text, /SHIFT IN PROGRESS/);
-    assert.match(text, /Revenue: ¥7,000/);
-    assert.match(text, /Open tickets: 1/);
-    assert.match(text, /Managers: Chuck/);
-    assert.match(text, /Yamazaki/);
-    assert.match(text, /Unpaid tickets are excluded/);
-    assert.doesNotMatch(text, /Private customer/);
+for (const locale of ["en", "ja"]) {
+    for (const range of ["day", "month", "year", "all"]) {
+        test(`${locale} ${range} rejects active shifts and mixed closed/open input`, () => {
+            const open = shift(99, "2026-10-12", { status: "open", closed_at: null });
+            assert.equal(report(range, [open], { locale }), "");
+            assert.equal(report(range, [shift(1, "2026-10-11"), open], { locale }), "");
+        });
+    }
+}
+
+test("a shift only becomes reportable after closing and stops when reopened", () => {
+    const row = shift(99, "2026-10-12", { status: "open", closed_at: null });
+    assert.equal(report("day", [row]), "");
+    row.status = "closed";
+    row.closed_at = 1791730000;
+    assert.match(report("day", [row]), /Revenue: ¥10,000/);
+    row.status = "open";
+    row.closed_at = null;
+    assert.equal(report("day", [row]), "");
+});
+
+test("closed reports retain staff drinks without accepting live staff data", () => {
+    const row = shift(1, "2026-10-11", { staff_drinks: [{
+        staff_id: 1, staff_name: "Chuck", drink_name: "Closed shift drink",
+        unit_price: 1000, quantity: 2, revenue: 2000,
+    }] });
+    const text = report("month", [row], { staffShifts: [shift(99, "2026-10-12", {
+        status: "open", staff_drinks: [{ staff_id: 1, staff_name: "Chuck",
+            drink_name: "Active shift drink", unit_price: 1000, quantity: 9, revenue: 9000 }],
+    })] });
+    assert.match(text, /Closed shift drink × 2 · ¥2,000/);
+    assert.doesNotMatch(text, /Active shift drink/);
 });
 
 test("Japanese report and missing historical payment breakdown are labeled clearly", () => {

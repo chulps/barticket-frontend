@@ -10,10 +10,12 @@ export default function AnalyticsReportActions({
     textEn,
     textJa,
     locale,
+    unavailableReason,
 }: {
     textEn: string;
     textJa: string;
     locale: "en" | "ja";
+    unavailableReason?: string;
 }) {
     const [expanded, setExpanded] = useState(false);
     const [reportLocale, setReportLocale] = useState<"en" | "ja">(locale);
@@ -25,6 +27,7 @@ export default function AnalyticsReportActions({
     const lineUrl = "https://line.me/R/share?text=" + encodeURIComponent(text);
 
     async function copyText() {
+        if (!text) return;
         try {
             if (navigator.clipboard?.writeText) {
                 await navigator.clipboard.writeText(text);
@@ -51,9 +54,11 @@ export default function AnalyticsReportActions({
                 aria-expanded={expanded}
                 aria-controls="analytics-text-report"
                 disabled={!text}
+                aria-describedby={!text && unavailableReason ? "analytics-report-unavailable" : undefined}
             >
                 {tr("Generate text report", "テキストレポートを作成")}
             </button>
+            {!text && unavailableReason ? <p id="analytics-report-unavailable">{unavailableReason}</p> : null}
             {expanded && text ? (
                 <ReportCard id="analytics-text-report">
                     <header>
