@@ -55,15 +55,16 @@ export function servicePeriod(tickets: readonly Ticket[], from: string, to: stri
     return { rows, unknownDates };
 }
 
-export function validSalesRange(from: string, to: string) {
-    const start = Date.parse(`${from}T00:00:00Z`), end = Date.parse(`${to}T00:00:00Z`);
-    return Number.isFinite(start) && Number.isFinite(end) && end >= start && (end-start)/86400000 < 366;
-}
-
 /** Every item stays visible; staff item revenue is partitioned by recorded recipient. */
 export function revenueComposition(data: ReturnType<typeof itemSales>) {
     return [
         ...data.items.filter(row=>row.kind !== "staff").map(row=>({...row,staffName:null as string | null,staffId:null as string | null,attributed:true})),
         ...data.staff.flatMap(person=>person.items.map(row=>({...row,staffName:person.name,staffId:person.id,attributed:person.attributed}))),
     ].sort((a,b)=>b.revenue-a.revenue || a.id.localeCompare(b.id));
+}
+
+/** Golden-angle hues distinguish many segments without a short repeating palette. */
+export function itemRevenueColor(index: number) {
+    const hue = (205 + index * 137.508) % 360;
+    return `hsl(${hue.toFixed(2)}  ${54 + (index * 3) % 12}% ${57 + (index * 5) % 10}%)`;
 }
