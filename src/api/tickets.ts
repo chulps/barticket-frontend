@@ -12,6 +12,7 @@ type ApiTicketItem = {
     id: number;
     menu_item_id: number | null;
     staff_drink?: boolean;
+    staff_id?: number | null;
     staff_name?: string;
     drink_name?: string;
     name: string;
@@ -92,6 +93,7 @@ export function toTicket(api: ApiTicket): Ticket {
                 subtotal: item.subtotal,
                 price_override: item.price_override ?? false,
                 staff_drink: item.staff_drink,
+                staff_id: item.staff_id,
                 staff_name: item.staff_name,
                 drink_name: item.drink_name,
             })),
