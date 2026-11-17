@@ -3,7 +3,7 @@ export type SalesKind = "menu" | "staff" | "cover";
 export type ItemSale = { id: string; name: string; kind: SalesKind; quantity: number; revenue: number; variants: { label: string; unitPrice: number; quantity: number; revenue: number }[] };
 export function itemSales(tickets: readonly Ticket[]) {
     const rows = new Map<string, ItemSale>();
-    const staff = new Map<string, { id: string; name: string; attributed: boolean; quantity: number; revenue: number }>();
+    const staff = new Map<string, { id: string; name: string; attributed: boolean; quantity: number; revenue: number; items: ItemSale[] }>();
     let excludedTickets = 0, invalidLines = 0;
     for (const ticket of tickets) {
         if (ticket.status !== "paid" || ticket.payment?.refunded_at != null ||
@@ -18,8 +18,13 @@ export function itemSales(tickets: readonly Ticket[]) {
             if (kind === "staff") {
                 const attributed = line.staff_id != null;
                 const staffKey = attributed ? `staff:${line.staff_id}` : "unattributed";
-                const person = staff.get(staffKey) ?? { id: staffKey, name: attributed ? (line.staff_name || `Staff #${line.staff_id}`) : "Unattributed", attributed, quantity: 0, revenue: 0 };
+                const person = staff.get(staffKey) ?? { id: staffKey, name: attributed ? (line.staff_name || `Staff #${line.staff_id}`) : "Unattributed", attributed, quantity: 0, revenue: 0, items: [] };
                 person.quantity += quantity; person.revenue += line.subtotal;
+                const drinkName = line.drink_name || "Staff drink";
+                const drinkId = `${staffKey}:${line.menu_item_id == null ? `name:${drinkName}` : `id:${line.menu_item_id}`}`;
+                let drink = person.items.find(item=>item.id === drinkId);
+                if (!drink) { drink = {id:drinkId,name:drinkName,kind:"staff",quantity:0,revenue:0,variants:[]}; person.items.push(drink); }
+                drink.quantity += quantity; drink.revenue += line.subtotal;
                 staff.set(staffKey, person);
             }
             const name = kind === "staff" ? (line.drink_name || "Staff drink") : line.name;
@@ -55,12 +60,10 @@ export function validSalesRange(from: string, to: string) {
     return Number.isFinite(start) && Number.isFinite(end) && end >= start && (end-start)/86400000 < 366;
 }
 
-/** Bound chart complexity, never the underlying table or denominator. */
-export function revenueComposition(items: readonly ItemSale[], limit = 8) {
-    const positive = items.filter(row => row.revenue > 0).sort((a,b)=>b.revenue-a.revenue || a.id.localeCompare(b.id));
-    const count = Math.max(1, Math.floor(limit));
-    const visible = positive.slice(0,count).map(row=>({id:row.id,name:row.name,kind:row.kind,revenue:row.revenue,itemCount:1}));
-    const rest = positive.slice(count);
-    if (rest.length) visible.push({id:"other",name:"Other",kind:"menu",revenue:rest.reduce((sum,row)=>sum+row.revenue,0),itemCount:rest.length});
-    return visible;
+/** Every item stays visible; staff item revenue is partitioned by recorded recipient. */
+export function revenueComposition(data: ReturnType<typeof itemSales>) {
+    return [
+        ...data.items.filter(row=>row.kind !== "staff").map(row=>({...row,staffName:null as string | null,staffId:null as string | null,attributed:true})),
+        ...data.staff.flatMap(person=>person.items.map(row=>({...row,staffName:person.name,staffId:person.id,attributed:person.attributed}))),
+    ].sort((a,b)=>b.revenue-a.revenue || a.id.localeCompare(b.id));
 }
