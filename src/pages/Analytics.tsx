@@ -909,10 +909,10 @@ export default function Analytics() {
                     ) : null}
                     {range === "day" && visible.length > 0 ? <Stockouts shifts={visible} /> : null}
                     {visible.length > 0 ? <TopSellingPanel items={soldItems} context={copyPeriod(range, month, year, selected, locale)} /> : null}
-                    {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} canCorrect={account.role === "manager"} /> : null}
                         </>
                     )}
                     <ItemSalesPanel key={contextKeyForItems} tickets={itemPeriod.rows} unknownDates={itemPeriod.unknownDates} summaryOnly={visible.some(ticketCountsUnavailable)} context={copyPeriod(range, month, year, selected, locale)} />
+                    {!(range === "day" && selected?.status === "open") && visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} canCorrect={account.role === "manager"} /> : null}
                     </> : null}
                 </>
             ) : null}

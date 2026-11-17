@@ -113,3 +113,12 @@ test('clock-only parent rerenders preserve ticket scope and chart selection',()=
  const page=readFileSync(new URL('../src/pages/Analytics.tsx',import.meta.url),'utf8');
  assert.match(page,/const itemShiftDates = useMemo/);assert.match(page,/const itemScope = useMemo/);assert.match(page,/const itemPeriod = useMemo/);assert.match(page,/\[tickets, itemScope, itemShiftDates\]/);
 });
+
+
+test('item sales sits below Top 3 and above Tickets without changing open-day visibility',()=>{
+ const page=readFileSync(new URL('../src/pages/Analytics.tsx',import.meta.url),'utf8');
+ assert.ok(page.indexOf('<TopSellingPanel ') < page.indexOf('<ItemSalesPanel '));
+ assert.ok(page.indexOf('<ItemSalesPanel ') < page.indexOf('<ShiftTickets '));
+ assert.equal((page.match(/<ItemSalesPanel /g)||[]).length,1);
+ assert.match(page,/!\(range === "day" && selected\?\.status === "open"\) && visible.length > 0 \? <ShiftTickets/);
+});
