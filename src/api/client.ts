@@ -97,11 +97,16 @@ export async function apiRequest<T>(
         });
     } catch (error) {
         noteApiAvailability(false);
+        if (options.method && options.method !== "GET") window.dispatchEvent(new Event("barticket-data-changed"));
+
         // Writes may have reached the server before the connection failed.
         // Do not retry them automatically.
         throw error;
     }
     noteApiAvailability(res.status < 500);
+    // Refresh reads after writes, including ambiguous failures; never replay writes.
+    if (options.method && options.method !== "GET") window.dispatchEvent(new Event("barticket-data-changed"));
+
 
     if (!res.ok) {
         let message = `Request failed (${res.status})`;

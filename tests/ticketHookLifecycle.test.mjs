@@ -73,13 +73,15 @@ test('Analytics period A response arriving after B cannot replace B snapshot',as
 
 test('scoped report hook rejects old range response and never requests full history for daily view',async()=>{
  const r=runtime(),a=deferred(),b=deferred(),calls=[];
- const {useAnalyticsReports}=await moduleFor('useAnalyticsReports',{...r.hooks,...background,...scopes,getToken:()=> 'A',shouldPoll:()=>false,
- accountApi:{analyticsShifts:scope=>{calls.push(scope);return scope.date_from==='2026-10-01'?a.promise:b.promise;}}});
+ const cache=await moduleFor('analyticsReadCache');
+ const data=await moduleFor('useAnalyticsData',{...r.hooks,...background,...scopes,...cache,ApiError:class extends Error {},getToken:()=> 'A',shouldPoll:()=>false,
+ apiRequest:path=>{const scope=Object.fromEntries(new URLSearchParams(path.split('?')[1]));calls.push(scope);return scope.date_from==='2026-10-01'?a.promise:b.promise;}});
+ const {useAnalyticsReports}=await moduleFor('useAnalyticsReports',data);
  useAnalyticsReports('day','2026-10-01',true);const [stopA]=r.start();await r.flush();stopA();r.states.length=0;
  useAnalyticsReports('month','2026-11',true);const stops=r.start();await r.flush();
  b.resolve([{id:2,business_date:'2026-11-01'}]);await settle();a.resolve([{id:1,business_date:'2026-10-01'}]);await settle();
  assert.deepEqual(calls,[{date_from:'2026-10-01',date_to:'2026-10-01'},{date_from:'2026-11-01',date_to:'2026-11-30'}]);
- assert.equal(r.states[0].key,'month:2026-11');assert.equal(r.states[0].rows[0].id,2);stops.forEach(f=>f?.());
+ assert.match(r.states[0].path,/date_from=2026-11-01/);assert.equal(r.states[0].value[0].id,2);stops.forEach(f=>f?.());
 });
 
 
@@ -181,4 +183,23 @@ test('an ambiguous local create stays quiet through unrelated targeted reads unt
  assert.equal(h.states[3].source,'quiet');assert.deepEqual(h.states[3].moves,[]);
  h.emit({live:true});await settle();assert.equal(h.states[3].source,'quiet');
  rows.push(row(13));h.emit({live:true});await settle();assert.deepEqual(h.states[3].moves,[{id:13,from:null,to:'open'}]);h.cleanup();
+});
+
+test('analytics cache avoids repeat period GETs and invalidates while unmounted',async()=>{
+ const r=runtime();let reads=0;
+ const cache=await moduleFor('analyticsReadCache');
+ const {useAnalyticsData}=await moduleFor('useAnalyticsData',{...r.hooks,...background,...scopes,...cache,ApiError:class extends Error{},getToken:()=> 'A',shouldPoll:()=>false,apiRequest:async()=>({revision:++reads})});
+ useAnalyticsData('/analytics/item-sales',true);let stops=r.start();await r.flush();assert.equal(reads,1);stops.forEach(f=>f?.());
+ r.states.length=0;useAnalyticsData('/analytics/item-sales',true);stops=r.start();await r.flush();assert.equal(reads,1);stops.forEach(f=>f?.());
+ r.win.dispatchEvent(new Event('barticket-data-changed'));
+ r.states.length=0;useAnalyticsData('/analytics/item-sales',true);stops=r.start();await r.flush();assert.equal(reads,2);stops.forEach(f=>f?.());
+});
+
+test('analytics auth switch rejects held identity and permission denial removes prior data',async()=>{
+ const r=runtime();let token='A',deny=false;const held=deferred();let calls=0;
+ class Failure extends Error{constructor(status){super('denied');this.status=status;}}
+ const cache=await moduleFor('analyticsReadCache');
+ const {useAnalyticsData}=await moduleFor('useAnalyticsData',{...r.hooks,...background,...scopes,...cache,ApiError:Failure,getToken:()=>token,shouldPoll:()=>false,apiRequest:()=>{calls++;if(calls===1)return held.promise;if(deny)throw new Failure(403);return Promise.resolve({id:token});}});
+ useAnalyticsData('/p',true);const stops=r.start();await r.flush();token='B';r.win.dispatchEvent(new Event('barticket-auth'));held.resolve({id:'A'});await settle();await r.flush();assert.equal(r.states[0].value.id,'B');
+ deny=true;r.win.dispatchEvent(new Event('barticket-users-updated'));await r.flush();assert.equal(r.states[0].value,null);assert.equal(r.states[0].error,true);stops.forEach(f=>f?.());
 });

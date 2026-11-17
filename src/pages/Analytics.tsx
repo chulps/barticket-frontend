@@ -1,3 +1,6 @@
+import { readCompleteTicketHistory } from "./analyticsTicketExport";
+import { toTicket } from "../api/tickets";
+import { analyticsPath, useAnalyticsData, type ItemSalesSummary, type TicketHistoryPage } from "../hooks/useAnalyticsData";
 import { servicePeriod } from "../components/itemSales";
 import { analyticsTicketScope } from "../hooks/ticketReadScope";
 import ItemSalesPanel from "../components/ItemSalesPanel";
@@ -9,14 +12,14 @@ import { useAnalyticsTickets } from "../hooks/useAnalyticsTickets";
 import { withLiveShiftHours } from "./analyticsLiveClock";
 import { startBackgroundRefresh } from "../hooks/backgroundRefresh";
 import { shouldPoll } from "../api/realtime";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import styled from "styled-components";
 import { Link } from "react-router-dom";
 import { formatBusinessNight, staleAnalyticsShift, type StaleAnalyticsShift } from "./analyticsStaleShift";
 import RequestState from "../components/RequestState";
 
 import { accountApi, type Account, type AnalyticsShiftReport, type AnalyticsShiftIndex, type ShiftReport } from "../api/account";
-import { ApiError, getToken } from "../api/client";
+import { apiRequest, ApiError, getToken } from "../api/client";
 import { listNotices, type NoticeList } from "../api/notices";
 import { BarChart, DonutChart, HorizontalBarChart, CopyPanelButton, type TimeBar } from "../components/AnalyticsCharts";
 import AnalyticsDatePicker from "../components/AnalyticsDatePicker";
@@ -502,7 +505,9 @@ export default function Analytics() {
     const [pickedDate, setPickedDate] = useState("");
     const signedIn = getToken() !== null;
     const periodKey = range === "day" ? pickedDate : range === "month" ? month : range === "year" ? year : "all";
-    const { tickets, ready: ticketsReady, error: ticketsError } = useAnalyticsTickets(range, periodKey, signedIn);
+    const { tickets, ready: dailyTicketsReady, error: ticketsError } = useAnalyticsTickets(range, periodKey, signedIn && range === "day");
+    const itemSummary = useAnalyticsData<ItemSalesSummary>(analyticsPath('item-sales',range,periodKey),signedIn && (range==='all'||!!periodKey));
+    const ticketsReady = (range !== 'day' || dailyTicketsReady) && itemSummary.ready;
     const { shifts, ready: reportsReady, error: reportsError } = useAnalyticsReports(range, periodKey, signedIn);
 
     useEffect(() => {
@@ -689,8 +694,8 @@ export default function Analytics() {
         [month, openShift, pickedDate, range, visible, year],
     );
     const soldItems = useMemo(() => range === "day" && selected?.status === "open" ? [] :
-        topSellingItems(tickets, new Set(visible.flatMap((shift) => shift.id === null ? [] : [shift.id]))),
-    [range, selected?.status, tickets, visible]);
+        itemSummary.value?.topItems.slice().sort((a,b)=>b.quantity-a.quantity || b.revenue-a.revenue || a.name.localeCompare(b.name) || a.id.localeCompare(b.id)).slice(0,3) ?? topSellingItems(tickets, new Set(visible.flatMap((shift) => shift.id === null ? [] : [shift.id]))),
+    [range, selected?.status, tickets, visible, itemSummary.value]);
     function reportText(reportLocale: Locale) {
         return createAnalyticsTextReport({
             range,
@@ -846,8 +851,8 @@ export default function Analytics() {
                     ) : null}
                     {range === "all" && account.role === "manager" ? <DataDownload locale={locale} /> : null}
                     {!ticketsReady || !reportsReady ? <RequestState kind="loading" detail={locale === "ja" ? "レポートを読み込み中…" : "Loading reports for this period…"} /> : null}
-                    {ticketsError || reportsError ? <RequestState kind="error" detail={locale === "ja" ? "伝票を更新できませんでした。表示内容が古い可能性があります。" : "Could not refresh this period. Displayed data may be outdated."} /> : null}
-                    {ticketsReady && reportsReady && !ticketsError && !reportsError ? <>
+                    {ticketsError || reportsError || itemSummary.error ? <RequestState kind="error" detail={locale === "ja" ? "伝票を更新できませんでした。表示内容が古い可能性があります。" : "Could not refresh this period. Displayed data may be outdated."} /> : null}
+                    {ticketsReady && reportsReady && !ticketsError && !reportsError && !itemSummary.error ? <>
                     <AnalyticsReportActions
                         key={[range, month, year, range === "day" ? dayId : null].join(":")}
                         textEn={reportText("en")}
@@ -911,8 +916,8 @@ export default function Analytics() {
                     {visible.length > 0 ? <TopSellingPanel items={soldItems} context={copyPeriod(range, month, year, selected, locale)} /> : null}
                         </>
                     )}
-                    <ItemSalesPanel key={contextKeyForItems} tickets={itemPeriod.rows} unknownDates={itemPeriod.unknownDates} summaryOnly={visible.some(ticketCountsUnavailable)} context={copyPeriod(range, month, year, selected, locale)} />
-                    {!(range === "day" && selected?.status === "open") && visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} canCorrect={account.role === "manager"} /> : null}
+                    <ItemSalesPanel summary={itemSummary.value ?? undefined} key={contextKeyForItems} tickets={itemPeriod.rows} unknownDates={itemSummary.value?.unknownDates ?? itemPeriod.unknownDates} summaryOnly={visible.some(ticketCountsUnavailable)} context={copyPeriod(range, month, year, selected, locale)} />
+                    {!(range === "day" && selected?.status === "open") && visible.length > 0 ? <AnalyticsTicketHistory key={contextKeyForItems} range={range} periodKey={periodKey} shifts={visible} canCorrect={account.role === "manager"} /> : null}
                     </> : null}
                 </>
             ) : null}
@@ -1003,6 +1008,51 @@ function Stockouts({ shifts }: { shifts: AnalyticsShiftReport[] }) {
     );
 }
 
+function AnalyticsTicketHistory({range,periodKey,shifts,canCorrect}:{range:Range;periodKey:string;shifts:AnalyticsShiftReport[];canCorrect:boolean}) {
+    const {locale}=useI18n();
+    const [status,setStatus]=useState<'paid'|'cancelled'>('paid');
+    const [offset,setOffset]=useState(0);
+    const page=useAnalyticsData<TicketHistoryPage>(analyticsPath('ticket-history',range,periodKey,{status,offset:String(offset),limit:'25'}),true);
+    const total=page.value?.total ?? 0;
+    const shownOffset=page.value?.offset ?? offset;
+    const [exportText,setExportText]=useState<string|null>(null);
+    const [exportBusy,setExportBusy]=useState(false);
+    const [exportError,setExportError]=useState(false);
+    const exportEpoch=useRef(0);
+    useEffect(()=>{
+        const epochRef=exportEpoch;
+        const invalidate=()=>{epochRef.current++;setExportText(null);setExportBusy(false);};
+        const events=['barticket-data-changed','barticket-push','barticket-auth','barticket-analytics-updated','storage'];
+        events.forEach(event=>window.addEventListener(event,invalidate));
+        return ()=>{epochRef.current++;events.forEach(event=>window.removeEventListener(event,invalidate));};
+    },[]);
+    async function preparePaidExport() {
+        if(exportBusy)return;
+        const epoch=++exportEpoch.current, token=getToken();setExportBusy(true);setExportError(false);setExportText(null);
+        try {
+            const records=await readCompleteTicketHistory((start,limit)=>apiRequest<TicketHistoryPage>(analyticsPath('ticket-history',range,periodKey,{status:'paid',offset:String(start),limit:String(limit)})),()=>epoch===exportEpoch.current&&token===getToken());
+            const rows=records.map(toTicket);
+            const dates=new Map(shifts.flatMap(shift=>shift.id===null?[]:[[shift.id,shift.business_date] as const]));
+            setExportText(JSON.stringify(ticketListDataForClipboard(rows,dates),null,2));
+        } catch {if(epoch===exportEpoch.current)setExportError(true);}
+        finally {if(epoch===exportEpoch.current)setExportBusy(false);}
+    }
+
+    return <>
+        <TicketLog>
+            <h2>{locale==='ja'?'チケット':'Tickets'}</h2>
+            <div><button className="secondary" disabled={exportBusy} onClick={()=>void preparePaidExport()}>{exportBusy?(locale==='ja'?'準備中…':'Preparing…'):(locale==='ja'?'期間全体の支払済み伝票を準備':'Prepare all paid tickets for this period')}</button>{exportText!==null?<CopyPanelButton text={exportText} locale={locale} label={locale==='ja'?'期間全体の支払済み伝票をコピー':'Copy all paid ticket data'} />:null}</div>
+            {exportError?<p role="alert">{locale==='ja'?'準備できませんでした。変更後に再試行するか、5,000件以下の短い期間を選択してください。':'Could not prepare a complete export. Retry after edits finish, or choose a shorter period (maximum 5,000 tickets).'}</p>:null}
+            <TabGroup tabs={[{id:'paid',label:locale==='ja'?'支払済み':'Paid'},{id:'cancelled',label:locale==='ja'?'キャンセル':'Cancelled'}]} activeTab={status} onChange={value=>{setStatus(value as 'paid'|'cancelled');setOffset(0);}} />
+            <p>{locale==='ja'?'表示中':'Showing'} {total ? shownOffset+1 : 0}–{Math.min(shownOffset+25,total)} / {total}</p>
+            {!page.ready ? <RequestState kind="loading" detail={locale==='ja'?'チケットを読み込み中…':'Loading ticket page…'} /> : null}
+            {page.error ? <RequestState kind="error" detail={locale==='ja'?'チケットを更新できませんでした。':'Could not refresh ticket page.'} /> : null}
+            <div><button className="secondary" disabled={shownOffset===0||!page.ready} onClick={()=>setOffset(Math.max(0,shownOffset-25))}>{locale==='ja'?'前へ':'Previous'}</button><button className="secondary" disabled={!page.ready||shownOffset+25>=total} onClick={()=>setOffset(shownOffset+25)}>{locale==='ja'?'次へ':'Next'}</button></div>
+        </TicketLog>
+        {page.value ? <ShiftTickets shifts={shifts} tickets={page.value.items.map(toTicket)} canCorrect={canCorrect} /> : null}
+    </>;
+}
+
 function ShiftTickets({ shifts, tickets, canCorrect }: { shifts: AnalyticsShiftReport[]; tickets: Ticket[]; canCorrect: boolean }) {
     const { t, locale } = useI18n();
     const [openId, setOpenId] = useState<number | null>(null);
@@ -1018,18 +1068,17 @@ function ShiftTickets({ shifts, tickets, canCorrect }: { shifts: AnalyticsShiftR
     const missingNights = shifts.filter(ticketCountsUnavailable).length;
     const count = groups.paid.length + groups.cancelled.length;
     const ticketDataLabel = locale === "ja" ? "チケットデータをコピー" : "Copy ticket data";
-    const paidTicketDataLabel = locale === "ja" ? "支払済みチケットデータをコピー" : "Copy all paid ticket data";
+    const paidTicketDataLabel = locale === "ja" ? "このページの支払済みチケットをコピー" : "Copy paid tickets on this page";
 
     return (
         <TicketLog>
-            <h2>{t("tickets")}</h2>
             {missingNights > 0 ? (
                 <DataCaveat>{locale === "ja"
                     ? `${missingNights}件の過去の夜は個別のチケット履歴が未記録です。`
                     : `Individual ticket records weren't kept for ${missingNights} historical night(s).`}</DataCaveat>
             ) : null}
             {count === 0 && missingNights === 0 ? <p>{t("noTicketsInRange")}</p> : null}
-            {count > 0 ? sections.map((section) => (
+            {count > 0 ? sections.filter(section=>section.rows.length>0).map((section) => (
                 <TicketStatusGroup key={section.id} aria-label={section.title}>
                     <TicketStatusHeading>
                         <h3>{section.title}</h3>
