@@ -122,3 +122,14 @@ test('item sales sits below Top 3 and above Tickets without changing open-day vi
  assert.equal((page.match(/<ItemSalesPanel /g)||[]).length,1);
  assert.match(page,/!\(range === "day" && selected\?\.status === "open"\) && visible.length > 0 \? <ShiftTickets/);
 });
+
+
+test('staff breakdown is always visible with member totals and individual drinks',()=>{
+ const ui=readFileSync(new URL('../src/components/ItemSalesPanel.tsx',import.meta.url),'utf8');
+ assert.match(ui,/<StaffBreakdown aria-label/);
+ assert.doesNotMatch(ui,/<details><summary>\{t\("Staff drinks by team member"/);
+ assert.match(ui,/person.items.map\(drink/);assert.match(ui,/className="staff-total"/);assert.match(ui,/className="staff-drink"/);
+ assert.match(ui,/No staff drinks on fully paid tickets in this period/);
+ const data=itemSales([ticket([line(1,'Staff',2,500,{staff_drink:true,staff_id:1,staff_name:'Alex',drink_name:'Beer'}),line(2,'Staff',1,700,{staff_drink:true,staff_id:1,staff_name:'Alex',drink_name:'Wine'})])]);
+ assert.equal(data.staff[0].items.length,2);assert.equal(data.staff[0].items.reduce((n,r)=>n+r.revenue,0),data.staff[0].revenue);
+});

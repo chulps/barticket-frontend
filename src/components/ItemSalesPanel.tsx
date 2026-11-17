@@ -47,10 +47,17 @@ export default function ItemSalesPanel({ tickets, context, unknownDates = 0, sum
             </> : <p>{t("No paid item revenue to chart in this period.", "この期間にグラフ表示できる支払済み商品売上はありません。")}</p>}
 
         </Composition>
-        <details><summary>{t("Staff drinks by team member", "スタッフ別ドリンク実績")}</summary>
-            <p>{t("Recorded staff drinks on the same fully paid tickets. This breakdown is already included in item revenue, not added again. Records without a staff ID are shown as unattributed, never guessed from names.", "同じ全額支払済み伝票に記録されたスタッフドリンク。商品売上に含まれる内訳であり、二重加算しません。スタッフIDのない記録は氏名から推定せず、未割当として表示します。")}</p>
-            {!data.staff.length ? <p>{t("No staff drinks on fully paid tickets in this period.", "この期間の全額支払済み伝票にスタッフドリンクはありません。")}</p> : <Scroll><table><thead><tr><th>{t("Team member", "スタッフ")}</th><th>{t("Units", "数量")}</th><th>{t("Revenue", "売上")}</th><th>{t("Share of staff-drink revenue", "スタッフドリンク売上構成比")}</th></tr></thead><tbody>{data.staff.map(person=><tr key={person.id}><td>{person.attributed ? `${person.name}${data.staff.filter(p=>p.attributed && p.name === person.name).length > 1 ? ` (#${person.id.slice(6)})` : ""}` : t("Unattributed", "未割当")}</td><td>{person.quantity.toLocaleString()}</td><td>{yen(person.revenue)}</td><td>{saleShare(person.revenue,data.breakdown.find(r=>r.kind === "staff")?.revenue ?? 0).toFixed(1)}%</td></tr>)}</tbody></table></Scroll>}
-        </details>
+        <StaffBreakdown aria-label={t("Staff drinks by team member", "スタッフ別ドリンク実績")}>
+            <h3>{t("Staff drinks by team member", "スタッフ別ドリンク実績")}</h3>
+            <p>{t("Fully paid tickets only. Included in item revenue above, not added again. Missing staff IDs stay unattributed.", "全額支払済み伝票のみ。上記商品売上に含まれ、二重加算しません。スタッフIDがない場合は未割当として表示します。")}</p>
+            {!data.staff.length ? <p>{t("No staff drinks on fully paid tickets in this period.", "この期間の全額支払済み伝票にスタッフドリンクはありません。")}</p> : <Scroll><table>
+                <thead><tr><th>{t("Team member / drink", "スタッフ／ドリンク")}</th><th>{t("Units", "数量")}</th><th>{t("Revenue", "売上")}</th><th>{t("Share of staff-drink revenue", "スタッフドリンク売上構成比")}</th></tr></thead>
+                {data.staff.map(person=><tbody key={person.id}>
+                    <tr className="staff-total"><th scope="row">{person.attributed ? `${person.name}${data.staff.filter(p=>p.attributed && p.name === person.name).length > 1 ? ` (#${person.id.slice(6)})` : ""}` : t("Unattributed", "未割当")}</th><td>{person.quantity.toLocaleString()}</td><td>{yen(person.revenue)}</td><td>{saleShare(person.revenue,data.breakdown.find(r=>r.kind === "staff")?.revenue ?? 0).toFixed(1)}%</td></tr>
+                    {person.items.map(drink=><tr key={drink.id}><th scope="row" className="staff-drink">{menuLabel(locale,drink.name)}</th><td>{drink.quantity.toLocaleString()}</td><td>{yen(drink.revenue)}</td><td>{saleShare(drink.revenue,data.breakdown.find(r=>r.kind === "staff")?.revenue ?? 0).toFixed(1)}%</td></tr>)}
+                </tbody>)}
+            </table></Scroll>}
+        </StaffBreakdown>
         <Controls><label>{t("Search items", "商品検索")}<input value={query} onChange={e=>{setQuery(e.target.value);setPage(0);setSelection(null);}} /></label><label>{t("Sort by", "並び順")}<Dropdown value={sort} onChange={e=>{setSort(e.target.value);setPage(0);setSelection(null);}}><option value="revenue">{t("Revenue", "売上")}</option><option value="quantity">{t("Quantity", "数量")}</option><option value="name">{t("Name", "名前")}</option></Dropdown></label></Controls>
         {!filtered.length ? <p>{data.items.length ? t("No matching items.", "該当する商品がありません。") : t("No attributable paid item sales for this period.", "この期間に集計できる支払済み商品明細はありません。")}</p> : <Scroll><table><caption>{t("All items; 25 per page. Expand an item for serving-size and historical-price breakdown.", "全商品・1ページ25件。商品を展開すると提供量・過去の価格別内訳を表示。")}</caption><thead><tr><th>{t("Item / breakdown", "商品／内訳")}</th><th>{t("Units", "数量")}</th><th>{t("Revenue", "売上")}</th><th>{t("Share", "構成比")}</th></tr></thead><tbody>{filtered.slice(current*25,current*25+25).map(row=><tr key={row.id}><td><details><summary>{row.kind === "cover" ? kindLabel(row.kind) : menuLabel(locale,row.name)}</summary><small>{kindLabel(row.kind)}</small><ul>{row.variants.map(v=><li key={`${v.label}:${v.unitPrice}`}>{v.label} · {yen(v.unitPrice)} × {v.quantity} → {yen(v.revenue)}</li>)}</ul></details></td><td>{row.quantity.toLocaleString()}</td><td>{yen(row.revenue)}</td><td>{saleShare(row.revenue,data.revenue).toFixed(1)}%</td></tr>)}</tbody></table></Scroll>}
         <Controls><span>{filtered.length} {t("items", "商品")} · {current+1} / {pages}</span><button type="button" className="secondary" disabled={current===0} onClick={()=>setPage(current-1)}>{t("Previous", "前へ")}</button><button type="button" className="secondary" disabled={current+1>=pages} onClick={()=>setPage(current+1)}>{t("Next", "次へ")}</button></Controls>
@@ -80,4 +87,10 @@ const Composition = styled.section`
     strong{font-family:var(--font-family-data);font-size:var(--font-size-h5);font-weight:500;font-variant-numeric:tabular-nums;line-height:1.25;overflow-wrap:anywhere}strong span,small{color:var(--neutral-400);font-size:var(--font-size-small)}
     .swatch{width:.75rem;height:.75rem;margin-top:.2rem;border-radius:3px}
     @media(min-width:640px){ol{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(min-width:1024px){ol{grid-template-columns:repeat(4,minmax(0,1fr))}}
+`;
+
+const StaffBreakdown = styled.section`
+    display:flex;flex-direction:column;gap:var(--space-1);min-width:0;margin-block:var(--space-1);
+    .staff-total{background:var(--neutral-800)}.staff-total th{color:var(--neutral-100)}
+    th.staff-drink{padding-left:var(--space-2);color:var(--neutral-300)}
 `;
