@@ -2,6 +2,17 @@ import { useCallback, useEffect, useState } from "react";
 
 import { menuJa, translations, type Locale, type MessageKey } from "./translations";
 
+const runtimeMenu = new Map<string, Partial<Record<Locale, string>>>();
+
+/** Hydrate before resolving menu promises so labels/search render together. */
+export function registerMenuTranslations(items: Array<{ menuTranslations?: Record<string, Partial<Record<Locale, string>>> }>) {
+    for (const item of items) {
+        for (const [source, pair] of Object.entries(item.menuTranslations ?? {})) {
+            runtimeMenu.set(source, pair);
+        }
+    }
+}
+
 const LOCALE_KEY = "barticket_locale";
 
 export type { Locale, MessageKey };
@@ -51,14 +62,15 @@ export function localeTag(locale: Locale) {
 
 export function menuLabel(locale: Locale, text: string | null | undefined) {
     if (!text) return "";
-    if (locale !== "ja") return text;
-    return menuJa[text] ?? text;
+    // Reviewed catalog copy wins over machine-generated runtime labels.
+    const reviewed = locale === "ja" ? (Object.hasOwn(menuJa, text) ? menuJa[text] : undefined)
+        : Object.entries(menuJa).find(([, ja]) => ja === text)?.[0];
+    return reviewed || runtimeMenu.get(text)?.[locale] || text;
 }
 
 export function menuHaystack(text: string | null | undefined) {
     if (!text) return "";
-    const japanese = menuJa[text];
-    return japanese && japanese !== text ? `${text} ${japanese}` : text;
+    return [...new Set([text, menuLabel("en", text), menuLabel("ja", text)])].join(" ");
 }
 
 export function formatDuration(locale: Locale, seconds: number) {

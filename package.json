@@ -9,6 +9,7 @@
     "build": "node scripts/prepare-pwa.mjs && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test:menu-translations": "node scripts/test-menu-translations.mjs",
     "i18n:menu-audit": "node scripts/audit-live-menu-translations.mjs"
   },
   "dependencies": {

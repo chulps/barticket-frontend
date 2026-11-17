@@ -7,6 +7,7 @@ export type Prices = {
 
 export type MenuItem = {
     id: number;
+    menuTranslations?: Record<string, Partial<Record<"en" | "ja", string>>>;
 
     inStock?: boolean;
     /** Soft-deleted menu entries appear in the authenticated archive view only. */
