@@ -149,7 +149,7 @@ export default function MenuItemForm({
                 <Caption htmlFor={id + "-name"}>{t("name")} *</Caption>
                 <TextInput id={id + "-name"} value={name} onChange={(e) => setName(e.target.value)}
                     placeholder={help("e.g. Nikka From the Barrel", "例：ニッカ フロム・ザ・バレル")} required />
-                <Hint>{help("The name staff and customers see on the menu.", "スタッフとお客様に表示される商品名です。")}</Hint>
+                <Hint>{help("Enter English or Japanese. The other language is added automatically when you save.", "英語または日本語で入力してください。保存時にもう一方の言語が自動翻訳されます。")}</Hint>
             </Field>
             <Field>
                 <Caption htmlFor={id + "-category"}>{t("category")} *</Caption>

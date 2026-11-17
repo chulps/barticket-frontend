@@ -343,6 +343,19 @@ export type MessageKey = keyof typeof en;
 
 // Menu copy, written by hand. The build script does not translate this.
 export const menuJa: Record<string, string> = {
+    "Lottery & Sets": "くじ・セット",
+    "Lottery": "くじ",
+    "Sets": "セット",
+    "Captain Morgan Spiced Rum": "キャプテンモルガン スパイスドラム",
+    "Gin lottery": "ジンくじ",
+    "Nikka from the Barrel Extra Marriage": "ニッカ フロム・ザ・バレル エクストラマリッジ",
+    "Nuts": "ナッツ",
+    "kavalan": "カバラン",
+    "Snack": "おつまみ",
+    "Taiwanese whiskey": "台湾ウイスキー",
+    "Whiskey sets": "ウイスキーセット",
+
+    "Yamazaki set": "山崎セット",
     // Newly added entries verified against the live /menu response (October 2026).
     "Adjust price for custom cocktails": "カスタムカクテルの価格を調整してください",
     "Ardbeg": "アードベッグ",
