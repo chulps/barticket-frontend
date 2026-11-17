@@ -25,6 +25,7 @@ export type Ticket = {
 
     menu_item_id?: number | null;
     staff_drink?: boolean;
+    staff_id?: number | null;
     staff_name?: string;
     drink_name?: string;
     price_key?: string;

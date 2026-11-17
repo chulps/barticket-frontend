@@ -1,3 +1,6 @@
+import { servicePeriod } from "../components/itemSales";
+import { analyticsTicketScope } from "../hooks/ticketReadScope";
+import ItemSalesPanel from "../components/ItemSalesPanel";
 import NotificationActivityHistory from "../components/NotificationActivityHistory";
 import PaymentDateHistory from "../components/PaymentDateHistory";
 import { useAnalyticsReports } from "../hooks/useAnalyticsReports";
@@ -674,6 +677,12 @@ export default function Analytics() {
                   : [],
     [monthShifts, range, selected, shifts, yearShifts]);
     const totals = useMemo(() => summarize(visible), [visible]);
+    const contextKeyForItems = `${range}:${periodKey}`;
+    const itemShiftDates = new Map((shiftIndex ?? []).flatMap(shift => shift.id === null ? [] : [[shift.id, shift.business_date] as const]));
+    const itemScope = analyticsTicketScope(range, periodKey);
+    const itemPeriod = itemScope?.date_from && itemScope.date_to
+        ? servicePeriod(tickets, itemScope.date_from, itemScope.date_to, itemShiftDates)
+        : { rows: tickets, unknownDates: 0 };
     // Keep staff drink data in generated text reports; remove only the on-screen panel.
     const staffShifts = useMemo(
         () => staffDrinkShifts(visible, openShift, range, month, year, pickedDate),
@@ -903,6 +912,7 @@ export default function Analytics() {
                     {visible.length > 0 ? <ShiftTickets shifts={visible} tickets={tickets} canCorrect={account.role === "manager"} /> : null}
                         </>
                     )}
+                    <ItemSalesPanel key={contextKeyForItems} tickets={itemPeriod.rows} unknownDates={itemPeriod.unknownDates} summaryOnly={visible.some(ticketCountsUnavailable)} context={copyPeriod(range, month, year, selected, locale)} shiftDates={itemShiftDates} />
                     </> : null}
                 </>
             ) : null}
