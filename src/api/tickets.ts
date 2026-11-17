@@ -29,6 +29,7 @@ export type ApiTicket = {
     status: Ticket["status"];
     items: ApiTicketItem[];
     guest_count: number;
+    item_breakdown_unknown?: boolean;
     cover_charge_per_person: number;
     cover_charge_total: number;
     waived_cover_count?: number;
@@ -63,7 +64,7 @@ export type ApiTicket = {
 
 export function toTicket(api: ApiTicket): Ticket {
     const cover: Ticket["items"] =
-        api.guest_count > 0
+        api.guest_count > 0 && !api.item_breakdown_unknown && !api.items.some(item=>item.price_key === "historical_unknown_total")
             ? [
                   {
                       id: COVER_ITEM_ID,

@@ -1130,7 +1130,7 @@ function ShiftTickets({ shifts, tickets, canCorrect }: { shifts: AnalyticsShiftR
                                         {ticket.items.map((item) => (
                                             <li key={item.id}>
                                                 <span>{item.type === "cover" ? t("coverCharge") : menuLabel(locale, item.name)}</span>
-                                                <data>{item.quantity}</data>
+                                                <data>{item.price_key === "historical_unknown_total" ? (locale === "ja" ? "不明" : "Unknown") : item.quantity}</data>
                                                 <strong>{yen(item.subtotal)}</strong>
                                             </li>
                                         ))}

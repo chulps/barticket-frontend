@@ -75,3 +75,8 @@ test("groups legacy items without menu ID by recorded item name", () => {
   assert.equal(rows.length, 1);
   assert.equal(rows[0].quantity, 3);
 });
+
+test('unitemized historical receipts do not invent a top-selling item',()=>{
+ const rows=topSellingItems([ticket(1,1,'paid',[line(999,'Unknown',1,14500,{price_key:'historical_unknown_total'}),line(1,'Known',1,500)])],new Set([1]));
+ assert.deepEqual(rows.map(r=>r.name),['Known']);
+});

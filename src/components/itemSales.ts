@@ -1,6 +1,6 @@
 import type { Ticket } from "../types/Ticket";
-export type SalesKind = "menu" | "staff" | "cover";
-export type ItemSale = { id: string; name: string; kind: SalesKind; quantity: number; revenue: number; variants: { label: string; unitPrice: number; quantity: number; revenue: number }[] };
+export type SalesKind = "menu" | "staff" | "cover" | "unknown";
+export type ItemSale = { id: string; name: string; kind: SalesKind; quantityUnknown?: boolean; quantity: number; revenue: number; variants: { label: string; unitPrice: number; quantity: number; revenue: number }[] };
 export function itemSales(tickets: readonly Ticket[]) {
     const rows = new Map<string, ItemSale>();
     const staff = new Map<string, { id: string; name: string; attributed: boolean; quantity: number; revenue: number; items: ItemSale[] }>();
@@ -11,7 +11,7 @@ export function itemSales(tickets: readonly Ticket[]) {
             ["written_off", "partially_paid", "outstanding", "cancelled"].includes(ticket.settlementStatus ?? "")) { excludedTickets++; continue; }
         for (const line of ticket.items) {
             if (!Number.isFinite(line.quantity) || line.quantity <= 0 || !Number.isFinite(line.subtotal) || line.subtotal < 0 || !Number.isFinite(line.unit_price)) { invalidLines++; continue; }
-            const kind: SalesKind = line.type === "cover" ? "cover" : line.staff_drink ? "staff" : "menu";
+            const kind: SalesKind = line.price_key === "historical_unknown_total" ? "unknown" : line.type === "cover" ? "cover" : line.staff_drink ? "staff" : "menu";
             const quantity = kind === "cover"
                 ? Math.max(0, (ticket.guestCount ?? line.quantity) - (ticket.returningGuestCount ?? 0) - (ticket.waivedCoverCount ?? 0))
                 : line.quantity;
@@ -31,6 +31,7 @@ export function itemSales(tickets: readonly Ticket[]) {
             const id = kind === "cover" ? "cover" : `${kind}:${line.menu_item_id == null ? `name:${name.trim().toLowerCase()}` : `id:${line.menu_item_id}`}`;
             const row = rows.get(id) ?? { id, name, kind, quantity: 0, revenue: 0, variants: [] };
             row.quantity += quantity; row.revenue += line.subtotal;
+            if(kind === "unknown") row.quantityUnknown = true;
             const label = line.price_key || "standard";
             const variant = row.variants.find(v => v.label === label && v.unitPrice === line.unit_price);
             if (variant) { variant.quantity += quantity; variant.revenue += line.subtotal; }
@@ -41,7 +42,7 @@ export function itemSales(tickets: readonly Ticket[]) {
     const items = [...rows.values()].sort((a, b) => b.revenue - a.revenue || b.quantity - a.quantity || a.id.localeCompare(b.id));
     const revenue = items.reduce((sum, row) => sum + row.revenue, 0);
     return { items, revenue, excludedTickets, invalidLines, staff: [...staff.values()].sort((a,b)=>b.revenue-a.revenue || a.id.localeCompare(b.id)),
-        breakdown: (["menu", "staff", "cover"] as const).map(kind => ({ kind, revenue: items.filter(r => r.kind === kind).reduce((n, r) => n + r.revenue, 0) })) };
+        breakdown: (["menu", "staff", "cover", ...(items.some(r=>r.kind === "unknown") ? ["unknown" as const] : [])] as SalesKind[]).map(kind => ({ kind, revenue: items.filter(r => r.kind === kind).reduce((n, r) => n + r.revenue, 0) })) };
 }
 export function saleShare(amount: number, total: number) { return total > 0 ? amount / total * 100 : 0; }
 /** API date scope also includes collections of older tickets. Filter service dates again. */
