@@ -49,6 +49,7 @@ test("offline message and recovery refresh are connected to ticket and analytics
   assert.match(src("pages/Dashboard.tsx"), /startBackgroundRefresh/);
   assert.match(src("pages/Analytics.tsx"), /startBackgroundRefresh/);
   assert.match(src("hooks/backgroundRefresh.ts"), /"barticket-api-restored"/);
-  assert.match(app, /addEventListener\("online", load\)/);
+  assert.match(app, /startBackgroundRefresh/);
+  assert.match(src("hooks/backgroundRefresh.ts"), /"online"/);
 });
 

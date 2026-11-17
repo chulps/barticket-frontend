@@ -1,3 +1,4 @@
+import { startBackgroundRefresh } from "./hooks/backgroundRefresh";
 import { PendingReservationsProvider } from "./components/PendingReservations";
 // src/App.tsx
 
@@ -239,20 +240,16 @@ export default function App() {
       },
       onSettled: () => setLoadingMenu(false),
     });
-    const load = () => reader.request();
-    load();
-    const timer = window.setInterval(() => { if (shouldPoll()) load(); }, 20000);
-    window.addEventListener("barticket-notices", load);
-    window.addEventListener("barticket-menu-updated", load);
-    window.addEventListener("barticket-retry-menu", load);
-    window.addEventListener("online", load);
+    // Catch up when an older tab becomes visible, even with healthy realtime.
+    // Same-tab creates still merge immediately; this only revalidates GET data.
+    const stopRefresh = startBackgroundRefresh({
+      refresh: async () => { reader.request(); },
+      shouldPoll,
+      events: ["barticket-notices", "barticket-menu-updated", "barticket-retry-menu"],
+    });
     return () => {
+      stopRefresh();
       reader.dispose();
-      window.clearInterval(timer);
-      window.removeEventListener("barticket-notices", load);
-      window.removeEventListener("barticket-menu-updated", load);
-      window.removeEventListener("barticket-retry-menu", load);
-      window.removeEventListener("online", load);
     };
   }, []);
 
