@@ -6,6 +6,8 @@ import type { Ticket } from "../types/Ticket";
 import { startBackgroundRefresh } from "./backgroundRefresh";
 import { analyticsTicketScope } from "./ticketReadScope";
 
+const EMPTY_TICKETS: Ticket[] = [];
+
 export function useAnalyticsTickets(range: "all" | "year" | "month" | "day", key: string, signedIn: boolean) {
     const scopeKey = `${range}:${key}`;
     const [snapshot, setSnapshot] = useState<{key: string; rows: Ticket[]; error: boolean} | null>(null);
@@ -31,5 +33,5 @@ export function useAnalyticsTickets(range: "all" | "year" | "month" | "day", key
         return () => { cancelled = true; stop(); };
     }, [range, key, scopeKey, signedIn]);
     const current = snapshot?.key === scopeKey ? snapshot : null;
-    return { tickets: current?.rows ?? [], ready: current !== null, error: current?.error ?? false };
+    return { tickets: current?.rows ?? EMPTY_TICKETS, ready: current !== null, error: current?.error ?? false };
 }

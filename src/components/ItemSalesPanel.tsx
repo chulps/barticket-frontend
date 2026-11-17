@@ -5,21 +5,21 @@ import type { Ticket } from "../types/Ticket";
 import { menuHaystack, menuLabel, useI18n } from "../i18n";
 import { itemSales, itemRevenueColor, revenueComposition, saleShare, type SalesKind } from "./itemSales";
 
-export default function ItemSalesPanel({ tickets, context, unknownDates = 0, summaryOnly = false }: { tickets: Ticket[]; context: string; unknownDates?: number; summaryOnly?: boolean }) {
+export default function ItemSalesPanel({ tickets, context, unknownDates = 0, summaryOnly = false, summary }: { summary?: ReturnType<typeof itemSales>; tickets: Ticket[]; context: string; unknownDates?: number; summaryOnly?: boolean }) {
     const { locale } = useI18n(); const ja = locale === "ja";
     const t = (en: string, jp: string) => ja ? jp : en;
     const yen = (n: number) => `¥${n.toLocaleString(ja ? "ja-JP" : "en-US")}`;
     const kindLabel = (kind: SalesKind) => kind === "menu" ? t("Menu items", "メニュー商品") : kind === "staff" ? t("Staff drinks", "スタッフドリンク") : t("Cover charges", "チャージ");
     const [query, setQuery] = useState(""); const [sort, setSort] = useState("revenue"); const [page, setPage] = useState(0);
-    const data = useMemo(() => itemSales(tickets), [tickets]);
-    const [selection, setSelection] = useState<{id:string; tickets:Ticket[]} | null>(null);
+    const data = useMemo(() => summary ?? itemSales(tickets), [summary, tickets]);
+    const [selection, setSelection] = useState<{id:string; tickets:Ticket[]; data:ReturnType<typeof itemSales>} | null>(null);
     const cards = useRef(new Map<string, HTMLLIElement>());
     const legend = useRef<HTMLDivElement>(null);
     const composition = useMemo(() => revenueComposition(data), [data]);
-    const selectedId = selection?.tickets === tickets && composition.some(row=>row.id === selection.id) ? selection.id : null;
+    const selectedId = selection?.tickets === tickets && selection.data === data && composition.some(row=>row.id === selection.id) ? selection.id : null;
     function selectSegment(id: string) {
         if (selectedId === id) { setSelection(null); return; }
-        setSelection({id,tickets});
+        setSelection({id,tickets,data});
         const card = cards.current.get(id);
         if (card && legend.current) legend.current.scrollTop = card.offsetTop - legend.current.offsetTop;
     }
