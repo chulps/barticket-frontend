@@ -16,6 +16,7 @@ assert.equal(menuLabel('en', '特製セット'), 'Special set');
 assert.equal(menuLabel('ja', 'Tea'), 'お茶');
 assert.ok(menuHaystack('特製セット').includes('Special set'));
 assert.equal(menuLabel('en', 'Untranslated'), 'Untranslated');
+assert.equal(menuLabel('ja', 'constructor'), 'constructor');
 registerMenuTranslations([{menuTranslations: {'Tea':{en:'Tea',ja:'紅茶'}}}]);
 assert.equal(menuLabel('ja', 'Tea'), 'お茶'); // Reviewed catalog beats machine copy.
 registerMenuTranslations([{menuTranslations: {'Test drink':{en:'Test drink',ja:'テスト'}}}]);

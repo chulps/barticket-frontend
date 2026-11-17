@@ -63,7 +63,7 @@ export function localeTag(locale: Locale) {
 export function menuLabel(locale: Locale, text: string | null | undefined) {
     if (!text) return "";
     // Reviewed catalog copy wins over machine-generated runtime labels.
-    const reviewed = locale === "ja" ? menuJa[text]
+    const reviewed = locale === "ja" ? (Object.hasOwn(menuJa, text) ? menuJa[text] : undefined)
         : Object.entries(menuJa).find(([, ja]) => ja === text)?.[0];
     return reviewed || runtimeMenu.get(text)?.[locale] || text;
 }

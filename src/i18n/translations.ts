@@ -367,7 +367,6 @@ export const menuJa: Record<string, string> = {
     "Islay whiskey lottery": "アイラウイスキーくじ",
     "Japanese Lottery": "ジャパニーズウイスキーくじ",
     "Japanese whiskey lottery": "ジャパニーズウイスキーくじ",
-    "Lottery": "くじ",
     "Nikka from the Barrel": "ニッカ フロム・ザ・バレル",
     "Octomore": "オクトモア",
     "Octomore 16.2": "オクトモア 16.2",

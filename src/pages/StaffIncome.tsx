@@ -15,7 +15,7 @@ import ManagedShiftStats from "./ManagedShiftStats";
 import { readRevenueShareViewers } from "./managerRevenueShareAccess";
 import { shiftMonth } from "./analyticsNavigation";
 import ChuckPayBreakdown, { ChuckPayMethodology } from "./ChuckPayBreakdown";
-import { buildChuckPayBreakdown } from "./chuckPayBreakdown";
+import { buildChuckPayBreakdown } from "./chuckPayBreakdownData";
 
 type Category = "all" | "hourly_wages" | "staff_drink_bonus";
 type SortOrder = "date" | "category";

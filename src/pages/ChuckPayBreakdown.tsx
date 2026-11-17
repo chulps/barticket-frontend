@@ -1,7 +1,7 @@
 import styled from "styled-components";
 import type { ChuckMonthlyPayPreview } from "../api/account";
 import { localeTag, type Locale } from "../i18n";
-import { buildChuckPayBreakdown } from "./chuckPayBreakdown";
+import { buildChuckPayBreakdown } from "./chuckPayBreakdownData";
 import PayAllocationDonut from "./PayAllocationDonut";
 import { chuckPayDisplay } from "./chuckPayDisplay";
 

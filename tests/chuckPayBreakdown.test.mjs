@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
-const source=readFileSync(new URL('../src/pages/chuckPayBreakdown.ts',import.meta.url),'utf8');
+const source=readFileSync(new URL('../src/pages/chuckPayBreakdownData.ts',import.meta.url),'utf8');
 const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText;
 const {buildChuckPayBreakdown}=await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 const fixture=()=>({complete:true,gross_salary_yen:10000,net_amount_owed_yen:6500,staff_cost_total_yen:3000,deduction_total_yen:500,
