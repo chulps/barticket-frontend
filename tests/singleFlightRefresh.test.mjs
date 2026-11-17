@@ -103,3 +103,11 @@ test("App uses serialized refresh and preserves optimistic reconciliation", () =
   assert.match(app, /reconcileMenuSnapshot\(data, menuRef\.current, pendingMenuItems\.current\)/);
   assert.match(app, /reader\.dispose\(\)/);
 });
+
+ test("Menu catches up on return through visible-only refresh coordinator", () => {
+  const app = readFileSync(new URL("../src/App.tsx", import.meta.url), "utf8");
+  assert.match(app, /const stopRefresh = startBackgroundRefresh\(\{/);
+  assert.match(app, /refresh: async \(\) => \{ reader.request\(\); \}/);
+  assert.match(app, /events: \["barticket-notices", "barticket-menu-updated", "barticket-retry-menu"\]/);
+  assert.match(app, /stopRefresh\(\);\s+reader.dispose\(\)/);
+});

@@ -8,7 +8,7 @@ test("menu data failure is distinct from an empty menu and can retry", () => {
   const menu = src("pages/Menu.tsx");
   assert.match(app, /setMenuError\(true\)/);
   assert.match(app, /setMenuError\(false\)/);
-  assert.match(app, /addEventListener\("barticket-retry-menu", load\)/);
+  assert.match(app, /events: \["barticket-notices", "barticket-menu-updated", "barticket-retry-menu"\]/);
   assert.match(menu, /menuError/);
   assert.match(menu, /role="alert"/);
   assert.match(menu, /barticket-retry-menu/);

@@ -71,3 +71,13 @@ test('healthy realtime still refreshes once when business date rolls over', asyn
     h.state.day = '2026-11-01'; h.poll(); await h.flush(); assert.equal(h.reads(), 2);
     h.poll(); await h.flush(); assert.equal(h.reads(), 2); h.stop();
 });
+
+test('returning to a menu tab refreshes even when realtime was healthy', async () => {
+    const h = setup({ healthy: true }); await h.flush();
+    h.doc.visibilityState = 'hidden'; h.doc.dispatchEvent(new Event('visibilitychange'));
+    h.poll(); await h.flush(); assert.equal(h.reads(), 1);
+    h.doc.visibilityState = 'visible';
+    h.doc.dispatchEvent(new Event('visibilitychange')); h.emit('focus');
+    await h.flush(); assert.equal(h.reads(), 2);
+    h.poll(); await h.flush(); assert.equal(h.reads(), 2); h.stop();
+});
