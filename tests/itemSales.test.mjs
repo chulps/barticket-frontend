@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 const source=readFileSync(new URL('../src/components/itemSales.ts',import.meta.url),'utf8');
-const {itemSales,saleShare,servicePeriod,validSalesRange}=await import('data:text/javascript,'+encodeURIComponent(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText));
+const {itemSales,revenueComposition,saleShare,servicePeriod,validSalesRange}=await import('data:text/javascript,'+encodeURIComponent(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText));
 const line=(id,name,q,price,extra={})=>({id,menu_item_id:id,type:'menu',name,quantity:q,unit_price:price,subtotal:q*price,...extra});
 const ticket=(items,extra={})=>({id:1,status:'paid',items,shiftId:1,...extra});
 test('all items retained, denominator includes covers and staff, historical subtotals preserved',()=>{
@@ -67,4 +67,13 @@ test('staff totals use recorded IDs, preserve same-name members, and keep missin
 test('API mapper retains recorded staff identity',()=>{
  const mapped=toTicket({...apiTicket,items:[line(8,'Staff',1,500,{staff_drink:true,staff_id:77,staff_name:'QA',drink_name:'Beer'})]});
  assert.equal(mapped.items.find(l=>l.staff_drink).staff_id,77);
+});
+
+test('stacked composition preserves denominator with truthful Other and empty data',()=>{
+ const rows=itemSales([ticket(Array.from({length:20},(_,i)=>line(i,`Item ${i}`,1,i*100)))]);
+ const composition=revenueComposition(rows.items);
+ assert.equal(composition.length,9);assert.equal(composition.at(-1).id,'other');assert.equal(composition.at(-1).itemCount,11);
+ assert.equal(composition.reduce((sum,row)=>sum+row.revenue,0),rows.revenue);
+ assert.deepEqual(revenueComposition([]),[]);assert.deepEqual(revenueComposition(itemSales([ticket([line(0,'Free',1,0)])]).items),[]);
+ assert.equal(revenueComposition(rows.items.slice(0,2)).length,2);
 });

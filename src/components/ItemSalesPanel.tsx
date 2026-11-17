@@ -5,7 +5,7 @@ import type { Ticket } from "../types/Ticket";
 import { menuHaystack, menuLabel, useI18n } from "../i18n";
 import { ticketsApi, toTicket } from "../api/tickets";
 import { getToken } from "../api/client";
-import { itemSales, saleShare, servicePeriod, validSalesRange, type SalesKind } from "./itemSales";
+import { itemSales, revenueComposition, saleShare, servicePeriod, validSalesRange, type SalesKind } from "./itemSales";
 
 export default function ItemSalesPanel({ tickets, context, shiftDates, unknownDates = 0, summaryOnly = false }: { tickets: Ticket[]; context: string; shiftDates: ReadonlyMap<number, string>; unknownDates?: number; summaryOnly?: boolean }) {
     const { locale } = useI18n(); const ja = locale === "ja";
@@ -30,6 +30,9 @@ export default function ItemSalesPanel({ tickets, context, shiftDates, unknownDa
         finally { if (request === generation.current) setBusy(false); }
     }
     const data = useMemo(() => itemSales(custom?.tickets ?? tickets), [custom, tickets]);
+    const composition = useMemo(() => revenueComposition(data.items), [data]);
+    const colors = ["#60a5fa", "#fbbf24", "#34d399", "#f472b6", "#a78bfa", "#fb923c", "#22d3ee", "#e879f9", "#94a3b8"];
+    const compositionName = (row: typeof composition[number]) => row.id === "other" ? `${t("Other", "その他")} (${row.itemCount})` : row.kind === "cover" ? kindLabel(row.kind) : `${menuLabel(locale,row.name)}${row.kind === "staff" ? ` · ${kindLabel("staff")}` : ""}`;
     const filtered = useMemo(() => data.items.filter(row => menuHaystack(row.name).toLowerCase().includes(query.trim().toLowerCase())).sort((a,b) => sort === "quantity" ? b.quantity-a.quantity || b.revenue-a.revenue : sort === "name" ? menuLabel(locale,a.name).localeCompare(menuLabel(locale,b.name)) : b.revenue-a.revenue || b.quantity-a.quantity), [data, query, sort, locale]);
     const pages = Math.max(1, Math.ceil(filtered.length / 25)); const current = Math.min(page, pages - 1);
     return <Panel aria-label={t("All item sales", "全商品の販売実績")}>
@@ -47,6 +50,11 @@ export default function ItemSalesPanel({ tickets, context, shiftDates, unknownDa
         <strong>{t("Recorded item revenue", "記録済み商品売上")}: {yen(data.revenue)}</strong>
         <p>{t("This is not cash collected during the period. Unpaid, cancelled, audited refund/cancellation or written-off tickets are excluded. Historical totals without item details cannot be attributed; refunds without item allocation cannot be shown as per-item net revenue.", "この期間の入金額とは異なります。未払い・取消（監査済み返金を含む）・貸倒の伝票は除外。明細のない過去の集計や商品別に配分されていない返金は、商品別純売上に換算できません。")}</p>
         {(data.excludedTickets > 0 || data.invalidLines > 0 || (custom?.unknown ?? unknownDates) > 0) && <p role="status">{t("Excluded tickets / invalid lines / unknown service dates", "除外伝票／不正な明細／営業日不明")}: {data.excludedTickets} / {data.invalidLines} / {custom?.unknown ?? unknownDates}</p>}
+        <Composition aria-label={t("Item revenue composition", "商品別売上構成")}>
+            <h3>{t("Item revenue composition", "商品別売上構成")}</h3>
+            <p>{t("Share of all recorded paid item revenue, including cover charges and staff drinks. The top 8 revenue items are shown separately; remaining items are grouped as Other. Search does not change this chart.", "チャージ・スタッフドリンクを含む記録済み支払済み商品売上の構成比。売上上位8商品を個別表示し、残りはその他に集約します。検索してもグラフは変わりません。")}</p>
+            {data.revenue > 0 ? <><div className="stack" aria-hidden="true">{composition.map((row,index)=><span key={row.id} style={{width:`${saleShare(row.revenue,data.revenue)}%`,background:colors[index]}} title={`${compositionName(row)}: ${yen(row.revenue)} (${saleShare(row.revenue,data.revenue).toFixed(1)}%)`} />)}</div><ul>{composition.map((row,index)=><li key={row.id}><span className="swatch" style={{background:colors[index]}} aria-hidden="true" /><span>{compositionName(row)}</span><strong>{yen(row.revenue)} · {saleShare(row.revenue,data.revenue).toFixed(1)}%</strong></li>)}</ul></> : <p>{t("No paid item revenue to chart in this period.", "この期間にグラフ表示できる支払済み商品売上はありません。")}</p>}
+        </Composition>
         <Breakdown>{data.breakdown.map(row=><div key={row.kind}><span>{kindLabel(row.kind)}</span><strong>{yen(row.revenue)} · {saleShare(row.revenue,data.revenue).toFixed(1)}%</strong><meter min={0} max={100} value={saleShare(row.revenue,data.revenue)} aria-label={kindLabel(row.kind)} /></div>)}</Breakdown>
         <details><summary>{t("Staff drinks by team member", "スタッフ別ドリンク実績")}</summary>
             <p>{t("Recorded staff drinks on the same fully paid tickets. This breakdown is already included in item revenue, not added again. Records without a staff ID are shown as unattributed, never guessed from names.", "同じ全額支払済み伝票に記録されたスタッフドリンク。商品売上に含まれる内訳であり、二重加算しません。スタッフIDのない記録は氏名から推定せず、未割当として表示します。")}</p>
@@ -61,3 +69,5 @@ const Panel = styled.section`background:var(--neutral-900);border-radius:12px;pa
 const Controls = styled.div`display:flex;flex-wrap:wrap;gap:1rem;align-items:end;margin:1rem 0;label{display:grid;gap:.3rem;min-width:0}button{margin:0}`;
 const Breakdown = styled.div`display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin:1rem 0;div{display:grid;gap:.4rem}`;
 const Scroll = styled.div`overflow-x:auto;table{width:100%;border-collapse:collapse}th,td{padding:.75rem;text-align:right;border-bottom:1px solid var(--neutral-700)}th:first-child,td:first-child{text-align:left;min-width:180px}caption{text-align:left;margin-bottom:.5rem}td{vertical-align:top}li{text-align:left}`;
+
+const Composition = styled.section`margin:1rem 0;.stack{display:flex;width:100%;height:2rem;border-radius:8px;overflow:hidden;background:var(--neutral-800)}.stack span{display:block;min-width:0}ul{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:.65rem}li{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}li strong{margin-left:auto}.swatch{width:.8rem;height:.8rem;border-radius:2px;flex:none}`;

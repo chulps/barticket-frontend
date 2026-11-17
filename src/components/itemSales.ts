@@ -54,3 +54,13 @@ export function validSalesRange(from: string, to: string) {
     const start = Date.parse(`${from}T00:00:00Z`), end = Date.parse(`${to}T00:00:00Z`);
     return Number.isFinite(start) && Number.isFinite(end) && end >= start && (end-start)/86400000 < 366;
 }
+
+/** Bound chart complexity, never the underlying table or denominator. */
+export function revenueComposition(items: readonly ItemSale[], limit = 8) {
+    const positive = items.filter(row => row.revenue > 0).sort((a,b)=>b.revenue-a.revenue || a.id.localeCompare(b.id));
+    const count = Math.max(1, Math.floor(limit));
+    const visible = positive.slice(0,count).map(row=>({id:row.id,name:row.name,kind:row.kind,revenue:row.revenue,itemCount:1}));
+    const rest = positive.slice(count);
+    if (rest.length) visible.push({id:"other",name:"Other",kind:"menu",revenue:rest.reduce((sum,row)=>sum+row.revenue,0),itemCount:rest.length});
+    return visible;
+}
