@@ -357,6 +357,7 @@ export const menuJa: Record<string, string> = {
     "kavalan": "カバラン",
     "Snack": "おつまみ",
     "Taiwanese whiskey": "台湾ウイスキー",
+    "Whiskey Sets": "ウイスキーセット",
     "Whiskey sets": "ウイスキーセット",
 
     "Yamazaki set": "山崎セット",

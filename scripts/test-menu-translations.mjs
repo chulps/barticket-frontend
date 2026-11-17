@@ -10,6 +10,8 @@ for (const name of ['index', 'translations']) {
 }
 const { menuLabel, menuHaystack, registerMenuTranslations } = await import(pathToFileURL(`${process.cwd()}/${dir}/index.mjs`));
 assert.equal(menuLabel('ja', 'Yamazaki set'), '山崎セット');
+assert.equal(menuLabel('ja', 'Lottery'), 'くじ');
+assert.equal(menuLabel('ja', 'Whiskey Sets'), 'ウイスキーセット');
 assert.equal(menuLabel('en', '山崎セット'), 'Yamazaki set');
 registerMenuTranslations([{menuTranslations: {'特製セット': {ja:'特製セット', en:'Special set'}, 'Tea':{en:'Tea',ja:'お茶'}}}]);
 assert.equal(menuLabel('en', '特製セット'), 'Special set');
