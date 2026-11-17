@@ -18,7 +18,7 @@ export function topSellingItems(tickets: Ticket[], shiftIds: ReadonlySet<number>
   for (const ticket of tickets) {
     if (ticket.status !== "paid" || ticket.shiftId === null || !shiftIds.has(ticket.shiftId)) continue;
     for (const item of ticket.items) {
-      if (item.type !== "menu" || item.staff_drink || !Number.isFinite(item.quantity) ||
+      if (item.type !== "menu" || item.staff_drink || item.price_key === "historical_unknown_total" || !Number.isFinite(item.quantity) ||
           item.quantity <= 0 || !Number.isFinite(item.subtotal)) continue;
       const menuItemId = item.menu_item_id ?? null;
       const key = menuItemId === null ? `name:${item.name.trim().toLocaleLowerCase()}` : `menu:${menuItemId}`;

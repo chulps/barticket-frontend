@@ -133,3 +133,12 @@ test('staff breakdown is always visible with member totals and individual drinks
  const data=itemSales([ticket([line(1,'Staff',2,500,{staff_drink:true,staff_id:1,staff_name:'Alex',drink_name:'Beer'}),line(2,'Staff',1,700,{staff_drink:true,staff_id:1,staff_name:'Alex',drink_name:'Wine'})])]);
  assert.equal(data.staff[0].items.length,2);assert.equal(data.staff[0].items.reduce((n,r)=>n+r.revenue,0),data.staff[0].revenue);
 });
+
+test('historical unknown total preserves revenue without invented covers or drink quantity',()=>{
+ const mapped=toTicket({...apiTicket,guest_count:4,cover_charge_total:0,item_breakdown_unknown:true,items:[{id:999,menu_item_id:999,name:'Unknown',quantity:1,unit_price:14500,subtotal:14500,price_key:'historical_unknown_total'}]});
+ assert.equal(mapped.items.length,1);assert.ok(!mapped.items.some(i=>i.type==='cover'));
+ const result=itemSales([{...mapped,status:'paid',balanceDue:0,items:mapped.items}]);
+ assert.equal(result.revenue,14500);assert.equal(result.items[0].kind,'unknown');assert.equal(result.items[0].quantityUnknown,true);
+ assert.equal(result.breakdown.find(r=>r.kind==='cover').revenue,0);
+ const ui=readFileSync(new URL('../src/components/ItemSalesPanel.tsx',import.meta.url),'utf8');assert.match(ui,/Quantity unrecorded/);assert.match(ui,/cover\/tax split are unrecorded/);
+});

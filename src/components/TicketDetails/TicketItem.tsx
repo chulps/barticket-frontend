@@ -145,7 +145,7 @@ export default function TicketDetailItem({
                         {t("priceEach", { price: unitPrice.toLocaleString() })}
                     </PriceTrigger>
                 ) : (
-                    <PriceReadOnly>{t("priceEach", { price: unitPrice.toLocaleString() })}</PriceReadOnly>
+                    <PriceReadOnly>{priceKey === "historical_unknown_total" ? (locale === "ja" ? "内訳不明の合計" : "Unitemized total") : t("priceEach", { price: unitPrice.toLocaleString() })}</PriceReadOnly>
                 )}
             </Info>
 
@@ -163,7 +163,7 @@ export default function TicketDetailItem({
                     </UpCaretWrapper>
                 </QuantityButton>
 
-                <Quantity>{quantity}</Quantity>
+                <Quantity>{priceKey === "historical_unknown_total" ? "—" : quantity}</Quantity>
 
                 <QuantityButton type="button"
                     aria-label={locale === "ja" ? `${quantityItemName} の数量を減らす` : `Decrease quantity of ${quantityItemName}`}
