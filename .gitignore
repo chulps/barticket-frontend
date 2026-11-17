@@ -33,3 +33,6 @@ dist-ssr
 *.key
 *.sqlite
 *.sqlite3
+
+# Local Python script-test caches
+__pycache__/
