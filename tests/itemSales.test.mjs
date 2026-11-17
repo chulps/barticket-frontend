@@ -69,11 +69,21 @@ test('API mapper retains recorded staff identity',()=>{
  assert.equal(mapped.items.find(l=>l.staff_drink).staff_id,77);
 });
 
-test('stacked composition preserves denominator with truthful Other and empty data',()=>{
- const rows=itemSales([ticket(Array.from({length:20},(_,i)=>line(i,`Item ${i}`,1,i*100)))]);
- const composition=revenueComposition(rows.items);
- assert.equal(composition.length,9);assert.equal(composition.at(-1).id,'other');assert.equal(composition.at(-1).itemCount,11);
- assert.equal(composition.reduce((sum,row)=>sum+row.revenue,0),rows.revenue);
- assert.deepEqual(revenueComposition([]),[]);assert.deepEqual(revenueComposition(itemSales([ticket([line(0,'Free',1,0)])]).items),[]);
- assert.equal(revenueComposition(rows.items.slice(0,2)).length,2);
+test('composition keeps every item including free items, splits staff by recipient without doubling revenue',()=>{
+ const data=itemSales([ticket([...Array.from({length:1000},(_,i)=>line(i,`Item ${i}`,1,i*100)),line(8,'Staff drink',2,500,{staff_drink:true,staff_id:1,staff_name:'Alex',drink_name:'Beer'}),line(8,'Staff drink',1,500,{staff_drink:true,staff_id:2,staff_name:'Alex',drink_name:'Beer'}),line(8,'Staff drink',1,500,{staff_drink:true,staff_id:null,drink_name:'Beer'})])]);
+ const composition=revenueComposition(data);
+ assert.equal(composition.length,1003);assert.ok(!composition.some(row=>row.id==='other'));
+ assert.equal(composition.reduce((sum,row)=>sum+row.revenue,0),data.revenue);
+ assert.equal(composition.filter(row=>row.kind==='staff').length,3);
+ assert.deepEqual(composition.filter(row=>row.kind==='staff').map(row=>row.staffId).sort(),['staff:1','staff:2','unattributed']);
+ assert.equal(composition.find(row=>row.id==='menu:id:0').revenue,0);
+ assert.deepEqual(revenueComposition(itemSales([])),[]);
+});
+test('item-sales presentation follows analytics tokens and removes exactly the category meters',()=>{
+ const ui=readFileSync(new URL('../src/components/ItemSalesPanel.tsx',import.meta.url),'utf8');
+ assert.doesNotMatch(ui,/<Breakdown|<meter|top 8|Other bucket\. Search/);
+ assert.match(ui,/font-family:var\(--font-family-data\)/);assert.match(ui,/className="secondary"/);
+ assert.match(ui,/role="region" aria-label=\{t\("All chart items"/);
+ assert.match(ui,/tabIndex=\{0\}/);assert.match(ui,/grid-template-columns:minmax\(0,1fr\)/);
+ assert.match(ui,/composition.map/);assert.doesNotMatch(ui,/composition.slice/);
 });
