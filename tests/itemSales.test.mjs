@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 const source=readFileSync(new URL('../src/components/itemSales.ts',import.meta.url),'utf8');
-const {itemSales,revenueComposition,saleShare,servicePeriod,validSalesRange}=await import('data:text/javascript,'+encodeURIComponent(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText));
+const {itemSales,itemRevenueColor,revenueComposition,saleShare,servicePeriod}=await import('data:text/javascript,'+encodeURIComponent(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText));
 const line=(id,name,q,price,extra={})=>({id,menu_item_id:id,type:'menu',name,quantity:q,unit_price:price,subtotal:q*price,...extra});
 const ticket=(items,extra={})=>({id:1,status:'paid',items,shiftId:1,...extra});
 test('all items retained, denominator includes covers and staff, historical subtotals preserved',()=>{
@@ -32,9 +32,9 @@ test('large catalogs are complete, name fallback cannot collide with numeric men
  const items=Array.from({length:1000},(_,i)=>line(i,`Item ${i}`,1,i));items.push(line(1001,'1',2,10,{menu_item_id:null}));
  const result=itemSales([ticket(items)]);assert.equal(result.items.length,1001);assert.equal(result.revenue,499520);
 });
-test('component keeps share denominator outside search, paginates rather than truncates and fences async reads',()=>{
+test('component keeps share denominator outside search, paginates rather than truncates and uses only parent-scoped tickets',()=>{
  const ui=readFileSync(new URL('../src/components/ItemSalesPanel.tsx',import.meta.url),'utf8');
- assert.match(ui,/saleShare\(row.revenue,data.revenue\)/);assert.match(ui,/slice\(current\*25,current\*25\+25\)/);assert.match(ui,/token !== getToken\(\)/);assert.match(ui,/request !== generation.current/);assert.match(ui,/date_from: start, date_to: end/);
+ assert.match(ui,/saleShare\(row.revenue,data.revenue\)/);assert.match(ui,/slice\(current\*25,current\*25\+25\)/);assert.doesNotMatch(ui,/ticketsApi|loadRange|Custom date range|How this is calculated|setCustom|type="date"/);assert.match(ui,/itemSales\(tickets\)/);
  const page=readFileSync(new URL('../src/pages/Analytics.tsx',import.meta.url),'utf8');assert.match(page,/ticketsReady && reportsReady && !ticketsError && !reportsError/);assert.match(page,/<ItemSalesPanel/);
 });
 
@@ -42,9 +42,8 @@ test('cover units exclude returning and waived guests; staff identity never misl
  const result=itemSales([ticket([line(0,'Cover',4,500,{type:'cover',subtotal:1000}),line(2,'Staff Drink — Alice: Beer',1,700,{staff_drink:true,drink_name:'Beer'}),line(2,'Staff Drink — Bob: Beer',2,700,{staff_drink:true,drink_name:'Beer'})],{guestCount:4,returningGuestCount:1,waivedCoverCount:1})]);
  assert.equal(result.items.find(r=>r.kind==='cover').quantity,2);const staff=result.items.find(r=>r.kind==='staff');assert.equal(staff.name,'Beer');assert.equal(staff.quantity,3);
 });
-test('null shift with recorded service date is included and custom range limits are explicit',()=>{
+test('null shift with recorded service date is included',()=>{
  const row=ticket([],{shiftId:null,serviceBusinessDate:'2026-11-17'});assert.deepEqual(servicePeriod([row],'2026-11-17','2026-11-17',new Map()).rows,[row]);
- assert.equal(validSalesRange('2026-01-01','2026-12-31'),true);assert.equal(validSalesRange('2026-01-01','2027-01-02'),false);assert.equal(validSalesRange('',''),false);assert.equal(validSalesRange('2026-11-18','2026-11-17'),false);
 });
 
 const apiSource=readFileSync(new URL('../src/api/tickets.ts',import.meta.url),'utf8');
@@ -86,4 +85,31 @@ test('item-sales presentation follows analytics tokens and removes exactly the c
  assert.match(ui,/role="region" aria-label=\{t\("All chart items"/);
  assert.match(ui,/tabIndex=\{0\}/);assert.match(ui,/grid-template-columns:minmax\(0,1fr\)/);
  assert.match(ui,/composition.map/);assert.doesNotMatch(ui,/composition.slice/);
+});
+
+test('top timescale scope controls item, staff, and composition totals together',()=>{
+ const rows=[ticket([line(1,'Nov item',1,100),line(8,'Staff',1,500,{staff_drink:true,staff_id:1,staff_name:'QA',drink_name:'Beer'})],{serviceBusinessDate:'2026-11-17'}),ticket([line(2,'Oct item',1,200)],{serviceBusinessDate:'2026-10-31'})];
+ const month=itemSales(servicePeriod(rows,'2026-11-01','2026-11-30',new Map()).rows);
+ assert.equal(month.revenue,600);assert.equal(month.staff[0].revenue,500);assert.equal(revenueComposition(month).reduce((n,r)=>n+r.revenue,0),600);
+ const day=itemSales(servicePeriod(rows,'2026-10-31','2026-10-31',new Map()).rows);assert.equal(day.revenue,200);assert.equal(day.staff.length,0);
+ const ui=readFileSync(new URL('../src/pages/Analytics.tsx',import.meta.url),'utf8');assert.match(ui,/analyticsTicketScope\(range, periodKey\)/);assert.match(ui,/tickets=\{itemPeriod.rows\}/);assert.match(ui,/key=\{contextKeyForItems\}/);
+});
+
+test('composition uses many different hues without a short repeating palette',()=>{
+ const colors=Array.from({length:100},(_,i)=>itemRevenueColor(i));assert.equal(new Set(colors).size,100);
+ for (const color of colors) {const [h,s,l]=color.match(/[\d.]+/g).map(Number);assert.ok(h>=0 && h<360);assert.ok(s>=54 && s<=66);assert.ok(l>=57 && l<=67);}
+ assert.ok(new Set(colors.map(c=>Math.floor(Number(c.match(/[\d.]+/)[0])/30))).size>=11);
+ const ui=readFileSync(new URL('../src/components/ItemSalesPanel.tsx',import.meta.url),'utf8');assert.doesNotMatch(ui,/var\(--warning\)|var\(--success\)|var\(--electric/);
+});
+
+test('segment and legend selection are keyboard-accessible toggles scoped to current tickets',()=>{
+ const ui=readFileSync(new URL('../src/components/ItemSalesPanel.tsx',import.meta.url),'utf8');
+ assert.match(ui,/className="segment"/);assert.match(ui,/aria-pressed=\{selectedId === row.id\}/);assert.match(ui,/onClick=\{\(\)=>selectSegment\(row.id\)\}/);
+ assert.match(ui,/selectedId === id.*setSelection\(null\)/);assert.match(ui,/selection\?\.tickets === tickets/);
+ assert.match(ui,/data-dimmed=\{selectedId !== null && selectedId !== row.id\}/);assert.match(ui,/setQuery.*setSelection\(null\)/);assert.match(ui,/setSort.*setSelection\(null\)/);
+});
+
+test('clock-only parent rerenders preserve ticket scope and chart selection',()=>{
+ const page=readFileSync(new URL('../src/pages/Analytics.tsx',import.meta.url),'utf8');
+ assert.match(page,/const itemShiftDates = useMemo/);assert.match(page,/const itemScope = useMemo/);assert.match(page,/const itemPeriod = useMemo/);assert.match(page,/\[tickets, itemScope, itemShiftDates\]/);
 });
