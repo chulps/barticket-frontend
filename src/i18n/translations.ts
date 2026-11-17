@@ -343,6 +343,10 @@ export type MessageKey = keyof typeof en;
 
 // Menu copy, written by hand. The build script does not translate this.
 export const menuJa: Record<string, string> = {
+    "Suntory set": "サントリーセット",
+    "Hakushu set": "白州セット",
+    "Hibiki set": "響セット",
+    "Nikka set": "ニッカセット",
     "Lottery & Sets": "くじ・セット",
     "Lottery": "くじ",
     "Sets": "セット",
