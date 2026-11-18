@@ -92,7 +92,7 @@ test('top timescale scope controls item, staff, and composition totals together'
  const month=itemSales(servicePeriod(rows,'2026-11-01','2026-11-30',new Map()).rows);
  assert.equal(month.revenue,600);assert.equal(month.staff[0].revenue,500);assert.equal(revenueComposition(month).reduce((n,r)=>n+r.revenue,0),600);
  const day=itemSales(servicePeriod(rows,'2026-10-31','2026-10-31',new Map()).rows);assert.equal(day.revenue,200);assert.equal(day.staff.length,0);
- const ui=readFileSync(new URL('../src/pages/Analytics.tsx',import.meta.url),'utf8');assert.match(ui,/analyticsTicketScope\(range, periodKey\)/);assert.match(ui,/tickets=\{itemPeriod.rows\}/);assert.match(ui,/key=\{contextKeyForItems\}/);
+ const ui=readFileSync(new URL('../src/pages/Analytics.tsx',import.meta.url),'utf8');assert.match(ui,/analyticsTicketScope\(range, periodKey\)/);assert.match(ui,/tickets=\{itemPeriod.rows\}/);assert.ok(ui.includes('key={`items:${contextKeyForItems}`}'));
 });
 
 test('composition uses many different hues without a short repeating palette',()=>{

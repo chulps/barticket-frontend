@@ -916,8 +916,9 @@ export default function Analytics() {
                     {visible.length > 0 ? <TopSellingPanel items={soldItems} context={copyPeriod(range, month, year, selected, locale)} /> : null}
                         </>
                     )}
-                    <ItemSalesPanel summary={itemSummary.value ?? undefined} key={contextKeyForItems} tickets={itemPeriod.rows} unknownDates={itemSummary.value?.unknownDates ?? itemPeriod.unknownDates} summaryOnly={visible.some(ticketCountsUnavailable)} context={copyPeriod(range, month, year, selected, locale)} />
-                    {!(range === "day" && selected?.status === "open") && visible.length > 0 ? <AnalyticsTicketHistory key={contextKeyForItems} range={range} periodKey={periodKey} shifts={visible} canCorrect={account.role === "manager"} /> : null}
+                    {/* Distinct sibling identities prevent orphaned panels during refresh/navigation. */}
+                    <ItemSalesPanel summary={itemSummary.value ?? undefined} key={`items:${contextKeyForItems}`} tickets={itemPeriod.rows} unknownDates={itemSummary.value?.unknownDates ?? itemPeriod.unknownDates} summaryOnly={visible.some(ticketCountsUnavailable)} context={copyPeriod(range, month, year, selected, locale)} />
+                    {!(range === "day" && selected?.status === "open") && visible.length > 0 ? <AnalyticsTicketHistory key={`history:${contextKeyForItems}`} range={range} periodKey={periodKey} shifts={visible} canCorrect={account.role === "manager"} /> : null}
                     </> : null}
                 </>
             ) : null}
